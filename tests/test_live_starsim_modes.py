@@ -4,6 +4,7 @@ import importlib.util
 import unittest
 
 from epiagentbench.trusted.starsim_episode import StarsimSurveillanceBackend
+from epiagentbench.trusted.live_starsim_runtime import ClosedLoopStarsimRuntime
 
 
 HAS_STARSIM = importlib.util.find_spec("starsim") is not None
@@ -104,6 +105,33 @@ class LiveStarsimModeControlTests(unittest.TestCase):
         self.assertEqual(runtime._world_present_biological_actions(), expected)
         runtime._causal_mode = "reporting_artifact"
         self.assertEqual(runtime._world_present_biological_actions(), expected)
+
+    def test_runtime_adapter_hooks_fail_closed(self):
+        template = self.make_runtime("institution_person_to_person")
+        arguments = {
+            "seed": 7,
+            "presentation_key": PRESENTATION_KEY,
+            "profile": template._profile,
+            "config": template._config,
+            "growth_regime": template.growth_regime,
+        }
+        with self.assertRaisesRegex(ValueError, "engine_factory"):
+            ClosedLoopStarsimRuntime(**arguments, engine_factory=object())
+        with self.assertRaisesRegex(ValueError, "symptom-onset"):
+            ClosedLoopStarsimRuntime(
+                **arguments, symptom_onset_provider=object()
+            )
+        with self.assertRaisesRegex(ValueError, "trusted-state"):
+            ClosedLoopStarsimRuntime(
+                **arguments, trusted_state_provider=object()
+            )
+        with self.assertRaisesRegex(ValueError, "engine mapping"):
+            ClosedLoopStarsimRuntime(**arguments, control_kinds={})
+        with self.assertRaisesRegex(ValueError, "biological actions"):
+            ClosedLoopStarsimRuntime(
+                **arguments,
+                world_present_biological_actions=("audit_reporting",),
+            )
 
 
 if __name__ == "__main__":

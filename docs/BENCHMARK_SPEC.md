@@ -700,11 +700,12 @@ therefore remain implementation artifacts awaiting CI on a real Linux daemon,
 including egress, mount, capability, namespace, fork-bomb, output-flood, and
 cross-episode credential probes.
 
-The next scientific milestone is an LTC-specific norovirus V3 scenario pack:
-role- and ward-aware transmission, trace-derived operational records, active
-case finding, and uncertainty-aware calibration. It is the first scientifically
-developed scenario module inside the broader benchmark system. Exchangeable
-full-transcript twins, held-out posterior-predictive checks, epidemiologist
-review, and a human solveability study remain release gates. The next deployment
-milestone is exercising the already separated client and evaluator capabilities
-in genuinely separate, pinned Linux images.
+The development branch now has an LTC-specific norovirus V3 engine and secure
+closed-loop adapter with role/ward context, simulator-derived symptoms, a
+finite hypothesis catalog, and evaluator-replayed counterfactual receipts.
+Trace-derived operational interviews/inspections, fitted observation and
+transmission parameters, exchangeable full-transcript twins, held-out
+posterior-predictive checks, epidemiologist review, and a human solveability
+study remain scientific release gates. The next deployment milestone is
+exercising the already separated client and evaluator capabilities in genuinely
+separate, pinned Linux images.

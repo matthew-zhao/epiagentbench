@@ -47,6 +47,7 @@ def make_stream(
     population_size: int = 1000,
     causal_mode: str = "person_to_person",
     artifact_duplicate_count: int = 0,
+    person_context_by_agent_id=None,
 ) -> IncrementalSurveillanceStream:
     return IncrementalSurveillanceStream(
         seed=seed,
@@ -57,6 +58,7 @@ def make_stream(
         deadline_minutes=DEADLINE,
         causal_mode=causal_mode,
         artifact_duplicate_count=artifact_duplicate_count,
+        person_context_by_agent_id=person_context_by_agent_id,
     )
 
 
@@ -65,6 +67,87 @@ def observations_by_id(stream: IncrementalSurveillanceStream):
 
 
 class IncrementalSurveillanceTests(unittest.TestCase):
+    def test_ltc_context_is_detached_and_ward_label_is_pseudonymized(self):
+        context = {
+            4: {
+                "facility_role": "resident",
+                "ward_id": "private-ward-north",
+            }
+        }
+        stream = make_stream(person_context_by_agent_id=context)
+        context[4]["facility_role"] = "staff"
+        context[4]["ward_id"] = "mutated-private-label"
+        stream.ingest((TransmissionEvent(4, None, DECISION - DAY_MINUTES),))
+        episode = stream.bootstrap()
+
+        patient_id = next(iter(stream.true_case_ids))
+        contextual_records = [
+            item
+            for item in episode.observations
+            if item.subject_id == patient_id
+            and item.kind in {"encounter", "interview"}
+        ]
+        self.assertTrue(contextual_records)
+        self.assertTrue(
+            all(
+                item.payload["facility_role"] == "resident"
+                and item.payload["ward_id"].startswith("ward_")
+                for item in contextual_records
+            )
+        )
+        serialized = json.dumps(
+            [item.public_dict() for item in episode.observations],
+            sort_keys=True,
+        )
+        self.assertNotIn("private-ward-north", serialized)
+        self.assertNotIn("mutated-private-label", serialized)
+
+    def test_ltc_context_rejects_extra_or_invalid_private_fields(self):
+        with self.assertRaisesRegex(ValueError, "schema"):
+            make_stream(
+                person_context_by_agent_id={
+                    4: {
+                        "facility_role": "resident",
+                        "ward_id": "north",
+                        "room_id": "101",
+                    }
+                }
+            )
+        with self.assertRaisesRegex(ValueError, "public values"):
+            make_stream(
+                person_context_by_agent_id={
+                    4: {"facility_role": "patient", "ward_id": "north"}
+                }
+            )
+
+    def test_simulator_symptom_metadata_fails_closed(self):
+        event = TransmissionEvent(4, None, DECISION - DAY_MINUTES)
+        stream = make_stream()
+        with self.assertRaisesRegex(ValueError, "precede infection"):
+            stream.ingest(
+                (event,),
+                symptom_onset_by_agent_id={4: DECISION - 2 * DAY_MINUTES},
+            )
+
+        stream.ingest(
+            (event,), symptom_onset_by_agent_id={4: DECISION - 12 * 60}
+        )
+        with self.assertRaisesRegex(ValueError, "cannot change"):
+            stream.ingest(
+                (event,), symptom_onset_by_agent_id={4: DECISION - 6 * 60}
+            )
+
+        mixed = make_stream()
+        mixed.ingest((event,))
+        with self.assertRaisesRegex(ValueError, "cannot mix"):
+            mixed.ingest(
+                (event, TransmissionEvent(5, 4, DECISION)),
+                symptom_onset_by_agent_id={
+                    4: DECISION - 12 * 60,
+                    5: DECISION + 12 * 60,
+                },
+            )
+
     def test_cumulative_or_delta_ingest_creates_each_record_once(self):
         first = TransmissionEvent(7, None, DECISION - 2 * DAY_MINUTES)
         second = TransmissionEvent(11, 7, DECISION - DAY_MINUTES)

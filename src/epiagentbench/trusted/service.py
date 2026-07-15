@@ -273,7 +273,9 @@ def launch_secure_episode(
         admin_channel = _await_ready(
             process,
             admin_parent,
-            timeout_seconds=60.0 if backend == "starsim" else 10.0,
+            timeout_seconds=(
+                60.0 if backend in {"starsim", "starsim-ltc-v3"} else 10.0
+            ),
         )
     except RuntimeError:
         public_parent.close()
@@ -339,7 +341,9 @@ def launch_socket_episode(
     admin_channel = _await_ready(
         process,
         admin_parent,
-        timeout_seconds=60.0 if backend == "starsim" else 10.0,
+        timeout_seconds=(
+            60.0 if backend in {"starsim", "starsim-ltc-v3"} else 10.0
+        ),
     )
     return SecureEpisodeSession._from_channel(process, admin_channel)
 

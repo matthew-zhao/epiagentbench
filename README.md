@@ -104,8 +104,17 @@ full hostile-container red-team suite are not.
   unidentifiable from this source.
 - [`src/epiagentbench/trusted/starsim_ltc_v3.py`](src/epiagentbench/trusted/starsim_ltc_v3.py):
   a trusted-only role/ward/static-contact-topology Starsim foundation with
-  explicit placeholder evidence labels and intervention hooks; temporal trace
-  contacts are not yet wired into transmission.
+  explicit placeholder evidence labels and intervention hooks. The engine is
+  now available through the secure `starsim-ltc-v3` backend; temporal trace
+  contacts are still aggregated to a static graph rather than applied as
+  time-varying transmission doses.
+- [`src/epiagentbench/trusted/ltc_closed_loop.py`](src/epiagentbench/trusted/ltc_closed_loop.py):
+  the evaluator-only active/no-action adapter that turns LTC engine infections
+  and simulator-derived symptoms into the existing surveillance interface,
+  exposes pseudonymous roles/wards, and routes the three biological controls
+  to their matching engine mechanisms. Staff exclusion and environmental
+  cleaning hooks remain intentionally unexposed. Its numeric development
+  defaults are public placeholders, not secret calibrated production values.
 - [`src/epiagentbench/trusted/institution_traces.py`](src/epiagentbench/trusted/institution_traces.py):
   deterministic private development records for rooms, wards, shifts, meals,
   outside entries, contacts, and trace-derived interviews/inspections. It has
@@ -114,8 +123,14 @@ full hostile-container red-team suite are not.
   vector outcomes, paired uncertainty draws, stakeholder-weight sensitivity,
   tail harms, regret, negative controls, and dose-response checks.
 - [`src/epiagentbench/trusted/branching_manifest.py`](src/epiagentbench/trusted/branching_manifest.py):
-  a pre-branch contract for the hidden opening state, runtime, policy set, and
-  uncertainty banks, plus a row-panel attestation required before evaluation.
+  a legacy development-only caller-attested digest contract. It cannot prove
+  simulator execution or shared opening states and must not award benchmark
+  credit.
+- [`src/epiagentbench/trusted/ltc_branching.py`](src/epiagentbench/trusted/ltc_branching.py):
+  the trusted counterfactual path. It freezes private inputs, derives opening
+  hashes by replaying Starsim, permits only frozen policies, derives outcomes
+  internally, authenticates branch receipts with HMAC, and rejects raw or
+  incomplete outcome panels.
 - [`schemas/`](schemas): public episode and structured-submission schemas.
 - [`src/epiagentbench/`](src/epiagentbench): trusted episode generation,
   controller, evaluator service, deterministic scorer, and development baseline.
@@ -139,12 +154,14 @@ and which are a public three-row CMS projection.
 
 ```bash
 PYTHONPATH=src python3 -m epiagentbench.cli secure-demo --seed 7
+PYTHONPATH=src python3 -m epiagentbench.cli secure-demo --seed 7 --backend starsim-ltc-v3 --family institution_person_to_person
 ```
 
 This launches a separate evaluator process, runs the scripted investigator
 through the public JSON broker, and sends the final submission through the
 separate admin/scoring capability. Its output intentionally contains no
-development truth.
+development truth. The second command selects the role-aware long-term-care
+development backend and therefore requires the pinned Starsim dependency.
 
 The legacy, inspectable development path and the test suite are:
 

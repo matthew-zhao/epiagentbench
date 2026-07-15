@@ -68,6 +68,8 @@ class IncrementalSurveillanceStream:
         causal_mode: str = "person_to_person",
         artifact_duplicate_count: int = 0,
         hypothesis_catalog: Iterable[Mapping[str, Any]] | None = None,
+        person_context_by_agent_id: Mapping[int, Mapping[str, str]] | None = None,
+        background_episode_count: int | None = None,
     ) -> None:
         if type(seed) is not int or seed < 0:
             raise ValueError("seed must be a non-negative integer")
@@ -103,10 +105,19 @@ class IncrementalSurveillanceStream:
         # transmission events.  The observation layer never synthesizes them
         # from the private scenario label.
         self._artifact_duplicate_count = artifact_duplicate_count
+        if background_episode_count is not None and (
+            type(background_episode_count) is not int
+            or not 0 <= background_episode_count <= 10_000
+        ):
+            raise ValueError("background episode count must be non-negative")
+        self._background_episode_count = background_episode_count
         self._hypothesis_catalog = (
             None
             if hypothesis_catalog is None
             else normalize_hypothesis_catalog(tuple(hypothesis_catalog))
+        )
+        self._person_context_by_agent_id = self._normalize_person_context(
+            person_context_by_agent_id
         )
         self._validate_profile()
 
@@ -127,6 +138,8 @@ class IncrementalSurveillanceStream:
         )
         self._canary_tokens = (self._canary(),)
         self._events: dict[int, TransmissionEvent] = {}
+        self._simulator_symptom_mode: bool | None = None
+        self._simulator_symptom_onsets: dict[int, int | None] = {}
         self._observations: dict[str, Observation] = {}
         self._true_case_ids: set[str] = set()
         self._decisive_ids: set[str] = set()
@@ -248,7 +261,10 @@ class IncrementalSurveillanceStream:
         )
 
     def ingest(
-        self, transmission_events: Iterable[TransmissionEvent]
+        self,
+        transmission_events: Iterable[TransmissionEvent],
+        *,
+        symptom_onset_by_agent_id: Mapping[int, int | None] | None = None,
     ) -> tuple[Observation, ...]:
         """Ingest a cumulative trace or delta and return newly created records."""
 
@@ -259,6 +275,48 @@ class IncrementalSurveillanceStream:
         for event in incoming:
             if not isinstance(event, TransmissionEvent):
                 raise TypeError("ingest accepts only detached TransmissionEvent values")
+
+        symptom_onsets: dict[int, int | None] | None = None
+        if symptom_onset_by_agent_id is not None:
+            if not isinstance(symptom_onset_by_agent_id, Mapping):
+                raise TypeError("symptom onset metadata must be a mapping")
+            symptom_onsets = {}
+            for agent_id, onset_minute in symptom_onset_by_agent_id.items():
+                if type(agent_id) is not int or agent_id < 0 or (
+                    onset_minute is not None
+                    and (type(onset_minute) is not int or onset_minute < 0)
+                ):
+                    raise ValueError("invalid symptom onset metadata")
+                symptom_onsets[agent_id] = onset_minute
+            if any(
+                event.target_agent_id not in symptom_onsets for event in incoming
+            ):
+                raise ValueError("symptom onset metadata does not cover events")
+            if any(
+                symptom_onsets[event.target_agent_id] is not None
+                and symptom_onsets[event.target_agent_id] < event.infection_minute
+                for event in incoming
+            ):
+                raise ValueError("symptom onset cannot precede infection")
+
+        supplied_symptom_mode = symptom_onsets is not None
+        if (
+            incoming
+            and self._simulator_symptom_mode is not None
+            and supplied_symptom_mode != self._simulator_symptom_mode
+        ):
+            raise ValueError(
+                "cannot mix simulator-derived and observation-model symptoms"
+            )
+        if symptom_onsets is not None:
+            for event in incoming:
+                agent_id = event.target_agent_id
+                if (
+                    agent_id in self._simulator_symptom_onsets
+                    and self._simulator_symptom_onsets[agent_id]
+                    != symptom_onsets[agent_id]
+                ):
+                    raise ValueError("simulator symptom onset cannot change")
 
         incoming_by_target: dict[int, TransmissionEvent] = {}
         for event in incoming:
@@ -287,10 +345,27 @@ class IncrementalSurveillanceStream:
         ):
             raise ValueError("cannot add a previously hidden pre-decision infection")
 
+        if incoming and self._simulator_symptom_mode is None:
+            self._simulator_symptom_mode = supplied_symptom_mode
+        if symptom_onsets is not None:
+            self._simulator_symptom_onsets.update(
+                {
+                    event.target_agent_id: symptom_onsets[event.target_agent_id]
+                    for event in incoming
+                }
+            )
+
         created_ids: set[str] = set()
         for event in new_events:
             self._events[event.target_agent_id] = event
-            created_ids.update(self._materialize_infected_person(event))
+            created_ids.update(
+                self._materialize_infected_person(
+                    event,
+                    None
+                    if symptom_onsets is None
+                    else (True, symptom_onsets[event.target_agent_id]),
+                )
+            )
         return self._observations_for_ids(created_ids)
 
     def bootstrap(self) -> PublicEpisode:
@@ -641,21 +716,29 @@ class IncrementalSurveillanceStream:
             )
         raise AssertionError("unsupported inspection target type")
 
-    def _materialize_infected_person(self, event: TransmissionEvent) -> set[str]:
+    def _materialize_infected_person(
+        self,
+        event: TransmissionEvent,
+        simulator_symptom: tuple[bool, int | None] | None = None,
+    ) -> set[str]:
         uid = event.target_agent_id
         created: set[str] = set()
-        if self._draw("infected", uid, "symptomatic") >= self._parameter(
-            "symptomatic_probability"
-        ):
-            return created
-
-        incubation = self._profile["parameters"]["incubation_days"]
-        incubation_rng = self._rng("infected", uid, "incubation")
-        incubation_days = incubation_rng.lognormvariate(
-            math.log(float(incubation["median"])),
-            math.log(float(incubation["geometric_sd"])),
-        )
-        onset = event.infection_minute + round(incubation_days * DAY_MINUTES)
+        if simulator_symptom is None:
+            if self._draw("infected", uid, "symptomatic") >= self._parameter(
+                "symptomatic_probability"
+            ):
+                return created
+            incubation = self._profile["parameters"]["incubation_days"]
+            incubation_rng = self._rng("infected", uid, "incubation")
+            incubation_days = incubation_rng.lognormvariate(
+                math.log(float(incubation["median"])),
+                math.log(float(incubation["geometric_sd"])),
+            )
+            onset = event.infection_minute + round(incubation_days * DAY_MINUTES)
+        else:
+            _, onset = simulator_symptom
+            if onset is None:
+                return created
         care_sought = self._draw("infected", uid, "care") < self._parameter(
             "care_seeking_probability"
         )
@@ -703,7 +786,11 @@ class IncrementalSurveillanceStream:
             * (LOOKBACK_MINUTES + self._deadline_minutes)
             / (365 * DAY_MINUTES)
         )
-        count = self._poisson(self._rng("background", "count"), mean)
+        count = (
+            self._poisson(self._rng("background", "count"), mean)
+            if self._background_episode_count is None
+            else self._background_episode_count
+        )
         lower = self._decision_minute - LOOKBACK_MINUTES
         upper = self._decision_minute + self._deadline_minutes
         for index in range(count):
@@ -890,6 +977,7 @@ class IncrementalSurveillanceStream:
         self._public_suspects.add(patient_id)
         relative_encounter = max(0, encounter_minute - self._decision_minute)
         encounter_initial = encounter_minute <= self._decision_minute
+        facility_context = self._person_context(population, semantic_uid)
         encounter = Observation(
             observation_id=self._public_id(
                 "obs", population, semantic_uid, "encounter"
@@ -907,6 +995,7 @@ class IncrementalSurveillanceStream:
                 "report_id": self._public_id(
                     "report", population, semantic_uid, "routine"
                 ),
+                **facility_context,
             },
         )
         self._register(encounter)
@@ -1019,6 +1108,50 @@ class IncrementalSurveillanceStream:
             self._decisive_ids.add(confirmatory.observation_id)
         return created
 
+    def _normalize_person_context(
+        self,
+        value: Mapping[int, Mapping[str, str]] | None,
+    ) -> dict[int, dict[str, str]]:
+        """Detach and pseudonymize the public part of LTC person metadata.
+
+        The trusted caller may supply a private ward label, but the stream
+        never releases it directly.  It accepts only a facility role and ward
+        label for non-negative semantic agent IDs, then derives an
+        episode-scoped presentation ID for the ward.
+        """
+
+        if value is None:
+            return {}
+        if not isinstance(value, Mapping):
+            raise ValueError("person context must be a mapping")
+        detached: dict[int, dict[str, str]] = {}
+        for agent_id, context in value.items():
+            if type(agent_id) is not int or agent_id < 0:
+                raise ValueError("person context contains an invalid agent id")
+            if not isinstance(context, Mapping) or set(context) != {
+                "facility_role",
+                "ward_id",
+            }:
+                raise ValueError("person context has an invalid schema")
+            role = context["facility_role"]
+            ward_id = context["ward_id"]
+            if role not in {"resident", "staff", "visitor"} or (
+                not isinstance(ward_id, str) or not ward_id
+            ):
+                raise ValueError("person context contains invalid public values")
+            detached[agent_id] = {
+                "facility_role": role,
+                "ward_id": self._public_id("ward", ward_id),
+            }
+        return detached
+
+    def _person_context(
+        self, population: str, semantic_uid: int
+    ) -> dict[str, str]:
+        if population != "infected":
+            return {}
+        return dict(self._person_context_by_agent_id.get(semantic_uid, {}))
+
     def _event_evidence_pattern(self, event: TransmissionEvent) -> str:
         mechanism = getattr(event, "mechanism", None)
         if mechanism in {"common_source", "shared_source"}:
@@ -1046,7 +1179,10 @@ class IncrementalSurveillanceStream:
 
         recall = self._parameter("interview_recall_probability")
         draw = self._draw(population, semantic_uid, "interview-pattern")
-        payload: dict[str, Any] = {"patient_id": patient_id}
+        payload: dict[str, Any] = {
+            "patient_id": patient_id,
+            **self._person_context(population, semantic_uid),
+        }
         decisive = False
 
         if true_case and evidence_pattern == "common_source" and draw < (

@@ -1,4 +1,10 @@
-"""Precommitted contracts for scientific-v3 counterfactual rollouts.
+"""Development-only caller-attested rollout contracts.
+
+SECURITY WARNING: this legacy module accepts caller-supplied outcome rows and
+pre-action digests.  Its hashes detect accidental substitution but do not prove
+that Starsim ran or that branches shared an opening state.  It must not award
+benchmark credit.  The evaluator-owned LTC path is :mod:`ltc_branching`, which
+replays the engine and authenticates receipts before evaluation.
 
 The manifest binds the opening state, runtime, policy definitions, and all
 uncertainty axes before outcome rows are admitted to decision analysis.  The
@@ -31,6 +37,7 @@ from .intervention_evaluation import (
 
 
 MANIFEST_VERSION = "epiagentbench.branching-manifest.v1"
+SECURITY_STATUS = "development_untrusted_caller_attested"
 ATTESTATION_VERSION = "epiagentbench.rollout-panel-attestation.v1"
 COUNTERFACTUAL_PROTOCOL = "common_random_numbers_no_pre_action_divergence_v1"
 CLAIM_LIMITS = (

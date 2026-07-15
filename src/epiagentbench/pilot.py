@@ -510,7 +510,6 @@ def _prepare_workspace(root: Path, socket_path: str) -> tuple[Path, Path, Path, 
         ),
         encoding="utf-8",
     )
-    final_path = workspace / "final.json"
     return workspace, public_root, schema_path, mcp_path
 
 

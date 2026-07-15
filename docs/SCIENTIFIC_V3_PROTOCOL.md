@@ -3,14 +3,19 @@
 Status: **implementation in progress; no scientific candidate has passed these
 gates and no production cohort should be frozen yet.**
 
-The current development branch implements the data-contract, private trace,
-static-topology Starsim, pre-branch manifest, attested vector-evaluation, and
-local-readiness building blocks. It does **not** yet wire the trace projector or
-manifest into one public closed-loop v3 runtime. Temporal contact records are
-still collapsed to a static transmission graph, source acquisition is not
-independently authenticated, and no posterior fit, external validation, or
-human study has been completed. This is publishable engineering progress, not
-completion of the scientific milestone below.
+The current development branch implements the data contract, private trace,
+static-topology LTC Starsim engine, secure closed-loop backend, finite public
+hypothesis catalog, evaluator-owned branch replay with authenticated receipts,
+vector evaluation, and local-readiness building blocks. Engine infections and
+symptom onsets now drive the public surveillance stream, but the richer
+trace-derived interview/inspection projection is not yet the broker's public
+observation path. Temporal contacts are still collapsed to a static graph,
+the development scenario defaults remain public placeholders, source
+acquisition is not independently authenticated, and no posterior fit, external
+validation, or human study has been completed. This is publishable engineering
+progress, not scientific validation. The placeholder action utilities are also
+not calibrated or balanced and can favor doing nothing in several modes, so a
+fixed-policy exploit gate remains mandatory before any release claim.
 
 ## Intended use
 
@@ -264,10 +269,12 @@ The current `codex/scientific-v3` milestone is complete only when it provides:
   diagnostic can satisfy a scientific gate;
 - a private facility-trace model whose interviews and inspections are derived
   from roles, wards, shifts, meals, entries, and contacts;
-- a trusted branching manifest that commits the hidden opening snapshot,
-  simulator/image fingerprint, policy definitions, parameter draws, and
-  counterfactual random-event protocol before an uncertainty-aware policy
-  evaluator is admitted;
+- an evaluator-owned branching plan that commits the hidden trace and opening
+  snapshots, simulator/image fingerprint, policy definitions, parameter and
+  effect draws, and future random-event bank before evaluation. The evaluator
+  must replay each opening, execute only a frozen policy, derive outcomes from
+  the terminal latent state, authenticate the receipt, and reject raw
+  caller-supplied outcome rows;
 - vector-outcome policy analysis with stakeholder sensitivity built only on
   those trusted rollouts;
 - fail-closed local scientific-readiness manifests that never claim to

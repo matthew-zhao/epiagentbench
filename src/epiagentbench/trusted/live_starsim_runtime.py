@@ -13,7 +13,7 @@ import hashlib
 import hmac
 import itertools
 import math
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from ..models import Observation, Oracle, PublicEpisode
 from .engine import EngineControl, TransmissionEvent
@@ -105,6 +105,13 @@ class ClosedLoopStarsimRuntime:
         initial_artifact_duplicates: int = 0,
         future_artifact_candidates: Iterable[tuple[int, int]] = (),
         hypothesis_catalog: Iterable[Mapping[str, Any]] | None = None,
+        engine_factory: Callable[[Any], Any] | None = None,
+        control_kinds: Mapping[str, str | None] | None = None,
+        world_present_biological_actions: Iterable[str] | None = None,
+        person_context_by_agent_id: Mapping[int, Mapping[str, str]] | None = None,
+        symptom_onset_provider: Callable[[Any], Mapping[int, int | None]] | None = None,
+        background_episode_count: int | None = None,
+        trusted_state_provider: Callable[[Any], Any] | None = None,
     ) -> None:
         if causal_mode not in CAUSAL_MODES:
             raise ValueError("Unsupported closed-loop causal mode")
@@ -123,6 +130,47 @@ class ClosedLoopStarsimRuntime:
         self._growth_regime = growth_regime
         self._causal_mode = causal_mode
         self._family = family
+        self._engine_factory = (
+            StarsimDiseaseEngine if engine_factory is None else engine_factory
+        )
+        if not callable(self._engine_factory):
+            raise ValueError("engine_factory must be callable")
+        if symptom_onset_provider is not None and not callable(
+            symptom_onset_provider
+        ):
+            raise ValueError("Invalid symptom-onset provider")
+        self._symptom_onset_provider = symptom_onset_provider
+        if trusted_state_provider is not None and not callable(
+            trusted_state_provider
+        ):
+            raise ValueError("Invalid trusted-state provider")
+        self._trusted_state_provider = trusted_state_provider
+        selected_control_kinds = (
+            CONTROL_KINDS if control_kinds is None else control_kinds
+        )
+        if not isinstance(selected_control_kinds, Mapping):
+            raise ValueError("Invalid response-control engine mapping")
+        self._control_kinds = dict(selected_control_kinds)
+        if set(self._control_kinds) != set(RESPONSE_ACTION_TYPES) or any(
+            value is not None and (not isinstance(value, str) or not value)
+            for value in self._control_kinds.values()
+        ):
+            raise ValueError("Invalid response-control engine mapping")
+        if world_present_biological_actions is None:
+            self._world_present_actions_override = None
+        else:
+            actions = tuple(world_present_biological_actions)
+            if (
+                any(not isinstance(action, str) for action in actions)
+                or len(actions) != len(set(actions))
+                or any(
+                    action not in RESPONSE_ACTION_TYPES
+                    or self._control_kinds[action] is None
+                    for action in actions
+                )
+            ):
+                raise ValueError("Invalid world-present biological actions")
+            self._world_present_actions_override = actions
         transmission = self._profile["transmission_configuration"]
         closed_loop = self._profile["closed_loop_configuration"]
         self._decision_minute = int(transmission["decision_day"]) * DAY_MINUTES
@@ -176,8 +224,8 @@ class ClosedLoopStarsimRuntime:
             for level in LEVELS:
                 self._level_values(level, action_type)
 
-        self._active = StarsimDiseaseEngine(config)
-        self._shadow = StarsimDiseaseEngine(config)
+        self._active = self._engine_factory(config)
+        self._shadow = self._engine_factory(config)
         self._closed = False
         self._final_oracle: Oracle | None = None
         self._current_public_minute = 0
@@ -204,6 +252,11 @@ class ClosedLoopStarsimRuntime:
                 != shadow_snapshot.transmission_events
             ):
                 raise RuntimeError("No-action Starsim twins diverged at bootstrap")
+            if self._trusted_state_provider is not None and (
+                self._trusted_state_provider(self._active)
+                != self._trusted_state_provider(self._shadow)
+            ):
+                raise RuntimeError("No-action trusted states diverged at bootstrap")
 
             self._stream = IncrementalSurveillanceStream(
                 seed=seed,
@@ -216,8 +269,10 @@ class ClosedLoopStarsimRuntime:
                 causal_mode=causal_mode,
                 artifact_duplicate_count=initial_artifact_duplicates,
                 hypothesis_catalog=hypothesis_catalog,
+                person_context_by_agent_id=person_context_by_agent_id,
+                background_episode_count=background_episode_count,
             )
-            self._stream.ingest(active_snapshot.transmission_events)
+            self._ingest_active_events(active_snapshot.transmission_events)
             self._public_episode = self._stream.bootstrap()
             self._infections_at_decision = len(active_snapshot.transmission_events)
             self._decision_events = active_snapshot.transmission_events
@@ -275,8 +330,18 @@ class ClosedLoopStarsimRuntime:
             or engine_target <= self._first_biological_effective_minute
         ) and active_events != shadow_events:
             raise RuntimeError("Closed-loop worlds diverged before control effect")
+        if (
+            self._trusted_state_provider is not None
+            and (
+                self._first_biological_effective_minute is None
+                or engine_target <= self._first_biological_effective_minute
+            )
+            and self._trusted_state_provider(self._active)
+            != self._trusted_state_provider(self._shadow)
+        ):
+            raise RuntimeError("Trusted worlds diverged before control effect")
 
-        observations = list(self._stream.ingest(active_events))
+        observations = list(self._ingest_active_events(active_events))
         observations.extend(self._materialize_artifacts_through(public_minute))
         self._current_public_minute = public_minute
         return self._ordered_observations(observations)
@@ -330,7 +395,7 @@ class ClosedLoopStarsimRuntime:
 
         self._intervention_sequence += 1
         sequence = self._intervention_sequence
-        control_kind = CONTROL_KINDS[action_type]
+        control_kind = self._control_kinds[action_type]
         if control_kind is not None:
             self._active.apply_control(
                 EngineControl(
@@ -553,8 +618,23 @@ class ClosedLoopStarsimRuntime:
             self._active.advance_to(absolute_target)
             self._shadow.advance_to(absolute_target)
         if materialize_observations:
-            self._stream.ingest(self._active.oracle_snapshot().transmission_events)
+            self._ingest_active_events(
+                self._active.oracle_snapshot().transmission_events
+            )
             self._materialize_artifacts_through(self._deadline_minutes)
+
+    def _ingest_active_events(
+        self, events: Iterable[TransmissionEvent]
+    ) -> tuple[Observation, ...]:
+        symptom_onsets = (
+            None
+            if self._symptom_onset_provider is None
+            else self._symptom_onset_provider(self._active)
+        )
+        return self._stream.ingest(
+            events,
+            symptom_onset_by_agent_id=symptom_onsets,
+        )
 
     def _fixed_bundle_utilities(
         self,
@@ -579,7 +659,7 @@ class ClosedLoopStarsimRuntime:
         for relevant_levels in itertools.product(LEVELS, repeat=len(relevant)):
             if relevant_levels in infections_by_relevant_levels:
                 continue
-            engine = StarsimDiseaseEngine(self._config)
+            engine = self._engine_factory(self._config)
             effective_minute = self._decision_minute + self._tick_minutes
             try:
                 for index, (action_type, level) in enumerate(
@@ -587,7 +667,7 @@ class ClosedLoopStarsimRuntime:
                 ):
                     if level == "off":
                         continue
-                    control_kind = CONTROL_KINDS[action_type]
+                    control_kind = self._control_kinds[action_type]
                     if control_kind is None:  # pragma: no cover - defensive
                         raise RuntimeError("Audit control reached a Starsim world")
                     engine.apply_control(
@@ -635,6 +715,9 @@ class ClosedLoopStarsimRuntime:
 
     def _world_present_biological_actions(self) -> tuple[str, ...]:
         """Return post-decision controls supported by concrete world routes."""
+
+        if self._world_present_actions_override is not None:
+            return self._world_present_actions_override
 
         actions: list[str] = []
         if self._config.beta > 0.0:

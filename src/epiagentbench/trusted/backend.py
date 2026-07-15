@@ -73,4 +73,9 @@ def build_backend(name: str) -> EpisodeBackend:
         from .starsim_episode import StarsimSurveillanceBackend
 
         return StarsimSurveillanceBackend()
+    if name == "starsim-ltc-v3":
+        # The role-aware LTC engine and raw facility trace remain evaluator-only.
+        from .ltc_closed_loop import LtcStarsimV3Backend
+
+        return LtcStarsimV3Backend()
     raise ValueError("Unknown evaluator backend")

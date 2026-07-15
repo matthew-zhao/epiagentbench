@@ -639,8 +639,6 @@ class StarsimSurveillanceBackend:
 
         transmission = self._profile["transmission_configuration"]
         decision_minute = int(transmission["decision_day"]) * DAY_MINUTES
-        horizon_minute = int(transmission["horizon_days"]) * DAY_MINUTES
-
         for attempt in range(MAX_GENERATION_ATTEMPTS):
             simulator_seed = derive_private_seed(seed, "starsim", attempt)
             config = self._config(simulator_seed)
