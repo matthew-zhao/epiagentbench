@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "artifact_type": "sanitized_development_panel_aggregate",
+  "panel_id": "four-profile-submit-report-v2-2026-07-15",
+  "status": "complete",
+  "started_at_utc": "2026-07-15T22:23:50.607249+00:00",
+  "completed_at_utc": "2026-07-15T23:47:53.158961+00:00",
+  "development_only": true,
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "panel_retired_after_publication": true,
+  "planned_assignments": 20,
+  "completed_assignments": 20,
+  "precommitment_sha256": "sha256:1806676d90463fad3c6b287b35b7ef3c7bc4c0cbb2dd273cefe3c49fd2015b6d",
+  "frozen_source_tree_sha256": "sha256:57b2dd2b5899dd888e172146e7f22d19796f29d19904f1ae9cebdee6a8fa12e9",
+  "private_aggregate_sha256": "sha256:44dd3266dd8042a9db8c868fb5b29f72a7647c4cbd86c54cb43c268576c7a163",
+  "run_contract": {
+    "backend": "starsim-ltc-v3",
+    "episodes": 5,
+    "causal_families": [
+      "institution_person_to_person",
+      "restaurant_point_source",
+      "repeated_introduction",
+      "coincidental_venue",
+      "reporting_artifact"
+    ],
+    "profile_order": "rotated",
+    "retry_policy": "no retries after an assignment starts",
+    "aggregation": "unweighted macro mean over five scheduled episodes; invalid assignments contribute zero",
+    "submission_transport": "single-use evaluator-owned submit_report tool; terminal JSON ignored for scoring"
+  },
+  "summary": [
+    {
+      "profile_id": "claude-opus-high",
+      "system": "claude",
+      "requested_model": "claude-opus-4-8",
+      "requested_reasoning": "high",
+      "model_attribution": "provider-reported exact match in 5/5 assignments; reasoning effort command-attested",
+      "valid_assignments": 5,
+      "attempted_assignments": 5,
+      "fixed_denominator_mean": 59.212,
+      "median": 57.002,
+      "episode_scores": [57.002, 55.128, 57.239, 54.608, 72.083]
+    },
+    {
+      "profile_id": "codex-sol",
+      "system": "codex",
+      "requested_model": "gpt-5.6-sol",
+      "requested_reasoning": "medium",
+      "model_attribution": "command-attested only; CLI stream emitted no model receipt",
+      "valid_assignments": 5,
+      "attempted_assignments": 5,
+      "fixed_denominator_mean": 58.938,
+      "median": 54.359,
+      "episode_scores": [54.359, 86.361, 56.172, 53.991, 43.805]
+    },
+    {
+      "profile_id": "cursor-grok-high",
+      "system": "cursor",
+      "requested_model": "cursor-grok-4.5-high",
+      "requested_reasoning": "high model alias",
+      "model_attribution": "provider reported Cursor Grok 4.5 High in 5/5 assignments",
+      "valid_assignments": 5,
+      "attempted_assignments": 5,
+      "fixed_denominator_mean": 56.625,
+      "median": 52.866,
+      "episode_scores": [54.180, 85.006, 52.866, 48.333, 42.739]
+    },
+    {
+      "profile_id": "cursor-glm-high",
+      "system": "cursor",
+      "requested_model": "glm-5.2-high",
+      "requested_reasoning": "high model alias",
+      "model_attribution": "provider reported GLM 5.2 High in 5/5 assignments",
+      "valid_assignments": 3,
+      "attempted_assignments": 5,
+      "fixed_denominator_mean": 27.892,
+      "median": 37.397,
+      "episode_scores": [0.000, 57.758, 0.000, 37.397, 44.307],
+      "hard_zero_reason": "agent_failure:unauthorized_tool on institution_person_to_person and repeated_introduction"
+    }
+  ],
+  "post_run_integrity": {
+    "precommit_binding": "verified",
+    "raw_result_hashes": "verified",
+    "source_snapshot_and_archive": "verified unchanged",
+    "executables_and_claude_settings": "verified unchanged",
+    "episode_secret_commitments": "verified",
+    "profile_orders": "verified",
+    "model_attribution": "verified where provider receipts were available"
+  },
+  "execution_environment": {
+    "python": "3.12.13",
+    "starsim": "3.5.1",
+    "codex_cli": "0.144.3",
+    "claude_code": "2.1.195",
+    "cursor_agent": "2026.07.09-a3815c0",
+    "provider_network_access": true,
+    "platform": "macOS arm64",
+    "sandbox": "public-tool-restricted local CLI execution; not hermetic"
+  },
+  "limitations": [
+    "Five synthetic episodes are an integration pilot, not a statistically stable ranking.",
+    "The episodes are not externally calibrated or held-out epidemiologic validation data.",
+    "Codex model identity is command-attested rather than independently observed.",
+    "Two GLM assignments were hard-zeroed by the unauthorized-tool guard, but the exact rejected event payload was not retained.",
+    "Brief unrelated Claude diagnostics ran in other workspaces during later Codex or Cursor assignments; no same-provider overlap was observed.",
+    "These are complete agent-system outcomes and must not be presented as isolated base-model scores."
+  ]
+}

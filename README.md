@@ -206,7 +206,51 @@ attribution rather than silently scoring it. See
 [`docs/SCIENTIFIC_VALIDATION.md`](docs/SCIENTIFIC_VALIDATION.md) for the dated
 smoke results and remaining gates.
 
-### Development-only paired pilot (2026-07-15)
+### Later four-profile submit-report pilot (2026-07-15)
+
+**This is a descriptive full-system integration pilot, not a leaderboard or a
+base-model ranking.** After excluding an initial run in which Claude safe mode
+disabled the explicitly configured MCP server, a fresh frozen cohort replayed
+five private synthetic `starsim-ltc-v3` episodes—one per causal family—across
+20 scheduled assignments. Execution order was rotated, retries were forbidden,
+and invalid assignments remained in the fixed denominator as zero. The frozen
+runner scored only the first report accepted by its single-use evaluator-owned
+`submit_report` tool; terminal prose or JSON could not replace that report.
+
+The [sanitized aggregate
+artifact](results/development-four-profile-submit-report-v2-2026-07-15.results.json)
+contains the per-episode scores, attribution status, execution contract,
+integrity checks, and limitations (artifact digest
+`sha256:97d04880d1640dd1288f8647ff54631806989c96b1c6cbe196837da62eb0d615`;
+private precommitment
+`sha256:1806676d90463fad3c6b287b35b7ef3c7bc4c0cbb2dd273cefe3c49fd2015b6d`).
+
+| Full-system configuration | Model-attribution result | Valid / attempted | Fixed-denominator mean (/100) | Median (/100) | Episode scores |
+|---|---|---:|---:|---:|---|
+| Claude Code 2.1.195 + requested `claude-opus-4-8`, high effort | Provider reported exact model match in 5/5; effort command-attested | 5/5 | **59.212** | 57.002 | 57.002, 55.128, 57.239, 54.608, 72.083 |
+| Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt | 5/5 | **58.938** | 54.359 | 54.359, 86.361, 56.172, 53.991, 43.805 |
+| Cursor Agent `2026.07.09-a3815c0` + `cursor-grok-4.5-high` | Provider reported `Cursor Grok 4.5 High` in 5/5 | 5/5 | **56.625** | 52.866 | 54.180, 85.006, 52.866, 48.333, 42.739 |
+| Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` in 5/5 | 3/5 | **27.892** | 37.397 | 0.000, 57.758, 0.000, 37.397, 44.307 |
+
+Opus's nominal lead over Codex is only 0.274 points; five episodes provide no
+defensible winner or uncertainty estimate. GLM's two zeros were
+`agent_failure:unauthorized_tool` outcomes on the institutional and
+repeated-introduction episodes. The exact rejected Cursor event was not
+retained, so those zeros are valid under the frozen fail-closed contract but
+are not clean measures of model reasoning. All five Codex, Opus, and Grok
+reports passed the integrity boundary.
+
+The panel used a read-only source snapshot, Python 3.12.13, Starsim 3.5.1, and
+locally authenticated, host-networked CLIs on macOS arm64. Source, executable,
+settings, episode-secret commitment, raw-result, and precommit bindings were
+verified after the run. The episodes remain synthetic and externally
+uncalibrated; Codex attribution is command-only; and brief unrelated Claude
+diagnostics ran in other workspaces during later Codex or Cursor assignments,
+although no same-provider overlap was observed. These results support no
+epidemiological-realism, scientific-readiness, or leaderboard claim. Publication
+retires this cohort from future private evaluation.
+
+### Earlier three-profile paired pilot (2026-07-15)
 
 **This is a descriptive full-system integration result, not a leaderboard or
 model ranking.** Before execution, we
