@@ -10,6 +10,7 @@ not be published as a leaderboard score.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 import json
 import math
 import os
@@ -37,6 +38,17 @@ DEFAULT_EXECUTABLES = {
     "claude": "claude",
     "cursor": "cursor-agent",
 }
+
+
+class ClaudeEffort(str, Enum):
+    """Reasoning-effort levels accepted by the Claude Code CLI."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    XHIGH = "xhigh"
+    MAX = "max"
+
 
 _MAX_CAPTURE_BYTES = 2_097_152
 _SUBMISSION_KEYS = {
@@ -138,6 +150,36 @@ def _mcp_definition(
     }
 
 
+def _validate_claude_effort(
+    value: str | ClaudeEffort | None,
+) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Invalid Claude effort")
+    try:
+        return ClaudeEffort(value).value
+    except ValueError as error:
+        choices = ", ".join(item.value for item in ClaudeEffort)
+        raise ValueError(f"Invalid Claude effort; choose one of: {choices}") from error
+
+
+def _compact_json_schema(schema_path: str) -> str:
+    try:
+        raw_schema = Path(schema_path).read_text(encoding="utf-8")
+        schema = _decode_json(raw_schema)
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+        raise ValueError("Invalid Claude JSON schema") from error
+    if not isinstance(schema, dict):
+        raise ValueError("Invalid Claude JSON schema")
+    return json.dumps(
+        schema,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 def build_agent_command(
     system: str,
     *,
@@ -151,6 +193,7 @@ def build_agent_command(
     public_root: str,
     socket_path: str,
     claude_max_budget_usd: float = 1.0,
+    claude_effort: str | ClaudeEffort | None = None,
 ) -> list[str]:
     """Build a shell-free invocation for one supported local agent CLI."""
 
@@ -158,6 +201,9 @@ def build_agent_command(
         raise ValueError("Unsupported pilot system")
     if not model or not executable:
         raise ValueError("Invalid pilot configuration")
+    effort = _validate_claude_effort(claude_effort)
+    if effort is not None and system != "claude":
+        raise ValueError("Claude effort is only valid for the Claude system")
     prompt = _task_prompt()
     if system == "codex":
         mcp = _mcp_definition(
@@ -210,28 +256,38 @@ def build_agent_command(
             0 < claude_max_budget_usd <= 100
         ):
             raise ValueError("Invalid Claude budget")
-        return [
+        compact_schema = _compact_json_schema(schema_path)
+        command = [
             executable,
             "--safe-mode",
             "--print",
             "--model",
             model,
-            "--no-session-persistence",
-            "--no-chrome",
-            "--tools",
-            "",
-            "--strict-mcp-config",
-            "--mcp-config",
-            mcp_path,
-            "--allowedTools",
-            "mcp__epiagent__*",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--max-budget-usd",
-            str(claude_max_budget_usd),
-            prompt,
         ]
+        if effort is not None:
+            command.extend(("--effort", effort))
+        command.extend(
+            [
+                "--no-session-persistence",
+                "--no-chrome",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--mcp-config",
+                mcp_path,
+                "--allowedTools",
+                "mcp__epiagent__*",
+                "--output-format",
+                "stream-json",
+                "--json-schema",
+                compact_schema,
+                "--verbose",
+                "--max-budget-usd",
+                str(claude_max_budget_usd),
+                prompt,
+            ]
+        )
+        return command
     return [
         executable,
         "--print",
@@ -577,6 +633,7 @@ def evaluate_local_cli_agent(
     executable: str | None = None,
     timeout_seconds: int = 600,
     claude_max_budget_usd: float = 1.0,
+    claude_effort: str | ClaudeEffort | None = None,
 ) -> PilotRunResult:
     """Run and score one explicitly non-hermetic local CLI smoke episode."""
 
@@ -584,6 +641,9 @@ def evaluate_local_cli_agent(
         raise ValueError("Unsupported pilot system")
     if type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 3600:
         raise ValueError("Invalid pilot timeout")
+    effort = _validate_claude_effort(claude_effort)
+    if effort is not None and system != "claude":
+        raise ValueError("Claude effort is only valid for the Claude system")
     requested_model = model or DEFAULT_MODELS[system]
     executable_name = executable or DEFAULT_EXECUTABLES[system]
     resolved = shutil.which(executable_name)
@@ -619,6 +679,7 @@ def evaluate_local_cli_agent(
                 public_root=str(public_root),
                 socket_path=socket_path,
                 claude_max_budget_usd=claude_max_budget_usd,
+                claude_effort=effort,
             )
             environment = os.environ.copy()
             environment.pop("EPIAGENT_SOCKET", None)
@@ -736,10 +797,12 @@ def evaluate_paired_cli_agents(
     episode_secret: bytes | None = None,
     timeout_seconds: int = 600,
     claude_max_budget_usd: float = 1.0,
+    claude_effort: str | ClaudeEffort | None = None,
 ) -> tuple[PilotRunResult, ...]:
     """Replay one private episode independently across full agent systems."""
 
     secret = episode_secret or secrets.token_bytes(32)
+    effort = _validate_claude_effort(claude_effort)
     return tuple(
         evaluate_local_cli_agent(
             system,
@@ -749,6 +812,7 @@ def evaluate_paired_cli_agents(
             episode_secret=secret,
             timeout_seconds=timeout_seconds,
             claude_max_budget_usd=claude_max_budget_usd,
+            claude_effort=effort if system == "claude" else None,
         )
         for system in systems
     )
