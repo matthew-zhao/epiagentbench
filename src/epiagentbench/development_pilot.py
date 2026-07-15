@@ -34,7 +34,7 @@ from .pilot import (
 )
 
 
-PANEL_ID = "development-paired-pilot-v1-2026-07-15"
+PANEL_ID = "development-paired-pilot-v2-2026-07-15"
 BACKEND = "starsim-ltc-v3"
 SCHEMA_VERSION = "development_pilot_v1"
 SYSTEMS = ("codex", "claude", "cursor")
@@ -50,36 +50,36 @@ DIMENSION_MAXIMA: Mapping[str, float] = {
 }
 
 # The seeds are derived without consulting simulator outcomes:
-# int(SHA256("epiagentbench:development-panel:v1:" + family)[:13], 16).
+# int(SHA256("epiagentbench:development-panel:v2:" + family)[:13], 16).
 PANEL: tuple[Mapping[str, Any], ...] = (
     {
         "episode_ref": "episode_01",
         "family": "institution_person_to_person",
-        "seed": 869_997_555_248_999,
+        "seed": 1_480_760_532_411_862,
         "system_order": ("codex", "claude", "cursor"),
     },
     {
         "episode_ref": "episode_02",
         "family": "restaurant_point_source",
-        "seed": 3_587_291_329_036_030,
+        "seed": 347_173_149_284_817,
         "system_order": ("claude", "cursor", "codex"),
     },
     {
         "episode_ref": "episode_03",
         "family": "repeated_introduction",
-        "seed": 63_387_777_727_111,
+        "seed": 2_035_077_784_352_007,
         "system_order": ("cursor", "codex", "claude"),
     },
     {
         "episode_ref": "episode_04",
         "family": "coincidental_venue",
-        "seed": 4_399_268_858_818_360,
+        "seed": 850_535_660_268_111,
         "system_order": ("codex", "cursor", "claude"),
     },
     {
         "episode_ref": "episode_05",
         "family": "reporting_artifact",
-        "seed": 1_325_512_106_057_381,
+        "seed": 1_465_473_861_688_675,
         "system_order": ("cursor", "claude", "codex"),
     },
 )
@@ -157,7 +157,7 @@ def _derive_secret(master: bytes, family: str, seed: int) -> bytes:
 
 def _derived_seed(family: str) -> int:
     digest = hashlib.sha256(
-        f"epiagentbench:development-panel:v1:{family}".encode("ascii")
+        f"epiagentbench:development-panel:v2:{family}".encode("ascii")
     ).hexdigest()
     return int(digest[:13], 16)
 
@@ -238,7 +238,7 @@ def prepare_panel(
             "episode_ref": episode["episode_ref"],
             "family": episode["family"],
             "seed_derivation": (
-                "int(sha256('epiagentbench:development-panel:v1:' + family)"
+                "int(sha256('epiagentbench:development-panel:v2:' + family)"
                 ".hexdigest()[:13], 16)"
             ),
             "episode_secret_commitment": _sha256(secret),
@@ -381,6 +381,25 @@ def _sanitize_result(
         "stdout_bytes": result.stdout_bytes,
         "stderr_bytes": result.stderr_bytes,
     }
+
+
+def _raise_on_harness_startup_failure(result: PilotRunResult) -> None:
+    """Keep CLI/configuration failures out of model score denominators."""
+
+    if "agent_failure:mcp_enable" in result.audit_events:
+        raise RuntimeError("Cursor MCP enablement failed before the agent ran")
+    startup_markers = (
+        "Invalid --allowed-tools",
+        "unknown option",
+        "unrecognized option",
+        "not logged in",
+        "authentication required",
+        "MCP server failed to start",
+    )
+    if result.returncode != 0 and result.stdout_bytes == 0 and any(
+        marker.lower() in result.diagnostic.lower() for marker in startup_markers
+    ):
+        raise RuntimeError("Provider CLI failed during harness startup")
 
 
 def aggregate_results(results: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -738,6 +757,7 @@ def run_panel(
                     timeout_seconds=timeout_seconds,
                     claude_max_budget_usd=claude_budget,
                 )
+                _raise_on_harness_startup_failure(result)
                 finished_at = _utc_now()
                 marker["raw_result"] = asdict(result)
                 sanitized = _sanitize_result(

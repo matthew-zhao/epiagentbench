@@ -71,7 +71,7 @@ class CliPilotTests(unittest.TestCase):
         self.assertIn("glm-5.2-high", cursor)
         self.assertIn("--sandbox", cursor)
         self.assertIn("--allowed-tools", cursor)
-        self.assertIn("mcpToolCall", cursor)
+        self.assertIn("mcp_tool_call", cursor)
         self.assertNotIn("--auto-review", cursor)
         self.assertNotIn("--mode", cursor)
         self.assertNotIn("--approve-mcps", cursor)

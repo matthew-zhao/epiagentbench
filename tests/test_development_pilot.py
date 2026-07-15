@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ from epiagentbench.development_pilot import (
     _derive_secret,
     _load_json,
     _reconstruct_public_results,
+    _raise_on_harness_startup_failure,
     _sanitize_result,
     _validate_commitments,
     aggregate_results,
@@ -191,6 +193,18 @@ class DevelopmentPilotTests(unittest.TestCase):
                     }
                 ]
             )
+
+    def test_cli_usage_error_is_infrastructure_not_model_zero(self) -> None:
+        failed = replace(
+            self.result("cursor"),
+            returncode=1,
+            stdout_bytes=0,
+            stderr_bytes=100,
+            diagnostic="stderr: Invalid --allowed-tools value",
+            audit_events=("agent_failure:nonzero_exit",),
+        )
+        with self.assertRaisesRegex(RuntimeError, "harness startup"):
+            _raise_on_harness_startup_failure(failed)
 
 
 if __name__ == "__main__":

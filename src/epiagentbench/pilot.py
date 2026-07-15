@@ -241,7 +241,9 @@ def build_agent_command(
         # Current Cursor CLI fail-closed filter: expose MCP calls, not its
         # built-in shell, filesystem, browser, search, or subagent tools.
         "--allowed-tools",
-        "mcpToolCall",
+        # Cursor 2026.07 uses snake-case CLI enum values even though its JSONL
+        # event payloads continue to use camel-case ``mcpToolCall`` keys.
+        "mcp_tool_call",
         "--model",
         model,
         "--output-format",
