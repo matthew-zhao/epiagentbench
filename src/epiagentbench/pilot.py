@@ -247,6 +247,7 @@ def build_agent_command(
         # Cursor's cloud agent may need a separate read-only discovery call
         # before it can issue the actual MCP call. The fresh CURSOR_DATA_DIR
         # and workspace contain only the public epiagent server.
+        "--allowed-tools",
         "get_mcp_tools_tool_call",
         "--model",
         model,

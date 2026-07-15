@@ -73,6 +73,7 @@ class CliPilotTests(unittest.TestCase):
         self.assertIn("--allowed-tools", cursor)
         self.assertIn("mcp_tool_call", cursor)
         self.assertIn("get_mcp_tools_tool_call", cursor)
+        self.assertEqual(cursor.count("--allowed-tools"), 2)
         self.assertNotIn("--auto-review", cursor)
         self.assertNotIn("--mode", cursor)
         self.assertNotIn("--approve-mcps", cursor)

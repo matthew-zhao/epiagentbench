@@ -34,7 +34,7 @@ from .pilot import (
 )
 
 
-PANEL_ID = "development-paired-pilot-v2-2026-07-15"
+PANEL_ID = "development-paired-pilot-v3-2026-07-15"
 BACKEND = "starsim-ltc-v3"
 SCHEMA_VERSION = "development_pilot_v1"
 SYSTEMS = ("codex", "claude", "cursor")
@@ -50,36 +50,36 @@ DIMENSION_MAXIMA: Mapping[str, float] = {
 }
 
 # The seeds are derived without consulting simulator outcomes:
-# int(SHA256("epiagentbench:development-panel:v2:" + family)[:13], 16).
+# int(SHA256("epiagentbench:development-panel:v3:" + family)[:13], 16).
 PANEL: tuple[Mapping[str, Any], ...] = (
     {
         "episode_ref": "episode_01",
         "family": "institution_person_to_person",
-        "seed": 1_480_760_532_411_862,
+        "seed": 816_540_854_236_913,
         "system_order": ("codex", "claude", "cursor"),
     },
     {
         "episode_ref": "episode_02",
         "family": "restaurant_point_source",
-        "seed": 347_173_149_284_817,
+        "seed": 416_197_134_611_455,
         "system_order": ("claude", "cursor", "codex"),
     },
     {
         "episode_ref": "episode_03",
         "family": "repeated_introduction",
-        "seed": 2_035_077_784_352_007,
+        "seed": 2_228_145_331_039_851,
         "system_order": ("cursor", "codex", "claude"),
     },
     {
         "episode_ref": "episode_04",
         "family": "coincidental_venue",
-        "seed": 850_535_660_268_111,
+        "seed": 1_392_052_337_183_829,
         "system_order": ("codex", "cursor", "claude"),
     },
     {
         "episode_ref": "episode_05",
         "family": "reporting_artifact",
-        "seed": 1_465_473_861_688_675,
+        "seed": 1_753_333_523_166_669,
         "system_order": ("cursor", "claude", "codex"),
     },
 )
@@ -157,7 +157,7 @@ def _derive_secret(master: bytes, family: str, seed: int) -> bytes:
 
 def _derived_seed(family: str) -> int:
     digest = hashlib.sha256(
-        f"epiagentbench:development-panel:v2:{family}".encode("ascii")
+        f"epiagentbench:development-panel:v3:{family}".encode("ascii")
     ).hexdigest()
     return int(digest[:13], 16)
 
@@ -238,7 +238,7 @@ def prepare_panel(
             "episode_ref": episode["episode_ref"],
             "family": episode["family"],
             "seed_derivation": (
-                "int(sha256('epiagentbench:development-panel:v2:' + family)"
+                "int(sha256('epiagentbench:development-panel:v3:' + family)"
                 ".hexdigest()[:13], 16)"
             ),
             "episode_secret_commitment": _sha256(secret),
