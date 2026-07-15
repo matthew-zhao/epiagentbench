@@ -1,0 +1,32 @@
+{
+  "schema_version": "development_pilot_adjudication_v1",
+  "panel_id": "development-paired-pilot-v1-2026-07-15",
+  "raw_results_file": "development-pilot-2026-07-15.results.json",
+  "raw_results_sha256": "sha256:676980e1472fd341277cea8bc2867ffa529f49ea6808e9b134287747b235cb73",
+  "adjudicated_status": "retired_integration_panel_not_a_comparison",
+  "reason": "The Cursor CLI rejected the harness allowlist token before provider inference on all five assignments.",
+  "cursor": {
+    "planned_assignments": 5,
+    "provider_model_calls": 0,
+    "episode_tool_calls": 0,
+    "root_cause": "Cursor 2026.07 renamed the --allowed-tools enum from mcpToolCall to mcp_tool_call.",
+    "score_treatment": "not_run; the raw zero rows are infrastructure failures and are excluded from model or full-system summaries"
+  },
+  "claude": {
+    "planned_assignments": 5,
+    "attributable_fable_results": 0,
+    "episode_tool_calls": 0,
+    "observed_routing": "Every request reported claude-fable-5 and claude-opus-4-8; the runner rejected the fallback.",
+    "score_treatment": "not attributable to Fable"
+  },
+  "codex": {
+    "planned_assignments": 5,
+    "valid_results": 4,
+    "model_receipts": 0,
+    "score_treatment": "engineering data only; not compared because the paired Cursor configuration did not run"
+  },
+  "remediation": {
+    "cursor_preflight": "After switching to mcp_tool_call, Cursor reported GLM 5.2 High, made 40 public episode tool calls, and exited normally; its preflight submission was invalid.",
+    "next_panel": "All five v1 episodes are retired. A fresh, separately precommitted v2 panel is required for the three-system comparison."
+  }
+}
