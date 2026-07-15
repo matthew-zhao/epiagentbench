@@ -395,8 +395,9 @@ def _raise_on_harness_startup_failure(result: PilotRunResult) -> None:
         "not logged in",
         "authentication required",
         "MCP server failed to start",
+        "Required tool GET_MCP_TOOLS not found",
     )
-    if result.returncode != 0 and result.stdout_bytes == 0 and any(
+    if result.returncode != 0 and any(
         marker.lower() in result.diagnostic.lower() for marker in startup_markers
     ):
         raise RuntimeError("Provider CLI failed during harness startup")

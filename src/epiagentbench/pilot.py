@@ -244,6 +244,10 @@ def build_agent_command(
         # Cursor 2026.07 uses snake-case CLI enum values even though its JSONL
         # event payloads continue to use camel-case ``mcpToolCall`` keys.
         "mcp_tool_call",
+        # Cursor's cloud agent may need a separate read-only discovery call
+        # before it can issue the actual MCP call. The fresh CURSOR_DATA_DIR
+        # and workspace contain only the public epiagent server.
+        "get_mcp_tools_tool_call",
         "--model",
         model,
         "--output-format",
@@ -358,6 +362,8 @@ def _cursor_tool_audit(
         return provider, tool_name
 
     for record in records:
+        if record.get("type") == "getMcpToolsToolCall":
+            continue
         if record.get("type") == "mcpToolCall":
             provider, tool_name = identity(record)
             if provider != "epiagent" or tool_name not in _PUBLIC_TOOL_NAMES:
@@ -371,6 +377,8 @@ def _cursor_tool_audit(
         if not isinstance(tool_call, dict):
             return ("agent_failure:unauthorized_tool",)
         call_keys = [key for key in tool_call if key.endswith("ToolCall")]
+        if call_keys == ["getMcpToolsToolCall"]:
+            continue
         if call_keys != ["mcpToolCall"]:
             return ("agent_failure:unauthorized_tool",)
         mcp_call = tool_call["mcpToolCall"]

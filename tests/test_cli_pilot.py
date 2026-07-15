@@ -72,6 +72,7 @@ class CliPilotTests(unittest.TestCase):
         self.assertIn("--sandbox", cursor)
         self.assertIn("--allowed-tools", cursor)
         self.assertIn("mcp_tool_call", cursor)
+        self.assertIn("get_mcp_tools_tool_call", cursor)
         self.assertNotIn("--auto-review", cursor)
         self.assertNotIn("--mode", cursor)
         self.assertNotIn("--approve-mcps", cursor)
@@ -222,6 +223,34 @@ class CliPilotTests(unittest.TestCase):
         )
         self.assertEqual(submission, _submission())
         self.assertIn("agent_failure:unauthorized_tool", audit)
+
+    def test_cursor_public_mcp_discovery_is_accepted(self):
+        stream = b"\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "system",
+                        "subtype": "init",
+                        "model": "GLM 5.2 High",
+                    }
+                ).encode(),
+                json.dumps(
+                    {
+                        "type": "tool_call",
+                        "subtype": "completed",
+                        "tool_call": {
+                            "getMcpToolsToolCall": {"args": {}}
+                        },
+                    }
+                ).encode(),
+                json.dumps({"type": "result", "result": _submission()}).encode(),
+            ]
+        )
+        submission, _, audit = parse_agent_output(
+            "cursor", requested_model="glm-5.2-high", stdout=stream
+        )
+        self.assertEqual(submission, _submission())
+        self.assertEqual(audit, ())
 
 
 if __name__ == "__main__":
