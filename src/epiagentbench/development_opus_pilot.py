@@ -4,6 +4,9 @@ This is an intentionally small, unpaired follow-up panel.  It reuses the
 trusted development-pilot machinery for commitments, sanitization, and atomic
 checkpoints while fixing one Claude configuration across five fresh episodes.
 Provider execution remains host-networked and non-hermetic.
+
+The v2 identifier is deliberate: v1 was permanently voided after a Claude MCP
+isolation failure and its assignments are never reused here.
 """
 
 from __future__ import annotations
@@ -37,12 +40,18 @@ from .development_pilot import (
     _sha256,
     _utc_now,
 )
-from .pilot import PilotRunResult, _task_prompt, evaluate_local_cli_agent
+from .pilot import (
+    PilotRunResult,
+    _CLAUDE_EXPECTED_TOOLS as _PILOT_CLAUDE_EXPECTED_TOOLS,
+    _PUBLIC_TOOL_NAMES as _PILOT_PUBLIC_TOOL_NAMES,
+    _task_prompt,
+    evaluate_local_cli_agent,
+)
 from .trusted.cohort_freezer import compute_generator_fingerprint
 
 
-PANEL_ID = "development-opus-high-pilot-v1-2026-07-15"
-SCHEMA_VERSION = "development_opus_pilot_v1"
+PANEL_ID = "development-opus-high-pilot-v2-2026-07-15"
+SCHEMA_VERSION = "development_opus_pilot_v2"
 SYSTEM = "claude"
 REQUESTED_MODEL = "claude-opus-4-8"
 CLAUDE_EFFORT = "high"
@@ -55,6 +64,55 @@ FAMILIES = (
     "reporting_artifact",
 )
 EPISODE_REFS = tuple(f"episode_{index:02d}" for index in range(1, 6))
+PUBLIC_MCP_TOOLS = (
+    "get_manifest",
+    "initial_observations",
+    "search_observations",
+    "request_interview",
+    "order_confirmatory_test",
+    "request_inspection",
+    "advance_time",
+    "recommend_action",
+    "set_institution_control",
+    "set_response_control",
+    "submit_forecast",
+    "get_clock_and_budget",
+)
+EXPECTED_CLAUDE_INIT_TOOLS = (
+    *(f"mcp__epiagent__{tool}" for tool in PUBLIC_MCP_TOOLS),
+    "StructuredOutput",
+)
+
+
+def _claude_isolation_contract() -> dict[str, Any]:
+    """Return the exact validated Claude invocation/isolation contract."""
+
+    return {
+        "isolated_assignment_environment": True,
+        "temporary_home_and_config": True,
+        "environment_roots": [
+            "HOME",
+            "XDG_CONFIG_HOME",
+            "XDG_CACHE_HOME",
+            "XDG_DATA_HOME",
+            "XDG_STATE_HOME",
+            "CLAUDE_CONFIG_DIR",
+        ],
+        "unset_environment": ["CLAUDE_CODE_SAFE_MODE"],
+        "safe_mode": False,
+        "setting_sources": ["project"],
+        "permission_mode": "dontAsk",
+        "declared_builtin_tools": ["Read"],
+        "disallowed_tools": ["Read"],
+        "slash_commands_disabled": True,
+        "strict_explicit_mcp_config": True,
+        "allowed_tools": ["mcp__epiagent__*"],
+        "expected_mcp_servers": {"epiagent": "connected"},
+        "expected_init_tools": list(EXPECTED_CLAUDE_INIT_TOOLS),
+        "expected_init_tool_count": len(EXPECTED_CLAUDE_INIT_TOOLS),
+        "inventory_failure_event": "agent_failure:mcp_unavailable",
+        "unauthorized_tool_event": "agent_failure:unauthorized_tool",
+    }
 
 
 def _permuted_families(master: bytes) -> tuple[str, ...]:
@@ -114,6 +172,17 @@ def _validate_panel() -> None:
         raise RuntimeError("Opus development panel must have five balanced families")
     if sum(DIMENSION_MAXIMA.values()) != 100.0:
         raise RuntimeError("Score dimensions no longer sum to 100")
+    if len(PUBLIC_MCP_TOOLS) != 12 or len(set(PUBLIC_MCP_TOOLS)) != 12:
+        raise RuntimeError("Claude isolation contract must expose 12 public MCP tools")
+    if set(EXPECTED_CLAUDE_INIT_TOOLS) != {
+        "StructuredOutput",
+        *(f"mcp__epiagent__{tool}" for tool in PUBLIC_MCP_TOOLS),
+    }:
+        raise RuntimeError("Claude init inventory contract is inconsistent")
+    if PUBLIC_MCP_TOOLS != _PILOT_PUBLIC_TOOL_NAMES or (
+        EXPECTED_CLAUDE_INIT_TOOLS != _PILOT_CLAUDE_EXPECTED_TOOLS
+    ):
+        raise RuntimeError("Opus precommit and Claude runner inventories disagree")
 
 
 def _source_hashes(root: Path) -> dict[str, Any]:
@@ -244,6 +313,7 @@ def prepare_panel(
         "requested_effort": CLAUDE_EFFORT,
         "effort_attribution": "requested_only_unverified",
         "native_output_contract": "Claude --json-schema with submission.schema.json",
+        "claude_isolation_contract": _claude_isolation_contract(),
         "timeout_seconds_per_assignment": timeout_seconds,
         "claude_max_budget_usd_per_assignment": claude_max_budget_usd,
         "retry_policy": "no retries after an assignment starts",
@@ -317,13 +387,30 @@ def _sanitize_result(
         result.requested_model == REQUESTED_MODEL
         and result.observed_models == (REQUESTED_MODEL,)
     )
-    native_output_received = bool(result.submission) and not any(
+    schema_constrained_submission_accepted = bool(result.submission) and not any(
         event == "agent_failure:invalid_submission" for event in result.audit_events
     )
     sanitized["exact_model_receipt"] = receipt_exact
-    sanitized["native_json_schema_output_received"] = native_output_received
+    sanitized["schema_constrained_submission_accepted"] = (
+        schema_constrained_submission_accepted
+    )
     sanitized["requested_effort"] = CLAUDE_EFFORT
     sanitized["effort_attribution"] = "requested_only_unverified"
+    audit_events = set(result.audit_events)
+    mcp_inventory_verified = (
+        "agent_failure:mcp_unavailable" not in audit_events
+    )
+    sanitized["mcp_inventory_verified"] = mcp_inventory_verified
+    sanitized["mcp_inventory_status"] = (
+        "verified" if mcp_inventory_verified else "unavailable"
+    )
+    unauthorized_tool_detected = (
+        "agent_failure:unauthorized_tool" in audit_events
+    )
+    sanitized["unauthorized_tool_detected"] = unauthorized_tool_detected
+    sanitized["unauthorized_tool_status"] = (
+        "detected" if unauthorized_tool_detected else "not_detected"
+    )
     opening = episode.get("family_opening_salt_hex")
     if not isinstance(opening, str):
         raise ValueError("Private episode has no family commitment opening")
@@ -385,9 +472,21 @@ def aggregate_results(results: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "exact_model_receipts": sum(
             item.get("exact_model_receipt") is True for item in completed
         ),
-        "native_json_schema_outputs": sum(
-            item.get("native_json_schema_output_received") is True
+        "schema_constrained_submissions_accepted": sum(
+            item.get("schema_constrained_submission_accepted") is True
             for item in completed
+        ),
+        "mcp_inventory_verified": sum(
+            item.get("mcp_inventory_verified") is True for item in completed
+        ),
+        "mcp_inventory_unverified": sum(
+            item.get("mcp_inventory_verified") is not True for item in completed
+        ),
+        "unauthorized_tool_detected": sum(
+            item.get("unauthorized_tool_detected") is True for item in completed
+        ),
+        "unauthorized_tool_clear": sum(
+            item.get("unauthorized_tool_detected") is False for item in completed
         ),
         "mean_total": round(statistics.fmean(totals), 3),
         "median_total": round(statistics.median(totals), 3),
@@ -459,6 +558,8 @@ def _validate_commitments(
         "Claude --json-schema with submission.schema.json"
     ):
         raise ValueError("Opus structured-output contract is not fixed")
+    if contract.get("claude_isolation_contract") != _claude_isolation_contract():
+        raise ValueError("Opus Claude isolation contract is not fixed")
     timeout = contract.get("timeout_seconds_per_assignment")
     budget = contract.get("claude_max_budget_usd_per_assignment")
     if type(timeout) is not int or not 1 <= timeout <= 3600:

@@ -388,6 +388,8 @@ def _raise_on_harness_startup_failure(result: PilotRunResult) -> None:
 
     if "agent_failure:mcp_enable" in result.audit_events:
         raise RuntimeError("Cursor MCP enablement failed before the agent ran")
+    if "agent_failure:mcp_unavailable" in result.audit_events:
+        raise RuntimeError("Required episode MCP was unavailable before the agent ran")
     startup_markers = (
         "Invalid --allowed-tools",
         "unknown option",

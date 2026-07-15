@@ -1,0 +1,412 @@
+{
+  "schema_version": "development_pilot_cursor_adjudication_v1",
+  "panel_id": "development-paired-pilot-v3-2026-07-15",
+  "created_at_utc": "2026-07-15T23:29:34Z",
+  "status": "post_hoc_cursor_parser_and_transport_audit_adjudication",
+  "development_only": true,
+  "leaderboard_eligible": false,
+  "precommitted": false,
+  "panel_retired_after_publication": true,
+  "scope": "Cursor plus provider-reported GLM 5.2 High rows only; no new model calls were made and the immutable original result artifact was not modified.",
+  "source_artifact": {
+    "filename": "development-pilot-2026-07-15-v3.results.json",
+    "file_sha256": "sha256:e3c4046f400cc88c63f63478fc4ed52c2dd44d74fb2cb001b0ffa3e325de134b",
+    "embedded_results_sha256": "sha256:8d3a076d186e678c7a6034017fd7caa57fb69572ebd882c4bc5f92886470d464",
+    "precommitment_sha256": "sha256:a80a8a22bd6023ea6be2e27b3d59bdc0343c2817761c4109f85eddd8b37c56ec",
+    "execution_commit": "9d8f2e96e68b43b081c558f551458d34dd3987df",
+    "common_prompt_sha256": "sha256:8bd3c34b94778d6211378d6a45ca71d121828aabd9621b2acb7ed02f33f24dbe",
+    "evaluator_recipe_sha256": "sha256:a0f972fa560c65fd6b93d1f90b400caf6e0df7c59d1a62f64bd261a46b93b233",
+    "simulator": "Starsim 3.5.1"
+  },
+  "adjudication_method": {
+    "classification": "post hoc and not blind: the recovery rule and transport audit were applied after the original outputs were available",
+    "submission_rule": {
+      "accepted": [
+        "The complete trimmed output is one JSON object that parses and satisfies the submission schema.",
+        "Otherwise, the output contains exactly one unambiguous fenced JSON object; that object parses and satisfies the complete submission schema. Surrounding prose is ignored."
+      ],
+      "rejected": [
+        "Zero or multiple fenced JSON candidates.",
+        "A candidate that is malformed or schema-incomplete.",
+        "Any recovery based on scanning arbitrary prose for balanced braces or choosing among competing objects."
+      ],
+      "reason": "Cursor's terminal result is full assistant text. The original parser required either pure JSON or a JSON fence covering the entire output, so it rejected four otherwise unambiguous schema-complete fenced submissions solely because short prose appeared outside the fence."
+    },
+    "private_deterministic_replay": {
+      "purpose": "Reconstruct the original public state/action trajectory and score only the conservatively recovered final submission without publishing private episode state or raw transcripts.",
+      "result": "Every recorded public-call result hash matched its deterministic replay for every episode.",
+      "counting_note": "Replay match counts refer to transcript public-call result hashes. The scorecard tool_calls field is a separate evaluator metric and is not expected to use the same count.",
+      "simulator_version": "3.5.1",
+      "scorer": "the exact evaluator at the source execution commit",
+      "new_model_calls": 0,
+      "raw_submission_published": false,
+      "raw_transcript_published": false,
+      "latent_state_published": false
+    },
+    "fixed_denominator": "All five planned Cursor assignments remain in the denominator. The malformed episode remains a zero."
+  },
+  "transport_audit": {
+    "original_unauthorized_tool_flags": [
+      "episode_02",
+      "episode_05"
+    ],
+    "disposition": "cleared_as_transport_audit_false_positives",
+    "finding": "The flagged records were normal MCP completion records that omitted provider and tool arguments. Every concrete invocation record named an allowed epiagent tool. Treating an identity-less completion as a new forbidden invocation produced the false flags.",
+    "required_evaluator_fix": "Correlate starts and completions by call ID. An identity-less completion attached to an authorized start inherits that start's identity; an uncorrelated or unknown-shape event is not proof of a forbidden call, but must fail integrity as an unverifiable transport trace."
+  },
+  "persistence_audit": {
+    "status": "non_hermetic_host_persistence_detected",
+    "finding": "Cursor chat databases remained under ~/.cursor/chats after the temporary CURSOR_DATA_DIR was deleted.",
+    "observed_content_scope": "Public episode observations, public tool traffic, and submitted assistant output persisted globally; the audit found no latent simulator parameters or ground-truth state in that persisted material.",
+    "risk": "Host-global retention can create cross-episode state and contamination even when the per-assignment data directory is temporary.",
+    "score_treatment": "No post-hoc score adjustment, because deterministic replay matched the recorded public-call results; this limitation independently prevents hermetic or leaderboard claims.",
+    "required_before_future_cursor_panel": "Use a disposable HOME or stronger OS/container boundary, verify no state is written outside it, and destroy the snapshot after each assignment."
+  },
+  "original_reported_summary": {
+    "planned": 5,
+    "completed": 5,
+    "provider_reported_model_matches": 5,
+    "valid": 0,
+    "integrity_pass": 0,
+    "mean_total_fixed_denominator": 0.0,
+    "median_total_fixed_denominator": 0.0,
+    "invalid_submission_flags": 5,
+    "unauthorized_tool_flags": 2
+  },
+  "adjudicated_summary": {
+    "planned": 5,
+    "completed": 5,
+    "provider_reported_model_matches": 5,
+    "valid": 4,
+    "integrity_pass": 4,
+    "mean_total_fixed_denominator": 44.748,
+    "median_total_fixed_denominator": 55.002,
+    "mean_total_valid_only": 55.935,
+    "mean_dimensions_fixed_denominator": {
+      "classification": 11.756,
+      "line_list": 10.8,
+      "hypothesis": 6.361,
+      "response_utility": 0.0,
+      "evidence": 3.703,
+      "prospective_forecast": 5.129,
+      "efficiency": 3.0,
+      "handoff": 4.0
+    },
+    "invalid_submission_flags": 1,
+    "unauthorized_tool_flags": 0,
+    "score_treatment": "development-only post-hoc adjudication; do not substitute for a prospectively precommitted rerun"
+  },
+  "episodes": [
+    {
+      "episode_ref": "episode_01",
+      "family": "institution_person_to_person",
+      "provider_reported_model": "GLM 5.2 High",
+      "original_public_row_sha256": "sha256:43622a2c5994b323ddd2637e7de1a44e218334997cdf85600cf03c3759f2cb2e",
+      "original_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_events": [
+          "agent_failure:invalid_submission"
+        ]
+      },
+      "parser_adjudication": {
+        "outcome": "accepted_exactly_one_fenced_schema_complete_json_object",
+        "fenced_json_candidates": 1,
+        "candidate_parseable": true,
+        "candidate_schema_complete": true,
+        "surrounding_prose": true
+      },
+      "replay_verification": {
+        "status": "all_recorded_public_call_result_hashes_matched",
+        "matched": 39,
+        "recorded": 39
+      },
+      "adjudicated_result": {
+        "valid": true,
+        "total": 57.666,
+        "dimensions": {
+          "classification": 14.904,
+          "line_list": 15.0,
+          "hypothesis": 9.748,
+          "response_utility": 0.0,
+          "evidence": 4.262,
+          "prospective_forecast": 5.12,
+          "efficiency": 3.632,
+          "handoff": 5.0
+        },
+        "metrics": {
+          "integrity_pass": true,
+          "brier": 0.0064,
+          "case_f1": 1.0,
+          "correct_hypothesis_probability": 0.8,
+          "hypothesis_multiclass_brier": 0.0504,
+          "provenance_precision": 1.0,
+          "decisive_evidence_recall": 0.565217,
+          "forecast_submissions": 2,
+          "forecast_mean_absolute_error": 2.5,
+          "tool_calls": 37,
+          "analyst_minutes": 345,
+          "operational_credits": 89,
+          "privacy_units": 12
+        },
+        "violations": [
+          "forecast_review_interval",
+          "unlogged_recommended_action",
+          "unexecuted_control_recommendation"
+        ],
+        "replay_scorecard_sha256": "sha256:3a518e115112b230fc323d1bd3e02dc32c0f39cfe709e7166e7cb0f7aaf1c0c6"
+      }
+    },
+    {
+      "episode_ref": "episode_02",
+      "family": "restaurant_point_source",
+      "provider_reported_model": "GLM 5.2 High",
+      "original_public_row_sha256": "sha256:be072fe609010b70270b7db0e7920cf4bb2b63b7554d93acc69fa12678f8a5b4",
+      "original_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_events": [
+          "agent_failure:invalid_submission",
+          "agent_failure:unauthorized_tool"
+        ]
+      },
+      "parser_adjudication": {
+        "outcome": "accepted_exactly_one_fenced_schema_complete_json_object",
+        "fenced_json_candidates": 1,
+        "candidate_parseable": true,
+        "candidate_schema_complete": true,
+        "surrounding_prose": true
+      },
+      "replay_verification": {
+        "status": "all_recorded_public_call_result_hashes_matched",
+        "matched": 39,
+        "recorded": 39
+      },
+      "transport_adjudication": "original unauthorized-tool flag cleared as an identity-less completion-record false positive",
+      "adjudicated_result": {
+        "valid": true,
+        "total": 55.002,
+        "dimensions": {
+          "classification": 14.962,
+          "line_list": 15.0,
+          "hypothesis": 4.683,
+          "response_utility": 0.0,
+          "evidence": 4.407,
+          "prospective_forecast": 8.033,
+          "efficiency": 2.917,
+          "handoff": 5.0
+        },
+        "metrics": {
+          "integrity_pass": true,
+          "brier": 0.0025,
+          "case_f1": 1.0,
+          "correct_hypothesis_probability": 0.16,
+          "hypothesis_multiclass_brier": 1.0634,
+          "provenance_precision": 1.0,
+          "decisive_evidence_recall": 0.764706,
+          "forecast_submissions": 2,
+          "forecast_mean_absolute_error": 1.0,
+          "tool_calls": 37,
+          "analyst_minutes": 430,
+          "operational_credits": 90,
+          "privacy_units": 18
+        },
+        "violations": [
+          "forecast_review_interval",
+          "unlogged_recommended_action",
+          "unexecuted_control_recommendation"
+        ],
+        "replay_scorecard_sha256": "sha256:cd0d335f940d03d8f9ba974bf0eb110ecf0e042a65661cf2591ca256435159fb"
+      }
+    },
+    {
+      "episode_ref": "episode_03",
+      "family": "repeated_introduction",
+      "provider_reported_model": "GLM 5.2 High",
+      "original_public_row_sha256": "sha256:c80488ba0c13c069ace91106b793220d6042e565d71ae08fe2663bf527bfe17c",
+      "original_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_events": [
+          "agent_failure:invalid_submission"
+        ]
+      },
+      "parser_adjudication": {
+        "outcome": "accepted_exactly_one_fenced_schema_complete_json_object",
+        "fenced_json_candidates": 1,
+        "candidate_parseable": true,
+        "candidate_schema_complete": true,
+        "surrounding_prose": true
+      },
+      "replay_verification": {
+        "status": "all_recorded_public_call_result_hashes_matched",
+        "matched": 31,
+        "recorded": 31
+      },
+      "adjudicated_result": {
+        "valid": true,
+        "total": 51.822,
+        "dimensions": {
+          "classification": 14.514,
+          "line_list": 9.0,
+          "hypothesis": 8.672,
+          "response_utility": 0.0,
+          "evidence": 4.848,
+          "prospective_forecast": 4.457,
+          "efficiency": 5.331,
+          "handoff": 5.0
+        },
+        "metrics": {
+          "integrity_pass": true,
+          "brier": 0.0324,
+          "case_f1": 0.6,
+          "correct_hypothesis_probability": 0.55,
+          "hypothesis_multiclass_brier": 0.2656,
+          "provenance_precision": 1.0,
+          "decisive_evidence_recall": 0.8,
+          "forecast_submissions": 2,
+          "forecast_mean_absolute_error": 1.5,
+          "tool_calls": 29,
+          "analyst_minutes": 305,
+          "operational_credits": 59,
+          "privacy_units": 6
+        },
+        "violations": [
+          "forecast_review_interval",
+          "unlogged_recommended_action",
+          "unexecuted_control_recommendation"
+        ],
+        "replay_scorecard_sha256": "sha256:50bf9a88a8d44a80b8c31680a533e628dbf4c9a5d2626bb0cc19e87d5f8d668d"
+      }
+    },
+    {
+      "episode_ref": "episode_04",
+      "family": "coincidental_venue",
+      "provider_reported_model": "GLM 5.2 High",
+      "original_public_row_sha256": "sha256:081172bb70b38ed4818d69aa722026b503cab38eb873bb38da068cd14ed7417a",
+      "original_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_events": [
+          "agent_failure:invalid_submission"
+        ]
+      },
+      "parser_adjudication": {
+        "outcome": "rejected_malformed_only_fenced_json_candidate",
+        "fenced_json_candidates": 1,
+        "candidate_parseable": false,
+        "candidate_schema_complete": false,
+        "surrounding_prose": true
+      },
+      "replay_verification": {
+        "status": "all_recorded_public_call_result_hashes_matched",
+        "matched": "not_separately_reported",
+        "recorded": "not_separately_reported"
+      },
+      "adjudicated_result": {
+        "valid": false,
+        "total": 0.0,
+        "dimensions": {
+          "classification": 0.0,
+          "line_list": 0.0,
+          "hypothesis": 0.0,
+          "response_utility": 0.0,
+          "evidence": 0.0,
+          "prospective_forecast": 0.0,
+          "efficiency": 0.0,
+          "handoff": 0.0
+        },
+        "metrics": {
+          "integrity_pass": false,
+          "tool_calls": 38
+        },
+        "violations": [
+          "agent_failure:invalid_submission"
+        ],
+        "replay_scorecard_sha256": null
+      }
+    },
+    {
+      "episode_ref": "episode_05",
+      "family": "reporting_artifact",
+      "provider_reported_model": "GLM 5.2 High",
+      "original_public_row_sha256": "sha256:c2595126b6abb3aed6005522cb1ad08bf341de5316040c0b2dfda9aeeb6c0c9a",
+      "original_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_events": [
+          "agent_failure:invalid_submission",
+          "agent_failure:unauthorized_tool"
+        ]
+      },
+      "parser_adjudication": {
+        "outcome": "accepted_exactly_one_fenced_schema_complete_json_object",
+        "fenced_json_candidates": 1,
+        "candidate_parseable": true,
+        "candidate_schema_complete": true,
+        "surrounding_prose": true
+      },
+      "replay_verification": {
+        "status": "all_recorded_public_call_result_hashes_matched",
+        "matched": 38,
+        "recorded": 38
+      },
+      "transport_adjudication": "original unauthorized-tool flag cleared as an identity-less completion-record false positive",
+      "adjudicated_result": {
+        "valid": true,
+        "total": 59.25,
+        "dimensions": {
+          "classification": 14.4,
+          "line_list": 15.0,
+          "hypothesis": 8.7,
+          "response_utility": 0.0,
+          "evidence": 5.0,
+          "prospective_forecast": 8.033,
+          "efficiency": 3.118,
+          "handoff": 5.0
+        },
+        "metrics": {
+          "integrity_pass": true,
+          "brier": 0.04,
+          "case_f1": 1.0,
+          "correct_hypothesis_probability": 0.55,
+          "hypothesis_multiclass_brier": 0.26,
+          "provenance_precision": 1.0,
+          "decisive_evidence_recall": 0.909091,
+          "forecast_submissions": 2,
+          "forecast_mean_absolute_error": 1.0,
+          "tool_calls": 36,
+          "analyst_minutes": 400,
+          "operational_credits": 92,
+          "privacy_units": 17
+        },
+        "violations": [
+          "forecast_review_interval",
+          "unlogged_recommended_action",
+          "unexecuted_control_recommendation"
+        ],
+        "replay_scorecard_sha256": "sha256:e901153dff2c352ae96f17f56744d8914715950dde116ccf701c12595db7b9ad"
+      }
+    }
+  ],
+  "interpretation": [
+    "The published 0/5 Cursor validity result was mostly a harness parsing artifact, not evidence that four of the five assistant outputs lacked benchmark submissions.",
+    "The corrected development-only fixed-denominator result is 4/5 valid, mean 44.748, and median 55.002.",
+    "All four recovered submissions still scored zero on response utility and incurred the same three substantive closed-loop violations; the adjudication does not erase those scientific shortcomings.",
+    "This artifact preserves the original zero-result artifact and records a post-hoc correction. It is not a retrospective replacement for a prospectively precommitted, isolated rerun."
+  ],
+  "limitations": [
+    "The parser rule was not precommitted and was selected after the original outputs were available.",
+    "The deterministic replay used private episode state and has not been independently reproduced from a public replay bundle.",
+    "Cursor's model identity is provider-reported and not independently signed.",
+    "The original run was host-networked and non-hermetic; ~/.cursor/chats persisted public episode state outside the requested temporary data directory.",
+    "The panel contains one synthetic development episode per causal family and is too small for uncertainty estimates or scientific ranking."
+  ],
+  "hash_specification": {
+    "algorithm": "SHA-256",
+    "canonicalization": "UTF-8 json.dumps(document, sort_keys=True, separators=(\",\", \":\"), ensure_ascii=True)",
+    "self_hash_rule": "Remove the adjudication_sha256 member, canonicalize the remaining document, and hash those bytes.",
+    "original_public_row_hash_rule": "Canonicalize the complete matching Cursor result row from the immutable source artifact with the same canonicalization and hash those bytes."
+  },
+  "adjudication_sha256": "sha256:71fedcefef3844240e3a46cb8e76420e575e058f5b12273ad889c192b0e4b14c"
+}

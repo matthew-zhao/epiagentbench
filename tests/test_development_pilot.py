@@ -206,6 +206,14 @@ class DevelopmentPilotTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "harness startup"):
             _raise_on_harness_startup_failure(failed)
 
+    def test_missing_episode_mcp_is_infrastructure_not_model_zero(self) -> None:
+        failed = replace(
+            self.result("claude"),
+            audit_events=("agent_failure:mcp_unavailable",),
+        )
+        with self.assertRaisesRegex(RuntimeError, "MCP was unavailable"):
+            _raise_on_harness_startup_failure(failed)
+
 
 if __name__ == "__main__":
     unittest.main()

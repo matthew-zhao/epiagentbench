@@ -11,10 +11,13 @@ from epiagentbench.development_opus_pilot import (
     BACKEND,
     CLAUDE_EFFORT,
     EPISODE_REFS,
+    EXPECTED_CLAUDE_INIT_TOOLS,
     FAMILIES,
     PANEL_ID,
+    PUBLIC_MCP_TOOLS,
     REQUESTED_MODEL,
     _canonical_bytes,
+    _claude_isolation_contract,
     _family_commitment,
     _private_panel,
     _raise_on_opus_startup_failure,
@@ -27,7 +30,7 @@ from epiagentbench.development_opus_pilot import (
     run_panel,
 )
 from epiagentbench.development_pilot import DIMENSION_MAXIMA
-from epiagentbench.pilot import PilotRunResult
+from epiagentbench.pilot import PilotRunResult, parse_agent_output
 
 
 class DevelopmentOpusPilotTests(unittest.TestCase):
@@ -173,6 +176,11 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
                 all(value.startswith("sha256:") for value in commitments)
             )
             self.assertEqual(public["panel_id"], PANEL_ID)
+            self.assertEqual(
+                public["panel_id"],
+                "development-opus-high-pilot-v2-2026-07-15",
+            )
+            self.assertEqual(public["schema_version"], "development_opus_pilot_v2")
             private = json.loads(private_text)
             self.assertEqual(
                 {item["family"] for item in private["episodes"]}, set(FAMILIES)
@@ -198,6 +206,21 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
             )
             self.assertEqual(
                 public["run_contract"]["claude_cli_version"], self.CLAUDE_VERSION
+            )
+            isolation = public["run_contract"]["claude_isolation_contract"]
+            self.assertEqual(isolation, _claude_isolation_contract())
+            self.assertEqual(len(PUBLIC_MCP_TOOLS), 12)
+            self.assertEqual(
+                set(isolation["expected_init_tools"]),
+                set(EXPECTED_CLAUDE_INIT_TOOLS),
+            )
+            self.assertEqual(isolation["expected_init_tool_count"], 13)
+            self.assertEqual(isolation["permission_mode"], "dontAsk")
+            self.assertFalse(isolation["safe_mode"])
+            self.assertEqual(isolation["disallowed_tools"], ["Read"])
+            self.assertEqual(isolation["setting_sources"], ["project"])
+            self.assertEqual(
+                isolation["expected_mcp_servers"], {"epiagent": "connected"}
             )
             self.assertIsNone(public["run_contract"]["fallback_model"])
             self.assertTrue(
@@ -251,11 +274,15 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
         )
         self.assertTrue(exact["valid"])
         self.assertTrue(exact["exact_model_receipt"])
-        self.assertTrue(exact["native_json_schema_output_received"])
+        self.assertTrue(exact["schema_constrained_submission_accepted"])
         self.assertEqual(exact["requested_effort"], "high")
         self.assertEqual(
             exact["effort_attribution"], "requested_only_unverified"
         )
+        self.assertTrue(exact["mcp_inventory_verified"])
+        self.assertEqual(exact["mcp_inventory_status"], "verified")
+        self.assertFalse(exact["unauthorized_tool_detected"])
+        self.assertEqual(exact["unauthorized_tool_status"], "not_detected")
         encoded = json.dumps(exact)
         self.assertNotIn("structured native output", encoded)
         self.assertNotIn("private diagnostic", encoded)
@@ -274,6 +301,19 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
         self.assertIn(
             "agent_failure:model_receipt_nonexact", nonexact["audit_events"]
         )
+
+        unauthorized = _sanitize_result(
+            episode=episodes[0],
+            result=self.result(
+                valid=False,
+                audit_events=("agent_failure:unauthorized_tool",),
+            ),
+            started_at="start",
+            finished_at="finish",
+        )
+        self.assertTrue(unauthorized["mcp_inventory_verified"])
+        self.assertTrue(unauthorized["unauthorized_tool_detected"])
+        self.assertEqual(unauthorized["unauthorized_tool_status"], "detected")
 
     def test_fixed_denominator_includes_missing_and_invalid_as_zero(self) -> None:
         episodes = _private_panel(b"d" * 32)
@@ -295,6 +335,10 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
         self.assertEqual(summary["valid"], 1)
         self.assertEqual(summary["mean_total"], 16.0)
         self.assertEqual(summary["median_total"], 0.0)
+        self.assertEqual(summary["mcp_inventory_verified"], 2)
+        self.assertEqual(summary["mcp_inventory_unverified"], 0)
+        self.assertEqual(summary["unauthorized_tool_clear"], 2)
+        self.assertEqual(summary["unauthorized_tool_detected"], 0)
 
     def test_checkpoint_reconstruction_and_no_retry_policy(self) -> None:
         result = _sanitize_result(
@@ -347,6 +391,35 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
             audit_events=("agent_failure:timeout", "agent_failure:nonzero_exit"),
         )
         _raise_on_opus_startup_failure(timed_out)
+
+        _, _, parsed_timeout_audit = parse_agent_output(
+            "claude",
+            requested_model=REQUESTED_MODEL,
+            stdout=b"",
+        )
+        pre_init_timeout = self.result(
+            observed_models=(),
+            valid=False,
+            returncode=124,
+            tool_calls=0,
+            audit_events=(
+                "agent_failure:timeout",
+                "agent_failure:nonzero_exit",
+                *parsed_timeout_audit,
+            ),
+        )
+        self.assertIn("agent_failure:mcp_unavailable", pre_init_timeout.audit_events)
+        _raise_on_opus_startup_failure(pre_init_timeout)
+
+        mcp_unavailable = self.result(
+            observed_models=(REQUESTED_MODEL,),
+            valid=False,
+            returncode=0,
+            tool_calls=0,
+            audit_events=("agent_failure:mcp_unavailable",),
+        )
+        with self.assertRaisesRegex(RuntimeError, "MCP was unavailable"):
+            _raise_on_opus_startup_failure(mcp_unavailable)
 
     def test_run_threads_exact_model_high_effort_and_native_schema_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -445,6 +518,8 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
             self.assertEqual(completed["status"], "complete")
             self.assertTrue(completed["panel_retired_after_publication"])
             self.assertEqual(completed["summary"]["exact_model_receipts"], 5)
+            self.assertEqual(completed["summary"]["mcp_inventory_verified"], 5)
+            self.assertEqual(completed["summary"]["unauthorized_tool_detected"], 0)
             self.assertEqual(completed["completed_assignments"], 5)
             self.assertEqual(
                 completed["panel_master_secret_opening_hex"], master.hex()
@@ -457,6 +532,10 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
                 self.assertEqual(result["requested_effort"], "high")
                 self.assertEqual(
                     result["effort_attribution"], "requested_only_unverified"
+                )
+                self.assertEqual(result["mcp_inventory_status"], "verified")
+                self.assertEqual(
+                    result["unauthorized_tool_status"], "not_detected"
                 )
             unsigned = dict(completed)
             supplied = unsigned.pop("results_sha256")
