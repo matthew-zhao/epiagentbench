@@ -197,13 +197,56 @@ and provider-reported model names, rejects a detected model fallback, rejects
 Cursor attempts to use anything outside the exact public MCP allowlist, and
 submits output to the strict benchmark validator after the CLI exits.
 
-These are integration smokes, not publishable comparisons. The CLIs still run
-on the development host and need provider network access; the current Linux
-container runner has no network and cannot host them unchanged. In particular,
-Claude Code may route life-science requests from Fable to another Claude model;
-the pilot treats that as a failed Fable attribution rather than silently
-scoring it. See `docs/SCIENTIFIC_VALIDATION.md` for the dated smoke results and
-remaining gates.
+Single local invocations remain integration smokes, not publishable
+comparisons. The CLIs still run on the development host and need provider
+network access; the current Linux container runner has no network and cannot
+host them unchanged. In particular, Claude Code may route life-science requests
+from Fable to another Claude model; the pilot treats that as a failed Fable
+attribution rather than silently scoring it. See
+[`docs/SCIENTIFIC_VALIDATION.md`](docs/SCIENTIFIC_VALIDATION.md) for the dated
+smoke results and remaining gates.
+
+### Development-only paired pilot (2026-07-15)
+
+**This is a descriptive full-system integration result, not a leaderboard or
+model ranking.** Before execution, we
+[precommitted the panel](results/development-pilot-2026-07-15-v3.manifest.json):
+five synthetic `starsim-ltc-v3` episodes (one per causal family), all 15
+assignments, rotated system order, no retries, and a fixed denominator in which
+evaluator-returned invalid submissions, timeouts, and detected fallbacks score
+zero. The
+[sanitized per-run artifact](results/development-pilot-2026-07-15-v3.results.json)
+contains the complete public results (canonical results digest
+`sha256:8d3a076d186e678c7a6034017fd7caa57fb69572ebd882c4bc5f92886470d464`).
+
+| Full-system configuration | Model-attribution result | Valid / attempted | Integrity pass | Fixed-denominator mean (/100) | Median (/100) |
+|---|---|---:|---:|---:|---:|
+| Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt (5/5) | 4/5 | 4/5 | 40.037 | 50.377 |
+| Claude Code 2.1.195 + requested `claude-fable-5` | Failed; provider reported Fable plus `claude-opus-4-8` fallback (5/5) | 0/5 | 0/5 | 0.000 | 0.000 |
+| Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` (5/5; not independently signed) | 0/5 | 0/5 | 0.000 | 0.000 |
+
+These are outcomes of the complete CLI/model/tool configurations, not
+attributable model scores. In particular, Claude's zero is **not a Fable
+score**: the fallback guard rejected all five attempts, which made no episode
+calls. Cursor made 29–38 public episode-tool calls per attempt, but all five
+final submissions were invalid and two attempts triggered the unauthorized-tool
+guard. Codex produced four valid submissions, but its aggregate cannot be
+independently attributed to `gpt-5.6-sol`; its fixed-denominator mean
+response-utility component was 0.000/25.
+
+The run used execution commit `9d8f2e9`, Python 3.13.7, Starsim 3.5.1, and
+locally authenticated provider CLIs on macOS arm64. It was host-networked and
+non-hermetic. The episodes are synthetic and not externally calibrated, there
+is only one episode per family, and provider-native reasoning and billing
+controls are unequal. These data support no uncertainty estimate, winner,
+model-quality claim, epidemiological-realism claim, or scientific-readiness
+claim. Publication retires this panel from future private evaluation.
+
+Two earlier same-day panels are excluded from this comparison because our
+Cursor runner integration did not permit comparable episode execution; their
+decisions remain in the
+[v1](results/development-pilot-2026-07-15.adjudication.json) and
+[v2](results/development-pilot-2026-07-15-v2.adjudication.json) adjudications.
 
 With the evaluator-only Starsim extra installed, the experimental scored slice
 and its seed-panel diagnostic are:
