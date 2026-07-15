@@ -15,6 +15,7 @@ import hmac
 import random
 from typing import Any, Mapping
 
+from ..ltc_scenario import ltc_norovirus_hypothesis_catalog
 from ..models import EpisodeBundle, PublicEpisode
 from .engine import EngineControl, TransmissionEvent
 from .starsim_engine import (
@@ -340,6 +341,7 @@ class StarsimSurveillanceBackend:
                 family=selected_family,
                 initial_artifact_duplicates=initial_artifacts,
                 future_artifact_candidates=future_artifacts,
+                hypothesis_catalog=ltc_norovirus_hypothesis_catalog(),
             )
             # Admission may inspect only the exact records available to the
             # agent at minute zero. Hidden infections, later encounters,

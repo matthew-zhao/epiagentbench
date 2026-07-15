@@ -96,6 +96,36 @@ arbitrary interactive reward-hacking strategies. Fresh unpublished presentation
 secrets make current panels non-replayable unless those secrets are privately
 persisted; repeated-split uncertainty is not yet measured.
 
+The first interactive shortcut remediation is now implemented. Inspection
+payloads no longer map the private causal-mode label to one favored target or
+publish a generic `material_concern` answer. They report noisy counts derived
+from the frozen contact, shared-source, arrival, and report-lineage records.
+Interviews no longer use the causal-mode label as a fallback when a transmission
+event lacks explicit provenance. A matched-trace regression requires inspection
+and interview evidence, including its decisive-evidence membership, to remain
+identical when only the private mode label changes. The scripted baseline now
+forms a patient-level hypothesis before requesting one targeted inspection
+instead of inspecting all four catalog targets and selecting the positive one.
+The best-fixed intervention comparator likewise derives which biological
+control routes exist from the frozen simulator configuration rather than from a
+mode-to-action answer table. Final outbreak status, causal explanation, source,
+and decisive-evidence gold are now derived from frozen transmission ancestry
+and duplicate-report lineage. The private mode label remains a generation and
+debug stratum, not scoring truth. An active inspect-all/request-everything agent
+has not yet been run on a disjoint panel and remains a required shortcut audit.
+
+This removes a direct lookup of the private causal-mode label; it does not yet
+remove the shortcut as a scientific concern. V2 inspection signals are still
+constructed from latent transmission ancestry and report lineage rather than
+from independently simulated shift, meal, arrival, symptom, and facility-record
+processes. An inspect-all policy may therefore still recover the largest
+route-aligned signal. V2 also publishes four named controls, one target per control, and
+three intensity levels. The first V3 scientific deliverable is therefore an
+LTC-specific norovirus scenario pack inside the reusable benchmark system, not
+a redefinition of the entire system as one scenario. Later packs can supply
+different populations, records, mechanisms, and executable action catalogs
+while reusing the broker, scoring, security, and evaluation protocol.
+
 The exact data hashes, commands, stop-claims, and deployment gates are in
 [`CALIBRATION_PROTOCOL.md`](CALIBRATION_PROTOCOL.md).
 
@@ -307,3 +337,6 @@ reports multi-specimen outbreak yield; it does **not** estimate the per-person
 5. Add active-surveillance and case-targeted controls, calibrate the short-
    horizon forecast metric, and compare policies across more than one stochastic
    realization.
+6. Replace the fixed four-target menu with a world-derived facility/entity
+   inventory and parameterized operational controls before treating response
+   selection as more than a bounded V2 research task.

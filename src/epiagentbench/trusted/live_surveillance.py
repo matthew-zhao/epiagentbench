@@ -17,6 +17,7 @@ import math
 import random
 from typing import Any, Iterable, Mapping
 
+from ..hypotheses import normalize_hypothesis_catalog
 from ..models import Budget, Observation, PublicEpisode
 from .engine import TransmissionEvent
 from .surveillance import SurveillanceDiagnostics
@@ -38,6 +39,12 @@ RESPONSE_ACTION_TYPES = (
     "entry_control",
     "audit_reporting",
 )
+INSPECTION_SIGNAL_TYPES = {
+    "institution": "symptomatic_contact_links",
+    "food_service": "shared_service_exposure_matches",
+    "entry_program": "independent_arrival_records",
+    "reporting_system": "duplicate_report_lineages",
+}
 
 
 class IncrementalSurveillanceStream:
@@ -60,6 +67,7 @@ class IncrementalSurveillanceStream:
         review_interval_minutes: int = 360,
         causal_mode: str = "person_to_person",
         artifact_duplicate_count: int = 0,
+        hypothesis_catalog: Iterable[Mapping[str, Any]] | None = None,
     ) -> None:
         if type(seed) is not int or seed < 0:
             raise ValueError("seed must be a non-negative integer")
@@ -91,12 +99,14 @@ class IncrementalSurveillanceStream:
         self._decision_minute = decision_minute
         self._deadline_minutes = deadline_minutes
         self._review_interval_minutes = review_interval_minutes
-        self._causal_mode = causal_mode
-        self._artifact_duplicate_count = (
-            6
-            if causal_mode == "reporting_artifact"
-            and artifact_duplicate_count == 0
-            else artifact_duplicate_count
+        # The caller supplies concrete report artifacts just as it supplies
+        # transmission events.  The observation layer never synthesizes them
+        # from the private scenario label.
+        self._artifact_duplicate_count = artifact_duplicate_count
+        self._hypothesis_catalog = (
+            None
+            if hypothesis_catalog is None
+            else normalize_hypothesis_catalog(tuple(hypothesis_catalog))
         )
         self._validate_profile()
 
@@ -324,12 +334,21 @@ class IncrementalSurveillanceStream:
             observation_id
             for observation_id in self._decisive_ids
             if (
-                self._observations[observation_id].subject_id
-                in self._investigation_true_case_ids
+                (
+                    self._observations[observation_id].subject_id
+                    in self._investigation_true_case_ids
+                )
+                # Trace-supported inspections and duplicate-report records are
+                # mechanism evidence in their own right.  Select them from
+                # their public record type/content, never from the private
+                # scenario label.
+                or self._observations[observation_id].kind == "inspection"
                 or (
-                    self._causal_mode == "reporting_artifact"
-                    and self._observations[observation_id].kind
-                    in {"case_report", "inspection"}
+                    self._observations[observation_id].kind == "case_report"
+                    and self._observations[observation_id].payload.get(
+                        "source_system"
+                    )
+                    == "legacy_import"
                 )
             )
             and self._observations[observation_id].available_minute
@@ -369,6 +388,10 @@ class IncrementalSurveillanceStream:
                 "get_clock_and_budget",
             ],
         }
+        if self._hypothesis_catalog is not None:
+            manifest["hypothesis_catalog"] = [
+                dict(option) for option in self._hypothesis_catalog
+            ]
         self._bootstrap_episode = PublicEpisode(
             manifest=manifest,
             observations=self.all_observations,
@@ -475,8 +498,10 @@ class IncrementalSurveillanceStream:
         """Create one evaluator-owned, request-only inspection result.
 
         Results are keyed at construction time and are automatically added for
-        every universal target during ``bootstrap``.  Repeated calls return the
-        same immutable record.
+        every universal target during ``bootstrap``.  Each result is a noisy
+        review of concrete pre-decision transmission or report-lineage records;
+        it never consults the episode's causal-mode label.  Repeated calls
+        return the same immutable record.
         """
 
         target_types = {
@@ -495,92 +520,126 @@ class IncrementalSurveillanceStream:
         if self._bootstrap_episode is not None:
             raise RuntimeError("inspection results are fixed at bootstrap")
 
-        signal_target = {
-            "person_to_person": self._institution_id,
-            "common_source": self._restaurant_id,
-            "repeated_introduction": self._entry_program_id,
-            "reporting_artifact": self._reporting_system_id,
-        }.get(self._causal_mode)
-        draw = self._draw("inspection", target_type, "finding")
-        if target_id == signal_target:
-            finding = (
-                "material_concern"
-                if draw < 0.80
-                else "minor_irregularity"
-                if draw < 0.94
-                else "no_material_concern"
-            )
-        else:
-            finding = (
-                "material_concern"
-                if draw < 0.10
-                else "minor_irregularity"
-                if draw < 0.32
-                else "no_material_concern"
-            )
-        summaries = {
-            "institution": {
-                "material_concern": (
-                    "Review found a concentrated pattern of "
-                    "symptomatic-person contacts."
-                ),
-                "minor_irregularity": (
-                    "Review found incomplete contact logs but no clear cluster."
-                ),
-                "no_material_concern": "Review found no unusual contact pattern.",
-            },
-            "food_service": {
-                "material_concern": (
-                    "Review found a plausible shared food-handling exposure "
-                    "requiring follow-up."
-                ),
-                "minor_irregularity": (
-                    "Review found a minor food-handling irregularity of "
-                    "uncertain relevance."
-                ),
-                "no_material_concern": (
-                    "Review found no material food-handling concern."
-                ),
-            },
-            "entry_program": {
-                "material_concern": (
-                    "Review found several recent symptomatic arrivals from "
-                    "different outside settings."
-                ),
-                "minor_irregularity": (
-                    "Review found incomplete arrival screening records."
-                ),
-                "no_material_concern": "Review found no unusual arrival pattern.",
-            },
-            "reporting_system": {
-                "material_concern": (
-                    "Review found duplicate legacy imports for the same patients."
-                ),
-                "minor_irregularity": (
-                    "Review found minor report-linkage inconsistencies."
-                ),
-                "no_material_concern": (
-                    "Review found no material reporting irregularity."
-                ),
-            },
-        }
+        payload, trace_supports_finding = self._inspection_payload(
+            target_id=target_id,
+            target_type=target_type,
+        )
         observation = Observation(
             observation_id=observation_id,
             kind="inspection",
             subject_id=target_id,
             available_minute=0,
             release_key=f"inspection:{target_id}",
-            payload={
-                "target_id": target_id,
-                "target_type": target_type,
-                "finding": finding,
-                "summary": summaries[target_type][finding],
-            },
+            payload=payload,
         )
         self._register(observation)
-        if target_id == signal_target and finding == "material_concern":
+        if trace_supports_finding:
             self._decisive_ids.add(observation.observation_id)
         return observation
+
+    def _inspection_payload(
+        self,
+        *,
+        target_id: str,
+        target_type: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Return noisy, auditable facts derived from the frozen world trace."""
+
+        evidence_tokens = self._inspection_evidence_tokens(target_type)
+        quality_draw = self._draw("inspection", target_type, "data-quality")
+        if quality_draw < 0.15:
+            data_quality = "limited"
+            detection_probability = 0.40
+        elif quality_draw < 0.45:
+            data_quality = "partial"
+            detection_probability = 0.60
+        else:
+            data_quality = "substantial"
+            detection_probability = 0.75
+
+        detected_trace_signals = sum(
+            self._draw("inspection", target_type, "detect", token)
+            < detection_probability
+            for token in evidence_tokens
+        )
+        # Incidental discrepancies exist in every review stream.  They keep a
+        # single nonzero count from becoming an evaluator-authored answer key.
+        incidental_signals = self._poisson(
+            self._rng("inspection", target_type, "incidental-signals"),
+            0.20,
+        )
+        signal_count = detected_trace_signals + incidental_signals
+        records_reviewed = max(
+            signal_count,
+            len(evidence_tokens)
+            + self._rng("inspection", target_type, "records-reviewed").randint(
+                6, 18
+            ),
+        )
+        signal_type = INSPECTION_SIGNAL_TYPES[target_type]
+        signal_label = signal_type.replace("_", " ")
+        summary = (
+            f"Review examined {records_reviewed} records and identified "
+            f"{signal_count} {signal_label}; source-record completeness was "
+            f"{data_quality}."
+        )
+        return (
+            {
+                "target_id": target_id,
+                "target_type": target_type,
+                "signal_type": signal_type,
+                "records_reviewed": records_reviewed,
+                "signal_count": signal_count,
+                "data_quality": data_quality,
+                "summary": summary,
+            },
+            detected_trace_signals > 0,
+        )
+
+    def _inspection_evidence_tokens(self, target_type: str) -> tuple[str, ...]:
+        """Select immutable trace/report facts relevant to one review target."""
+
+        if target_type == "institution":
+            return tuple(
+                f"contact:{event.target_agent_id}:{event.infection_minute}"
+                for event in self._events.values()
+                if event.source_agent_id is not None
+            )
+        if target_type == "food_service":
+            return tuple(
+                f"source:{event.target_agent_id}:{event.infection_minute}"
+                for event in self._events.values()
+                if event.mechanism in {"common_source", "shared_source"}
+            )
+        if target_type == "entry_program":
+            return tuple(
+                f"arrival:{event.target_agent_id}:{event.infection_minute}"
+                for event in self._events.values()
+                if event.mechanism
+                in {
+                    "importation",
+                    "repeated_introduction",
+                    "external_introduction",
+                }
+            )
+        if target_type == "reporting_system":
+            reports_by_patient: dict[str, list[str]] = {}
+            for observation in self._observations.values():
+                if (
+                    observation.kind == "case_report"
+                    and observation.payload.get("source_system")
+                    == "legacy_import"
+                    and observation.subject_id is not None
+                ):
+                    reports_by_patient.setdefault(
+                        observation.subject_id, []
+                    ).append(observation.observation_id)
+            return tuple(
+                f"duplicate:{observation_id}"
+                for observation_ids in reports_by_patient.values()
+                for observation_id in sorted(observation_ids)[1:]
+            )
+        raise AssertionError("unsupported inspection target type")
 
     def _materialize_infected_person(self, event: TransmissionEvent) -> set[str]:
         uid = event.target_agent_id
@@ -962,14 +1021,6 @@ class IncrementalSurveillanceStream:
 
     def _event_evidence_pattern(self, event: TransmissionEvent) -> str:
         mechanism = getattr(event, "mechanism", None)
-        if (
-            event.source_agent_id is None
-            and self._causal_mode in {"common_source", "repeated_introduction"}
-            and mechanism in {None, "person_to_person"}
-        ):
-            # Compatibility with engine adapters whose exogenous event still
-            # carries the dataclass default rather than an explicit mechanism.
-            return self._causal_mode
         if mechanism in {"common_source", "shared_source"}:
             return "common_source"
         if mechanism in {
@@ -978,14 +1029,8 @@ class IncrementalSurveillanceStream:
             "external_introduction",
         }:
             return "repeated_introduction"
-        if mechanism == "person_to_person":
+        if mechanism == "person_to_person" or event.source_agent_id is not None:
             return "person_to_person"
-        if self._causal_mode in {
-            "person_to_person",
-            "common_source",
-            "repeated_introduction",
-        }:
-            return self._causal_mode
         return "background"
 
     def _interview_payload(
@@ -1163,6 +1208,19 @@ class IncrementalSurveillanceStream:
 
     def _add_policy(self) -> str:
         forecast = self._profile["closed_loop_configuration"]["forecast"]
+        outcome_horizon_minutes = (
+            int(self._profile["transmission_configuration"]["horizon_days"])
+            * DAY_MINUTES
+            - self._decision_minute
+        )
+        if (
+            outcome_horizon_minutes <= 0
+            or outcome_horizon_minutes % DAY_MINUTES
+        ):
+            raise ValueError(
+                "the intervention outcome horizon must be a positive whole "
+                "number of days after the public episode starts"
+            )
         policy = Observation(
             observation_id=self._public_id("obs", "policy"),
             kind="policy",
@@ -1222,8 +1280,8 @@ class IncrementalSurveillanceStream:
                 # These are scoring/operations semantics, not hidden disease
                 # parameters.  Publishing them prevents an evaluator-only
                 # horizon from becoming a trap for otherwise rational agents.
-                "intervention_outcome_horizon_days": int(
-                    self._profile["transmission_configuration"]["horizon_days"]
+                "intervention_outcome_horizon_days": (
+                    outcome_horizon_minutes // DAY_MINUTES
                 ),
                 "intervention_persists_until_changed": True,
                 "intervention_burden_units": "utility_points_per_day",

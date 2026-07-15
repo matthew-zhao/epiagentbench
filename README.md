@@ -1,5 +1,7 @@
 # EpiAgentBench
 
+[![CI](https://github.com/matthew-zhao/epiagentbench/actions/workflows/ci.yml/badge.svg)](https://github.com/matthew-zhao/epiagentbench/actions/workflows/ci.yml)
+
 EpiAgentBench is a benchmark concept and runnable reference implementation for
 testing AI agents on **alert verification and initial outbreak investigation**.
 
@@ -80,6 +82,40 @@ full hostile-container red-team suite are not.
 - [`docs/CALIBRATION_PROTOCOL.md`](docs/CALIBRATION_PROTOCOL.md): exact CDC
   snapshot, leakage-safe temporal splits, gate-free Starsim fitting, private
   cohort commitments, adversarial audits, and hardening gates.
+- [`docs/SCIENTIFIC_V3_PROTOCOL.md`](docs/SCIENTIFIC_V3_PROTOCOL.md): the
+  LTC-specific intended use, observation/transmission/action evidence contract,
+  uncertainty workflow, and non-authoritative local readiness checklist now
+  under development.
+- [`docs/OPERATIONAL_DATA_REQUEST.md`](docs/OPERATIONAL_DATA_REQUEST.md): the
+  privacy-preserving facility and health-department data needed to validate
+  alerts, reporting, investigations, and actions that NORS cannot identify.
+- [`docs/HUMAN_EVALUATION_PROTOCOL.md`](docs/HUMAN_EVALUATION_PROTOCOL.md): the
+  expert solveability, independent adjudication, and construct-validity study
+  scaffold; no participant study has yet been run.
+- [`src/epiagentbench/nors_ltc_observation.py`](src/epiagentbench/nors_ltc_observation.py):
+  a hash-reporting LTC-only adapter for caller-supplied NORS-shaped data. It
+  describes reported outbreaks, not hidden infections, and explicitly refuses
+  scientific admissibility until a custodian verifies source provenance.
+- [`src/epiagentbench/cms_nh_morphology.py`](src/epiagentbench/cms_nh_morphology.py):
+  a trusted/offline, development-only CMS facility-margin adapter for beds,
+  census, staffing, and turnover. It emits no facility identities, rejects
+  public data relabeled as a holdout, and is not yet admissible for simulation
+  conditioning or episode generation; ward/contact structure remains
+  unidentifiable from this source.
+- [`src/epiagentbench/trusted/starsim_ltc_v3.py`](src/epiagentbench/trusted/starsim_ltc_v3.py):
+  a trusted-only role/ward/static-contact-topology Starsim foundation with
+  explicit placeholder evidence labels and intervention hooks; temporal trace
+  contacts are not yet wired into transmission.
+- [`src/epiagentbench/trusted/institution_traces.py`](src/epiagentbench/trusted/institution_traces.py):
+  deterministic private development records for rooms, wards, shifts, meals,
+  outside entries, contacts, and trace-derived interviews/inspections. It has
+  no causal-mode input and is not yet calibrated to operational facility data.
+- [`src/epiagentbench/trusted/intervention_evaluation.py`](src/epiagentbench/trusted/intervention_evaluation.py):
+  vector outcomes, paired uncertainty draws, stakeholder-weight sensitivity,
+  tail harms, regret, negative controls, and dose-response checks.
+- [`src/epiagentbench/trusted/branching_manifest.py`](src/epiagentbench/trusted/branching_manifest.py):
+  a pre-branch contract for the hidden opening state, runtime, policy set, and
+  uncertainty banks, plus a row-panel attestation required before evaluation.
 - [`schemas/`](schemas): public episode and structured-submission schemas.
 - [`src/epiagentbench/`](src/epiagentbench): trusted episode generation,
   controller, evaluator service, deterministic scorer, and development baseline.
@@ -92,6 +128,12 @@ full hostile-container red-team suite are not.
 The original in-process environment remains available as a transparent
 development fixture. It is not safe for an untrusted agent because it contains
 all episode observations in Python memory.
+
+The scientific-v3 components above are development foundations, not a fitted
+or externally validated episode pack. They are intentionally not the production
+default. Small files under [`tests/fixtures/`](tests/fixtures/) test parsers;
+their [provenance note](tests/fixtures/README.md) says which values are synthetic
+and which are a public three-row CMS projection.
 
 ## Run the secure reference demo
 
@@ -257,6 +299,13 @@ The environment:
 - derives time-gated encounters, preliminary and ordered tests, structured
   interviews, background GI records, and the alert numerator from that one
   hidden history;
+- derives v2 target inspections from latent contact ancestry, shared-source,
+  arrival, and report lineage rather than consulting the private causal-mode
+  label. This is an engineering remediation, not an independently simulated
+  operational-record process, and inspect-all remains an unrun shortcut audit;
+- derives final causal gold and relevant intervention routes from frozen
+  ancestry, report lineage, and simulator configuration; the mode label is only
+  a private generation/debug stratum;
 - keeps simulator UIDs, parameters, attempt count, configuration hash, and all
   observation lineage inside the evaluator;
 - keeps an agent-controlled world and an untouched, identically seeded
@@ -303,9 +352,11 @@ mode-specific operational state change for the next declared six-hour cycle,
 produces later public records. The legacy `set_institution_control` call remains
 as an infection-control compatibility path. The agent can request a target
 inspection, act, observe later surveillance, and then strengthen, relax, stop,
-or switch controls. The finalizer follows both worlds to the same fixed 21-day
-outcome horizon even if an agent submits early. A separate static branch
-generator remains for the original observation-layer diagnostic.
+or switch controls. Public interaction starts on simulator day 8 and lasts five
+days; the finalizer follows both worlds to simulator day 21, an accurately
+published 13-day post-decision outcome horizon with eight unobserved days after
+interaction closes. A separate static branch generator remains for the original
+observation-layer diagnostic.
 
 Response credit is tied to the append-only execution trace. Merely recommending
 a response earns no intervention reward: every reported action/target pair must
@@ -321,6 +372,14 @@ future records, requested evidence, and intervention outcomes are never
 admission inputs. `validate-live-modes` reports mode
 coverage, common public-surface checks, candidate same-seed count calipers, and
 the reward earned by constant or preregistered alert-count-only policies.
+
+The live LTC-oriented pack also exposes a public six-option
+`hypothesis_catalog`. Final submissions must allocate probability across every
+published option exactly once; unknown, duplicate, missing, mistargeted, or
+non-normalized answers fail closed. This catalog is supplied by the scenario
+pack rather than hard-coded into the observation or scoring kernel, and its
+multiclass score uses the final trace-derived explanation rather than the
+private generation stratum.
 
 This new five-mode panel has not yet been frozen or run as a held-out scientific
 result. Same-seed groups that happen to meet public count calipers are candidate

@@ -97,6 +97,14 @@ class LiveStarsimModeControlTests(unittest.TestCase):
             uncontrolled._shadow.oracle_snapshot().transmission_events,
         )
 
+    def test_fixed_policy_routes_come_from_world_not_answer_label(self):
+        runtime = self.make_runtime("restaurant_point_source")
+
+        expected = ("infection_control", "source_control")
+        self.assertEqual(runtime._world_present_biological_actions(), expected)
+        runtime._causal_mode = "reporting_artifact"
+        self.assertEqual(runtime._world_present_biological_actions(), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

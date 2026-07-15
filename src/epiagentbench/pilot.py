@@ -111,7 +111,10 @@ supporting_evidence_ids, and contradicting_evidence_ids. Each recommended
 action has action_type, nullable target_id, urgency, evidence_ids, and
 control_level when it reports a control. urgency must be exactly immediate,
 within_24h, or monitor. Report only actions whose tool calls succeeded, and for
-each control report the last successfully executed level.
+each control report the last successfully executed level. If the public
+manifest contains hypothesis_catalog, submit every catalog option exactly once:
+the hypothesis type is its catalog id, probabilities across all options must
+sum to one, and options marked target_required need a public target_id.
 """
 
 

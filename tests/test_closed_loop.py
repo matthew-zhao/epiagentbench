@@ -635,6 +635,19 @@ class ClosedLoopStarsimTests(unittest.TestCase):
             first._stream.all_observations, second._stream.all_observations
         )
 
+    def test_final_oracle_does_not_consult_private_mode_label(self):
+        first = self.make_runtime(
+            key=b"matched-final-oracle-label-key-001"
+        )
+        relabeled = self.make_runtime(
+            key=b"matched-final-oracle-label-key-001"
+        )
+        self.assertEqual(first.public_episode, relabeled.public_episode)
+
+        relabeled._causal_mode = "reporting_artifact"
+
+        self.assertEqual(first.finalize(), relabeled.finalize())
+
     def test_secret_presentation_key_also_keys_private_trajectories(self):
         first = self.make_runtime(key=b"private-trajectory-key-number-0001")
         second = self.make_runtime(key=b"private-trajectory-key-number-0002")

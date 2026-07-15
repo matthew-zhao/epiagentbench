@@ -273,7 +273,7 @@ class IncrementalSurveillanceTests(unittest.TestCase):
         )
         self.assertEqual(policy.payload["intervention_review_minutes"], 360)
         self.assertEqual(
-            policy.payload["intervention_outcome_horizon_days"], 21
+            policy.payload["intervention_outcome_horizon_days"], 13
         )
         self.assertIs(
             policy.payload["intervention_persists_until_changed"], True
@@ -474,14 +474,19 @@ class IncrementalSurveillanceTests(unittest.TestCase):
             self.assertNotIn('"mechanism"', serialized)
         self.assertTrue(all(item == catalogs[0] for item in catalogs[1:]))
 
-    def test_mode_aware_interviews_are_noisy_but_investigable(self):
-        events = tuple(
-            TransmissionEvent(index, None, DECISION - 2 * DAY_MINUTES)
+    def test_event_mechanism_aware_interviews_are_noisy_but_investigable(self):
+        common_events = tuple(
+            TransmissionEvent(
+                index,
+                None,
+                DECISION - 2 * DAY_MINUTES,
+                mechanism="common_source",
+            )
             for index in range(12)
         )
 
         common = make_stream(seed=29, causal_mode="common_source")
-        common.ingest(events)
+        common.ingest(common_events)
         common.bootstrap()
         common_interviews = [
             item.payload
@@ -499,8 +504,17 @@ class IncrementalSurveillanceTests(unittest.TestCase):
         self.assertEqual(len(meal_days), 1)
         self.assertTrue(-4 <= next(iter(meal_days)) <= -1)
 
+        importation_events = tuple(
+            TransmissionEvent(
+                index,
+                None,
+                DECISION - 2 * DAY_MINUTES,
+                mechanism="importation",
+            )
+            for index in range(12)
+        )
         imported = make_stream(seed=29, causal_mode="repeated_introduction")
-        imported.ingest(events)
+        imported.ingest(importation_events)
         imported.bootstrap()
         imported_interviews = [
             item.payload
@@ -515,8 +529,25 @@ class IncrementalSurveillanceTests(unittest.TestCase):
             len(imported_interviews),
         )
 
+        propagated_events = (
+            TransmissionEvent(
+                0,
+                None,
+                DECISION - 3 * DAY_MINUTES,
+                mechanism="seed",
+            ),
+            *(
+                TransmissionEvent(
+                    index,
+                    0,
+                    DECISION - 2 * DAY_MINUTES,
+                    mechanism="person_to_person",
+                )
+                for index in range(1, 13)
+            ),
+        )
         propagated = make_stream(seed=29, causal_mode="person_to_person")
-        propagated.ingest(events)
+        propagated.ingest(propagated_events)
         propagated.bootstrap()
         propagated_interviews = [
             item.payload
@@ -534,8 +565,71 @@ class IncrementalSurveillanceTests(unittest.TestCase):
             6,
         )
 
+    def test_matched_trace_evidence_does_not_depend_on_causal_mode(self):
+        events = (
+            TransmissionEvent(
+                0,
+                None,
+                DECISION - 4 * DAY_MINUTES,
+                mechanism="seed",
+            ),
+            TransmissionEvent(
+                1,
+                0,
+                DECISION - 3 * DAY_MINUTES,
+                mechanism="person_to_person",
+            ),
+            TransmissionEvent(
+                2,
+                None,
+                DECISION - 2 * DAY_MINUTES,
+                mechanism="common_source",
+            ),
+            TransmissionEvent(
+                3,
+                None,
+                DECISION - DAY_MINUTES,
+                mechanism="importation",
+            ),
+        )
+        evidence_catalogs = []
+        decisive_catalogs = []
+        for causal_mode in (
+            "person_to_person",
+            "common_source",
+            "repeated_introduction",
+            "background",
+            "reporting_artifact",
+        ):
+            # Hold the reporting trace fixed too; the label alone must not
+            # change either evidence or what the evaluator calls decisive.
+            stream = make_stream(
+                seed=41,
+                causal_mode=causal_mode,
+                artifact_duplicate_count=6,
+            )
+            stream.ingest(events)
+            stream.bootstrap()
+            evidence_catalogs.append(
+                tuple(
+                    item.public_dict()
+                    for item in stream.all_observations
+                    if item.kind in {"inspection", "interview"}
+                )
+            )
+            decisive_catalogs.append(stream.investigation_decisive_evidence_ids)
+
+        self.assertTrue(
+            all(item == evidence_catalogs[0] for item in evidence_catalogs[1:])
+        )
+        self.assertTrue(
+            all(item == decisive_catalogs[0] for item in decisive_catalogs[1:])
+        )
+
     def test_reporting_artifact_adds_duplicate_reports_not_true_cases(self):
-        stream = make_stream(causal_mode="reporting_artifact")
+        stream = make_stream(
+            causal_mode="reporting_artifact", artifact_duplicate_count=6
+        )
         episode = stream.bootstrap()
         reports = [
             item for item in episode.observations if item.kind == "case_report"
@@ -568,7 +662,9 @@ class IncrementalSurveillanceTests(unittest.TestCase):
             (360, 900_000),
             (720, 200_000),
         )
-        stream = make_stream(causal_mode="reporting_artifact")
+        stream = make_stream(
+            causal_mode="reporting_artifact", artifact_duplicate_count=6
+        )
         stream.bootstrap()
         initial_reports = len(
             [item for item in stream.all_observations if item.kind == "case_report"]
@@ -602,7 +698,9 @@ class IncrementalSurveillanceTests(unittest.TestCase):
         )
         self.assertEqual(stream.true_case_ids, frozenset())
 
-        uncontrolled = make_stream(causal_mode="reporting_artifact")
+        uncontrolled = make_stream(
+            causal_mode="reporting_artifact", artifact_duplicate_count=6
+        )
         uncontrolled.bootstrap()
         uncontrolled_emitted = uncontrolled.materialize_reporting_artifact_candidates(
             candidates, through_public_minute=720, audit_level=1.0
@@ -626,20 +724,94 @@ class IncrementalSurveillanceTests(unittest.TestCase):
             self.assertEqual(item.release_key, f"inspection:{item.subject_id}")
             self.assertEqual(
                 set(item.payload),
-                {"target_id", "target_type", "finding", "summary"},
+                {
+                    "target_id",
+                    "target_type",
+                    "signal_type",
+                    "records_reviewed",
+                    "signal_count",
+                    "data_quality",
+                    "summary",
+                },
             )
             self.assertEqual(item.payload["target_id"], item.subject_id)
+            self.assertGreaterEqual(
+                item.payload["records_reviewed"], item.payload["signal_count"]
+            )
             self.assertIn(
-                item.payload["finding"],
-                {
-                    "material_concern",
-                    "minor_irregularity",
-                    "no_material_concern",
-                },
+                item.payload["data_quality"],
+                {"limited", "partial", "substantial"},
             )
             self.assertEqual(
                 stream.add_inspection_observation(item.subject_id), item
             )
+
+    def test_inspections_change_with_trace_facts_not_mode_labels(self):
+        seed_only = make_stream(seed=53)
+        seed_only.ingest(
+            (
+                TransmissionEvent(
+                    0,
+                    None,
+                    DECISION - 3 * DAY_MINUTES,
+                    mechanism="seed",
+                ),
+            )
+        )
+        seed_only.bootstrap()
+
+        propagated = make_stream(seed=53)
+        propagated.ingest(
+            (
+                TransmissionEvent(
+                    0,
+                    None,
+                    DECISION - 3 * DAY_MINUTES,
+                    mechanism="seed",
+                ),
+                *(
+                    TransmissionEvent(
+                        index,
+                        0,
+                        DECISION - 2 * DAY_MINUTES,
+                        mechanism="person_to_person",
+                    )
+                    for index in range(1, 13)
+                ),
+            )
+        )
+        propagated.bootstrap()
+
+        def inspections_by_type(stream):
+            return {
+                item.payload["target_type"]: item.payload
+                for item in stream.all_observations
+                if item.kind == "inspection"
+            }
+
+        seed_payloads = inspections_by_type(seed_only)
+        propagated_payloads = inspections_by_type(propagated)
+        self.assertGreater(
+            propagated_payloads["institution"]["signal_count"],
+            seed_payloads["institution"]["signal_count"],
+        )
+        for target_type in ("food_service", "entry_program", "reporting_system"):
+            self.assertEqual(
+                propagated_payloads[target_type], seed_payloads[target_type]
+            )
+
+        clean_reports = make_stream(seed=59, artifact_duplicate_count=0)
+        clean_reports.bootstrap()
+        duplicate_reports = make_stream(seed=59, artifact_duplicate_count=8)
+        duplicate_reports.bootstrap()
+        self.assertGreater(
+            inspections_by_type(duplicate_reports)["reporting_system"][
+                "signal_count"
+            ],
+            inspections_by_type(clean_reports)["reporting_system"][
+                "signal_count"
+            ],
+        )
 
     def test_rejects_conflicts_invalid_ancestry_and_late_predecision_events(self):
         stream = make_stream()
