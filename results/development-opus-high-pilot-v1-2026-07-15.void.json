@@ -1,0 +1,50 @@
+{
+  "adjudicated_at_utc": "2026-07-15T23:23:28Z",
+  "adjudication_sha256": "sha256:f98e2a81d82cf5178b82c1074e3d06c3ed2fc2e57362072a530c7256bd85bb14",
+  "decision": "void_harness_failure",
+  "development_only": true,
+  "evidence": {
+    "all_assignments": {
+      "completed": 5,
+      "exact_model_receipts": 5,
+      "median_elapsed_seconds": 6.595,
+      "native_json_schema_outputs": 0,
+      "trusted_episode_tool_calls_each": 0,
+      "valid": 0
+    },
+    "controlled_smoke_checks": {
+      "benchmark_assignments_reused": false,
+      "corrected_configuration_replicates": 2,
+      "each_connected_epiagent_mcp": true,
+      "each_exposed_only_public_mcp_plus_structured_output": true,
+      "each_executed_get_manifest_without_error": true,
+      "each_returned_schema_valid_output": true,
+      "reported_public_mcp_tool_count": 12
+    },
+    "private_diagnostic_pattern": "Claude described or attempted unavailable tools instead of receiving any episode observation; no latent truth is quoted here."
+  },
+  "execution_commit": "a1e57d0a3130d00c2a902bbfad159f7d3f1c32f3",
+  "interpretation": "The five numeric zeros are preserved in the immutable original artifact but are not evidence of Claude Opus 4.8 surveillance capability and must not enter a model comparison.",
+  "original_artifact": {
+    "file_sha256": "sha256:118c9959cf45085ca4ab5fc755de77d2df34fc973a4706547ae02e7c55f93c92",
+    "path": "results/development-opus-high-pilot-v1-2026-07-15.results.json",
+    "precommitment_sha256": "sha256:987950ac1b7cbd8795a40ed06f3775401fc20bd4695f09d0bfc2cd3a8acadd31",
+    "results_sha256": "sha256:94f1115f6f9f102ef173dd87660a329c4940e8868136480e4bacb71489daab7e"
+  },
+  "panel_id": "development-opus-high-pilot-v1-2026-07-15",
+  "remediation": {
+    "fresh_panel_required": true,
+    "harness_changes": [
+      "use an isolated temporary Claude home and project-only settings",
+      "load only the explicit epiagent MCP configuration",
+      "deny the inert built-in Read tool while exposing the public MCP tools",
+      "fail as infrastructure unless the init receipt contains exactly the twelve public MCP tools plus StructuredOutput",
+      "audit every Claude tool-use record for an unauthorized tool"
+    ],
+    "original_assignments_retried": false
+  },
+  "requested_effort": "high",
+  "requested_model": "claude-opus-4-8",
+  "root_cause": "The precommitted Claude command combined safe mode, which disables MCP servers, with an empty available-tool list. The permission allowlist did not re-enable the trusted episode tools.",
+  "schema_version": "development_opus_pilot_void_adjudication_v1"
+}
