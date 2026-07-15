@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/epiagentbench/submission.schema.json",
+  "title": "EpiAgentBench structured incident submission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "incident_assessment",
+    "case_definition",
+    "line_list",
+    "hypotheses",
+    "recommended_actions",
+    "uncertainties",
+    "next_evidence",
+    "executive_brief"
+  ],
+  "properties": {
+    "incident_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outbreak_probability"],
+      "properties": {
+        "outbreak_probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "status": {
+          "enum": ["outbreak", "indeterminate", "not_outbreak"]
+        },
+        "evidence_ids": {"$ref": "#/$defs/evidenceIds"}
+      }
+    },
+    "case_definition": {
+      "type": "object",
+      "required": ["clinical", "person", "place", "time", "laboratory"],
+      "properties": {
+        "clinical": {"type": "string"},
+        "person": {"type": "string"},
+        "place": {"type": "string"},
+        "time": {"type": "string"},
+        "laboratory": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "line_list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["patient_id", "classification", "evidence_ids"],
+        "properties": {
+          "patient_id": {"type": "string"},
+          "classification": {
+            "enum": ["suspected", "probable", "confirmed", "excluded"]
+          },
+          "evidence_ids": {"$ref": "#/$defs/evidenceIds"}
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "target_id",
+          "probability",
+          "supporting_evidence_ids",
+          "contradicting_evidence_ids"
+        ],
+        "properties": {
+          "type": {"type": "string"},
+          "target_id": {"type": ["string", "null"]},
+          "probability": {"type": "number", "minimum": 0, "maximum": 1},
+          "supporting_evidence_ids": {"$ref": "#/$defs/evidenceIds"},
+          "contradicting_evidence_ids": {"$ref": "#/$defs/evidenceIds"}
+        }
+      }
+    },
+    "recommended_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action_type",
+          "target_id",
+          "urgency",
+          "evidence_ids"
+        ],
+        "allOf": [
+          {
+            "if": {"required": ["control_level"]},
+            "then": {
+              "properties": {
+                "action_type": {
+                  "enum": [
+                    "infection_control",
+                    "source_control",
+                    "entry_control",
+                    "audit_reporting"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "action_type": {"type": "string"},
+          "target_id": {"type": ["string", "null"]},
+          "urgency": {"enum": ["immediate", "within_24h", "monitor"]},
+          "control_level": {
+            "enum": ["off", "standard", "intensive"]
+          },
+          "evidence_ids": {"$ref": "#/$defs/evidenceIds"}
+        }
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "next_evidence": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "executive_brief": {"type": "string", "maxLength": 4000}
+  },
+  "$defs": {
+    "evidenceIds": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    }
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "profile_id": "gi_surveillance_v2",
+  "profile_status": "literature_anchored_experimental",
+  "frozen_on": "2026-07-14",
+  "pathogen": "norovirus",
+  "setting": "closed_institution_with_routine_symptom_reporting",
+  "parameters": {
+    "incubation_days": {
+      "distribution": "lognormal",
+      "median": 1.2,
+      "geometric_sd": 1.56,
+      "status": "direct_prior",
+      "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3849296/"
+    },
+    "symptomatic_probability": {
+      "value": 0.70,
+      "status": "nuisance_parameter",
+      "source": "https://wwwnc.cdc.gov/eid/article/14/10/08-0117_article",
+      "caveat": "RNA shedding and challenge-study infection are not equivalent to population infectiousness."
+    },
+    "care_seeking_probability": {
+      "value": 0.22,
+      "status": "direct_marginal_target",
+      "source": "https://journals.sagepub.com/doi/abs/10.1089/fpd.2024.0114"
+    },
+    "stool_given_care_probability": {
+      "value": 0.214,
+      "status": "derived_marginal_target",
+      "source": "https://journals.sagepub.com/doi/abs/10.1089/fpd.2024.0114",
+      "derivation": "0.047 stool submissions / 0.220 care seeking"
+    },
+    "routine_institution_reporting_probability": {
+      "value": 0.55,
+      "status": "nuisance_parameter",
+      "source": "https://www.cdc.gov/field-epi-manual/php/chapters/collecting-data.html",
+      "caveat": "Setting-specific routine ascertainment has not been fit to held-out data."
+    },
+    "routine_reporting_specimen_probability": {
+      "value": 0.80,
+      "status": "unvalidated_design_assumption",
+      "source": "https://wwwnc.cdc.gov/eid/article/17/8/10-1815_article",
+      "caveat": "The source does not estimate specimen uptake; this value is a tractability assumption pending setting-specific data."
+    },
+    "preliminary_test_sensitivity": {
+      "value": 0.91,
+      "status": "unvalidated_design_assumption",
+      "source": "https://wwwnc.cdc.gov/eid/article/17/8/10-1815_article",
+      "caveat": "The source reports outbreak-level confirmation from multiple specimens, not per-person assay sensitivity; the numerical value is not source-estimated."
+    },
+    "confirmatory_test_sensitivity": {
+      "value": 0.97,
+      "status": "unvalidated_design_assumption",
+      "source": "https://wwwnc.cdc.gov/eid/article/17/8/10-1815_article",
+      "caveat": "The source reports six-specimen outbreak confirmation, not per-person sensitivity; the numerical value is not source-estimated."
+    },
+    "test_specificity": {
+      "value": 0.995,
+      "status": "unvalidated_design_assumption",
+      "source": "https://wwwnc.cdc.gov/eid/article/17/8/10-1815_article",
+      "caveat": "Specificity must be replaced with assay-specific validation data."
+    },
+    "background_gi_episodes_per_person_year": {
+      "value": 0.60,
+      "sensitivity_interval": [0.49, 0.73],
+      "status": "external_marginal_target",
+      "source": "https://pubmed.ncbi.nlm.nih.gov/17291364/"
+    },
+    "interview_recall_probability": {
+      "value": 0.85,
+      "status": "nuisance_parameter",
+      "source": "https://www.cdc.gov/field-epi-manual/php/chapters/collecting-data.html"
+    }
+  },
+  "posterior_predictive_targets": {
+    "outbreak_size": {
+      "median": 28,
+      "iqr": [16, 47],
+      "estimand": "reported_illnesses_per_outbreak",
+      "status": "external_validation_target",
+      "source": "https://wwwnc.cdc.gov/eid/article/26/8/19-1537_article"
+    },
+    "attack_rate": {
+      "median": 0.22,
+      "iqr": [0.11, 0.36],
+      "estimand": "reported_illnesses_divided_by_exposed_population",
+      "status": "external_validation_target",
+      "source": "https://wwwnc.cdc.gov/eid/article/26/8/19-1537_article"
+    },
+    "effective_reproduction_number": {
+      "median": 1.29,
+      "iqr": [1.12, 1.74],
+      "estimand": "final_size_model_estimate_under_study_assumptions",
+      "status": "external_validation_target",
+      "source": "https://wwwnc.cdc.gov/eid/article/26/8/19-1537_article"
+    }
+  },
+  "transmission_configuration": {
+    "population_size": 1000,
+    "horizon_days": 21,
+    "decision_day": 8,
+    "timestep_minutes": 360,
+    "daily_transmission_hazard": 0.04,
+    "mean_contacts": 10,
+    "initial_prevalence": 0.003,
+    "infectious_days": 3.0,
+    "experimental_latent_infection_bounds": [0, 500],
+    "status": "multi_route_candidate_not_fitted"
+  },
+  "utility_profile": {
+    "loss_per_infection": 1.0,
+    "artifact_record_weight": 0.5,
+    "status": "preregistered_research_weights_pending_stakeholder_review"
+  },
+  "closed_loop_configuration": {
+    "interaction_days": 5,
+    "implementation_cycle_minutes": 360,
+    "growth_regime_multipliers": {
+      "low": 0.65,
+      "medium": 1.0,
+      "high": 1.35
+    },
+    "causal_modes": {
+      "person_to_person": {
+        "initial_prevalence": 0.003,
+        "contact_beta_multiplier": 1.0,
+        "predecision_exposure_candidates": [0, 0],
+        "future_exposure_candidates": [0, 0]
+      },
+      "common_source": {
+        "initial_prevalence": 0.0,
+        "contact_beta_multiplier": 0.25,
+        "predecision_exposure_candidates": [18, 36],
+        "future_exposure_candidates": [0, 18]
+      },
+      "repeated_introduction": {
+        "initial_prevalence": 0.0,
+        "contact_beta_multiplier": 0.25,
+        "predecision_exposure_candidates": [12, 28],
+        "future_exposure_candidates": [0, 16]
+      },
+      "background": {
+        "initial_prevalence": 0.0,
+        "contact_beta_multiplier": 0.0,
+        "predecision_exposure_candidates": [0, 0],
+        "future_exposure_candidates": [0, 0]
+      },
+      "reporting_artifact": {
+        "initial_prevalence": 0.0,
+        "contact_beta_multiplier": 0.0,
+        "predecision_exposure_candidates": [0, 0],
+        "future_exposure_candidates": [0, 0],
+        "initial_duplicate_reports": [4, 12],
+        "future_duplicate_reports": [0, 10]
+      }
+    },
+    "response_controls": {
+      "infection_control": {
+        "target_kind": "institution",
+        "description": "Institution-wide contact and hygiene controls.",
+        "levels": {
+          "off": {"effect_level": 1.0, "burden_per_day": 0.0, "setup_credits": 2},
+          "standard": {"effect_level": 0.65, "burden_per_day": 0.5, "setup_credits": 10},
+          "intensive": {"effect_level": 0.20, "burden_per_day": 2.0, "setup_credits": 20}
+        }
+      },
+      "source_control": {
+        "target_kind": "food_service",
+        "description": "Controls on a suspected shared food-service source.",
+        "levels": {
+          "off": {"effect_level": 1.0, "burden_per_day": 0.0, "setup_credits": 2},
+          "standard": {"effect_level": 0.35, "burden_per_day": 0.35, "setup_credits": 12},
+          "intensive": {"effect_level": 0.05, "burden_per_day": 1.5, "setup_credits": 24}
+        }
+      },
+      "entry_control": {
+        "target_kind": "entry_program",
+        "description": "Screening and targeted precautions for outside introductions.",
+        "levels": {
+          "off": {"effect_level": 1.0, "burden_per_day": 0.0, "setup_credits": 2},
+          "standard": {"effect_level": 0.40, "burden_per_day": 0.30, "setup_credits": 10},
+          "intensive": {"effect_level": 0.05, "burden_per_day": 1.25, "setup_credits": 20}
+        }
+      },
+      "audit_reporting": {
+        "target_kind": "reporting_system",
+        "description": "Audit and correction of duplicate or malformed surveillance records.",
+        "levels": {
+          "off": {"effect_level": 1.0, "burden_per_day": 0.0, "setup_credits": 2},
+          "standard": {"effect_level": 0.35, "burden_per_day": 0.15, "setup_credits": 8},
+          "intensive": {"effect_level": 0.0, "burden_per_day": 0.45, "setup_credits": 14}
+        }
+      }
+    },
+    "institution_control_levels": {
+      "off": {"transmission_level": 1.0, "burden_per_day": 0.0, "setup_credits": 2},
+      "standard": {"transmission_level": 0.65, "burden_per_day": 0.5, "setup_credits": 10},
+      "intensive": {"transmission_level": 0.20, "burden_per_day": 2.0, "setup_credits": 20}
+    },
+    "forecast": {
+      "target": "new_encounters",
+      "horizon_minutes": 1440,
+      "minimum_submissions": 2,
+      "review_minutes": 1440,
+      "scoring_rule": "symmetric_log_gaussian_base_2",
+      "status": "unvalidated_benchmark_design_assumption"
+    },
+    "status": "unvalidated_multi_route_closed_loop_design",
+    "caveat": "Route-specific exposure schedules, intervention effects, reporting-artifact prevalence, and utility weights are benchmark design assumptions, not estimated public-health effects."
+  }
+}
