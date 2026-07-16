@@ -1,0 +1,117 @@
+{
+  "benchmark_base_commit": "2cc6d801a9673d0173532a621fa0f764e08d1212",
+  "development_only": true,
+  "episodes": [
+    {
+      "episode_ref": "episode_01",
+      "episode_secret_commitment": "sha256:b5950f150d0c737a8a3a9f9e4e7e389119ad229584828ae178aac3fd6cef582d",
+      "family": "institution_person_to_person",
+      "seed_derivation": "int(sha256('epiagentbench:development-panel:v2:' + family).hexdigest()[:13], 16)",
+      "system_order": [
+        "codex",
+        "claude",
+        "cursor"
+      ]
+    },
+    {
+      "episode_ref": "episode_02",
+      "episode_secret_commitment": "sha256:272d2ca4ef8cf07a8c2888cdf4350fa6ca9bd9fb34bb17a0a49818c8e7e73a11",
+      "family": "restaurant_point_source",
+      "seed_derivation": "int(sha256('epiagentbench:development-panel:v2:' + family).hexdigest()[:13], 16)",
+      "system_order": [
+        "claude",
+        "cursor",
+        "codex"
+      ]
+    },
+    {
+      "episode_ref": "episode_03",
+      "episode_secret_commitment": "sha256:2c10326013a7e39e18f38d2918290589a4dbe1b28b2eab9ffc8063fc3beb96b0",
+      "family": "repeated_introduction",
+      "seed_derivation": "int(sha256('epiagentbench:development-panel:v2:' + family).hexdigest()[:13], 16)",
+      "system_order": [
+        "cursor",
+        "codex",
+        "claude"
+      ]
+    },
+    {
+      "episode_ref": "episode_04",
+      "episode_secret_commitment": "sha256:da11011217f887feb77885438f130de894ac6d6629b47b2bce475364ef1f1d65",
+      "family": "coincidental_venue",
+      "seed_derivation": "int(sha256('epiagentbench:development-panel:v2:' + family).hexdigest()[:13], 16)",
+      "system_order": [
+        "codex",
+        "cursor",
+        "claude"
+      ]
+    },
+    {
+      "episode_ref": "episode_05",
+      "episode_secret_commitment": "sha256:ba66ce7cc85b5b2e96839431c32575fbfe32c395ada90447a0bca44ed42bf2f2",
+      "family": "reporting_artifact",
+      "seed_derivation": "int(sha256('epiagentbench:development-panel:v2:' + family).hexdigest()[:13], 16)",
+      "system_order": [
+        "cursor",
+        "claude",
+        "codex"
+      ]
+    }
+  ],
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked provider CLIs; execution is not hermetic",
+    "requested model identity is not independently signed",
+    "unequal provider-native reasoning and billing controls",
+    "synthetic LTC-v3 development episodes are not externally calibrated",
+    "one episode per causal family is too small for uncertainty estimates"
+  ],
+  "panel_id": "development-paired-pilot-v2-2026-07-15",
+  "panel_master_secret_commitment": "sha256:08190551833b4d65bb7a29dea7772304c03cb15c16e2ca69da9a1ad1eb3c0d49",
+  "planned_assignments": 15,
+  "precommitment_sha256": "sha256:817db84a902571c530270fefbe7b15720a995208217dd25fc85c240e4838aeee",
+  "prepared_at_utc": "2026-07-15T19:28:09.963984Z",
+  "results": [],
+  "run_contract": {
+    "backend": "starsim-ltc-v3",
+    "claude_max_budget_usd_per_assignment": 2.0,
+    "executables": {
+      "claude": "claude",
+      "codex": "codex",
+      "cursor": "cursor-agent"
+    },
+    "failure_policy": "evaluator-returned timeouts, invalid submissions, and detected model fallbacks remain in the fixed denominator with score zero; missing independent model receipts are reported separately; infrastructure or harness exceptions abort the panel and are not model scores",
+    "reasoning_configuration": {
+      "claude": "provider default under explicit USD cap",
+      "codex": "medium",
+      "cursor": "native high model alias"
+    },
+    "requested_models": {
+      "claude": "claude-fable-5",
+      "codex": "gpt-5.6-sol",
+      "cursor": "glm-5.2-high"
+    },
+    "retry_policy": "no retries after an assignment starts",
+    "timeout_seconds_per_assignment": 900
+  },
+  "schema_version": "development_pilot_v1",
+  "scientific_claim": "five-episode paired integration pilot; descriptive only, not a model ranking",
+  "score_dimension_maxima": {
+    "classification": 15.0,
+    "efficiency": 10.0,
+    "evidence": 10.0,
+    "handoff": 5.0,
+    "hypothesis": 10.0,
+    "line_list": 15.0,
+    "prospective_forecast": 10.0,
+    "response_utility": 25.0
+  },
+  "source_hashes": {
+    "development_pilot_module": "sha256:5549f3aad2bb8fe76b55946d56e20674d0be8e8221b7b8dc35c7f52547f9cdff",
+    "pilot_module": "sha256:a491682f17940d3d66de13111ba48aaeca687a2dd7a88feda3a7d6a73a5bcfad",
+    "submission_schema": "sha256:2b8a308f0b398eac938da11448ff498c2a418523a28e9d32bfe0d3fe3dbb85aa",
+    "task_prompt": "sha256:8bd3c34b94778d6211378d6a45ca71d121828aabd9621b2acb7ed02f33f24dbe"
+  },
+  "status": "precommitted"
+}

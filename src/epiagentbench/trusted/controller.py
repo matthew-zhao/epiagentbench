@@ -10,6 +10,7 @@ from threading import RLock
 from typing import Any, Mapping
 
 from ..environment import InvestigationEnvironment
+from ..hypotheses import normalize_hypothesis_catalog
 from ..models import EpisodeBundle
 from ..scoring import (
     canary_scan_tail_length,
@@ -37,6 +38,7 @@ _MANIFEST_KEYS = {
     "policy_pack",
     "enabled_tools",
 }
+_OPTIONAL_MANIFEST_KEYS = {"hypothesis_catalog"}
 _OBSERVATION_KEYS = {
     "observation_id",
     "kind",
@@ -62,6 +64,13 @@ _RESPONSE_CONTROL_TYPES = (
     "entry_control",
     "audit_reporting",
 )
+_INSPECTION_SIGNAL_TYPES = {
+    "institution": "symptomatic_contact_links",
+    "food_service": "shared_service_exposure_matches",
+    "entry_program": "independent_arrival_records",
+    "reporting_system": "duplicate_report_lineages",
+}
+_FACILITY_ROLES = {"resident", "staff", "visitor"}
 _ADMIN_ONLY_METHODS = {"score", "audit_artifact", "shutdown"}
 _ORACLE_PROBE_METHODS = {
     "oracle",
@@ -657,7 +666,11 @@ def _validate_public_result(method: str, result: Any) -> None:
 
 
 def _validate_manifest(manifest: Any) -> None:
-    if not isinstance(manifest, dict) or set(manifest) != _MANIFEST_KEYS:
+    if (
+        not isinstance(manifest, dict)
+        or not _MANIFEST_KEYS.issubset(manifest)
+        or set(manifest) - _MANIFEST_KEYS - _OPTIONAL_MANIFEST_KEYS
+    ):
         raise PublicRequestRejected("request rejected")
     if not _is_identifier(manifest["episode_id"]):
         raise PublicRequestRejected("request rejected")
@@ -709,6 +722,11 @@ def _validate_manifest(manifest: Any) -> None:
         raise PublicRequestRejected("request rejected")
     if any(type(value) is not int or value < 0 for value in budgets.values()):
         raise PublicRequestRejected("request rejected")
+    if "hypothesis_catalog" in manifest:
+        try:
+            normalize_hypothesis_catalog(manifest["hypothesis_catalog"])
+        except ValueError as exc:
+            raise PublicRequestRejected("request rejected") from exc
 
 
 def _validate_observations(observations: Any) -> None:
@@ -981,7 +999,8 @@ def _validate_observation_payload(
         required = {"patient_id", "syndrome", "onset_day", "report_id"}
         if kind == "case_report":
             required.add("source_system")
-        _require_payload_keys(payload, required)
+        facility_context = {"facility_role", "ward_id"}
+        _require_payload_keys(payload, required, facility_context)
         _validate_patient_subject(payload, subject_id)
         if (
             payload["syndrome"] not in {"acute_gastrointestinal", "other"}
@@ -996,6 +1015,12 @@ def _validate_observation_payload(
             )
         ):
             raise PublicRequestRejected("request rejected")
+        if bool(facility_context & set(payload)):
+            if not facility_context.issubset(payload) or (
+                payload["facility_role"] not in _FACILITY_ROLES
+                or not _is_identifier(payload["ward_id"])
+            ):
+                raise PublicRequestRejected("request rejected")
         return
 
     if kind == "lab":
@@ -1022,6 +1047,8 @@ def _validate_observation_payload(
             "contact_with_symptomatic_person",
             "shared_restaurant",
             "restaurant_id",
+            "facility_role",
+            "ward_id",
         }
         _require_payload_keys(payload, required, optional)
         _validate_patient_subject(payload, subject_id)
@@ -1050,29 +1077,40 @@ def _validate_observation_payload(
                 raise PublicRequestRejected("request rejected")
             if restaurant_id is not None and not _is_identifier(restaurant_id):
                 raise PublicRequestRejected("request rejected")
+        facility_context = {"facility_role", "ward_id"}
+        if bool(facility_context & set(payload)):
+            if not facility_context.issubset(payload) or (
+                payload["facility_role"] not in _FACILITY_ROLES
+                or not _is_identifier(payload["ward_id"])
+            ):
+                raise PublicRequestRejected("request rejected")
         return
 
     if kind == "inspection":
         _require_payload_keys(
             payload,
-            {"target_id", "target_type", "finding", "summary"},
+            {
+                "target_id",
+                "target_type",
+                "signal_type",
+                "records_reviewed",
+                "signal_count",
+                "data_quality",
+                "summary",
+            },
         )
+        target_type = payload["target_type"]
         if (
             not _is_identifier(payload["target_id"])
             or subject_id != payload["target_id"]
-            or payload["target_type"]
-            not in {
-                "institution",
-                "food_service",
-                "entry_program",
-                "reporting_system",
-            }
-            or payload["finding"]
-            not in {
-                "material_concern",
-                "minor_irregularity",
-                "no_material_concern",
-            }
+            or target_type not in _INSPECTION_SIGNAL_TYPES
+            or payload["signal_type"] != _INSPECTION_SIGNAL_TYPES[target_type]
+            or type(payload["records_reviewed"]) is not int
+            or not 0 <= payload["records_reviewed"] <= 100_000
+            or type(payload["signal_count"]) is not int
+            or not 0 <= payload["signal_count"] <= payload["records_reviewed"]
+            or payload["data_quality"]
+            not in {"limited", "partial", "substantial"}
             or not _is_public_text(payload["summary"])
             or not payload["summary"].strip()
             or len(payload["summary"]) > 512

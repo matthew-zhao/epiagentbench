@@ -13,7 +13,7 @@ import hashlib
 import hmac
 import itertools
 import math
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from ..models import Observation, Oracle, PublicEpisode
 from .engine import EngineControl, TransmissionEvent
@@ -36,30 +36,12 @@ from .starsim_engine import (
 
 
 LEVELS = ("off", "standard", "intensive")
-BIOLOGICAL_MODES = frozenset(
-    {"person_to_person", "common_source", "repeated_introduction"}
-)
 CONTROL_KINDS: Mapping[str, str | None] = {
     "infection_control": CONTACT_TRANSMISSION_LEVEL,
     "source_control": COMMON_SOURCE_EXPOSURE_LEVEL,
     "entry_control": IMPORTATION_EXPOSURE_LEVEL,
     # Audit controls are deliberately surveillance-only.
     "audit_reporting": None,
-}
-MODE_RELEVANT_ACTIONS: Mapping[str, tuple[str, ...]] = {
-    "person_to_person": ("infection_control",),
-    "common_source": ("infection_control", "source_control"),
-    "repeated_introduction": ("infection_control", "entry_control"),
-    "background": (),
-    "reporting_artifact": ("audit_reporting",),
-}
-MODE_ORACLE_LABELS: Mapping[str, tuple[str, str | None]] = {
-    # The source marker is resolved to a presentation ID at finalization.
-    "person_to_person": ("propagated", "institution"),
-    "common_source": ("common_source", "food_service"),
-    "repeated_introduction": ("repeated_introduction", "entry_program"),
-    "background": ("sporadic_background", None),
-    "reporting_artifact": ("reporting_artifact", "reporting_system"),
 }
 
 # Compatibility defaults for a caller that deliberately supplies the original
@@ -122,6 +104,14 @@ class ClosedLoopStarsimRuntime:
         family: str = "institution_person_to_person",
         initial_artifact_duplicates: int = 0,
         future_artifact_candidates: Iterable[tuple[int, int]] = (),
+        hypothesis_catalog: Iterable[Mapping[str, Any]] | None = None,
+        engine_factory: Callable[[Any], Any] | None = None,
+        control_kinds: Mapping[str, str | None] | None = None,
+        world_present_biological_actions: Iterable[str] | None = None,
+        person_context_by_agent_id: Mapping[int, Mapping[str, str]] | None = None,
+        symptom_onset_provider: Callable[[Any], Mapping[int, int | None]] | None = None,
+        background_episode_count: int | None = None,
+        trusted_state_provider: Callable[[Any], Any] | None = None,
     ) -> None:
         if causal_mode not in CAUSAL_MODES:
             raise ValueError("Unsupported closed-loop causal mode")
@@ -140,6 +130,47 @@ class ClosedLoopStarsimRuntime:
         self._growth_regime = growth_regime
         self._causal_mode = causal_mode
         self._family = family
+        self._engine_factory = (
+            StarsimDiseaseEngine if engine_factory is None else engine_factory
+        )
+        if not callable(self._engine_factory):
+            raise ValueError("engine_factory must be callable")
+        if symptom_onset_provider is not None and not callable(
+            symptom_onset_provider
+        ):
+            raise ValueError("Invalid symptom-onset provider")
+        self._symptom_onset_provider = symptom_onset_provider
+        if trusted_state_provider is not None and not callable(
+            trusted_state_provider
+        ):
+            raise ValueError("Invalid trusted-state provider")
+        self._trusted_state_provider = trusted_state_provider
+        selected_control_kinds = (
+            CONTROL_KINDS if control_kinds is None else control_kinds
+        )
+        if not isinstance(selected_control_kinds, Mapping):
+            raise ValueError("Invalid response-control engine mapping")
+        self._control_kinds = dict(selected_control_kinds)
+        if set(self._control_kinds) != set(RESPONSE_ACTION_TYPES) or any(
+            value is not None and (not isinstance(value, str) or not value)
+            for value in self._control_kinds.values()
+        ):
+            raise ValueError("Invalid response-control engine mapping")
+        if world_present_biological_actions is None:
+            self._world_present_actions_override = None
+        else:
+            actions = tuple(world_present_biological_actions)
+            if (
+                any(not isinstance(action, str) for action in actions)
+                or len(actions) != len(set(actions))
+                or any(
+                    action not in RESPONSE_ACTION_TYPES
+                    or self._control_kinds[action] is None
+                    for action in actions
+                )
+            ):
+                raise ValueError("Invalid world-present biological actions")
+            self._world_present_actions_override = actions
         transmission = self._profile["transmission_configuration"]
         closed_loop = self._profile["closed_loop_configuration"]
         self._decision_minute = int(transmission["decision_day"]) * DAY_MINUTES
@@ -193,8 +224,8 @@ class ClosedLoopStarsimRuntime:
             for level in LEVELS:
                 self._level_values(level, action_type)
 
-        self._active = StarsimDiseaseEngine(config)
-        self._shadow = StarsimDiseaseEngine(config)
+        self._active = self._engine_factory(config)
+        self._shadow = self._engine_factory(config)
         self._closed = False
         self._final_oracle: Oracle | None = None
         self._current_public_minute = 0
@@ -221,6 +252,11 @@ class ClosedLoopStarsimRuntime:
                 != shadow_snapshot.transmission_events
             ):
                 raise RuntimeError("No-action Starsim twins diverged at bootstrap")
+            if self._trusted_state_provider is not None and (
+                self._trusted_state_provider(self._active)
+                != self._trusted_state_provider(self._shadow)
+            ):
+                raise RuntimeError("No-action trusted states diverged at bootstrap")
 
             self._stream = IncrementalSurveillanceStream(
                 seed=seed,
@@ -232,21 +268,14 @@ class ClosedLoopStarsimRuntime:
                 review_interval_minutes=self._tick_minutes,
                 causal_mode=causal_mode,
                 artifact_duplicate_count=initial_artifact_duplicates,
+                hypothesis_catalog=hypothesis_catalog,
+                person_context_by_agent_id=person_context_by_agent_id,
+                background_episode_count=background_episode_count,
             )
-            self._stream.ingest(active_snapshot.transmission_events)
+            self._ingest_active_events(active_snapshot.transmission_events)
             self._public_episode = self._stream.bootstrap()
             self._infections_at_decision = len(active_snapshot.transmission_events)
-            self._secondary_at_decision = sum(
-                event.source_agent_id is not None
-                for event in active_snapshot.transmission_events
-            )
-            self._mechanism_counts_at_decision = {
-                mechanism: sum(
-                    event.mechanism == mechanism
-                    for event in active_snapshot.transmission_events
-                )
-                for mechanism in (COMMON_SOURCE, IMPORTATION)
-            }
+            self._decision_events = active_snapshot.transmission_events
         except Exception:
             self._active.close()
             self._shadow.close()
@@ -301,8 +330,18 @@ class ClosedLoopStarsimRuntime:
             or engine_target <= self._first_biological_effective_minute
         ) and active_events != shadow_events:
             raise RuntimeError("Closed-loop worlds diverged before control effect")
+        if (
+            self._trusted_state_provider is not None
+            and (
+                self._first_biological_effective_minute is None
+                or engine_target <= self._first_biological_effective_minute
+            )
+            and self._trusted_state_provider(self._active)
+            != self._trusted_state_provider(self._shadow)
+        ):
+            raise RuntimeError("Trusted worlds diverged before control effect")
 
-        observations = list(self._stream.ingest(active_events))
+        observations = list(self._ingest_active_events(active_events))
         observations.extend(self._materialize_artifacts_through(public_minute))
         self._current_public_minute = public_minute
         return self._ordered_observations(observations)
@@ -356,7 +395,7 @@ class ClosedLoopStarsimRuntime:
 
         self._intervention_sequence += 1
         sequence = self._intervention_sequence
-        control_kind = CONTROL_KINDS[action_type]
+        control_kind = self._control_kinds[action_type]
         if control_kind is not None:
             self._active.apply_control(
                 EngineControl(
@@ -443,30 +482,9 @@ class ClosedLoopStarsimRuntime:
             for action_type in RESPONSE_ACTION_TYPES
         }
 
-        biological_mode = self._causal_mode in BIOLOGICAL_MODES
-        sufficient_revealed_cases = (
-            len(self._stream.investigation_true_case_ids) >= 3
+        is_outbreak, explanation_type, source_kind = (
+            self._decision_causal_assessment()
         )
-        mode_cluster_size = {
-            "person_to_person": self._secondary_at_decision,
-            "common_source": self._mechanism_counts_at_decision[COMMON_SOURCE],
-            "repeated_introduction": self._mechanism_counts_at_decision[
-                IMPORTATION
-            ],
-            "background": 0,
-            "reporting_artifact": 0,
-        }[self._causal_mode]
-        is_outbreak = (
-            biological_mode
-            and sufficient_revealed_cases
-            and mode_cluster_size >= 3
-        )
-        explanation_type, source_kind = MODE_ORACLE_LABELS[self._causal_mode]
-        # The P2P generator can still yield a coherent false alert.  In that
-        # case the agent should not be rewarded for parroting a latent route
-        # label when the frozen evidence does not establish propagated spread.
-        if self._causal_mode == "person_to_person" and not is_outbreak:
-            explanation_type, source_kind = ("sporadic_background", None)
         source_id = {
             "institution": self._stream.institution_id,
             "food_service": self._stream.food_service_id,
@@ -526,7 +544,10 @@ class ClosedLoopStarsimRuntime:
                 len(changes) for changes in self._control_changes.values()
             ),
             "investigation_gold_cutoff_minute": 0,
-            "outcome_horizon_days": self._config.horizon_days,
+            "outcome_horizon_days": (
+                self._config.horizon_days
+                - self._decision_minute // DAY_MINUTES
+            ),
             "forecast_scoring_rule": "symmetric_log_gaussian_base_2",
         }
         for action_type in RESPONSE_ACTION_TYPES:
@@ -597,8 +618,23 @@ class ClosedLoopStarsimRuntime:
             self._active.advance_to(absolute_target)
             self._shadow.advance_to(absolute_target)
         if materialize_observations:
-            self._stream.ingest(self._active.oracle_snapshot().transmission_events)
+            self._ingest_active_events(
+                self._active.oracle_snapshot().transmission_events
+            )
             self._materialize_artifacts_through(self._deadline_minutes)
+
+    def _ingest_active_events(
+        self, events: Iterable[TransmissionEvent]
+    ) -> tuple[Observation, ...]:
+        symptom_onsets = (
+            None
+            if self._symptom_onset_provider is None
+            else self._symptom_onset_provider(self._active)
+        )
+        return self._stream.ingest(
+            events,
+            symptom_onset_by_agent_id=symptom_onsets,
+        )
 
     def _fixed_bundle_utilities(
         self,
@@ -606,25 +642,24 @@ class ClosedLoopStarsimRuntime:
         no_action_infections: int,
         no_action_artifacts: int,
     ) -> dict[tuple[str, ...], float]:
-        """Score all 3^4 bundles while simulating only causal dimensions.
+        """Score all 3^4 bundles while simulating world-present dimensions.
 
         Irrelevant controls have no simulator effect and non-negative additive
-        burden.  Collapsing those biological runs is therefore exactly
-        equivalent to launching 81 duplicate Starsim worlds.
+        burden.  Collapsing duplicate biological runs is therefore exactly
+        equivalent to launching 81 Starsim worlds.  Which routes are present
+        is derived from the immutable simulator configuration, never from the
+        private causal-mode answer label; this also permits future mixed-route
+        configurations.
         """
 
-        relevant = tuple(
-            action
-            for action in MODE_RELEVANT_ACTIONS[self._causal_mode]
-            if action != "audit_reporting"
-        )
+        relevant = self._world_present_biological_actions()
         infections_by_relevant_levels: dict[tuple[str, ...], int] = {
             tuple("off" for _ in relevant): no_action_infections
         }
         for relevant_levels in itertools.product(LEVELS, repeat=len(relevant)):
             if relevant_levels in infections_by_relevant_levels:
                 continue
-            engine = StarsimDiseaseEngine(self._config)
+            engine = self._engine_factory(self._config)
             effective_minute = self._decision_minute + self._tick_minutes
             try:
                 for index, (action_type, level) in enumerate(
@@ -632,7 +667,7 @@ class ClosedLoopStarsimRuntime:
                 ):
                     if level == "off":
                         continue
-                    control_kind = CONTROL_KINDS[action_type]
+                    control_kind = self._control_kinds[action_type]
                     if control_kind is None:  # pragma: no cover - defensive
                         raise RuntimeError("Audit control reached a Starsim world")
                     engine.apply_control(
@@ -677,6 +712,105 @@ class ClosedLoopStarsimRuntime:
                 - burden
             )
         return utilities
+
+    def _world_present_biological_actions(self) -> tuple[str, ...]:
+        """Return post-decision controls supported by concrete world routes."""
+
+        if self._world_present_actions_override is not None:
+            return self._world_present_actions_override
+
+        actions: list[str] = []
+        if self._config.beta > 0.0:
+            actions.append("infection_control")
+        first_effective = self._decision_minute + self._tick_minutes
+        future_mechanisms = {
+            exposure.mechanism
+            for exposure in self._config.scheduled_exogenous_exposures
+            if exposure.exposure_minute >= first_effective
+        }
+        if COMMON_SOURCE in future_mechanisms:
+            actions.append("source_control")
+        if IMPORTATION in future_mechanisms:
+            actions.append("entry_control")
+        return tuple(actions)
+
+    def _decision_causal_assessment(self) -> tuple[bool, str, str | None]:
+        """Derive final causal gold from frozen trace/report facts.
+
+        The private generation stratum is intentionally absent.  Descendants
+        of realized common-source or importation events remain attributable to
+        those roots; descendants of ordinary seed infections support the
+        propagated route.  This permits mixed-route worlds without making a
+        mode label the answer key.
+        """
+
+        events_by_target = {
+            event.target_agent_id: event for event in self._decision_events
+        }
+
+        def root_route(event: TransmissionEvent) -> str:
+            current = event
+            seen: set[int] = set()
+            while True:
+                if current.mechanism in {COMMON_SOURCE, "shared_source"}:
+                    return COMMON_SOURCE
+                if current.mechanism in {
+                    IMPORTATION,
+                    "repeated_introduction",
+                    "external_introduction",
+                }:
+                    return IMPORTATION
+                source = current.source_agent_id
+                if source is None:
+                    return "seed"
+                if source in seen or source not in events_by_target:
+                    raise RuntimeError("invalid frozen transmission ancestry")
+                seen.add(source)
+                current = events_by_target[source]
+
+        route_counts = {
+            "common_source": 0,
+            "repeated_introduction": 0,
+            "propagated": 0,
+        }
+        for event in self._decision_events:
+            route = root_route(event)
+            if route == COMMON_SOURCE:
+                route_counts["common_source"] += 1
+            elif route == IMPORTATION:
+                route_counts["repeated_introduction"] += 1
+            elif event.source_agent_id is not None:
+                route_counts["propagated"] += 1
+
+        route_specs = (
+            ("common_source", "food_service"),
+            ("repeated_introduction", "entry_program"),
+            ("propagated", "institution"),
+        )
+        explanation_type, source_kind = max(
+            route_specs,
+            key=lambda item: route_counts[item[0]],
+        )
+        sufficient_revealed_cases = (
+            len(self._stream.investigation_true_case_ids) >= 3
+        )
+        if sufficient_revealed_cases and route_counts[explanation_type] >= 3:
+            return True, explanation_type, source_kind
+
+        reports_by_patient: dict[str, int] = {}
+        for observation in self._stream.all_observations:
+            if (
+                observation.kind == "case_report"
+                and observation.available_minute == 0
+                and observation.payload.get("source_system") == "legacy_import"
+                and observation.subject_id is not None
+            ):
+                reports_by_patient[observation.subject_id] = (
+                    reports_by_patient.get(observation.subject_id, 0) + 1
+                )
+        if any(count > 1 for count in reports_by_patient.values()):
+            return False, "reporting_artifact", "reporting_system"
+        return False, "sporadic_background", None
 
     def _fixed_artifact_emissions(self, audit_level: str) -> int:
         residual = float(
@@ -816,19 +950,9 @@ class ClosedLoopStarsimRuntime:
         return level
 
     def _oracle_decisive_evidence_ids(self) -> frozenset[str]:
-        if self._causal_mode in BIOLOGICAL_MODES:
-            return self._stream.investigation_decisive_evidence_ids
-        observations = self._stream.all_observations
-        if self._causal_mode == "background":
-            return frozenset(
-                observation.observation_id
-                for observation in observations
-                if observation.kind == "inspection"
-                and observation.available_minute <= self._deadline_minutes
-            )
-        # Reporting artifacts are not people.  The stream freezes reachable
-        # duplicate reports and the reporting-system inspection at bootstrap,
-        # so later audit actions cannot shrink their evidence denominator.
+        # The stream freezes evidence membership from trace/report facts at
+        # bootstrap.  The evaluator must not replace that set by consulting the
+        # private scenario label (including for background or reporting cases).
         return self._stream.investigation_decisive_evidence_ids
 
     def _normalize_artifact_candidates(

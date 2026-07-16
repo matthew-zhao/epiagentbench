@@ -1,0 +1,365 @@
+{
+  "calibrated": false,
+  "completed_assignments": 5,
+  "completed_at_utc": "2026-07-15T23:17:10.713995Z",
+  "development_only": true,
+  "execution_environment": {
+    "claude_available": true,
+    "claude_cli_version": "2.1.195 (Claude Code)",
+    "execution_commit": "a1e57d0a3130d00c2a902bbfad159f7d3f1c32f3",
+    "git_status_at_start": "",
+    "machine": "arm64",
+    "platform": "macOS-26.4-arm64-arm-64bit-Mach-O",
+    "provider_network_access": true,
+    "python": "3.13.7",
+    "sandbox": "Claude safe mode with public MCP only; not hermetic",
+    "starsim": "3.5.1"
+  },
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked Claude CLI execution is not hermetic",
+    "this unpaired panel cannot support cross-system causal comparisons",
+    "synthetic LTC-v3 development episodes are not externally calibrated",
+    "one episode per causal family is too small for uncertainty estimates",
+    "final publication opens the master secret for exact replay and permanently retires this panel"
+  ],
+  "paired": false,
+  "panel_id": "development-opus-high-pilot-v1-2026-07-15",
+  "panel_master_secret_opening_hex": "934183ca95252e2f8dabfabfc8b3c381e05b781a4dc3cf1af0a1eb78e8b338b8",
+  "panel_retired_after_publication": true,
+  "planned_assignments": 5,
+  "precommitment_sha256": "sha256:987950ac1b7cbd8795a40ed06f3775401fc20bd4695f09d0bfc2cd3a8acadd31",
+  "results": [
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "effort_attribution": "requested_only_unverified",
+      "elapsed_seconds": 6.691,
+      "episode_ref": "episode_01",
+      "exact_model_receipt": true,
+      "family": "repeated_introduction",
+      "family_commitment_opening_salt_hex": "e7311ecbd900c0910ddee33429c9aa6ca3fd2a35065606aec39e85ac2c3915b1",
+      "finished_at_utc": "2026-07-15T23:16:38.452584Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "native_json_schema_output_received": false,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "requested_effort": "high",
+      "requested_model": "claude-opus-4-8",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T23:16:29.312213Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 4468,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:hypotheses",
+        "missing:incident_assessment",
+        "missing:uncertainties",
+        "missing:next_evidence",
+        "missing:case_definition",
+        "missing:line_list",
+        "missing:executive_brief",
+        "missing:recommended_actions",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "effort_attribution": "requested_only_unverified",
+      "elapsed_seconds": 6.595,
+      "episode_ref": "episode_02",
+      "exact_model_receipt": true,
+      "family": "institution_person_to_person",
+      "family_commitment_opening_salt_hex": "32d49a041cee0a9450ec769b69df470e3249d548dc989993683ca9bc7822b77c",
+      "finished_at_utc": "2026-07-15T23:16:46.731325Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "native_json_schema_output_received": false,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "requested_effort": "high",
+      "requested_model": "claude-opus-4-8",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T23:16:38.498522Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 4485,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:hypotheses",
+        "missing:incident_assessment",
+        "missing:recommended_actions",
+        "missing:next_evidence",
+        "missing:line_list",
+        "missing:uncertainties",
+        "missing:executive_brief",
+        "missing:case_definition",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "effort_attribution": "requested_only_unverified",
+      "elapsed_seconds": 5.442,
+      "episode_ref": "episode_03",
+      "exact_model_receipt": true,
+      "family": "coincidental_venue",
+      "family_commitment_opening_salt_hex": "a38bcc17d26ac72004e60f5d43a42f37704d6166c78a994026826e4090283f90",
+      "finished_at_utc": "2026-07-15T23:16:53.814197Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "native_json_schema_output_received": false,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "requested_effort": "high",
+      "requested_model": "claude-opus-4-8",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T23:16:46.777557Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 4359,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:hypotheses",
+        "missing:recommended_actions",
+        "missing:uncertainties",
+        "missing:incident_assessment",
+        "missing:case_definition",
+        "missing:next_evidence",
+        "missing:executive_brief",
+        "missing:line_list",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "effort_attribution": "requested_only_unverified",
+      "elapsed_seconds": 6.706,
+      "episode_ref": "episode_04",
+      "exact_model_receipt": true,
+      "family": "restaurant_point_source",
+      "family_commitment_opening_salt_hex": "17f70e2296bccaebbbb6cf2f1d5db40125186fcc86c903045c234db6b939ae1a",
+      "finished_at_utc": "2026-07-15T23:17:03.186814Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "native_json_schema_output_received": false,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "requested_effort": "high",
+      "requested_model": "claude-opus-4-8",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T23:16:53.863239Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 4991,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:uncertainties",
+        "missing:incident_assessment",
+        "missing:next_evidence",
+        "missing:case_definition",
+        "missing:recommended_actions",
+        "missing:line_list",
+        "missing:executive_brief",
+        "missing:hypotheses",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "effort_attribution": "requested_only_unverified",
+      "elapsed_seconds": 5.921,
+      "episode_ref": "episode_05",
+      "exact_model_receipt": true,
+      "family": "reporting_artifact",
+      "family_commitment_opening_salt_hex": "2f09c0c0871ea7b5fd4b3c8ac52601dcab29415587ba28af6bbf98288b125ebc",
+      "finished_at_utc": "2026-07-15T23:17:10.713044Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "native_json_schema_output_received": false,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "requested_effort": "high",
+      "requested_model": "claude-opus-4-8",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T23:17:03.233097Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 4495,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:recommended_actions",
+        "missing:line_list",
+        "missing:uncertainties",
+        "missing:executive_brief",
+        "missing:hypotheses",
+        "missing:case_definition",
+        "missing:next_evidence",
+        "missing:incident_assessment",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    }
+  ],
+  "results_sha256": "sha256:94f1115f6f9f102ef173dd87660a329c4940e8868136480e4bacb71489daab7e",
+  "run_contract": {
+    "backend": "starsim-ltc-v3",
+    "claude_cli_version": "2.1.195 (Claude Code)",
+    "claude_max_budget_usd_per_assignment": 5.0,
+    "effort_attribution": "requested_only_unverified",
+    "exact_model_receipt_required": true,
+    "executable": "claude",
+    "failure_policy": "timeouts, invalid structured submissions, and nonexact or missing model receipts remain in the fixed five-episode denominator with score zero; infrastructure or harness exceptions stop and retire the panel",
+    "fallback_model": null,
+    "final_commitment_opening": "publish the panel master secret only after all five assignments finish",
+    "native_output_contract": "Claude --json-schema with submission.schema.json",
+    "requested_effort": "high",
+    "requested_model": "claude-opus-4-8",
+    "retry_policy": "no retries after an assignment starts",
+    "system": "claude",
+    "timeout_seconds_per_assignment": 900
+  },
+  "schema_version": "development_opus_pilot_v1",
+  "score_dimension_maxima": {
+    "classification": 15.0,
+    "efficiency": 10.0,
+    "evidence": 10.0,
+    "handoff": 5.0,
+    "hypothesis": 10.0,
+    "line_list": 15.0,
+    "prospective_forecast": 10.0,
+    "response_utility": 25.0
+  },
+  "started_at_utc": "2026-07-15T23:16:29.267092Z",
+  "status": "complete",
+  "summary": {
+    "audit_event_counts": {
+      "agent_failure:invalid_submission": 5
+    },
+    "completed": 5,
+    "exact_model_receipts": 5,
+    "integrity_pass": 0,
+    "mean_dimensions": {
+      "classification": 0.0,
+      "efficiency": 0.0,
+      "evidence": 0.0,
+      "handoff": 0.0,
+      "hypothesis": 0.0,
+      "line_list": 0.0,
+      "prospective_forecast": 0.0,
+      "response_utility": 0.0
+    },
+    "mean_total": 0.0,
+    "median_elapsed_seconds": 6.595,
+    "median_total": 0.0,
+    "native_json_schema_outputs": 0,
+    "planned": 5,
+    "valid": 0
+  }
+}

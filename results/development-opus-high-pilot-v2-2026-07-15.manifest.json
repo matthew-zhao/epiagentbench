@@ -1,0 +1,190 @@
+{
+  "benchmark_base_commit": "27f27ff8f001f62286143dff57ea5fb5327ecdbd",
+  "calibrated": false,
+  "development_only": true,
+  "episodes": [
+    {
+      "episode_ref": "episode_01",
+      "episode_secret_commitment": "sha256:67eddaf22a928d0613fa4ced252bc181f48119a3e8a4733054dbf51b9074c45d",
+      "family_commitment": "sha256:09a1fbb53647a7b4fad05acfc01024e5aeb617415c163efbe61b93843aa98f45"
+    },
+    {
+      "episode_ref": "episode_02",
+      "episode_secret_commitment": "sha256:a11be79975734feae43827cd886af5d188becf8d379d58217da9fe43be7182bb",
+      "family_commitment": "sha256:ee807fb15ee81333cfb0e5ec7664f6a9ef63039af52db314f19567bdb74ec19a"
+    },
+    {
+      "episode_ref": "episode_03",
+      "episode_secret_commitment": "sha256:96a54eb693e2d0f5b570e436856fad52c1efe95c282a5b99096d7dc0372cdf0f",
+      "family_commitment": "sha256:30039447e762faf049a0355997ef3af10b70f198e4124f943658627895554f4b"
+    },
+    {
+      "episode_ref": "episode_04",
+      "episode_secret_commitment": "sha256:b96b07e788a67ca3276d79e037462c21d149d9e1d71ba933d44c9816e6af0367",
+      "family_commitment": "sha256:ff6d7d388c60845afe61547c938a0fe93b08d38633e8ac24aab7e0810d5d8e72"
+    },
+    {
+      "episode_ref": "episode_05",
+      "episode_secret_commitment": "sha256:435b32b52aca361f1172fdf0712a22d707458c03720bcd4c68f4bf78b46eed0c",
+      "family_commitment": "sha256:165002f540f8bbb1bcd64e75456c03add1234b77f0c8c36579ff6050a745ae7c"
+    }
+  ],
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked Claude CLI execution is not hermetic",
+    "this unpaired panel cannot support cross-system causal comparisons",
+    "synthetic LTC-v3 development episodes are not externally calibrated",
+    "one episode per causal family is too small for uncertainty estimates",
+    "final publication opens the master secret for exact replay and permanently retires this panel"
+  ],
+  "paired": false,
+  "panel_id": "development-opus-high-pilot-v2-2026-07-15",
+  "panel_master_secret_commitment": "sha256:00eb30220e8c01200c6db664e49f911a1d85357159a46f5be5853a5b1a7a56f3",
+  "planned_assignments": 5,
+  "precommitment_sha256": "sha256:7e8dc7eca3da8d61e7f6f3a3ad828bc2193bfd68fd87ff7ce0a60d8c3ee7279d",
+  "prepared_at_utc": "2026-07-15T23:45:06.714818Z",
+  "results": [],
+  "run_contract": {
+    "backend": "starsim-ltc-v3",
+    "claude_cli_version": "2.1.195 (Claude Code)",
+    "claude_isolation_contract": {
+      "allowed_tools": [
+        "mcp__epiagent__*"
+      ],
+      "declared_builtin_tools": [
+        "Read"
+      ],
+      "disallowed_tools": [
+        "Read"
+      ],
+      "environment_roots": [
+        "HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+        "CLAUDE_CONFIG_DIR"
+      ],
+      "expected_init_tool_count": 13,
+      "expected_init_tools": [
+        "mcp__epiagent__get_manifest",
+        "mcp__epiagent__initial_observations",
+        "mcp__epiagent__search_observations",
+        "mcp__epiagent__request_interview",
+        "mcp__epiagent__order_confirmatory_test",
+        "mcp__epiagent__request_inspection",
+        "mcp__epiagent__advance_time",
+        "mcp__epiagent__recommend_action",
+        "mcp__epiagent__set_institution_control",
+        "mcp__epiagent__set_response_control",
+        "mcp__epiagent__submit_forecast",
+        "mcp__epiagent__get_clock_and_budget",
+        "StructuredOutput"
+      ],
+      "expected_mcp_servers": {
+        "epiagent": "connected"
+      },
+      "inventory_failure_event": "agent_failure:mcp_unavailable",
+      "isolated_assignment_environment": true,
+      "permission_mode": "dontAsk",
+      "safe_mode": false,
+      "setting_sources": [
+        "project"
+      ],
+      "slash_commands_disabled": true,
+      "strict_explicit_mcp_config": true,
+      "temporary_home_and_config": true,
+      "unauthorized_tool_event": "agent_failure:unauthorized_tool",
+      "unset_environment": [
+        "CLAUDE_CODE_SAFE_MODE"
+      ]
+    },
+    "claude_max_budget_usd_per_assignment": 5.0,
+    "effort_attribution": "requested_only_unverified",
+    "exact_model_receipt_required": true,
+    "executable": "claude",
+    "failure_policy": "timeouts, invalid structured submissions, and nonexact or missing model receipts remain in the fixed five-episode denominator with score zero; infrastructure or harness exceptions stop and retire the panel",
+    "fallback_model": null,
+    "final_commitment_opening": "publish the panel master secret only after all five assignments finish",
+    "native_output_contract": "Claude --json-schema with submission.schema.json",
+    "requested_effort": "high",
+    "requested_model": "claude-opus-4-8",
+    "retry_policy": "no retries after an assignment starts",
+    "system": "claude",
+    "timeout_seconds_per_assignment": 900
+  },
+  "schema_version": "development_opus_pilot_v2",
+  "scientific_claim": "five-episode configuration check; descriptive only, not a model ranking",
+  "score_dimension_maxima": {
+    "classification": 15.0,
+    "efficiency": 10.0,
+    "evidence": 10.0,
+    "handoff": 5.0,
+    "hypothesis": 10.0,
+    "line_list": 15.0,
+    "prospective_forecast": 10.0,
+    "response_utility": 25.0
+  },
+  "source_hashes": {
+    "resolved_generator_runtime_fingerprint": "sha256:03faa20574e296559be3dc77a9fcb812b320a0cd73a162fe0bdb9ab70310a32e",
+    "task_prompt": "sha256:8bd3c34b94778d6211378d6a45ca71d121828aabd9621b2acb7ed02f33f24dbe",
+    "tracked_runtime_files": {
+      "examples/run_development_opus_pilot.py": "sha256:a0d4ec76b64e06ffedd918ea5c8b6473e69596775c9ea16ecd4322e4ea99e435",
+      "pyproject.toml": "sha256:a5f691b5e92e285dff9429773133c619425cdfa73f741414a05d3b96fb227014",
+      "schemas/episode.schema.json": "sha256:959a038f5bdb07bda5c6fa384f9ae09c8e7250347cbdc1a098cb591c7d9a168c",
+      "schemas/submission.schema.json": "sha256:2b8a308f0b398eac938da11448ff498c2a418523a28e9d32bfe0d3fe3dbb85aa",
+      "src/epiagentbench/__init__.py": "sha256:74579e1549d7c1095ef8e6372f7656ba199c5173464ce6f4dc729e506066d31b",
+      "src/epiagentbench/adversarial.py": "sha256:a7eefad531671b057b59694acb95e05c2e9ca05de9d422767638a8353457e2c5",
+      "src/epiagentbench/baseline.py": "sha256:f431af1f184693d4d61353f302d4133383eac125a75b0e30fe9b8428ba9ad335",
+      "src/epiagentbench/calibration.py": "sha256:11b49b66fba50fc8b82a6b1211589829f9826f000483f07b5abd6e802df833bf",
+      "src/epiagentbench/cli.py": "sha256:22211e480c493c3d2db1e81f9576623b0c230cb1f8ed91a2537c56d39f44753b",
+      "src/epiagentbench/cms_nh_morphology.py": "sha256:4101ac2f15f24ecd3c0c0b198e4387873ed10f6bf3fa3a3c3f9204da8801cdeb",
+      "src/epiagentbench/data/__init__.py": "sha256:bbbd9a1d04ce97e3677dc6336bebd25c9a61541aacd7c6280b8c7248878e7e72",
+      "src/epiagentbench/data/gi_surveillance_v1.json": "sha256:3ebbbb382b3ef0f616589a973551e42e67e5158cbfb28dff07823a3ff6032112",
+      "src/epiagentbench/data/gi_surveillance_v2.json": "sha256:f6c48a420743b35da0e60d449c02e7e95a9b60a3205d1930b039fcd870e2127f",
+      "src/epiagentbench/development_opus_pilot.py": "sha256:0bb859865837c530de4b1ec062434c39c112ebd4b72a43ca76e90bd72ce8f9dd",
+      "src/epiagentbench/development_pilot.py": "sha256:b57c4c64ee8cd1df1695dfc0d2c2f7fa3e97e7b8d29fd281be7574b11f2c0523",
+      "src/epiagentbench/environment.py": "sha256:d43759bd4e169347f0e700f63f284f79f248ae76a9316f927049bdba63b38a4c",
+      "src/epiagentbench/external_validation.py": "sha256:d47c13737c53bec1871f6ed45ed7ab8f9d1a652e7b4b134dc3c26a6417769d98",
+      "src/epiagentbench/hypotheses.py": "sha256:4267d3782a930b77ede81eaf5f05fea0dd17ac9c2ca3642eb74184e93243362b",
+      "src/epiagentbench/ltc_scenario.py": "sha256:d120c06a2a0a1e9a4eb8b445aa26651f4867841264b59be2e0c11cfc90bcf082",
+      "src/epiagentbench/models.py": "sha256:3806f1fa8efa99772caca179e62e512e889b6793dbf3c1bfacb640b3560a3cbb",
+      "src/epiagentbench/nors_ltc_observation.py": "sha256:3405a206a853987f5f9f493ec877c04acff023a968b6d2dcfcf8ecd996282063",
+      "src/epiagentbench/pilot.py": "sha256:74dce9ddf4c504310cd52ffa16631561376e7355323c747e9925b8f3981fb740",
+      "src/epiagentbench/scenario.py": "sha256:281588634fe4db67917fe1fad0a032534361bcf64e7d8750ed73d0e862362cc4",
+      "src/epiagentbench/scientific_readiness.py": "sha256:ba1b671236b89aa1350a93320c86ed73d0990e7d59134d305b793a006584f322",
+      "src/epiagentbench/scoring.py": "sha256:7652e34f86a830c1c594a6d92a42c7d0c5c0008bcebf2c87b84dacee908bbabe",
+      "src/epiagentbench/trusted/__init__.py": "sha256:197e3c7885ae7b92ea67ecf8896943c3995fa07271776f94d54808860819c196",
+      "src/epiagentbench/trusted/backend.py": "sha256:1e91b32b23d2dd216c8ef1288756e1a04967f2c5b66ecee0c51582629f0b1b80",
+      "src/epiagentbench/trusted/branching_manifest.py": "sha256:7be17209bfa5e2bddf0aac0597b612243423f39fcc19d157da4311cbfff356ca",
+      "src/epiagentbench/trusted/calibration_panel.py": "sha256:4522c27ec495b4b813c8fdfdf79bd35a487096f6ef85a67849e7c6ebc2bb3793",
+      "src/epiagentbench/trusted/cohort_freezer.py": "sha256:5daf576b95122b8cef85f66d6290289c0b41fc2e57d752a1d1f8ab2864ebe79a",
+      "src/epiagentbench/trusted/controller.py": "sha256:b4ca51d922a2bb355745e24253a47a3a53ce1c3ddced0b71191baad0623b7f36",
+      "src/epiagentbench/trusted/engine.py": "sha256:9719299591a7008c6855e2d1e7bb17d815d54c7f53ac88374bc94a9e3407261a",
+      "src/epiagentbench/trusted/episode_pack.py": "sha256:30a9d6572bd60bf8f5b368fb2ca1566043b8a136c42810379d07515666ee97b1",
+      "src/epiagentbench/trusted/hardened_runner.py": "sha256:e8247bd54963d28828a7e58d14a29ed8fe139068260ae4a93cc31e28d3cf97a7",
+      "src/epiagentbench/trusted/hardened_snapshot.py": "sha256:a89fee0c20b0e41d2d1b72361672f0fe690eca02e7588d1e2f123795ead26a49",
+      "src/epiagentbench/trusted/institution_traces.py": "sha256:0e566cae1f5f54a2ce51ec399905f01cf8eea160a7c09f6cdfbee6a6112558e2",
+      "src/epiagentbench/trusted/intervention_evaluation.py": "sha256:57200656efe956eebbc0884a0cdd7ac32fa9970f6859d0ad191fc78f366b8f17",
+      "src/epiagentbench/trusted/live_starsim_runtime.py": "sha256:49f22099119dde05fa113ca1a7fbd04491f0b78fe4d760db7a706e7ac2557f48",
+      "src/epiagentbench/trusted/live_surveillance.py": "sha256:37eef314325d0da0532bed3a67999e95d7b2563e7e8e1d22deeff5b36f8d72ac",
+      "src/epiagentbench/trusted/ltc_branching.py": "sha256:5e630a67e5523399541245bd93f9e17b193a24a1b72b909928acf2ff8e3df34b",
+      "src/epiagentbench/trusted/ltc_closed_loop.py": "sha256:b2b1757fd46fa12d5ca279d91d2c2acaea9fbf9344a1d05f13cb4ad0118d6cec",
+      "src/epiagentbench/trusted/runtime.py": "sha256:6754de63dc1b8a8edda43bd2642a314c3add9e0d6fda8207fab56e8eb17eaf5f",
+      "src/epiagentbench/trusted/sandbox.py": "sha256:a0b992b26b2340902adc6105a407c59c6368ecf0b4da8303de0c063410654b9f",
+      "src/epiagentbench/trusted/service.py": "sha256:2bce39ba64d4de506d1e6dcd560d6add331038d04e4fc96b1d789a7ef26bf412",
+      "src/epiagentbench/trusted/starsim_engine.py": "sha256:e8e9f3f72f281411a4bd5b2700a460bc63210a462b0565baf072e5704ed2dbd9",
+      "src/epiagentbench/trusted/starsim_episode.py": "sha256:e465a92d720cb7069d542aaa255907a39ded7be572dd3889722ea2c5eb4bf165",
+      "src/epiagentbench/trusted/starsim_ltc_v3.py": "sha256:6c7184be5d591b7ffce9feb52779b3e1f5cc5f3bc7b5e70e05f9337e531abf7e",
+      "src/epiagentbench/trusted/surveillance.py": "sha256:8f00c82a8f96c0d15ea4d18ae26672d8f497710079796380a5bb7adf4977b440",
+      "src/epiagentbench/trusted/wire.py": "sha256:100a908fb077ca0056b499cd4f25cd54ac3c2a8929e1b71d5e37bcc32e19f5cc",
+      "src/epiagentbench/validation.py": "sha256:e1fdab5f56bca69e8f041f3a6fdb46969951f8c5d7058aa328616ce3ffe3c483",
+      "src/epiagentbench_client/__init__.py": "sha256:f086bd3fe3768ac1078844e404b6a9f46ead0d026b2234023613033e75cfab25",
+      "src/epiagentbench_client/client.py": "sha256:a07fe5e9c4d8592889f7f106fd0acf718cfc25642518f6613a5c9de59bde3195",
+      "src/epiagentbench_client/mcp_server.py": "sha256:0a7cf37ca0e0c2866ef9adb125608b46f95223efee1159e57a4121a99591cef2"
+    },
+    "tracked_runtime_surface_sha256": "sha256:4e9b2ae70a6ce097200250866fd0aad25be88589e1c70e49bb2c1e8a28110480"
+  },
+  "status": "precommitted"
+}

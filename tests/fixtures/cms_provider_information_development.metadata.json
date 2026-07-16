@@ -1,0 +1,91 @@
+{
+  "artifact": {
+    "bytes": 1268,
+    "filename": "cms_provider_information_development.csv",
+    "kind": "development_fixture_projection",
+    "retrieved_at": "2026-06-24T00:00:00Z",
+    "rows": 3,
+    "sha256": "sha256:d377ebc04afab7eb7f491c4d68e9d1b2b94cc15721dd758165386ccd95d5fa84"
+  },
+  "benchmark_use": {
+    "holdout": false,
+    "role": "development_evidence",
+    "visibility": "public"
+  },
+  "contract_version": "cms_nh_provider_information_source_v1",
+  "schema": {
+    "expected_logical_fields": [
+      "ccn",
+      "provider_name",
+      "certified_beds",
+      "average_residents_per_day",
+      "average_residents_per_day_footnote",
+      "reported_staffing_footnote",
+      "nurse_aide_hprd",
+      "lpn_hprd",
+      "rn_hprd",
+      "licensed_nurse_hprd",
+      "total_nurse_hprd",
+      "weekend_total_nurse_hprd",
+      "weekend_rn_hprd",
+      "physical_therapist_hprd",
+      "total_nursing_staff_turnover_pct",
+      "total_nursing_staff_turnover_footnote",
+      "rn_turnover_pct",
+      "rn_turnover_footnote",
+      "administrator_departures",
+      "administrator_turnover_footnote",
+      "processing_date"
+    ],
+    "profile": "cms_nh_provider_information_aliases_v1"
+  },
+  "source": {
+    "authority": "Centers for Medicare & Medicaid Services (CMS)",
+    "catalog": "Provider Data Catalog",
+    "data_dictionary_url": "https://data.cms.gov/provider-data/sites/default/files/data_dictionaries/nursing_home/NH_Data_Dictionary.pdf",
+    "dataset_id": "4pq5-n9py",
+    "dataset_title": "Provider Information",
+    "landing_page_url": "https://data.cms.gov/provider-data/dataset/4pq5-n9py",
+    "projection_note": "Three public rows and the morphology-relevant columns were transcribed from the official Provider Data Catalog page solely as a development parser fixture. This is not a national calibration sample."
+  },
+  "temporal_semantics": {
+    "average_resident_census": {
+      "exact_interval_known": false,
+      "is_annual": null,
+      "kind": "period_average",
+      "period_end": null,
+      "period_start": null,
+      "source_note": "The Provider Information row says this is an MDS-based daily-census average; the exact collection interval is not present in this CSV projection."
+    },
+    "certified_beds": {
+      "exact_interval_known": false,
+      "is_annual": false,
+      "kind": "release_vintage_snapshot",
+      "period_end": null,
+      "period_start": null,
+      "source_note": "Facility attribute carried by the monthly release; no annual interpretation is made."
+    },
+    "staffing_hprd": {
+      "exact_interval_known": false,
+      "is_annual": false,
+      "kind": "period_average",
+      "period_end": null,
+      "period_start": null,
+      "source_note": "Provider Information alone does not carry the exact staffing collection interval; obtain and pin the matching CMS Nursing Home Data Collection Intervals artifact before assigning dates."
+    },
+    "turnover": {
+      "exact_interval_known": false,
+      "is_annual": true,
+      "kind": "annual_measure",
+      "period_end": null,
+      "period_start": null,
+      "source_note": "CMS defines the turnover measures as annual; the exact interval requires the matching Nursing Home Data Collection Intervals artifact. Footnote code 28 describes annual measures generally and is not used here as the source of turnover's annual definition."
+    }
+  },
+  "vintage": {
+    "last_modified_date": "2026-06-01",
+    "processing_date": "2026-06-01",
+    "publication_frequency": "monthly_refresh",
+    "release_date": "2026-06-24"
+  }
+}

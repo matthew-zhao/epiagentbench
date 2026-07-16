@@ -1,0 +1,15 @@
+{
+  "columns": [
+    {"fieldName": "year"},
+    {"fieldName": "month"},
+    {"fieldName": "state"},
+    {"fieldName": "primary_mode"},
+    {"fieldName": "etiology"},
+    {"fieldName": "etiology_status"},
+    {"fieldName": "setting"},
+    {"fieldName": "illnesses"}
+  ],
+  "id": "5xkq-dg7x",
+  "name": "Synthetic NORS parser fixture (not empirical data)",
+  "rowsUpdatedAt": 1734724660
+}

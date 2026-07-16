@@ -1,5 +1,7 @@
 # EpiAgentBench
 
+[![CI](https://github.com/matthew-zhao/epiagentbench/actions/workflows/ci.yml/badge.svg)](https://github.com/matthew-zhao/epiagentbench/actions/workflows/ci.yml)
+
 EpiAgentBench is a benchmark concept and runnable reference implementation for
 testing AI agents on **alert verification and initial outbreak investigation**.
 
@@ -80,6 +82,55 @@ full hostile-container red-team suite are not.
 - [`docs/CALIBRATION_PROTOCOL.md`](docs/CALIBRATION_PROTOCOL.md): exact CDC
   snapshot, leakage-safe temporal splits, gate-free Starsim fitting, private
   cohort commitments, adversarial audits, and hardening gates.
+- [`docs/SCIENTIFIC_V3_PROTOCOL.md`](docs/SCIENTIFIC_V3_PROTOCOL.md): the
+  LTC-specific intended use, observation/transmission/action evidence contract,
+  uncertainty workflow, and non-authoritative local readiness checklist now
+  under development.
+- [`docs/OPERATIONAL_DATA_REQUEST.md`](docs/OPERATIONAL_DATA_REQUEST.md): the
+  privacy-preserving facility and health-department data needed to validate
+  alerts, reporting, investigations, and actions that NORS cannot identify.
+- [`docs/HUMAN_EVALUATION_PROTOCOL.md`](docs/HUMAN_EVALUATION_PROTOCOL.md): the
+  expert solveability, independent adjudication, and construct-validity study
+  scaffold; no participant study has yet been run.
+- [`src/epiagentbench/nors_ltc_observation.py`](src/epiagentbench/nors_ltc_observation.py):
+  a hash-reporting LTC-only adapter for caller-supplied NORS-shaped data. It
+  describes reported outbreaks, not hidden infections, and explicitly refuses
+  scientific admissibility until a custodian verifies source provenance.
+- [`src/epiagentbench/cms_nh_morphology.py`](src/epiagentbench/cms_nh_morphology.py):
+  a trusted/offline, development-only CMS facility-margin adapter for beds,
+  census, staffing, and turnover. It emits no facility identities, rejects
+  public data relabeled as a holdout, and is not yet admissible for simulation
+  conditioning or episode generation; ward/contact structure remains
+  unidentifiable from this source.
+- [`src/epiagentbench/trusted/starsim_ltc_v3.py`](src/epiagentbench/trusted/starsim_ltc_v3.py):
+  a trusted-only role/ward/static-contact-topology Starsim foundation with
+  explicit placeholder evidence labels and intervention hooks. The engine is
+  now available through the secure `starsim-ltc-v3` backend; temporal trace
+  contacts are still aggregated to a static graph rather than applied as
+  time-varying transmission doses.
+- [`src/epiagentbench/trusted/ltc_closed_loop.py`](src/epiagentbench/trusted/ltc_closed_loop.py):
+  the evaluator-only active/no-action adapter that turns LTC engine infections
+  and simulator-derived symptoms into the existing surveillance interface,
+  exposes pseudonymous roles/wards, and routes the three biological controls
+  to their matching engine mechanisms. Staff exclusion and environmental
+  cleaning hooks remain intentionally unexposed. Its numeric development
+  defaults are public placeholders, not secret calibrated production values.
+- [`src/epiagentbench/trusted/institution_traces.py`](src/epiagentbench/trusted/institution_traces.py):
+  deterministic private development records for rooms, wards, shifts, meals,
+  outside entries, contacts, and trace-derived interviews/inspections. It has
+  no causal-mode input and is not yet calibrated to operational facility data.
+- [`src/epiagentbench/trusted/intervention_evaluation.py`](src/epiagentbench/trusted/intervention_evaluation.py):
+  vector outcomes, paired uncertainty draws, stakeholder-weight sensitivity,
+  tail harms, regret, negative controls, and dose-response checks.
+- [`src/epiagentbench/trusted/branching_manifest.py`](src/epiagentbench/trusted/branching_manifest.py):
+  a legacy development-only caller-attested digest contract. It cannot prove
+  simulator execution or shared opening states and must not award benchmark
+  credit.
+- [`src/epiagentbench/trusted/ltc_branching.py`](src/epiagentbench/trusted/ltc_branching.py):
+  the trusted counterfactual path. It freezes private inputs, derives opening
+  hashes by replaying Starsim, permits only frozen policies, derives outcomes
+  internally, authenticates branch receipts with HMAC, and rejects raw or
+  incomplete outcome panels.
 - [`schemas/`](schemas): public episode and structured-submission schemas.
 - [`src/epiagentbench/`](src/epiagentbench): trusted episode generation,
   controller, evaluator service, deterministic scorer, and development baseline.
@@ -93,16 +144,24 @@ The original in-process environment remains available as a transparent
 development fixture. It is not safe for an untrusted agent because it contains
 all episode observations in Python memory.
 
+The scientific-v3 components above are development foundations, not a fitted
+or externally validated episode pack. They are intentionally not the production
+default. Small files under [`tests/fixtures/`](tests/fixtures/) test parsers;
+their [provenance note](tests/fixtures/README.md) says which values are synthetic
+and which are a public three-row CMS projection.
+
 ## Run the secure reference demo
 
 ```bash
 PYTHONPATH=src python3 -m epiagentbench.cli secure-demo --seed 7
+PYTHONPATH=src python3 -m epiagentbench.cli secure-demo --seed 7 --backend starsim-ltc-v3 --family institution_person_to_person
 ```
 
 This launches a separate evaluator process, runs the scripted investigator
 through the public JSON broker, and sends the final submission through the
 separate admin/scoring capability. Its output intentionally contains no
-development truth.
+development truth. The second command selects the role-aware long-term-care
+development backend and therefore requires the pinned Starsim dependency.
 
 The legacy, inspectable development path and the test suite are:
 
@@ -138,13 +197,100 @@ and provider-reported model names, rejects a detected model fallback, rejects
 Cursor attempts to use anything outside the exact public MCP allowlist, and
 submits output to the strict benchmark validator after the CLI exits.
 
-These are integration smokes, not publishable comparisons. The CLIs still run
-on the development host and need provider network access; the current Linux
-container runner has no network and cannot host them unchanged. In particular,
-Claude Code may route life-science requests from Fable to another Claude model;
-the pilot treats that as a failed Fable attribution rather than silently
-scoring it. See `docs/SCIENTIFIC_VALIDATION.md` for the dated smoke results and
-remaining gates.
+Single local invocations remain integration smokes, not publishable
+comparisons. The CLIs still run on the development host and need provider
+network access; the current Linux container runner has no network and cannot
+host them unchanged. In particular, Claude Code may route life-science requests
+from Fable to another Claude model; the pilot treats that as a failed Fable
+attribution rather than silently scoring it. See
+[`docs/SCIENTIFIC_VALIDATION.md`](docs/SCIENTIFIC_VALIDATION.md) for the dated
+smoke results and remaining gates.
+
+### Later four-profile submit-report pilot (2026-07-15)
+
+**This is a descriptive full-system integration pilot, not a leaderboard or a
+base-model ranking.** After excluding an initial run in which Claude safe mode
+disabled the explicitly configured MCP server, a fresh frozen cohort replayed
+five private synthetic `starsim-ltc-v3` episodes—one per causal family—across
+20 scheduled assignments. Execution order was rotated, retries were forbidden,
+and invalid assignments remained in the fixed denominator as zero. The frozen
+runner scored only the first report accepted by its single-use evaluator-owned
+`submit_report` tool; terminal prose or JSON could not replace that report.
+
+The [sanitized aggregate
+artifact](results/development-four-profile-submit-report-v2-2026-07-15.results.json)
+contains the per-episode scores, attribution status, execution contract,
+integrity checks, and limitations (artifact digest
+`sha256:97d04880d1640dd1288f8647ff54631806989c96b1c6cbe196837da62eb0d615`;
+private precommitment
+`sha256:1806676d90463fad3c6b287b35b7ef3c7bc4c0cbb2dd273cefe3c49fd2015b6d`).
+
+| Full-system configuration | Model-attribution result | Valid / attempted | Fixed-denominator mean (/100) | Median (/100) | Episode scores |
+|---|---|---:|---:|---:|---|
+| Claude Code 2.1.195 + requested `claude-opus-4-8`, high effort | Provider reported exact model match in 5/5; effort command-attested | 5/5 | **59.212** | 57.002 | 57.002, 55.128, 57.239, 54.608, 72.083 |
+| Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt | 5/5 | **58.938** | 54.359 | 54.359, 86.361, 56.172, 53.991, 43.805 |
+| Cursor Agent `2026.07.09-a3815c0` + `cursor-grok-4.5-high` | Provider reported `Cursor Grok 4.5 High` in 5/5 | 5/5 | **56.625** | 52.866 | 54.180, 85.006, 52.866, 48.333, 42.739 |
+| Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` in 5/5 | 3/5 | **27.892** | 37.397 | 0.000, 57.758, 0.000, 37.397, 44.307 |
+
+Opus's nominal lead over Codex is only 0.274 points; five episodes provide no
+defensible winner or uncertainty estimate. GLM's two zeros were
+`agent_failure:unauthorized_tool` outcomes on the institutional and
+repeated-introduction episodes. The exact rejected Cursor event was not
+retained, so those zeros are valid under the frozen fail-closed contract but
+are not clean measures of model reasoning. All five Codex, Opus, and Grok
+reports passed the integrity boundary.
+
+The panel used a read-only source snapshot, Python 3.12.13, Starsim 3.5.1, and
+locally authenticated, host-networked CLIs on macOS arm64. Source, executable,
+settings, episode-secret commitment, raw-result, and precommit bindings were
+verified after the run. The episodes remain synthetic and externally
+uncalibrated; Codex attribution is command-only; and brief unrelated Claude
+diagnostics ran in other workspaces during later Codex or Cursor assignments,
+although no same-provider overlap was observed. These results support no
+epidemiological-realism, scientific-readiness, or leaderboard claim. Publication
+retires this cohort from future private evaluation.
+
+### Earlier three-profile paired pilot (2026-07-15)
+
+**This is a descriptive full-system integration result, not a leaderboard or
+model ranking.** Before execution, we
+[precommitted the panel](results/development-pilot-2026-07-15-v3.manifest.json):
+five synthetic `starsim-ltc-v3` episodes (one per causal family), all 15
+assignments, rotated system order, no retries, and a fixed denominator in which
+evaluator-returned invalid submissions, timeouts, and detected fallbacks score
+zero. The
+[sanitized per-run artifact](results/development-pilot-2026-07-15-v3.results.json)
+contains the complete public results (canonical results digest
+`sha256:8d3a076d186e678c7a6034017fd7caa57fb69572ebd882c4bc5f92886470d464`).
+
+| Full-system configuration | Model-attribution result | Valid / attempted | Integrity pass | Fixed-denominator mean (/100) | Median (/100) |
+|---|---|---:|---:|---:|---:|
+| Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt (5/5) | 4/5 | 4/5 | 40.037 | 50.377 |
+| Claude Code 2.1.195 + requested `claude-fable-5` | Failed; provider reported Fable plus `claude-opus-4-8` fallback (5/5) | 0/5 | 0/5 | 0.000 | 0.000 |
+| Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` (5/5; not independently signed) | 0/5 | 0/5 | 0.000 | 0.000 |
+
+These are outcomes of the complete CLI/model/tool configurations, not
+attributable model scores. In particular, Claude's zero is **not a Fable
+score**: the fallback guard rejected all five attempts, which made no episode
+calls. Cursor made 29–38 public episode-tool calls per attempt, but all five
+final submissions were invalid and two attempts triggered the unauthorized-tool
+guard. Codex produced four valid submissions, but its aggregate cannot be
+independently attributed to `gpt-5.6-sol`; its fixed-denominator mean
+response-utility component was 0.000/25.
+
+The run used execution commit `9d8f2e9`, Python 3.13.7, Starsim 3.5.1, and
+locally authenticated provider CLIs on macOS arm64. It was host-networked and
+non-hermetic. The episodes are synthetic and not externally calibrated, there
+is only one episode per family, and provider-native reasoning and billing
+controls are unequal. These data support no uncertainty estimate, winner,
+model-quality claim, epidemiological-realism claim, or scientific-readiness
+claim. Publication retires this panel from future private evaluation.
+
+Two earlier same-day panels are excluded from this comparison because our
+Cursor runner integration did not permit comparable episode execution; their
+decisions remain in the
+[v1](results/development-pilot-2026-07-15.adjudication.json) and
+[v2](results/development-pilot-2026-07-15-v2.adjudication.json) adjudications.
 
 With the evaluator-only Starsim extra installed, the experimental scored slice
 and its seed-panel diagnostic are:
@@ -257,6 +403,13 @@ The environment:
 - derives time-gated encounters, preliminary and ordered tests, structured
   interviews, background GI records, and the alert numerator from that one
   hidden history;
+- derives v2 target inspections from latent contact ancestry, shared-source,
+  arrival, and report lineage rather than consulting the private causal-mode
+  label. This is an engineering remediation, not an independently simulated
+  operational-record process, and inspect-all remains an unrun shortcut audit;
+- derives final causal gold and relevant intervention routes from frozen
+  ancestry, report lineage, and simulator configuration; the mode label is only
+  a private generation/debug stratum;
 - keeps simulator UIDs, parameters, attempt count, configuration hash, and all
   observation lineage inside the evaluator;
 - keeps an agent-controlled world and an untouched, identically seeded
@@ -303,9 +456,11 @@ mode-specific operational state change for the next declared six-hour cycle,
 produces later public records. The legacy `set_institution_control` call remains
 as an infection-control compatibility path. The agent can request a target
 inspection, act, observe later surveillance, and then strengthen, relax, stop,
-or switch controls. The finalizer follows both worlds to the same fixed 21-day
-outcome horizon even if an agent submits early. A separate static branch
-generator remains for the original observation-layer diagnostic.
+or switch controls. Public interaction starts on simulator day 8 and lasts five
+days; the finalizer follows both worlds to simulator day 21, an accurately
+published 13-day post-decision outcome horizon with eight unobserved days after
+interaction closes. A separate static branch generator remains for the original
+observation-layer diagnostic.
 
 Response credit is tied to the append-only execution trace. Merely recommending
 a response earns no intervention reward: every reported action/target pair must
@@ -321,6 +476,14 @@ future records, requested evidence, and intervention outcomes are never
 admission inputs. `validate-live-modes` reports mode
 coverage, common public-surface checks, candidate same-seed count calipers, and
 the reward earned by constant or preregistered alert-count-only policies.
+
+The live LTC-oriented pack also exposes a public six-option
+`hypothesis_catalog`. Final submissions must allocate probability across every
+published option exactly once; unknown, duplicate, missing, mistargeted, or
+non-normalized answers fail closed. This catalog is supplied by the scenario
+pack rather than hard-coded into the observation or scoring kernel, and its
+multiclass score uses the final trace-derived explanation rather than the
+private generation stratum.
 
 This new five-mode panel has not yet been frozen or run as a held-out scientific
 result. Same-seed groups that happen to meet public count calipers are candidate

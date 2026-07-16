@@ -60,6 +60,7 @@
     },
     "hypotheses": {
       "type": "array",
+      "description": "When the public manifest supplies hypothesis_catalog, include every catalog id exactly once in type and make probabilities sum to one.",
       "items": {
         "type": "object",
         "additionalProperties": false,

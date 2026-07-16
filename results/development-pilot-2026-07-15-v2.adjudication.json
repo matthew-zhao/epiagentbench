@@ -1,0 +1,32 @@
+{
+  "schema_version": "development_pilot_adjudication_v1",
+  "panel_id": "development-paired-pilot-v2-2026-07-15",
+  "raw_results_file": "development-pilot-2026-07-15-v2.results.json",
+  "raw_results_sha256": "sha256:0ec4e0d17cd86049792a071c77eeac285a7c2b05bf36bb716c95b86ab0d184f2",
+  "adjudicated_status": "retired_integration_panel_not_a_comparison",
+  "reason": "Cursor reported GLM 5.2 High, but its cloud agent could not discover the public MCP tools because the fail-closed harness omitted Cursor's separate GET_MCP_TOOLS discovery primitive.",
+  "cursor": {
+    "planned_assignments": 5,
+    "provider_reported_model_matches": 5,
+    "episode_tool_calls": 0,
+    "root_cause": "RetriableError: required GET_MCP_TOOLS was absent from Cursor's allowed tool set.",
+    "score_treatment": "not_run; raw zero rows are infrastructure failures and are excluded from model or full-system summaries"
+  },
+  "claude": {
+    "planned_assignments": 5,
+    "attributable_fable_results": 0,
+    "episode_tool_calls": 0,
+    "observed_routing": "Every request reported both claude-fable-5 and claude-opus-4-8; the runner rejected the fallback.",
+    "score_treatment": "not attributable to Fable"
+  },
+  "codex": {
+    "planned_assignments": 5,
+    "valid_results": 5,
+    "model_receipts": 0,
+    "score_treatment": "engineering data only; not compared because the paired Cursor configuration did not reach the episode interface"
+  },
+  "remediation": {
+    "harness_change": "Allow mcp_tool_call plus the read-only get_mcp_tools_tool_call primitive; all filesystem, shell, browser, search, and subagent tools remain denied.",
+    "next_panel": "All five v2 episodes are retired. A fresh, separately precommitted v3 panel is required for the three-system comparison."
+  }
+}

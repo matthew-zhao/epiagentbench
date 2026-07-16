@@ -70,6 +70,16 @@ before their outcome windows. Forecasts and control changes belong to the
 append-only action trace, not editable final prose; the final handoff must match
 the last executed level for every controlled target.
 
+The scenario pack also publishes a finite `hypothesis_catalog` in the public
+manifest. Its option IDs and descriptions define the permitted scientific
+answers; the shared benchmark kernel does not define them. A catalog episode's
+final `hypotheses` array must contain every published ID exactly once, contain
+no unpublished ID, and assign probabilities summing to one within `1e-6`.
+`target_required: true` requires a non-null public target; false requires null.
+Malformed catalogs and unknown, duplicate, missing, mistargeted, or incomplete
+distributions invalidate scoring. Legacy fixtures without a catalog retain the
+original open-string compatibility contract.
+
 The benchmark grades observable tool use and the resulting structured state. It
 does not request or grade hidden chain-of-thought.
 
@@ -140,12 +150,29 @@ stacking, and require already observed evidence plus the catalog-declared
 target. Infection, source, entry, and reporting controls coexist; each acts only
 on its declared mechanism.
 
+Inspections and interviews are derived from frozen transmission/report-lineage
+facts rather than from the private causal-mode label. Public inspections expose
+target-specific record counts and data quality, not a generic positive/negative
+answer. A matched-trace invariant rejects any implementation where changing only
+the hidden label changes public evidence, evidence-gold membership, the final
+causal oracle, or response comparison. Final causal gold follows frozen
+transmission ancestry and duplicate-report lineage; route comparison follows
+the immutable simulator configuration.
+
+This is a direct-label engineering guard, not yet a validated operational-record
+model. V2 still projects inspection signals from latent ancestry and report
+lineage instead of simulating the underlying shift, meal, arrival, symptom, and
+record processes independently. Inspect-all/request-everything remains an unrun
+shortcut audit. The v3 facility-trace work is intended to replace this projection
+before scientific promotion.
+
 This is an **experimental norovirus-like observation layer over generic SIR**.
 It is not a calibrated norovirus transmission model: incubation and symptoms do
 not drive infectiousness, the shared-source and introduction schedules are
 design assumptions, and the reporting process is synthetic. The finalizer
-follows both worlds to a fixed 21-day outcome horizon even when an agent submits
-early. Response utility is infections averted plus explicitly weighted artifact
+follows both worlds to a fixed 13-day post-decision outcome horizon (absolute
+simulator day 21) even when an agent submits early. Response utility is
+infections averted plus explicitly weighted artifact
 records prevented, minus declared duration burden. Reward is normalized from no
 control to the best predeclared fixed response bundle; an intervention that is
 worse than doing nothing receives no response reward. The scoring horizon,
@@ -389,7 +416,7 @@ hypothesis answers to prospective forecasting:
 |---|---:|---:|---|
 | Outbreak classification and etiology | 20 | 15 | Brier score and factual accuracy |
 | Case definition and line list | 15 | 15 | F1 against decision-time gold plus observed true follow-ups |
-| Source or transmission hypothesis | 15 | 10 | probability on the true explanation |
+| Source or transmission hypothesis | 15 | 10 | multiclass Brier score over the pack's finite catalog |
 | Response utility and timeliness | 25 | 25 | improvement over no action, capped by best fixed policy |
 | Prospective 24-hour forecast | 0 | 10 | timestamped new-encounter forecast accuracy and coverage |
 | Evidence faithfulness | 10 | 10 | provenance precision and decisive-evidence recall |
@@ -585,8 +612,9 @@ structured submission, metric breakdown, and uncertainty across episode seeds.
 - Exchangeable matched false-alert and alternative-action twins. All five live
   modes, target inspections, and public count calipers are implemented, but
   same-seed candidate groups have not been balanced on the full opening
-  transcript or relevant latent nuisance variables. Environmental traceback
-  beyond the synthetic inspection result is also not implemented.
+  transcript or relevant latent nuisance variables. The trace-derived inspection
+  counts remain a V2 abstraction; a world-derived inventory of wards, shifts,
+  vendors, arrivals, and report feeds is not implemented.
 - A calibrated enteric-disease, venue-attendance, or food-supply model. The
   experimental SIR slice has causal ancestry and realized intervention branches,
   but it is not fitted or biologically pathogen-specific.
@@ -672,10 +700,12 @@ therefore remain implementation artifacts awaiting CI on a real Linux daemon,
 including egress, mount, capability, namespace, fork-bomb, output-flood, and
 cross-episode credential probes.
 
-The next scientific milestone is an exchangeable full-transcript twin
-construction over the implemented false-alert, common-source,
-repeated-introduction, person-to-person, and reporting-artifact modes. It must
-be followed by held-out posterior-predictive calibration, epidemiologist review,
-and a human solveability study. The next deployment milestone is exercising the
-already separated client and evaluator capabilities in genuinely separate,
-pinned Linux images.
+The development branch now has an LTC-specific norovirus V3 engine and secure
+closed-loop adapter with role/ward context, simulator-derived symptoms, a
+finite hypothesis catalog, and evaluator-replayed counterfactual receipts.
+Trace-derived operational interviews/inspections, fitted observation and
+transmission parameters, exchangeable full-transcript twins, held-out
+posterior-predictive checks, epidemiologist review, and a human solveability
+study remain scientific release gates. The next deployment milestone is
+exercising the already separated client and evaluator capabilities in genuinely
+separate, pinned Linux images.

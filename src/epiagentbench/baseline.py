@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any, Protocol
 
+from .hypotheses import normalize_hypothesis_catalog
+
 
 class InvestigationTools(Protocol):
     """Structural API shared by the legacy environment and secure client."""
@@ -176,45 +178,18 @@ def run_scripted_baseline(env: InvestigationTools) -> dict[str, Any]:
         target = entry.get("target_id")
         return target if isinstance(target, str) and target else None
 
-    # When the live task offers the same four targets in every episode, inspect
-    # all of them before committing to a mechanism. This is deliberately a
-    # public, costly investigation step rather than an evaluator-side hint.
+    # Form a hypothesis from patient-level evidence before inspecting a target.
+    # Inspecting every catalog entry and selecting the one carrying a generic
+    # positive label turns the task into a four-choice decoder rather than an
+    # investigation.
     elapsed_minutes = 120
-    inspections: list[dict[str, Any]] = []
-    if (
-        "request_inspection" in enabled_tools
-        and hasattr(env, "request_inspection")
-    ):
-        inspection_targets = list(
-            dict.fromkeys(
-                target
-                for action in (
-                    "infection_control",
-                    "source_control",
-                    "entry_control",
-                    "audit_reporting",
-                )
-                if (target := catalog_target(action)) is not None
-            )
-        )
-        latest_available = elapsed_minutes
-        for target in inspection_targets:
-            receipt = env.request_inspection(target)
-            available_at = receipt.get("available_at_minute")
-            if (
-                receipt.get("status") == "scheduled"
-                and type(available_at) is int
-            ):
-                latest_available = max(latest_available, available_at)
-        if latest_available > elapsed_minutes:
-            env.advance_time(latest_available - elapsed_minutes)
-            elapsed_minutes = latest_available
-        inspections = env.search_observations(kind="inspection")
+    inspections: list[dict[str, Any]] = env.search_observations(kind="inspection")
 
-    material_inspections = {
+    trace_supported_inspections = {
         record["payload"].get("target_id"): record
         for record in inspections
-        if record["payload"].get("finding") == "material_concern"
+        if type(record["payload"].get("signal_count")) is int
+        and record["payload"]["signal_count"] >= 2
     }
 
     if len(case_reports) >= 5 and duplicate_ratio >= 0.5:
@@ -267,7 +242,7 @@ def run_scripted_baseline(env: InvestigationTools) -> dict[str, Any]:
             record["observation_id"]
             for record in positive_labs + source_interviews
         ]
-    elif generic_controls and material_inspections:
+    elif generic_controls and trace_supported_inspections:
         # Sparse routine testing can make the simple three-lab rule miss an
         # otherwise coherent mechanism. Combine the requested inspection with
         # whatever interview/lab support is present, and require more than the
@@ -291,7 +266,7 @@ def run_scripted_baseline(env: InvestigationTools) -> dict[str, Any]:
             ),
         ):
             candidate_target = catalog_target(candidate_action)
-            inspection = material_inspections.get(candidate_target)
+            inspection = trace_supported_inspections.get(candidate_target)
             if inspection is None:
                 continue
             score = (
@@ -378,7 +353,8 @@ def run_scripted_baseline(env: InvestigationTools) -> dict[str, Any]:
             record["observation_id"] for record in targeted_inspections
         )
         if any(
-            record["payload"].get("finding") == "material_concern"
+            type(record["payload"].get("signal_count")) is int
+            and record["payload"]["signal_count"] >= 2
             for record in targeted_inspections
         ):
             if explanation_type == "reporting_artifact":
@@ -514,6 +490,57 @@ def run_scripted_baseline(env: InvestigationTools) -> dict[str, Any]:
     status = "outbreak" if outbreak_probability >= 0.5 else "not_outbreak"
     initial_evidence = [record["observation_id"] for record in initial]
 
+    hypothesis_catalog = env.manifest.get("hypothesis_catalog")
+    if hypothesis_catalog is None:
+        submitted_hypotheses = [
+            {
+                "type": explanation_type,
+                "target_id": hypothesis_target,
+                "probability": 0.85,
+                "supporting_evidence_ids": action_evidence,
+                "contradicting_evidence_ids": [],
+            }
+        ]
+    else:
+        catalog = normalize_hypothesis_catalog(hypothesis_catalog)
+        catalog_ids = {option["id"] for option in catalog}
+        primary_id = (
+            explanation_type
+            if explanation_type in catalog_ids
+            else "other_or_insufficient"
+        )
+        if primary_id not in catalog_ids:
+            # A scenario-defined catalog need not use the LTC fallback ID.  A
+            # simple baseline cannot invent a valid semantic mapping for it.
+            primary_id = catalog[0]["id"]
+        residual = 0.15 / (len(catalog) - 1)
+        targets_by_hypothesis = {
+            "propagated": catalog_target("infection_control"),
+            "common_source": catalog_target("source_control"),
+            "repeated_introduction": catalog_target("entry_control"),
+            "reporting_artifact": catalog_target("audit_reporting"),
+            "sporadic_background": None,
+            "other_or_insufficient": None,
+        }
+        submitted_hypotheses = [
+            {
+                "type": option["id"],
+                "target_id": (
+                    hypothesis_target
+                    if option["id"] == primary_id
+                    else targets_by_hypothesis.get(option["id"])
+                ),
+                "probability": (
+                    0.85 if option["id"] == primary_id else residual
+                ),
+                "supporting_evidence_ids": (
+                    action_evidence if option["id"] == primary_id else []
+                ),
+                "contradicting_evidence_ids": [],
+            }
+            for option in catalog
+        ]
+
     return {
         "incident_assessment": {
             "outbreak_probability": outbreak_probability,
@@ -528,15 +555,7 @@ def run_scripted_baseline(env: InvestigationTools) -> dict[str, Any]:
             "laboratory": "Compatible enteric result when available",
         },
         "line_list": line_list,
-        "hypotheses": [
-            {
-                "type": explanation_type,
-                "target_id": hypothesis_target,
-                "probability": 0.85,
-                "supporting_evidence_ids": action_evidence,
-                "contradicting_evidence_ids": [],
-            }
-        ],
+        "hypotheses": submitted_hypotheses,
         "recommended_actions": [
             {
                 "action_type": action_type,

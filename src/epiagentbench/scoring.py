@@ -9,6 +9,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import unquote
 
+from .hypotheses import normalize_hypothesis_catalog
 from .models import LedgerEntry, Oracle, Scorecard
 
 
@@ -249,7 +250,10 @@ def _action_utility_at(
     raise AssertionError("unreachable action-utility interpolation")
 
 
-def _submission_errors(submission: Mapping[str, Any]) -> list[str]:
+def _submission_errors(
+    submission: Mapping[str, Any],
+    hypothesis_catalog: Any = None,
+) -> list[str]:
     required = {
         "incident_assessment",
         "case_definition",
@@ -266,6 +270,15 @@ def _submission_errors(submission: Mapping[str, Any]) -> list[str]:
     )
     if errors:
         return errors
+
+    catalog_by_id: dict[str, dict[str, Any]] | None = None
+    if hypothesis_catalog is not None:
+        try:
+            catalog = normalize_hypothesis_catalog(hypothesis_catalog)
+        except ValueError:
+            errors.append("invalid:hypothesis_catalog")
+            catalog = ()
+        catalog_by_id = {option["id"]: option for option in catalog}
 
     incident = submission["incident_assessment"]
     if not _exact_object(
@@ -328,6 +341,7 @@ def _submission_errors(submission: Mapping[str, Any]) -> list[str]:
 
     hypotheses = submission["hypotheses"]
     hypothesis_keys: list[tuple[str, str | None]] = []
+    submitted_catalog_ids: list[str] = []
     probability_mass = 0.0
     if not isinstance(hypotheses, list) or not hypotheses or len(hypotheses) > 100:
         errors.append("invalid:hypotheses")
@@ -349,6 +363,22 @@ def _submission_errors(submission: Mapping[str, Any]) -> list[str]:
             target_id = hypothesis["target_id"]
             if not isinstance(kind, str) or not kind:
                 errors.append(f"invalid:hypothesis_type:{index}")
+            else:
+                submitted_catalog_ids.append(kind)
+                if catalog_by_id is not None:
+                    option = catalog_by_id.get(kind)
+                    if option is None:
+                        errors.append(
+                            f"unknown:hypothesis_catalog_option:{index}"
+                        )
+                    elif option["target_required"] and target_id is None:
+                        errors.append(
+                            f"missing:hypothesis_target:{index}"
+                        )
+                    elif not option["target_required"] and target_id is not None:
+                        errors.append(
+                            f"invalid:hypothesis_target:{index}"
+                        )
             if target_id is not None and not isinstance(target_id, str):
                 errors.append(f"invalid:hypothesis_target:{index}")
             if _probability(hypothesis["probability"]):
@@ -370,7 +400,16 @@ def _submission_errors(submission: Mapping[str, Any]) -> list[str]:
                     f"hypothesis_contradict:{index}",
                 )
             )
-        if probability_mass > 1.0 + 1e-9:
+        if catalog_by_id is not None:
+            if not math.isclose(
+                probability_mass, 1.0, rel_tol=0.0, abs_tol=1e-6
+            ):
+                errors.append("invalid:hypothesis_probability_mass")
+            if len(submitted_catalog_ids) != len(set(submitted_catalog_ids)):
+                errors.append("duplicate:hypothesis_catalog_option")
+            if set(catalog_by_id) - set(submitted_catalog_ids):
+                errors.append("missing:hypothesis_catalog_options")
+        elif probability_mass > 1.0 + 1e-9:
             errors.append("invalid:hypothesis_probability_mass")
         if len(hypothesis_keys) != len(set(hypothesis_keys)):
             errors.append("duplicate:hypothesis")
@@ -484,7 +523,23 @@ def score_episode(
 
     ledger = tuple(ledger)
     audit_events = tuple(audit_events)
-    errors = _submission_errors(submission)
+    errors = _submission_errors(
+        submission, manifest.get("hypothesis_catalog")
+    )
+    catalog = None
+    if manifest.get("hypothesis_catalog") is not None:
+        try:
+            catalog = normalize_hypothesis_catalog(
+                manifest["hypothesis_catalog"]
+            )
+        except ValueError:
+            # Already reported by _submission_errors; retain one generic,
+            # fail-closed evaluator error rather than attempting to score.
+            catalog = ()
+        if catalog and oracle.explanation_type not in {
+            option["id"] for option in catalog
+        }:
+            errors.append("invalid:hypothesis_catalog_oracle")
     ledger_violations = tuple(
         entry.violation for entry in ledger if entry.violation is not None
     )
@@ -647,9 +702,31 @@ def score_episode(
         ):
             correct_hypothesis_probability += float(hypothesis["probability"])
     correct_hypothesis_probability = _clamp(correct_hypothesis_probability)
+    hypothesis_multiclass_brier: float | None = None
+    if catalog:
+        # The finite catalog is scored as one probability distribution.  A
+        # target mismatch remains a distinct wrong hypothesis rather than
+        # receiving category credit.  Dividing by the maximum multiclass
+        # Brier loss of two maps a perfect distribution to one and a confident
+        # wrong distribution to zero while retaining a strictly proper score.
+        hypothesis_multiclass_brier = (
+            1.0 - correct_hypothesis_probability
+        ) ** 2 + sum(
+            float(hypothesis["probability"]) ** 2
+            for hypothesis in submission["hypotheses"]
+            if not (
+                hypothesis.get("type") == oracle.explanation_type
+                and hypothesis.get("target_id") == oracle.source_id
+            )
+        )
+        hypothesis_fraction = _clamp(
+            1.0 - hypothesis_multiclass_brier / 2.0
+        )
+    else:
+        hypothesis_fraction = correct_hypothesis_probability
     hypothesis_score = (
         10.0 if closed_loop else 15.0
-    ) * correct_hypothesis_probability
+    ) * hypothesis_fraction
 
     action_entries = [
         entry
@@ -849,6 +926,15 @@ def score_episode(
             "followup_true_cases_seen": len(followup_true_cases_seen),
             "correct_hypothesis_probability": round(
                 correct_hypothesis_probability, 6
+            ),
+            **(
+                {
+                    "hypothesis_multiclass_brier": round(
+                        hypothesis_multiclass_brier, 6
+                    )
+                }
+                if hypothesis_multiclass_brier is not None
+                else {}
             ),
             "raw_action_utility": round(raw_action_utility, 6),
             "provenance_precision": round(provenance_precision, 6),

@@ -17,6 +17,7 @@ import math
 import random
 from typing import Any, Iterable, Mapping
 
+from ..hypotheses import normalize_hypothesis_catalog
 from ..models import Budget, Observation, PublicEpisode
 from .engine import TransmissionEvent
 from .surveillance import SurveillanceDiagnostics
@@ -38,6 +39,12 @@ RESPONSE_ACTION_TYPES = (
     "entry_control",
     "audit_reporting",
 )
+INSPECTION_SIGNAL_TYPES = {
+    "institution": "symptomatic_contact_links",
+    "food_service": "shared_service_exposure_matches",
+    "entry_program": "independent_arrival_records",
+    "reporting_system": "duplicate_report_lineages",
+}
 
 
 class IncrementalSurveillanceStream:
@@ -60,6 +67,9 @@ class IncrementalSurveillanceStream:
         review_interval_minutes: int = 360,
         causal_mode: str = "person_to_person",
         artifact_duplicate_count: int = 0,
+        hypothesis_catalog: Iterable[Mapping[str, Any]] | None = None,
+        person_context_by_agent_id: Mapping[int, Mapping[str, str]] | None = None,
+        background_episode_count: int | None = None,
     ) -> None:
         if type(seed) is not int or seed < 0:
             raise ValueError("seed must be a non-negative integer")
@@ -91,12 +101,23 @@ class IncrementalSurveillanceStream:
         self._decision_minute = decision_minute
         self._deadline_minutes = deadline_minutes
         self._review_interval_minutes = review_interval_minutes
-        self._causal_mode = causal_mode
-        self._artifact_duplicate_count = (
-            6
-            if causal_mode == "reporting_artifact"
-            and artifact_duplicate_count == 0
-            else artifact_duplicate_count
+        # The caller supplies concrete report artifacts just as it supplies
+        # transmission events.  The observation layer never synthesizes them
+        # from the private scenario label.
+        self._artifact_duplicate_count = artifact_duplicate_count
+        if background_episode_count is not None and (
+            type(background_episode_count) is not int
+            or not 0 <= background_episode_count <= 10_000
+        ):
+            raise ValueError("background episode count must be non-negative")
+        self._background_episode_count = background_episode_count
+        self._hypothesis_catalog = (
+            None
+            if hypothesis_catalog is None
+            else normalize_hypothesis_catalog(tuple(hypothesis_catalog))
+        )
+        self._person_context_by_agent_id = self._normalize_person_context(
+            person_context_by_agent_id
         )
         self._validate_profile()
 
@@ -117,6 +138,8 @@ class IncrementalSurveillanceStream:
         )
         self._canary_tokens = (self._canary(),)
         self._events: dict[int, TransmissionEvent] = {}
+        self._simulator_symptom_mode: bool | None = None
+        self._simulator_symptom_onsets: dict[int, int | None] = {}
         self._observations: dict[str, Observation] = {}
         self._true_case_ids: set[str] = set()
         self._decisive_ids: set[str] = set()
@@ -238,7 +261,10 @@ class IncrementalSurveillanceStream:
         )
 
     def ingest(
-        self, transmission_events: Iterable[TransmissionEvent]
+        self,
+        transmission_events: Iterable[TransmissionEvent],
+        *,
+        symptom_onset_by_agent_id: Mapping[int, int | None] | None = None,
     ) -> tuple[Observation, ...]:
         """Ingest a cumulative trace or delta and return newly created records."""
 
@@ -249,6 +275,48 @@ class IncrementalSurveillanceStream:
         for event in incoming:
             if not isinstance(event, TransmissionEvent):
                 raise TypeError("ingest accepts only detached TransmissionEvent values")
+
+        symptom_onsets: dict[int, int | None] | None = None
+        if symptom_onset_by_agent_id is not None:
+            if not isinstance(symptom_onset_by_agent_id, Mapping):
+                raise TypeError("symptom onset metadata must be a mapping")
+            symptom_onsets = {}
+            for agent_id, onset_minute in symptom_onset_by_agent_id.items():
+                if type(agent_id) is not int or agent_id < 0 or (
+                    onset_minute is not None
+                    and (type(onset_minute) is not int or onset_minute < 0)
+                ):
+                    raise ValueError("invalid symptom onset metadata")
+                symptom_onsets[agent_id] = onset_minute
+            if any(
+                event.target_agent_id not in symptom_onsets for event in incoming
+            ):
+                raise ValueError("symptom onset metadata does not cover events")
+            if any(
+                symptom_onsets[event.target_agent_id] is not None
+                and symptom_onsets[event.target_agent_id] < event.infection_minute
+                for event in incoming
+            ):
+                raise ValueError("symptom onset cannot precede infection")
+
+        supplied_symptom_mode = symptom_onsets is not None
+        if (
+            incoming
+            and self._simulator_symptom_mode is not None
+            and supplied_symptom_mode != self._simulator_symptom_mode
+        ):
+            raise ValueError(
+                "cannot mix simulator-derived and observation-model symptoms"
+            )
+        if symptom_onsets is not None:
+            for event in incoming:
+                agent_id = event.target_agent_id
+                if (
+                    agent_id in self._simulator_symptom_onsets
+                    and self._simulator_symptom_onsets[agent_id]
+                    != symptom_onsets[agent_id]
+                ):
+                    raise ValueError("simulator symptom onset cannot change")
 
         incoming_by_target: dict[int, TransmissionEvent] = {}
         for event in incoming:
@@ -277,10 +345,27 @@ class IncrementalSurveillanceStream:
         ):
             raise ValueError("cannot add a previously hidden pre-decision infection")
 
+        if incoming and self._simulator_symptom_mode is None:
+            self._simulator_symptom_mode = supplied_symptom_mode
+        if symptom_onsets is not None:
+            self._simulator_symptom_onsets.update(
+                {
+                    event.target_agent_id: symptom_onsets[event.target_agent_id]
+                    for event in incoming
+                }
+            )
+
         created_ids: set[str] = set()
         for event in new_events:
             self._events[event.target_agent_id] = event
-            created_ids.update(self._materialize_infected_person(event))
+            created_ids.update(
+                self._materialize_infected_person(
+                    event,
+                    None
+                    if symptom_onsets is None
+                    else (True, symptom_onsets[event.target_agent_id]),
+                )
+            )
         return self._observations_for_ids(created_ids)
 
     def bootstrap(self) -> PublicEpisode:
@@ -324,12 +409,21 @@ class IncrementalSurveillanceStream:
             observation_id
             for observation_id in self._decisive_ids
             if (
-                self._observations[observation_id].subject_id
-                in self._investigation_true_case_ids
+                (
+                    self._observations[observation_id].subject_id
+                    in self._investigation_true_case_ids
+                )
+                # Trace-supported inspections and duplicate-report records are
+                # mechanism evidence in their own right.  Select them from
+                # their public record type/content, never from the private
+                # scenario label.
+                or self._observations[observation_id].kind == "inspection"
                 or (
-                    self._causal_mode == "reporting_artifact"
-                    and self._observations[observation_id].kind
-                    in {"case_report", "inspection"}
+                    self._observations[observation_id].kind == "case_report"
+                    and self._observations[observation_id].payload.get(
+                        "source_system"
+                    )
+                    == "legacy_import"
                 )
             )
             and self._observations[observation_id].available_minute
@@ -369,6 +463,10 @@ class IncrementalSurveillanceStream:
                 "get_clock_and_budget",
             ],
         }
+        if self._hypothesis_catalog is not None:
+            manifest["hypothesis_catalog"] = [
+                dict(option) for option in self._hypothesis_catalog
+            ]
         self._bootstrap_episode = PublicEpisode(
             manifest=manifest,
             observations=self.all_observations,
@@ -475,8 +573,10 @@ class IncrementalSurveillanceStream:
         """Create one evaluator-owned, request-only inspection result.
 
         Results are keyed at construction time and are automatically added for
-        every universal target during ``bootstrap``.  Repeated calls return the
-        same immutable record.
+        every universal target during ``bootstrap``.  Each result is a noisy
+        review of concrete pre-decision transmission or report-lineage records;
+        it never consults the episode's causal-mode label.  Repeated calls
+        return the same immutable record.
         """
 
         target_types = {
@@ -495,108 +595,150 @@ class IncrementalSurveillanceStream:
         if self._bootstrap_episode is not None:
             raise RuntimeError("inspection results are fixed at bootstrap")
 
-        signal_target = {
-            "person_to_person": self._institution_id,
-            "common_source": self._restaurant_id,
-            "repeated_introduction": self._entry_program_id,
-            "reporting_artifact": self._reporting_system_id,
-        }.get(self._causal_mode)
-        draw = self._draw("inspection", target_type, "finding")
-        if target_id == signal_target:
-            finding = (
-                "material_concern"
-                if draw < 0.80
-                else "minor_irregularity"
-                if draw < 0.94
-                else "no_material_concern"
-            )
-        else:
-            finding = (
-                "material_concern"
-                if draw < 0.10
-                else "minor_irregularity"
-                if draw < 0.32
-                else "no_material_concern"
-            )
-        summaries = {
-            "institution": {
-                "material_concern": (
-                    "Review found a concentrated pattern of "
-                    "symptomatic-person contacts."
-                ),
-                "minor_irregularity": (
-                    "Review found incomplete contact logs but no clear cluster."
-                ),
-                "no_material_concern": "Review found no unusual contact pattern.",
-            },
-            "food_service": {
-                "material_concern": (
-                    "Review found a plausible shared food-handling exposure "
-                    "requiring follow-up."
-                ),
-                "minor_irregularity": (
-                    "Review found a minor food-handling irregularity of "
-                    "uncertain relevance."
-                ),
-                "no_material_concern": (
-                    "Review found no material food-handling concern."
-                ),
-            },
-            "entry_program": {
-                "material_concern": (
-                    "Review found several recent symptomatic arrivals from "
-                    "different outside settings."
-                ),
-                "minor_irregularity": (
-                    "Review found incomplete arrival screening records."
-                ),
-                "no_material_concern": "Review found no unusual arrival pattern.",
-            },
-            "reporting_system": {
-                "material_concern": (
-                    "Review found duplicate legacy imports for the same patients."
-                ),
-                "minor_irregularity": (
-                    "Review found minor report-linkage inconsistencies."
-                ),
-                "no_material_concern": (
-                    "Review found no material reporting irregularity."
-                ),
-            },
-        }
+        payload, trace_supports_finding = self._inspection_payload(
+            target_id=target_id,
+            target_type=target_type,
+        )
         observation = Observation(
             observation_id=observation_id,
             kind="inspection",
             subject_id=target_id,
             available_minute=0,
             release_key=f"inspection:{target_id}",
-            payload={
-                "target_id": target_id,
-                "target_type": target_type,
-                "finding": finding,
-                "summary": summaries[target_type][finding],
-            },
+            payload=payload,
         )
         self._register(observation)
-        if target_id == signal_target and finding == "material_concern":
+        if trace_supports_finding:
             self._decisive_ids.add(observation.observation_id)
         return observation
 
-    def _materialize_infected_person(self, event: TransmissionEvent) -> set[str]:
+    def _inspection_payload(
+        self,
+        *,
+        target_id: str,
+        target_type: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Return noisy, auditable facts derived from the frozen world trace."""
+
+        evidence_tokens = self._inspection_evidence_tokens(target_type)
+        quality_draw = self._draw("inspection", target_type, "data-quality")
+        if quality_draw < 0.15:
+            data_quality = "limited"
+            detection_probability = 0.40
+        elif quality_draw < 0.45:
+            data_quality = "partial"
+            detection_probability = 0.60
+        else:
+            data_quality = "substantial"
+            detection_probability = 0.75
+
+        detected_trace_signals = sum(
+            self._draw("inspection", target_type, "detect", token)
+            < detection_probability
+            for token in evidence_tokens
+        )
+        # Incidental discrepancies exist in every review stream.  They keep a
+        # single nonzero count from becoming an evaluator-authored answer key.
+        incidental_signals = self._poisson(
+            self._rng("inspection", target_type, "incidental-signals"),
+            0.20,
+        )
+        signal_count = detected_trace_signals + incidental_signals
+        records_reviewed = max(
+            signal_count,
+            len(evidence_tokens)
+            + self._rng("inspection", target_type, "records-reviewed").randint(
+                6, 18
+            ),
+        )
+        signal_type = INSPECTION_SIGNAL_TYPES[target_type]
+        signal_label = signal_type.replace("_", " ")
+        summary = (
+            f"Review examined {records_reviewed} records and identified "
+            f"{signal_count} {signal_label}; source-record completeness was "
+            f"{data_quality}."
+        )
+        return (
+            {
+                "target_id": target_id,
+                "target_type": target_type,
+                "signal_type": signal_type,
+                "records_reviewed": records_reviewed,
+                "signal_count": signal_count,
+                "data_quality": data_quality,
+                "summary": summary,
+            },
+            detected_trace_signals > 0,
+        )
+
+    def _inspection_evidence_tokens(self, target_type: str) -> tuple[str, ...]:
+        """Select immutable trace/report facts relevant to one review target."""
+
+        if target_type == "institution":
+            return tuple(
+                f"contact:{event.target_agent_id}:{event.infection_minute}"
+                for event in self._events.values()
+                if event.source_agent_id is not None
+            )
+        if target_type == "food_service":
+            return tuple(
+                f"source:{event.target_agent_id}:{event.infection_minute}"
+                for event in self._events.values()
+                if event.mechanism in {"common_source", "shared_source"}
+            )
+        if target_type == "entry_program":
+            return tuple(
+                f"arrival:{event.target_agent_id}:{event.infection_minute}"
+                for event in self._events.values()
+                if event.mechanism
+                in {
+                    "importation",
+                    "repeated_introduction",
+                    "external_introduction",
+                }
+            )
+        if target_type == "reporting_system":
+            reports_by_patient: dict[str, list[str]] = {}
+            for observation in self._observations.values():
+                if (
+                    observation.kind == "case_report"
+                    and observation.payload.get("source_system")
+                    == "legacy_import"
+                    and observation.subject_id is not None
+                ):
+                    reports_by_patient.setdefault(
+                        observation.subject_id, []
+                    ).append(observation.observation_id)
+            return tuple(
+                f"duplicate:{observation_id}"
+                for observation_ids in reports_by_patient.values()
+                for observation_id in sorted(observation_ids)[1:]
+            )
+        raise AssertionError("unsupported inspection target type")
+
+    def _materialize_infected_person(
+        self,
+        event: TransmissionEvent,
+        simulator_symptom: tuple[bool, int | None] | None = None,
+    ) -> set[str]:
         uid = event.target_agent_id
         created: set[str] = set()
-        if self._draw("infected", uid, "symptomatic") >= self._parameter(
-            "symptomatic_probability"
-        ):
-            return created
-
-        incubation = self._profile["parameters"]["incubation_days"]
-        incubation_rng = self._rng("infected", uid, "incubation")
-        incubation_days = incubation_rng.lognormvariate(
-            math.log(float(incubation["median"])),
-            math.log(float(incubation["geometric_sd"])),
-        )
-        onset = event.infection_minute + round(incubation_days * DAY_MINUTES)
+        if simulator_symptom is None:
+            if self._draw("infected", uid, "symptomatic") >= self._parameter(
+                "symptomatic_probability"
+            ):
+                return created
+            incubation = self._profile["parameters"]["incubation_days"]
+            incubation_rng = self._rng("infected", uid, "incubation")
+            incubation_days = incubation_rng.lognormvariate(
+                math.log(float(incubation["median"])),
+                math.log(float(incubation["geometric_sd"])),
+            )
+            onset = event.infection_minute + round(incubation_days * DAY_MINUTES)
+        else:
+            _, onset = simulator_symptom
+            if onset is None:
+                return created
         care_sought = self._draw("infected", uid, "care") < self._parameter(
             "care_seeking_probability"
         )
@@ -644,7 +786,11 @@ class IncrementalSurveillanceStream:
             * (LOOKBACK_MINUTES + self._deadline_minutes)
             / (365 * DAY_MINUTES)
         )
-        count = self._poisson(self._rng("background", "count"), mean)
+        count = (
+            self._poisson(self._rng("background", "count"), mean)
+            if self._background_episode_count is None
+            else self._background_episode_count
+        )
         lower = self._decision_minute - LOOKBACK_MINUTES
         upper = self._decision_minute + self._deadline_minutes
         for index in range(count):
@@ -831,6 +977,7 @@ class IncrementalSurveillanceStream:
         self._public_suspects.add(patient_id)
         relative_encounter = max(0, encounter_minute - self._decision_minute)
         encounter_initial = encounter_minute <= self._decision_minute
+        facility_context = self._person_context(population, semantic_uid)
         encounter = Observation(
             observation_id=self._public_id(
                 "obs", population, semantic_uid, "encounter"
@@ -848,6 +995,7 @@ class IncrementalSurveillanceStream:
                 "report_id": self._public_id(
                     "report", population, semantic_uid, "routine"
                 ),
+                **facility_context,
             },
         )
         self._register(encounter)
@@ -960,16 +1108,52 @@ class IncrementalSurveillanceStream:
             self._decisive_ids.add(confirmatory.observation_id)
         return created
 
+    def _normalize_person_context(
+        self,
+        value: Mapping[int, Mapping[str, str]] | None,
+    ) -> dict[int, dict[str, str]]:
+        """Detach and pseudonymize the public part of LTC person metadata.
+
+        The trusted caller may supply a private ward label, but the stream
+        never releases it directly.  It accepts only a facility role and ward
+        label for non-negative semantic agent IDs, then derives an
+        episode-scoped presentation ID for the ward.
+        """
+
+        if value is None:
+            return {}
+        if not isinstance(value, Mapping):
+            raise ValueError("person context must be a mapping")
+        detached: dict[int, dict[str, str]] = {}
+        for agent_id, context in value.items():
+            if type(agent_id) is not int or agent_id < 0:
+                raise ValueError("person context contains an invalid agent id")
+            if not isinstance(context, Mapping) or set(context) != {
+                "facility_role",
+                "ward_id",
+            }:
+                raise ValueError("person context has an invalid schema")
+            role = context["facility_role"]
+            ward_id = context["ward_id"]
+            if role not in {"resident", "staff", "visitor"} or (
+                not isinstance(ward_id, str) or not ward_id
+            ):
+                raise ValueError("person context contains invalid public values")
+            detached[agent_id] = {
+                "facility_role": role,
+                "ward_id": self._public_id("ward", ward_id),
+            }
+        return detached
+
+    def _person_context(
+        self, population: str, semantic_uid: int
+    ) -> dict[str, str]:
+        if population != "infected":
+            return {}
+        return dict(self._person_context_by_agent_id.get(semantic_uid, {}))
+
     def _event_evidence_pattern(self, event: TransmissionEvent) -> str:
         mechanism = getattr(event, "mechanism", None)
-        if (
-            event.source_agent_id is None
-            and self._causal_mode in {"common_source", "repeated_introduction"}
-            and mechanism in {None, "person_to_person"}
-        ):
-            # Compatibility with engine adapters whose exogenous event still
-            # carries the dataclass default rather than an explicit mechanism.
-            return self._causal_mode
         if mechanism in {"common_source", "shared_source"}:
             return "common_source"
         if mechanism in {
@@ -978,14 +1162,8 @@ class IncrementalSurveillanceStream:
             "external_introduction",
         }:
             return "repeated_introduction"
-        if mechanism == "person_to_person":
+        if mechanism == "person_to_person" or event.source_agent_id is not None:
             return "person_to_person"
-        if self._causal_mode in {
-            "person_to_person",
-            "common_source",
-            "repeated_introduction",
-        }:
-            return self._causal_mode
         return "background"
 
     def _interview_payload(
@@ -1001,7 +1179,10 @@ class IncrementalSurveillanceStream:
 
         recall = self._parameter("interview_recall_probability")
         draw = self._draw(population, semantic_uid, "interview-pattern")
-        payload: dict[str, Any] = {"patient_id": patient_id}
+        payload: dict[str, Any] = {
+            "patient_id": patient_id,
+            **self._person_context(population, semantic_uid),
+        }
         decisive = False
 
         if true_case and evidence_pattern == "common_source" and draw < (
@@ -1163,6 +1344,19 @@ class IncrementalSurveillanceStream:
 
     def _add_policy(self) -> str:
         forecast = self._profile["closed_loop_configuration"]["forecast"]
+        outcome_horizon_minutes = (
+            int(self._profile["transmission_configuration"]["horizon_days"])
+            * DAY_MINUTES
+            - self._decision_minute
+        )
+        if (
+            outcome_horizon_minutes <= 0
+            or outcome_horizon_minutes % DAY_MINUTES
+        ):
+            raise ValueError(
+                "the intervention outcome horizon must be a positive whole "
+                "number of days after the public episode starts"
+            )
         policy = Observation(
             observation_id=self._public_id("obs", "policy"),
             kind="policy",
@@ -1222,8 +1416,8 @@ class IncrementalSurveillanceStream:
                 # These are scoring/operations semantics, not hidden disease
                 # parameters.  Publishing them prevents an evaluator-only
                 # horizon from becoming a trap for otherwise rational agents.
-                "intervention_outcome_horizon_days": int(
-                    self._profile["transmission_configuration"]["horizon_days"]
+                "intervention_outcome_horizon_days": (
+                    outcome_horizon_minutes // DAY_MINUTES
                 ),
                 "intervention_persists_until_changed": True,
                 "intervention_burden_units": "utility_points_per_day",

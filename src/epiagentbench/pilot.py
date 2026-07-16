@@ -10,6 +10,7 @@ not be published as a leaderboard score.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 import json
 import math
 import os
@@ -38,6 +39,17 @@ DEFAULT_EXECUTABLES = {
     "cursor": "cursor-agent",
 }
 
+
+class ClaudeEffort(str, Enum):
+    """Reasoning-effort levels accepted by the Claude Code CLI."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    XHIGH = "xhigh"
+    MAX = "max"
+
+
 _MAX_CAPTURE_BYTES = 2_097_152
 _SUBMISSION_KEYS = {
     "incident_assessment",
@@ -63,6 +75,15 @@ _PUBLIC_TOOL_NAMES = (
     "set_response_control",
     "submit_forecast",
     "get_clock_and_budget",
+)
+
+_CLAUDE_MCP_TOOL_NAMES = tuple(
+    f"mcp__epiagent__{tool_name}" for tool_name in _PUBLIC_TOOL_NAMES
+)
+_CLAUDE_EXPECTED_TOOLS = (*_CLAUDE_MCP_TOOL_NAMES, "StructuredOutput")
+_FENCED_JSON_BLOCK = re.compile(
+    r"```(?:json)?[ \t]*\r?\n(?P<body>.*?)\r?\n?[ \t]*```",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -111,7 +132,10 @@ supporting_evidence_ids, and contradicting_evidence_ids. Each recommended
 action has action_type, nullable target_id, urgency, evidence_ids, and
 control_level when it reports a control. urgency must be exactly immediate,
 within_24h, or monitor. Report only actions whose tool calls succeeded, and for
-each control report the last successfully executed level.
+each control report the last successfully executed level. If the public
+manifest contains hypothesis_catalog, submit every catalog option exactly once:
+the hypothesis type is its catalog id, probabilities across all options must
+sum to one, and options marked target_required need a public target_id.
 """
 
 
@@ -135,6 +159,36 @@ def _mcp_definition(
     }
 
 
+def _validate_claude_effort(
+    value: str | ClaudeEffort | None,
+) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Invalid Claude effort")
+    try:
+        return ClaudeEffort(value).value
+    except ValueError as error:
+        choices = ", ".join(item.value for item in ClaudeEffort)
+        raise ValueError(f"Invalid Claude effort; choose one of: {choices}") from error
+
+
+def _compact_json_schema(schema_path: str) -> str:
+    try:
+        raw_schema = Path(schema_path).read_text(encoding="utf-8")
+        schema = _decode_json(raw_schema)
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+        raise ValueError("Invalid Claude JSON schema") from error
+    if not isinstance(schema, dict):
+        raise ValueError("Invalid Claude JSON schema")
+    return json.dumps(
+        schema,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 def build_agent_command(
     system: str,
     *,
@@ -148,6 +202,7 @@ def build_agent_command(
     public_root: str,
     socket_path: str,
     claude_max_budget_usd: float = 1.0,
+    claude_effort: str | ClaudeEffort | None = None,
 ) -> list[str]:
     """Build a shell-free invocation for one supported local agent CLI."""
 
@@ -155,6 +210,9 @@ def build_agent_command(
         raise ValueError("Unsupported pilot system")
     if not model or not executable:
         raise ValueError("Invalid pilot configuration")
+    effort = _validate_claude_effort(claude_effort)
+    if effort is not None and system != "claude":
+        raise ValueError("Claude effort is only valid for the Claude system")
     prompt = _task_prompt()
     if system == "codex":
         mcp = _mcp_definition(
@@ -207,28 +265,44 @@ def build_agent_command(
             0 < claude_max_budget_usd <= 100
         ):
             raise ValueError("Invalid Claude budget")
-        return [
+        compact_schema = _compact_json_schema(schema_path)
+        command = [
             executable,
-            "--safe-mode",
             "--print",
             "--model",
             model,
-            "--no-session-persistence",
-            "--no-chrome",
-            "--tools",
-            "",
-            "--strict-mcp-config",
-            "--mcp-config",
-            mcp_path,
-            "--allowedTools",
-            "mcp__epiagent__*",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--max-budget-usd",
-            str(claude_max_budget_usd),
-            prompt,
         ]
+        if effort is not None:
+            command.extend(("--effort", effort))
+        command.extend(
+            [
+                "--no-session-persistence",
+                "--no-chrome",
+                "--tools",
+                "Read",
+                "--disallowedTools",
+                "Read",
+                "--permission-mode",
+                "dontAsk",
+                "--setting-sources",
+                "project",
+                "--disable-slash-commands",
+                "--strict-mcp-config",
+                "--mcp-config",
+                mcp_path,
+                "--allowedTools",
+                "mcp__epiagent__*",
+                "--output-format",
+                "stream-json",
+                "--json-schema",
+                compact_schema,
+                "--verbose",
+                "--max-budget-usd",
+                str(claude_max_budget_usd),
+                prompt,
+            ]
+        )
+        return command
     return [
         executable,
         "--print",
@@ -238,7 +312,14 @@ def build_agent_command(
         # Current Cursor CLI fail-closed filter: expose MCP calls, not its
         # built-in shell, filesystem, browser, search, or subagent tools.
         "--allowed-tools",
-        "mcpToolCall",
+        # Cursor 2026.07 uses snake-case CLI enum values even though its JSONL
+        # event payloads continue to use camel-case ``mcpToolCall`` keys.
+        "mcp_tool_call",
+        # Cursor's cloud agent may need a separate read-only discovery call
+        # before it can issue the actual MCP call. The fresh CURSOR_DATA_DIR
+        # and workspace contain only the public epiagent server.
+        "--allowed-tools",
+        "get_mcp_tools_tool_call",
         "--model",
         model,
         "--output-format",
@@ -276,15 +357,30 @@ def _submission_candidate(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, str):
         return None
     text = value.strip()
-    if text.startswith("```json") and text.endswith("```"):
-        text = text[7:-3].strip()
-    elif text.startswith("```") and text.endswith("```"):
-        text = text[3:-3].strip()
     try:
         decoded = _decode_json(text)
     except (UnicodeError, ValueError, RecursionError):
+        decoded = None
+    if isinstance(decoded, dict):
+        return decoded
+
+    # Cursor's terminal result is the full assistant text. Accept surrounding
+    # prose only when there is exactly one unambiguous fenced JSON candidate;
+    # never scan arbitrary prose for braces or choose among competing objects.
+    matches = list(_FENCED_JSON_BLOCK.finditer(text))
+    if len(matches) != 1:
         return None
-    return decoded if isinstance(decoded, dict) else None
+    match = matches[0]
+    outside = text[: match.start()] + text[match.end() :]
+    if "```" in outside:
+        return None
+    try:
+        fenced = _decode_json(match.group("body").strip())
+    except (UnicodeError, ValueError, RecursionError):
+        return None
+    if not isinstance(fenced, dict) or not _SUBMISSION_KEYS.issubset(fenced):
+        return None
+    return fenced
 
 
 def _jsonl_records(stdout: bytes) -> list[dict[str, Any]]:
@@ -324,6 +420,17 @@ def _find_submission(records: Sequence[Mapping[str, Any]]) -> dict[str, Any] | N
     return None
 
 
+def _find_cursor_submission(
+    records: Sequence[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    """Parse only Cursor's single designated terminal result record."""
+
+    terminal = [record for record in records if record.get("type") == "result"]
+    if len(terminal) != 1:
+        return None
+    return _submission_candidate(terminal[0].get("result"))
+
+
 def _observed_models(records: Sequence[Mapping[str, Any]]) -> tuple[str, ...]:
     values: list[str] = []
     for record in records:
@@ -352,28 +459,128 @@ def _cursor_tool_audit(
         tool_name = value.get("toolName", nested.get("toolName"))
         return provider, tool_name
 
+    def call_id(*values: Mapping[str, Any]) -> str | None:
+        for value in values:
+            for key in ("toolCallId", "tool_call_id", "call_id", "id"):
+                identifier = value.get(key)
+                if isinstance(identifier, (str, int)) and not isinstance(
+                    identifier, bool
+                ):
+                    return str(identifier)
+        return None
+
+    authorized_call_ids: set[str] = set()
+    transport_unverifiable = False
     for record in records:
+        if record.get("type") == "getMcpToolsToolCall":
+            continue
         if record.get("type") == "mcpToolCall":
             provider, tool_name = identity(record)
+            identifier = call_id(record)
+            if provider is None and tool_name is None:
+                if identifier is None or identifier not in authorized_call_ids:
+                    transport_unverifiable = True
+                continue
             if provider != "epiagent" or tool_name not in _PUBLIC_TOOL_NAMES:
                 return ("agent_failure:unauthorized_tool",)
-        if record.get("type") != "tool_call" or record.get("subtype") not in {
-            "started",
-            "completed",
-        }:
+            if identifier is not None:
+                authorized_call_ids.add(identifier)
+        if record.get("type") != "tool_call":
+            continue
+        if record.get("subtype") not in {"started", "completed"}:
+            transport_unverifiable = True
             continue
         tool_call = record.get("tool_call")
+        subtype = record.get("subtype")
         if not isinstance(tool_call, dict):
+            if subtype == "completed":
+                transport_unverifiable = True
+                continue
             return ("agent_failure:unauthorized_tool",)
+        identifier = call_id(tool_call, record)
         call_keys = [key for key in tool_call if key.endswith("ToolCall")]
+        if call_keys == ["getMcpToolsToolCall"]:
+            continue
+        if not call_keys and subtype == "completed":
+            if identifier is None or identifier not in authorized_call_ids:
+                transport_unverifiable = True
+            continue
         if call_keys != ["mcpToolCall"]:
             return ("agent_failure:unauthorized_tool",)
         mcp_call = tool_call["mcpToolCall"]
         if not isinstance(mcp_call, dict):
+            if subtype == "completed" and identifier in authorized_call_ids:
+                continue
+            if subtype == "completed":
+                transport_unverifiable = True
+                continue
             return ("agent_failure:unauthorized_tool",)
+        identifier = call_id(mcp_call, tool_call, record)
         provider, tool_name = identity(mcp_call)
+        if provider is None and tool_name is None:
+            if subtype == "completed" and identifier in authorized_call_ids:
+                continue
+            if subtype == "completed":
+                transport_unverifiable = True
+                continue
+            return ("agent_failure:unauthorized_tool",)
         if provider != "epiagent" or tool_name not in _PUBLIC_TOOL_NAMES:
             return ("agent_failure:unauthorized_tool",)
+        if identifier is not None:
+            authorized_call_ids.add(identifier)
+    return (
+        ("agent_failure:tool_transport_unverifiable",)
+        if transport_unverifiable
+        else ()
+    )
+
+
+def _claude_tool_audit(
+    records: Sequence[Mapping[str, Any]],
+) -> tuple[str, ...]:
+    """Require the isolated public MCP inventory and reject other tool use."""
+
+    initializations = [
+        record
+        for record in records
+        if record.get("type") == "system" and record.get("subtype") == "init"
+    ]
+    if len(initializations) != 1:
+        return ("agent_failure:mcp_unavailable",)
+    initialization = initializations[0]
+    tools = initialization.get("tools")
+    if (
+        not isinstance(tools, list)
+        or not all(isinstance(tool, str) for tool in tools)
+        or len(tools) != len(_CLAUDE_EXPECTED_TOOLS)
+        or set(tools) != set(_CLAUDE_EXPECTED_TOOLS)
+    ):
+        return ("agent_failure:mcp_unavailable",)
+    servers = initialization.get("mcp_servers")
+    if (
+        not isinstance(servers, list)
+        or len(servers) != 1
+        or not isinstance(servers[0], dict)
+        or servers[0].get("name") != "epiagent"
+        or servers[0].get("status") != "connected"
+    ):
+        return ("agent_failure:mcp_unavailable",)
+
+    allowed = set(_CLAUDE_EXPECTED_TOOLS)
+    for record in records:
+        blocks: object = None
+        message = record.get("message")
+        if isinstance(message, dict):
+            blocks = message.get("content")
+        elif record.get("type") == "tool_use":
+            blocks = [record]
+        if not isinstance(blocks, list):
+            continue
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("type") != "tool_use":
+                continue
+            if block.get("name") not in allowed:
+                return ("agent_failure:unauthorized_tool",)
     return ()
 
 
@@ -429,20 +636,26 @@ def parse_agent_output(
 
     records = _jsonl_records(stdout)
     observed = _observed_models(records)
-    submission = None
-    if final_output:
-        try:
-            submission = _submission_candidate(final_output.decode("utf-8"))
-        except UnicodeError:
-            submission = None
-    if submission is None:
-        submission = _find_submission(records)
+    submission = _find_cursor_submission(records) if system == "cursor" else None
+    if system != "cursor":
+        if final_output:
+            try:
+                submission = _submission_candidate(final_output.decode("utf-8"))
+            except UnicodeError:
+                submission = None
+        if submission is None:
+            submission = _find_submission(records)
 
     audit: list[str] = []
     if submission is None:
         audit.append("agent_failure:invalid_submission")
     if system == "cursor":
         audit.extend(_cursor_tool_audit(records))
+    if system == "claude":
+        claude_audit = _claude_tool_audit(records)
+        audit.extend(claude_audit)
+        if claude_audit:
+            submission = None
     mismatches = [
         model for model in observed if not _model_matches(requested_model, model)
     ]
@@ -507,7 +720,6 @@ def _prepare_workspace(root: Path, socket_path: str) -> tuple[Path, Path, Path, 
         ),
         encoding="utf-8",
     )
-    final_path = workspace / "final.json"
     return workspace, public_root, schema_path, mcp_path
 
 
@@ -553,6 +765,25 @@ def _diagnostic(
     return text.strip()
 
 
+def _isolate_claude_environment(
+    environment: dict[str, str], root: Path
+) -> None:
+    """Discard inherited Claude state and use temporary private directories."""
+
+    environment.pop("CLAUDE_CODE_SAFE_MODE", None)
+    isolated_paths = {
+        "HOME": root / "claude-home",
+        "CLAUDE_CONFIG_DIR": root / "claude-config",
+        "XDG_CONFIG_HOME": root / "xdg" / "config",
+        "XDG_CACHE_HOME": root / "xdg" / "cache",
+        "XDG_DATA_HOME": root / "xdg" / "data",
+        "XDG_STATE_HOME": root / "xdg" / "state",
+    }
+    for name, path in isolated_paths.items():
+        path.mkdir(parents=True, mode=0o700, exist_ok=True)
+        environment[name] = str(path)
+
+
 def evaluate_local_cli_agent(
     system: str,
     *,
@@ -564,6 +795,7 @@ def evaluate_local_cli_agent(
     executable: str | None = None,
     timeout_seconds: int = 600,
     claude_max_budget_usd: float = 1.0,
+    claude_effort: str | ClaudeEffort | None = None,
 ) -> PilotRunResult:
     """Run and score one explicitly non-hermetic local CLI smoke episode."""
 
@@ -571,6 +803,9 @@ def evaluate_local_cli_agent(
         raise ValueError("Unsupported pilot system")
     if type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 3600:
         raise ValueError("Invalid pilot timeout")
+    effort = _validate_claude_effort(claude_effort)
+    if effort is not None and system != "claude":
+        raise ValueError("Claude effort is only valid for the Claude system")
     requested_model = model or DEFAULT_MODELS[system]
     executable_name = executable or DEFAULT_EXECUTABLES[system]
     resolved = shutil.which(executable_name)
@@ -606,11 +841,14 @@ def evaluate_local_cli_agent(
                 public_root=str(public_root),
                 socket_path=socket_path,
                 claude_max_budget_usd=claude_max_budget_usd,
+                claude_effort=effort,
             )
             environment = os.environ.copy()
             environment.pop("EPIAGENT_SOCKET", None)
             if system == "cursor":
                 environment["CURSOR_DATA_DIR"] = str(root / "cursor-data")
+            elif system == "claude":
+                _isolate_claude_environment(environment, root)
             version = subprocess.run(
                 [resolved, "--version"],
                 stdin=subprocess.DEVNULL,
@@ -723,10 +961,12 @@ def evaluate_paired_cli_agents(
     episode_secret: bytes | None = None,
     timeout_seconds: int = 600,
     claude_max_budget_usd: float = 1.0,
+    claude_effort: str | ClaudeEffort | None = None,
 ) -> tuple[PilotRunResult, ...]:
     """Replay one private episode independently across full agent systems."""
 
     secret = episode_secret or secrets.token_bytes(32)
+    effort = _validate_claude_effort(claude_effort)
     return tuple(
         evaluate_local_cli_agent(
             system,
@@ -736,6 +976,7 @@ def evaluate_paired_cli_agents(
             episode_secret=secret,
             timeout_seconds=timeout_seconds,
             claude_max_budget_usd=claude_max_budget_usd,
+            claude_effort=effort if system == "claude" else None,
         )
         for system in systems
     )

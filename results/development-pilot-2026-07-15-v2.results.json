@@ -1,0 +1,915 @@
+{
+  "completed_at_utc": "2026-07-15T20:42:04.487439Z",
+  "development_only": true,
+  "execution_environment": {
+    "executables_available": {
+      "claude": true,
+      "codex": true,
+      "cursor": true
+    },
+    "execution_commit": "f4da647494a66af831bd14d1d8cab60718b119a7",
+    "git_status_at_start": "",
+    "machine": "arm64",
+    "platform": "macOS-26.4-arm64-arm-64bit-Mach-O",
+    "provider_network_access": true,
+    "python": "3.13.7",
+    "sandbox": "provider CLI-specific local restrictions; not hermetic",
+    "starsim": "3.5.1"
+  },
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked provider CLIs; execution is not hermetic",
+    "requested model identity is not independently signed",
+    "unequal provider-native reasoning and billing controls",
+    "synthetic LTC-v3 development episodes are not externally calibrated",
+    "one episode per causal family is too small for uncertainty estimates"
+  ],
+  "panel_id": "development-paired-pilot-v2-2026-07-15",
+  "panel_retired_after_publication": true,
+  "planned_assignments": 15,
+  "precommitment_sha256": "sha256:817db84a902571c530270fefbe7b15720a995208217dd25fc85c240e4838aeee",
+  "results": [
+    {
+      "audit_events": [],
+      "cli_version": "codex-cli 0.144.3",
+      "development_only": true,
+      "dimensions": {
+        "classification": 14.998,
+        "efficiency": 3.521,
+        "evidence": 4.889,
+        "handoff": 5.0,
+        "hypothesis": 9.97,
+        "line_list": 15.0,
+        "prospective_forecast": 6.852,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 205.999,
+      "episode_ref": "episode_01",
+      "family": "institution_person_to_person",
+      "finished_at_utc": "2026-07-15T19:32:23.713356Z",
+      "hermetic": false,
+      "metrics": {
+        "analyst_minutes": 350,
+        "brier": 0.0001,
+        "case_f1": 1.0,
+        "correct_hypothesis_probability": 0.93,
+        "decisive_evidence_recall": 0.846154,
+        "forecast_mean_absolute_error": 1.0,
+        "forecast_submissions": 5,
+        "hypothesis_multiclass_brier": 0.006,
+        "integrity_pass": true,
+        "operational_credits": 77,
+        "privacy_units": 17,
+        "provenance_precision": 1.0,
+        "tool_calls": 37
+      },
+      "model_attribution": "requested_only_unverified",
+      "observed_models": [],
+      "requested_model": "gpt-5.6-sol",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T19:28:55.033649Z",
+      "stderr_bytes": 6492,
+      "stdout_bytes": 51799,
+      "system": "codex",
+      "total": 60.231,
+      "valid": true,
+      "violations": []
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 138.402,
+      "episode_ref": "episode_01",
+      "family": "institution_person_to_person",
+      "finished_at_utc": "2026-07-15T19:49:46.589119Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "failed",
+      "observed_models": [
+        "claude-fable-5",
+        "claude-opus-4-8",
+        "<synthetic>"
+      ],
+      "requested_model": "claude-fable-5",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T19:32:23.714905Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 56050,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:line_list",
+        "missing:case_definition",
+        "missing:uncertainties",
+        "missing:executive_brief",
+        "missing:recommended_actions",
+        "missing:next_evidence",
+        "missing:incident_assessment",
+        "missing:hypotheses",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2026.07.09-a3815c0",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 25.511,
+      "episode_ref": "episode_01",
+      "family": "institution_person_to_person",
+      "finished_at_utc": "2026-07-15T19:51:24.249811Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "observed_models": [
+        "GLM 5.2 High"
+      ],
+      "requested_model": "glm-5.2-high",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T19:49:46.590364Z",
+      "stderr_bytes": 77,
+      "stdout_bytes": 3783,
+      "system": "cursor",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:hypotheses",
+        "missing:next_evidence",
+        "missing:incident_assessment",
+        "missing:uncertainties",
+        "missing:recommended_actions",
+        "missing:case_definition",
+        "missing:executive_brief",
+        "missing:line_list",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 174.181,
+      "episode_ref": "episode_02",
+      "family": "restaurant_point_source",
+      "finished_at_utc": "2026-07-15T20:01:40.245630Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "failed",
+      "observed_models": [
+        "claude-fable-5",
+        "claude-opus-4-8",
+        "<synthetic>"
+      ],
+      "requested_model": "claude-fable-5",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T19:51:24.251600Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 142837,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:line_list",
+        "missing:incident_assessment",
+        "missing:executive_brief",
+        "missing:next_evidence",
+        "missing:hypotheses",
+        "missing:uncertainties",
+        "missing:recommended_actions",
+        "missing:case_definition",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2026.07.09-a3815c0",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 25.328,
+      "episode_ref": "episode_02",
+      "family": "restaurant_point_source",
+      "finished_at_utc": "2026-07-15T20:02:08.729638Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "observed_models": [
+        "GLM 5.2 High"
+      ],
+      "requested_model": "glm-5.2-high",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T20:01:40.247081Z",
+      "stderr_bytes": 77,
+      "stdout_bytes": 3783,
+      "system": "cursor",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:executive_brief",
+        "missing:uncertainties",
+        "missing:incident_assessment",
+        "missing:case_definition",
+        "missing:recommended_actions",
+        "missing:line_list",
+        "missing:next_evidence",
+        "missing:hypotheses",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [],
+      "cli_version": "codex-cli 0.144.3",
+      "development_only": true,
+      "dimensions": {
+        "classification": 14.986,
+        "efficiency": 1.364,
+        "evidence": 3.103,
+        "handoff": 5.0,
+        "hypothesis": 2.465,
+        "line_list": 15.0,
+        "prospective_forecast": 8.821,
+        "response_utility": 25.0
+      },
+      "elapsed_seconds": 605.42,
+      "episode_ref": "episode_02",
+      "family": "restaurant_point_source",
+      "finished_at_utc": "2026-07-15T20:27:19.375678Z",
+      "hermetic": false,
+      "metrics": {
+        "analyst_minutes": 500,
+        "brier": 0.0009,
+        "case_f1": 1.0,
+        "correct_hypothesis_probability": 0.06,
+        "decisive_evidence_recall": 0.692308,
+        "forecast_mean_absolute_error": 0.75,
+        "forecast_submissions": 4,
+        "hypothesis_multiclass_brier": 1.50705,
+        "integrity_pass": true,
+        "operational_credits": 100,
+        "privacy_units": 21,
+        "provenance_precision": 1.0,
+        "tool_calls": 50
+      },
+      "model_attribution": "requested_only_unverified",
+      "observed_models": [],
+      "requested_model": "gpt-5.6-sol",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:02:08.730807Z",
+      "stderr_bytes": 7628,
+      "stdout_bytes": 75241,
+      "system": "codex",
+      "total": 75.739,
+      "valid": true,
+      "violations": []
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2026.07.09-a3815c0",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 27.65,
+      "episode_ref": "episode_03",
+      "family": "repeated_introduction",
+      "finished_at_utc": "2026-07-15T20:27:55.434651Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "observed_models": [
+        "GLM 5.2 High"
+      ],
+      "requested_model": "glm-5.2-high",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T20:27:19.380936Z",
+      "stderr_bytes": 77,
+      "stdout_bytes": 3783,
+      "system": "cursor",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:recommended_actions",
+        "missing:executive_brief",
+        "missing:incident_assessment",
+        "missing:case_definition",
+        "missing:hypotheses",
+        "missing:next_evidence",
+        "missing:line_list",
+        "missing:uncertainties",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [],
+      "cli_version": "codex-cli 0.144.3",
+      "development_only": true,
+      "dimensions": {
+        "classification": 14.946,
+        "efficiency": 1.774,
+        "evidence": 3.75,
+        "handoff": 5.0,
+        "hypothesis": 9.507,
+        "line_list": 15.0,
+        "prospective_forecast": 8.688,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 194.55,
+      "episode_ref": "episode_03",
+      "family": "repeated_introduction",
+      "finished_at_utc": "2026-07-15T20:31:18.503507Z",
+      "hermetic": false,
+      "metrics": {
+        "analyst_minutes": 500,
+        "brier": 0.0036,
+        "case_f1": 1.0,
+        "correct_hypothesis_probability": 0.72,
+        "decisive_evidence_recall": 0.75,
+        "forecast_mean_absolute_error": 0.333333,
+        "forecast_submissions": 3,
+        "hypothesis_multiclass_brier": 0.0986,
+        "integrity_pass": true,
+        "operational_credits": 100,
+        "privacy_units": 18,
+        "provenance_precision": 1.0,
+        "tool_calls": 47
+      },
+      "model_attribution": "requested_only_unverified",
+      "observed_models": [],
+      "requested_model": "gpt-5.6-sol",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:27:55.442487Z",
+      "stderr_bytes": 6828,
+      "stdout_bytes": 76487,
+      "system": "codex",
+      "total": 58.665,
+      "valid": true,
+      "violations": [
+        "forecast_review_interval",
+        "unlogged_recommended_action",
+        "unexecuted_control_recommendation"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 11.075,
+      "episode_ref": "episode_03",
+      "family": "repeated_introduction",
+      "finished_at_utc": "2026-07-15T20:31:34.976442Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "failed",
+      "observed_models": [
+        "claude-fable-5",
+        "claude-opus-4-8"
+      ],
+      "requested_model": "claude-fable-5",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:31:18.507884Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 6289,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:next_evidence",
+        "missing:line_list",
+        "missing:executive_brief",
+        "missing:hypotheses",
+        "missing:case_definition",
+        "missing:uncertainties",
+        "missing:recommended_actions",
+        "missing:incident_assessment",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [],
+      "cli_version": "codex-cli 0.144.3",
+      "development_only": true,
+      "dimensions": {
+        "classification": 14.926,
+        "efficiency": 1.816,
+        "evidence": 1.111,
+        "handoff": 5.0,
+        "hypothesis": 9.021,
+        "line_list": 10.0,
+        "prospective_forecast": 6.697,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 282.48,
+      "episode_ref": "episode_04",
+      "family": "coincidental_venue",
+      "finished_at_utc": "2026-07-15T20:36:20.533280Z",
+      "hermetic": false,
+      "metrics": {
+        "analyst_minutes": 435,
+        "brier": 0.0049,
+        "case_f1": 0.666667,
+        "correct_hypothesis_probability": 0.64,
+        "decisive_evidence_recall": 1.0,
+        "forecast_mean_absolute_error": 1.0,
+        "forecast_submissions": 5,
+        "hypothesis_multiclass_brier": 0.1958,
+        "integrity_pass": true,
+        "operational_credits": 99,
+        "privacy_units": 20,
+        "provenance_precision": 1.0,
+        "tool_calls": 48
+      },
+      "model_attribution": "requested_only_unverified",
+      "observed_models": [],
+      "requested_model": "gpt-5.6-sol",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:31:34.978659Z",
+      "stderr_bytes": 6605,
+      "stdout_bytes": 59479,
+      "system": "codex",
+      "total": 48.572,
+      "valid": true,
+      "violations": [
+        "forecast_review_interval"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2026.07.09-a3815c0",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 29.134,
+      "episode_ref": "episode_04",
+      "family": "coincidental_venue",
+      "finished_at_utc": "2026-07-15T20:36:54.869728Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "observed_models": [
+        "GLM 5.2 High"
+      ],
+      "requested_model": "glm-5.2-high",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T20:36:20.542083Z",
+      "stderr_bytes": 77,
+      "stdout_bytes": 3783,
+      "system": "cursor",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:incident_assessment",
+        "missing:hypotheses",
+        "missing:line_list",
+        "missing:recommended_actions",
+        "missing:next_evidence",
+        "missing:executive_brief",
+        "missing:case_definition",
+        "missing:uncertainties",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 69.344,
+      "episode_ref": "episode_04",
+      "family": "coincidental_venue",
+      "finished_at_utc": "2026-07-15T20:38:12.986492Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "failed",
+      "observed_models": [
+        "claude-fable-5",
+        "claude-opus-4-8"
+      ],
+      "requested_model": "claude-fable-5",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:36:54.872456Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 29985,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:next_evidence",
+        "missing:executive_brief",
+        "missing:recommended_actions",
+        "missing:hypotheses",
+        "missing:case_definition",
+        "missing:uncertainties",
+        "missing:incident_assessment",
+        "missing:line_list",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission"
+      ],
+      "cli_version": "2026.07.09-a3815c0",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 30.035,
+      "episode_ref": "episode_05",
+      "family": "reporting_artifact",
+      "finished_at_utc": "2026-07-15T20:38:54.953304Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "provider_reported_match",
+      "observed_models": [
+        "GLM 5.2 High"
+      ],
+      "requested_model": "glm-5.2-high",
+      "returncode": 1,
+      "started_at_utc": "2026-07-15T20:38:12.989899Z",
+      "stderr_bytes": 77,
+      "stdout_bytes": 3783,
+      "system": "cursor",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:hypotheses",
+        "missing:case_definition",
+        "missing:incident_assessment",
+        "missing:uncertainties",
+        "missing:line_list",
+        "missing:executive_brief",
+        "missing:recommended_actions",
+        "missing:next_evidence",
+        "agent_failure:nonzero_exit",
+        "agent_failure:invalid_submission",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback"
+      ],
+      "cli_version": "2.1.195 (Claude Code)",
+      "development_only": true,
+      "dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "elapsed_seconds": 8.713,
+      "episode_ref": "episode_05",
+      "family": "reporting_artifact",
+      "finished_at_utc": "2026-07-15T20:39:07.693286Z",
+      "hermetic": false,
+      "metrics": {
+        "integrity_pass": false,
+        "tool_calls": 0
+      },
+      "model_attribution": "failed",
+      "observed_models": [
+        "claude-fable-5",
+        "claude-opus-4-8"
+      ],
+      "requested_model": "claude-fable-5",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:38:54.958573Z",
+      "stderr_bytes": 0,
+      "stdout_bytes": 5912,
+      "system": "claude",
+      "total": 0.0,
+      "valid": false,
+      "violations": [
+        "missing:recommended_actions",
+        "missing:uncertainties",
+        "missing:incident_assessment",
+        "missing:executive_brief",
+        "missing:case_definition",
+        "missing:next_evidence",
+        "missing:hypotheses",
+        "missing:line_list",
+        "agent_failure:invalid_submission",
+        "agent_failure:model_fallback",
+        "missing_closed_loop_response"
+      ]
+    },
+    {
+      "audit_events": [],
+      "cli_version": "codex-cli 0.144.3",
+      "development_only": true,
+      "dimensions": {
+        "classification": 14.946,
+        "efficiency": 4.838,
+        "evidence": 4.762,
+        "handoff": 5.0,
+        "hypothesis": 9.399,
+        "line_list": 15.0,
+        "prospective_forecast": 7.246,
+        "response_utility": 20.098
+      },
+      "elapsed_seconds": 174.114,
+      "episode_ref": "episode_05",
+      "family": "reporting_artifact",
+      "finished_at_utc": "2026-07-15T20:42:04.484408Z",
+      "hermetic": false,
+      "metrics": {
+        "analyst_minutes": 305,
+        "brier": 0.0036,
+        "case_f1": 1.0,
+        "correct_hypothesis_probability": 0.72,
+        "decisive_evidence_recall": 0.909091,
+        "forecast_mean_absolute_error": 1.0,
+        "forecast_submissions": 2,
+        "hypothesis_multiclass_brier": 0.1202,
+        "integrity_pass": true,
+        "operational_credits": 67,
+        "privacy_units": 11,
+        "provenance_precision": 1.0,
+        "tool_calls": 29
+      },
+      "model_attribution": "requested_only_unverified",
+      "observed_models": [],
+      "requested_model": "gpt-5.6-sol",
+      "returncode": 0,
+      "started_at_utc": "2026-07-15T20:39:07.697034Z",
+      "stderr_bytes": 6605,
+      "stdout_bytes": 94901,
+      "system": "codex",
+      "total": 81.289,
+      "valid": true,
+      "violations": []
+    }
+  ],
+  "results_sha256": "sha256:0ec4e0d17cd86049792a071c77eeac285a7c2b05bf36bb716c95b86ab0d184f2",
+  "run_contract": {
+    "backend": "starsim-ltc-v3",
+    "claude_max_budget_usd_per_assignment": 2.0,
+    "executables": {
+      "claude": "claude",
+      "codex": "codex",
+      "cursor": "cursor-agent"
+    },
+    "failure_policy": "evaluator-returned timeouts, invalid submissions, and detected model fallbacks remain in the fixed denominator with score zero; missing independent model receipts are reported separately; infrastructure or harness exceptions abort the panel and are not model scores",
+    "reasoning_configuration": {
+      "claude": "provider default under explicit USD cap",
+      "codex": "medium",
+      "cursor": "native high model alias"
+    },
+    "requested_models": {
+      "claude": "claude-fable-5",
+      "codex": "gpt-5.6-sol",
+      "cursor": "glm-5.2-high"
+    },
+    "retry_policy": "no retries after an assignment starts",
+    "timeout_seconds_per_assignment": 900
+  },
+  "schema_version": "development_pilot_v1",
+  "score_dimension_maxima": {
+    "classification": 15.0,
+    "efficiency": 10.0,
+    "evidence": 10.0,
+    "handoff": 5.0,
+    "hypothesis": 10.0,
+    "line_list": 15.0,
+    "prospective_forecast": 10.0,
+    "response_utility": 25.0
+  },
+  "started_at_utc": "2026-07-15T19:28:55.032455Z",
+  "status": "complete",
+  "summary": {
+    "claude": {
+      "attribution": {
+        "failed": 5
+      },
+      "audit_event_counts": {
+        "agent_failure:invalid_submission": 5,
+        "agent_failure:model_fallback": 5,
+        "agent_failure:nonzero_exit": 2
+      },
+      "completed": 5,
+      "integrity_pass": 0,
+      "mean_dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "mean_total": 0.0,
+      "median_elapsed_seconds": 69.344,
+      "median_total": 0.0,
+      "planned": 5,
+      "valid": 0
+    },
+    "codex": {
+      "attribution": {
+        "requested_only_unverified": 5
+      },
+      "audit_event_counts": {},
+      "completed": 5,
+      "integrity_pass": 5,
+      "mean_dimensions": {
+        "classification": 14.96,
+        "efficiency": 2.663,
+        "evidence": 3.523,
+        "handoff": 5.0,
+        "hypothesis": 8.072,
+        "line_list": 14.0,
+        "prospective_forecast": 7.661,
+        "response_utility": 9.02
+      },
+      "mean_total": 64.899,
+      "median_elapsed_seconds": 205.999,
+      "median_total": 60.231,
+      "planned": 5,
+      "valid": 5
+    },
+    "cursor": {
+      "attribution": {
+        "provider_reported_match": 5
+      },
+      "audit_event_counts": {
+        "agent_failure:invalid_submission": 5,
+        "agent_failure:nonzero_exit": 5
+      },
+      "completed": 5,
+      "integrity_pass": 0,
+      "mean_dimensions": {
+        "classification": 0.0,
+        "efficiency": 0.0,
+        "evidence": 0.0,
+        "handoff": 0.0,
+        "hypothesis": 0.0,
+        "line_list": 0.0,
+        "prospective_forecast": 0.0,
+        "response_utility": 0.0
+      },
+      "mean_total": 0.0,
+      "median_elapsed_seconds": 27.65,
+      "median_total": 0.0,
+      "planned": 5,
+      "valid": 0
+    }
+  }
+}

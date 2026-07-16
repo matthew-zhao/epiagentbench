@@ -80,7 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--family", choices=tuple(dict.fromkeys(FAMILIES + LIVE_STARSIM_FAMILIES))
     )
     secure_demo.add_argument(
-        "--backend", choices=("reference", "starsim"), default="reference"
+        "--backend",
+        choices=("reference", "starsim", "starsim-ltc-v3"),
+        default="reference",
     )
     validation = subparsers.add_parser(
         "validate-starsim",
