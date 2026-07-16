@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,9 +14,14 @@ from epiagentbench.pilot import (
     _CLAUDE_MCP_TOOL_NAMES,
     _CLAUDE_UNSUPPORTED_SCHEMA_KEYS,
     _claude_provider_schema,
+    _cursor_host_persistence_audit,
     _isolate_claude_environment,
+    _isolate_cursor_environment,
     _prepare_workspace,
+    _snapshot_cursor_host_chat_metadata,
+    _snapshot_cursor_host_state,
     build_agent_command,
+    evaluate_local_cli_agent,
     evaluate_paired_cli_agents,
     parse_agent_output,
 )
@@ -196,6 +203,260 @@ class CliPilotTests(unittest.TestCase):
                 path = Path(environment[name])
                 self.assertTrue(path.is_dir())
                 self.assertTrue(path.is_relative_to(root))
+
+    def test_cursor_environment_uses_only_disposable_storage_roots(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            environment = {
+                "HOME": "/inherited/home",
+                "CURSOR_DATA_DIR": "/inherited/cursor",
+                "CURSOR_CONFIG_DIR": "/inherited/cursor-config",
+                "CURSOR_PROJECTS_DIR": "/inherited/projects",
+                "CURSOR_EXEC_DAEMON_DATA_DIR": "/inherited/daemon",
+                "CURSOR_WORKTREES_ROOT": "/inherited/worktrees",
+                "CURSOR_API_URL": "https://attacker.invalid",
+                "CURSOR_API_KEY": "test-only",
+                "XDG_CONFIG_HOME": "/inherited/config",
+                "XDG_CACHE_HOME": "/inherited/cache",
+                "XDG_DATA_HOME": "/inherited/data",
+                "XDG_STATE_HOME": "/inherited/state",
+                "XDG_RUNTIME_DIR": "/inherited/runtime",
+                "TMPDIR": "/inherited/tmp",
+                "NODE_COMPILE_CACHE": "/inherited/node-cache",
+                "NODE_OPTIONS": "--require=/inherited/inject.js",
+                "SSH_AUTH_SOCK": "/inherited/agent.sock",
+                "PATH": "/bin",
+                "HTTPS_PROXY": "https://proxy.invalid",
+                "SSL_CERT_FILE": "/etc/ssl/cert.pem",
+                "LC_ALL": "C.UTF-8",
+            }
+            _isolate_cursor_environment(environment, root)
+            self.assertEqual(environment["PATH"], "/bin")
+            self.assertEqual(environment["CURSOR_API_KEY"], "test-only")
+            self.assertEqual(environment["HTTPS_PROXY"], "https://proxy.invalid")
+            self.assertEqual(environment["SSL_CERT_FILE"], "/etc/ssl/cert.pem")
+            self.assertEqual(environment["LC_ALL"], "C.UTF-8")
+            self.assertNotIn("CURSOR_API_URL", environment)
+            self.assertNotIn("NODE_OPTIONS", environment)
+            self.assertNotIn("SSH_AUTH_SOCK", environment)
+            for name in (
+                "HOME",
+                "CURSOR_DATA_DIR",
+                "CURSOR_CONFIG_DIR",
+                "CURSOR_PROJECTS_DIR",
+                "CURSOR_EXEC_DAEMON_DATA_DIR",
+                "CURSOR_WORKTREES_ROOT",
+                "XDG_CONFIG_HOME",
+                "XDG_CACHE_HOME",
+                "XDG_DATA_HOME",
+                "XDG_STATE_HOME",
+                "XDG_RUNTIME_DIR",
+                "TMPDIR",
+                "TMP",
+                "TEMP",
+                "NODE_COMPILE_CACHE",
+            ):
+                path = Path(environment[name])
+                self.assertTrue(path.is_dir())
+                self.assertTrue(path.is_relative_to(root))
+                self.assertEqual(path.stat().st_mode & 0o077, 0)
+
+    def test_cursor_host_chat_metadata_detection_is_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            chats = Path(temp) / "chats"
+            before = _snapshot_cursor_host_chat_metadata(chats)
+            self.assertEqual(before, "absent")
+            self.assertEqual(_cursor_host_persistence_audit(before, before), ())
+
+            chats.mkdir()
+            (chats / "session.json").write_text("{}", encoding="utf-8")
+            after = _snapshot_cursor_host_chat_metadata(chats)
+            expected = ("infrastructure_failure:cursor_host_state_changed",)
+            self.assertEqual(
+                _cursor_host_persistence_audit(before, after), expected
+            )
+            unverifiable = (
+                "infrastructure_failure:cursor_host_state_unverifiable",
+            )
+            self.assertEqual(
+                _cursor_host_persistence_audit(None, after), unverifiable
+            )
+            self.assertEqual(
+                _cursor_host_persistence_audit(after, None), unverifiable
+            )
+
+    def test_cursor_host_state_covers_known_non_chat_persistence_roots(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            cursor = home / ".cursor"
+            for directory in ("chats", "projects", "ai-tracking"):
+                (cursor / directory).mkdir(parents=True, exist_ok=True)
+            (cursor / "agent-cli-state.json").write_text("{}")
+            (cursor / "cli-config.json").write_text("{}")
+            with patch("epiagentbench.pilot.Path.home", return_value=home):
+                before = _snapshot_cursor_host_state()
+                (cursor / "projects" / "persisted.json").write_text("{}")
+                after = _snapshot_cursor_host_state()
+            self.assertIsNotNone(before)
+            self.assertIsNotNone(after)
+            self.assertNotEqual(before, after)
+
+    def test_cursor_host_change_raises_infrastructure_guard(self):
+        class Session:
+            closed = False
+
+            def score_request_fits(self, *args, **kwargs):
+                raise AssertionError("isolation failure must not reach scoring")
+
+            def score(self, submission, *, audit_events, agent_artifacts):
+                raise AssertionError("isolation failure must not reach scoring")
+
+            def close(self):
+                self.closed = True
+
+        stream = b"\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "system",
+                        "subtype": "init",
+                        "model": "GLM 5.2 High",
+                    }
+                ).encode(),
+                json.dumps({"type": "result", "result": _submission()}).encode(),
+            ]
+        )
+        completed = [
+            subprocess.CompletedProcess([], 0, stdout=b"cursor 1", stderr=b""),
+            subprocess.CompletedProcess([], 0, stdout=b"", stderr=b""),
+            subprocess.CompletedProcess([], 0, stdout=stream, stderr=b""),
+        ]
+        session = Session()
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
+            patch("epiagentbench.pilot.launch_socket_episode", return_value=session),
+            patch(
+                "epiagentbench.pilot.subprocess.run", side_effect=completed
+            ) as run,
+            patch(
+                "epiagentbench.pilot._snapshot_cursor_host_state",
+                side_effect=("stable", "stable", "changed"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "cursor_host_state_changed"),
+        ):
+            evaluate_local_cli_agent(
+                "cursor",
+                seed=17,
+                family="reporting_artifact",
+                backend="starsim-ltc-v3",
+            )
+        self.assertEqual(run.call_count, 3)
+        self.assertTrue(session.closed)
+
+    def test_cursor_unverifiable_initial_snapshot_stops_before_subprocess(self):
+        class Session:
+            def close(self):
+                return None
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
+            patch("epiagentbench.pilot.launch_socket_episode", return_value=Session()) as launch,
+            patch("epiagentbench.pilot.subprocess.run") as run,
+            patch(
+                "epiagentbench.pilot._snapshot_cursor_host_state",
+                return_value=None,
+            ),
+            self.assertRaisesRegex(RuntimeError, "could not verify host chat"),
+        ):
+            evaluate_local_cli_agent(
+                "cursor",
+                seed=17,
+                family="reporting_artifact",
+                backend="starsim-ltc-v3",
+            )
+        run.assert_not_called()
+        launch.assert_not_called()
+
+    def test_cursor_mcp_enable_failure_stops_before_paid_agent(self):
+        class Session:
+            def close(self):
+                return None
+
+        completed = [
+            subprocess.CompletedProcess([], 0, stdout=b"cursor 1", stderr=b""),
+            subprocess.CompletedProcess([], 2, stdout=b"", stderr=b"failed"),
+        ]
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
+            patch("epiagentbench.pilot.launch_socket_episode", return_value=Session()) as launch,
+            patch(
+                "epiagentbench.pilot.subprocess.run", side_effect=completed
+            ) as run,
+            patch(
+                "epiagentbench.pilot._snapshot_cursor_host_state",
+                side_effect=("stable", "stable"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "MCP enablement failed"),
+        ):
+            evaluate_local_cli_agent(
+                "cursor",
+                seed=17,
+                family="reporting_artifact",
+                backend="starsim-ltc-v3",
+            )
+        self.assertEqual(run.call_count, 2)
+        launch.assert_not_called()
+
+    def test_cursor_mcp_enable_exception_stops_before_paid_agent(self):
+        class Session:
+            def close(self):
+                return None
+
+        error = subprocess.TimeoutExpired(["cursor", "mcp", "enable"], 30)
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
+            patch("epiagentbench.pilot.launch_socket_episode", return_value=Session()) as launch,
+            patch(
+                "epiagentbench.pilot.subprocess.run",
+                side_effect=(
+                    subprocess.CompletedProcess(
+                        [], 0, stdout=b"cursor 1", stderr=b""
+                    ),
+                    error,
+                ),
+            ) as run,
+            patch(
+                "epiagentbench.pilot._snapshot_cursor_host_state",
+                side_effect=("stable", "stable"),
+            ),
+            self.assertRaises(subprocess.TimeoutExpired),
+        ):
+            evaluate_local_cli_agent(
+                "cursor",
+                seed=17,
+                family="reporting_artifact",
+                backend="starsim-ltc-v3",
+            )
+        self.assertEqual(run.call_count, 2)
+        launch.assert_not_called()
+
+    def test_cursor_assignment_requires_explicit_api_key_before_launch(self):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaisesRegex(RuntimeError, "requires CURSOR_API_KEY"),
+        ):
+            evaluate_local_cli_agent(
+                "cursor",
+                seed=17,
+                family="reporting_artifact",
+                backend="starsim-ltc-v3",
+            )
+        launch.assert_not_called()
 
     def test_claude_high_effort_is_emitted_exactly(self):
         command = self._command(

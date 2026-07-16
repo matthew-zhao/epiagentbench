@@ -52,6 +52,7 @@ _RUNTIME_DISTRIBUTIONS = (
 _MAX_KEY_BYTES = 4_096
 _MAX_FINGERPRINT_INPUT_BYTES = 64 * 1024 * 1024
 _MAX_EPISODES = 20_000
+_SUPPORTED_BACKENDS = frozenset({"starsim", "starsim-ltc-v3"})
 _INCOMPLETE_MARKER = ".freeze-incomplete"
 _MANIFEST_NAME = "cohort.manifest"
 
@@ -239,6 +240,7 @@ def freeze_private_starsim_cohort(
     output_directory: str | Path,
     authentication_key_file: str | Path,
     episodes: int = 100,
+    backend: str = "starsim",
 ) -> FrozenPrivateCohort:
     """Write exactly ``episodes`` balanced, outcome-unobserved private packs.
 
@@ -253,6 +255,10 @@ def freeze_private_starsim_cohort(
     if type(episodes) is not int or not 5 <= episodes <= _MAX_EPISODES:
         raise CohortFreezeError(
             "Episode count must be an integer from five through 20000"
+        )
+    if not isinstance(backend, str) or backend not in _SUPPORTED_BACKENDS:
+        raise CohortFreezeError(
+            "Unsupported cohort backend; expected starsim or starsim-ltc-v3"
         )
     if len(LIVE_FAMILY_TO_MODE) != 5 or len(set(LIVE_FAMILY_TO_MODE.values())) != 5:
         raise CohortFreezeError("Expected exactly five configured live Starsim modes")
@@ -284,7 +290,7 @@ def freeze_private_starsim_cohort(
             PrivateEpisodePack.create(
                 cohort_id=cohort_id,
                 episode_index=episode_index,
-                backend="starsim",
+                backend=backend,
                 family=family,
                 seed=seed,
                 generator_fingerprint=generator_fingerprint,
@@ -346,7 +352,7 @@ def freeze_private_starsim_cohort(
     descriptor = {
         **manifest.public_descriptor,
         "freeze_format": _FREEZE_FORMAT,
-        "backend": "starsim",
+        "backend": backend,
         "design": "balanced_five_mode",
         "mode_counts": {
             mode: mode_counts[mode]
