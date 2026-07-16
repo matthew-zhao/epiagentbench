@@ -208,8 +208,9 @@ smoke results and remaining gates.
 
 ### Fresh 50-episode, six-profile matched panel
 
-The next comparison will use 50 newly frozen `starsim-ltc-v3` episodes—10 from
-each causal family—and the same six full agent+model profiles on every episode:
+The [precommitted comparison](results/development-matched-50x6-v1.manifest.json)
+uses 50 newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and
+the same six full agent+model profiles on every episode:
 
 - Codex + GPT-5.6 Sol (medium)
 - Codex + GPT-5.6 Luna (medium)
@@ -224,9 +225,9 @@ for audit history but was [abandoned before
 preflight](results/development-matched-50x4-v1.superseded.json). A read-only
 integrity audit exposed private pack fields to the internal orchestration
 context. No evaluated model or provider received them and zero production
-assignments started, but the cohort was conservatively discarded. The 50×6
-panel will therefore use new seeds, secrets, authentication key, schedule nonce,
-and packs—not a modified or replayed version of that cohort.
+assignments started, but the cohort was conservatively discarded. The fresh
+50×6 panel therefore has new seeds, secrets, authentication key, schedule
+nonce, and packs—not a modified or replayed version of that cohort.
 
 The runner predeclares a hidden six-condition Williams schedule with 300 assignments. Every
 profile occupies each execution position 8 or 9 times overall and 1 or 2 times
@@ -247,8 +248,8 @@ This remains development evidence—not held-out epidemiological calibration, a
 base-model leaderboard, or a real-world superiority claim. The expected serial
 runtime is roughly 19–21 hours. Claude is capped at $5 per assignment ($500
 across its 100 production calls); Codex and Cursor do not yet have a
-benchmark-enforced spend cap. The public manifest will be committed after the
-six-profile runner and runtime are frozen and before any preflight call.
+benchmark-enforced spend cap. The runner, runtime, hidden cohort, and public
+manifest are frozen before any provider preflight or production call.
 
 ### New-model capability pilot (2026-07-15)
 
