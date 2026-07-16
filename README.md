@@ -219,36 +219,62 @@ runner scored only the first report accepted by its single-use evaluator-owned
 
 The [sanitized aggregate
 artifact](results/development-four-profile-submit-report-v2-2026-07-15.results.json)
-contains the per-episode scores, attribution status, execution contract,
-integrity checks, and limitations (artifact digest
+reports the per-episode scores, attribution status, execution contract,
+post-run integrity assertions, and limitations (artifact digest
 `sha256:97d04880d1640dd1288f8647ff54631806989c96b1c6cbe196837da62eb0d615`;
 private precommitment
 `sha256:1806676d90463fad3c6b287b35b7ef3c7bc4c0cbb2dd273cefe3c49fd2015b6d`).
+The precommit preimage, frozen runner/source archive, raw reports, and
+per-assignment receipt/hash ledger are not public. The values below are
+therefore frozen, private-data-backed aggregate results, but they are **not
+independently reproducible or fully auditable from this repository**.
 
-| Full-system configuration | Model-attribution result | Valid / attempted | Fixed-denominator mean (/100) | Median (/100) | Episode scores |
+| Full-system configuration | Model-attribution result | Frozen valid / attempted | Fixed-denominator mean (/100) | Median (/100) | Episode scores |
 |---|---|---:|---:|---:|---|
-| Claude Code 2.1.195 + requested `claude-opus-4-8`, high effort | Provider reported exact model match in 5/5; effort command-attested | 5/5 | **59.212** | 57.002 | 57.002, 55.128, 57.239, 54.608, 72.083 |
+| Claude Code 2.1.195 + requested `claude-opus-4-8`, high effort | Provider reported exact model match in 5/5; effort only command-attested | 5/5 | **59.212** | 57.002 | 57.002, 55.128, 57.239, 54.608, 72.083 |
 | Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt | 5/5 | **58.938** | 54.359 | 54.359, 86.361, 56.172, 53.991, 43.805 |
 | Cursor Agent `2026.07.09-a3815c0` + `cursor-grok-4.5-high` | Provider reported `Cursor Grok 4.5 High` in 5/5 | 5/5 | **56.625** | 52.866 | 54.180, 85.006, 52.866, 48.333, 42.739 |
 | Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` in 5/5 | 3/5 | **27.892** | 37.397 | 0.000, 57.758, 0.000, 37.397, 44.307 |
 
-Opus's nominal lead over Codex is only 0.274 points; five episodes provide no
-defensible winner or uncertainty estimate. GLM's two zeros were
-`agent_failure:unauthorized_tool` outcomes on the institutional and
-repeated-introduction episodes. The exact rejected Cursor event was not
-retained, so those zeros are valid under the frozen fail-closed contract but
-are not clean measures of model reasoning. All five Codex, Opus, and Grok
-reports passed the integrity boundary.
+Opus did not reroute in this panel according to the privately checked provider
+receipts: all five reported the requested exact model. Its nominal lead over
+Codex is only 0.274 points; five episodes provide no defensible winner or
+uncertainty estimate. The high-effort setting is command-attested, not a
+provider-signed reasoning receipt.
+
+The immutable aggregate labels GLM's two zeros
+`agent_failure:unauthorized_tool`. A later [post-hoc Cursor transport
+audit](results/development-four-profile-submit-report-v2-2026-07-15.cursor-audit.json)
+found that both runs eventually made accepted `submit_report` calls. Before
+those submissions, malformed generic MCP-call JSON failed parsing before a
+server or tool could be resolved or dispatched: two such events in the
+institutional episode and one in the repeated-introduction episode. Every
+retained concrete call used the allowed epiagent server, and no forbidden tool
+execution was observed. Because the malformed payloads' intended targets and
+the private scorer state were not retained, the frozen zeros are unchanged and
+cannot be post-hoc rescored. They should be read as **transport-invalid
+assignments**, not invalid final submissions or clean GLM reasoning failures.
 
 The panel used a read-only source snapshot, Python 3.12.13, Starsim 3.5.1, and
-locally authenticated, host-networked CLIs on macOS arm64. Source, executable,
-settings, episode-secret commitment, raw-result, and precommit bindings were
-verified after the run. The episodes remain synthetic and externally
-uncalibrated; Codex attribution is command-only; and brief unrelated Claude
-diagnostics ran in other workspaces during later Codex or Cursor assignments,
-although no same-provider overlap was observed. These results support no
-epidemiological-realism, scientific-readiness, or leaderboard claim. Publication
-retires this cohort from future private evaluation.
+locally authenticated, host-networked CLIs on macOS arm64. The aggregate states
+that source, executable, settings, episode-secret commitment, raw-result, and
+precommit bindings were privately verified after the run. The episodes remain
+synthetic and externally uncalibrated; Codex attribution is command-only; and
+brief unrelated Claude diagnostics ran in other workspaces during later Codex
+or Cursor assignments, although no same-provider overlap was observed. Cursor
+also persisted chat state under the host home directory, and the same Cursor
+installation/account ran GLM and Grok on the same cohort, so cross-assignment
+or cross-profile contamination cannot be excluded. These results support no
+epidemiological-realism, scientific-readiness, or leaderboard claim.
+Publication retires this cohort from future private evaluation.
+
+This is the only completed scored Opus evidence. The dedicated Opus
+[v1](results/development-opus-high-pilot-v1-2026-07-15.void.json) and
+[v2](results/development-opus-high-pilot-v2-2026-07-15.void.json) panels are
+void infrastructure runs, not zero scores: v1 exposed no episode MCP tools,
+and v2 completed no assignments after its full evaluator schema caused Claude
+Code to omit the structured-output tool. Their diagnostics informed the
+corrected harness but add no Opus performance observations.
 
 ### Earlier three-profile paired pilot (2026-07-15)
 
@@ -258,25 +284,33 @@ model ranking.** Before execution, we
 five synthetic `starsim-ltc-v3` episodes (one per causal family), all 15
 assignments, rotated system order, no retries, and a fixed denominator in which
 evaluator-returned invalid submissions, timeouts, and detected fallbacks score
-zero. The
-[sanitized per-run artifact](results/development-pilot-2026-07-15-v3.results.json)
-contains the complete public results (canonical results digest
+zero. The [sanitized per-run
+artifact](results/development-pilot-2026-07-15-v3.results.json) contains the
+immutable public results (canonical results digest
 `sha256:8d3a076d186e678c7a6034017fd7caa57fb69572ebd882c4bc5f92886470d464`).
+The table separates that frozen result from the later [post-hoc Cursor parser
+and transport
+adjudication](results/development-pilot-2026-07-15-v3.cursor-adjudication.json),
+which did not overwrite it.
 
-| Full-system configuration | Model-attribution result | Valid / attempted | Integrity pass | Fixed-denominator mean (/100) | Median (/100) |
-|---|---|---:|---:|---:|---:|
-| Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt (5/5) | 4/5 | 4/5 | 40.037 | 50.377 |
-| Claude Code 2.1.195 + requested `claude-fable-5` | Failed; provider reported Fable plus `claude-opus-4-8` fallback (5/5) | 0/5 | 0/5 | 0.000 | 0.000 |
-| Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` (5/5; not independently signed) | 0/5 | 0/5 | 0.000 | 0.000 |
+| Full-system configuration | Model-attribution result | Frozen result | Post-hoc evidence | Interpretation |
+|---|---|---|---|---|
+| Codex CLI 0.144.3 + requested `gpt-5.6-sol` | Requested only; CLI emitted no model receipt | 4/5 valid; mean 40.037; median 50.377 | None | Full-system result, not independently attributable to `gpt-5.6-sol` |
+| Claude Code 2.1.195 + requested `claude-fable-5` | Failed; provider reported Fable plus `claude-opus-4-8` fallback in 5/5 | 0/5; mean 0.000 | No episode calls | Fallback/configuration failure, not a Fable score |
+| Cursor Agent `2026.07.09-a3815c0` + `glm-5.2-high` | Provider reported `GLM 5.2 High` in 5/5; not independently signed | 0/5; mean 0.000 | 4/5 recoverable; mean 44.748; median 55.002 | Diagnostic correction, not a prospectively committed replacement |
 
 These are outcomes of the complete CLI/model/tool configurations, not
-attributable model scores. In particular, Claude's zero is **not a Fable
-score**: the fallback guard rejected all five attempts, which made no episode
-calls. Cursor made 29–38 public episode-tool calls per attempt, but all five
-final submissions were invalid and two attempts triggered the unauthorized-tool
-guard. Codex produced four valid submissions, but its aggregate cannot be
-independently attributed to `gpt-5.6-sol`; its fixed-denominator mean
-response-utility component was 0.000/25.
+attributable base-model scores. For Cursor, four outputs contained exactly one
+schema-complete fenced JSON report plus short surrounding prose; the original
+parser rejected them on formatting alone. One report was genuinely malformed.
+The two unauthorized-tool flags were also cleared as transport-audit false
+positives caused by identity-less completion records. Private deterministic
+replay matched the recorded public-call hashes, but the recovery rule was
+selected after the outputs were known and the replay bundle is not public. The
+frozen 0/5 remains the historical contract result; the 4/5, 44.748 mean is a
+post-hoc diagnosis showing why 0/5 is not a clean GLM capability score. All
+four recovered reports still scored 0/25 on response utility. Codex's own
+fixed-denominator mean response-utility component was also 0.000/25.
 
 The run used execution commit `9d8f2e9`, Python 3.13.7, Starsim 3.5.1, and
 locally authenticated provider CLIs on macOS arm64. It was host-networked and

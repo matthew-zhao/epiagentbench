@@ -1,0 +1,156 @@
+{
+  "schema_version": "development_four_profile_cursor_audit_v1",
+  "panel_id": "four-profile-submit-report-v2-2026-07-15",
+  "created_at_utc": "2026-07-16T00:10:50Z",
+  "status": "post_hoc_cursor_transport_audit",
+  "development_only": true,
+  "leaderboard_eligible": false,
+  "precommitted": false,
+  "panel_retired_after_publication": true,
+  "scope": "The two frozen Cursor plus provider-reported GLM 5.2 High hard-zero assignments only. No new model calls were made, the immutable aggregate was not modified, and this audit does not rescore either assignment.",
+  "source_artifact": {
+    "filename": "development-four-profile-submit-report-v2-2026-07-15.results.json",
+    "file_sha256": "sha256:97d04880d1640dd1288f8647ff54631806989c96b1c6cbe196837da62eb0d615",
+    "precommitment_sha256": "sha256:1806676d90463fad3c6b287b35b7ef3c7bc4c0cbb2dd273cefe3c49fd2015b6d",
+    "frozen_source_tree_sha256": "sha256:57b2dd2b5899dd888e172146e7f22d19796f29d19904f1ae9cebdee6a8fa12e9",
+    "private_aggregate_sha256": "sha256:44dd3266dd8042a9db8c868fb5b29f72a7647c4cbd86c54cb43c268576c7a163"
+  },
+  "audit_method": {
+    "classification": "post hoc and not blind",
+    "evidence_source": "Read-only inspection of Cursor chat databases that persisted on the execution host outside the requested temporary data directory.",
+    "new_model_calls": 0,
+    "private_episode_state_used": false,
+    "private_scorer_output_used": false,
+    "raw_reports_published": false,
+    "raw_transcripts_published": false,
+    "raw_malformed_tool_arguments_recoverable": false,
+    "retained_event_limit": "The databases retained normalized outer tool records and returned errors, but not the original malformed JSON strings. The intended server and tool therefore cannot be inferred for those malformed records."
+  },
+  "private_source_bindings": [
+    {
+      "family": "institution_person_to_person",
+      "opaque_session_id": "95f205db-a5f9-490f-a47b-be213838d9b5",
+      "created_at_utc": "2026-07-15T22:30:41.784Z",
+      "updated_at_utc": "2026-07-15T22:33:54.416Z",
+      "store_db_sha256": "sha256:addfce7677e450724bcdb0759095fdb866a40006d043fc5b68ada43f8aa67d1a",
+      "meta_json_sha256": "sha256:078cf573311db84110d260c19daf8f735c5efcfba39b9c81807f9104e10b64a7"
+    },
+    {
+      "family": "repeated_introduction",
+      "opaque_session_id": "abd9e9c0-7921-4c2d-ac9f-f4c311c7c14d",
+      "created_at_utc": "2026-07-15T22:54:22.077Z",
+      "updated_at_utc": "2026-07-15T22:58:17.357Z",
+      "store_db_sha256": "sha256:9be946b5bf3804435d9445f9dcc1943d7891dee0499ebda295971b6a79321f3b",
+      "meta_json_sha256": "sha256:c223dc27287bc8e13c8c65cb38153889eb3d80132c739c21270931296b29a30f"
+    }
+  ],
+  "episodes": [
+    {
+      "family": "institution_person_to_person",
+      "frozen_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_event": "agent_failure:unauthorized_tool"
+      },
+      "retained_transport_evidence": {
+        "paired_unique_outer_tool_call_ids": 34,
+        "get_mcp_tools_calls": 4,
+        "call_mcp_tool_calls": 30,
+        "resolved_concrete_call_mcp_tool_calls": 28,
+        "all_starts_have_same_id_completions": true,
+        "outer_tool_types_observed": [
+          "GetMcpTools",
+          "CallMcpTool"
+        ],
+        "malformed_call_mcp_tool_records": 2,
+        "normalized_malformed_arguments": "{}",
+        "returned_error_classes": [
+          "Expected double-quoted property name in JSON at position 46",
+          "Unterminated string in JSON at position 6967"
+        ],
+        "malformed_event_disposition": "Failed during JSON parsing before server or tool resolution and before dispatch.",
+        "concrete_resolved_calls": "Every retained concrete server/tool record named the epiagent server and a tool in the frozen public allowlist.",
+        "forbidden_tool_execution_observed": false,
+        "later_submit_report": {
+          "server_and_tool": "epiagent.submit_report",
+          "required_top_level_fields": 8,
+          "argument_canonical_bytes": 7580,
+          "argument_sha256": "sha256:8f4d5ff296d8e5d6c555f5a27cf374538620b4803717942d214d9c302d4ee4ff",
+          "same_id_completion": true,
+          "receipt": "status accepted",
+          "canonical_receipt_sha256": "sha256:0ba7c0356149946bf0642fab4ef85b95e7090f6f785d0fb84323d0c442e5190a"
+        }
+      }
+    },
+    {
+      "family": "repeated_introduction",
+      "frozen_result": {
+        "valid": false,
+        "total": 0.0,
+        "audit_event": "agent_failure:unauthorized_tool"
+      },
+      "retained_transport_evidence": {
+        "paired_unique_outer_tool_call_ids": 32,
+        "get_mcp_tools_calls": 1,
+        "call_mcp_tool_calls": 31,
+        "resolved_concrete_call_mcp_tool_calls": 30,
+        "all_starts_have_same_id_completions": true,
+        "outer_tool_types_observed": [
+          "GetMcpTools",
+          "CallMcpTool"
+        ],
+        "malformed_call_mcp_tool_records": 1,
+        "normalized_malformed_arguments": "{}",
+        "returned_error_classes": [
+          "Unterminated string in JSON at position 3682"
+        ],
+        "malformed_event_disposition": "Failed during JSON parsing before server or tool resolution and before dispatch.",
+        "concrete_resolved_calls": "Every retained concrete server/tool record named the epiagent server and a tool in the frozen public allowlist.",
+        "forbidden_tool_execution_observed": false,
+        "later_submit_report": {
+          "server_and_tool": "epiagent.submit_report",
+          "required_top_level_fields": 8,
+          "argument_canonical_bytes": 7602,
+          "argument_sha256": "sha256:4c73920a951a4de1908cf6dfd0a76fad7c13b5fc8b5e98c5d70243b0b658fbea",
+          "same_id_completion": true,
+          "receipt": "status accepted",
+          "canonical_receipt_sha256": "sha256:0ba7c0356149946bf0642fab4ef85b95e7090f6f785d0fb84323d0c442e5190a"
+        }
+      }
+    }
+  ],
+  "combined_finding": {
+    "invalid_submission": false,
+    "accepted_final_reports": 2,
+    "forbidden_tool_execution_observed": false,
+    "malformed_transport_records": 3,
+    "interpretation": "The phrase invalid Cursor submissions is incorrect for these two assignments: both final reports were accepted. Their frozen zeros were caused by earlier malformed generic MCP-call JSON being classified by the fail-closed guard as unauthorized-tool activity.",
+    "evidentiary_boundary": "The retained records show that malformed calls failed before resolution or dispatch, and no forbidden execution is visible. Because their original malformed payloads were not retained, this audit cannot establish what tool the model intended to call."
+  },
+  "score_treatment": {
+    "frozen_aggregate_changed": false,
+    "corrected_scores_computed": false,
+    "reason": "The private evaluator state and per-assignment scorer outputs needed for a faithful prospective rescore were not retained in the public evidence bundle. A post-hoc score reconstruction would also violate the frozen contract.",
+    "recommended_public_label": "Two transport-invalid hard-zero assignments, not two invalid submissions and not clean model-reasoning failures.",
+    "recommended_future_event": "agent_failure:tool_transport_unverifiable"
+  },
+  "persistence_and_contamination": {
+    "status": "non_hermetic_host_persistence_detected",
+    "finding": "Cursor chat state persisted under the host HOME after the assignment-level data directory was removed.",
+    "cross_profile_risk": "The same Cursor installation and account ran GLM and Grok on the same five-episode cohort. Host-global persistence means cross-profile or cross-assignment contamination cannot be excluded.",
+    "required_before_future_cursor_panel": "Use a disposable HOME or stronger OS/container boundary, verify that no state escapes it, and destroy the snapshot after every assignment."
+  },
+  "limitations": [
+    "This audit was performed after the frozen aggregate and failure labels were known.",
+    "The bound Cursor databases are private and are not included in this repository, so the findings are owner-verifiable but not independently reproducible from public files.",
+    "The original malformed JSON strings and their intended tool targets were not retained.",
+    "No private evaluator state or per-assignment scorecard was available for a corrected score.",
+    "The panel contains one synthetic, externally uncalibrated development episode per family and supports no leaderboard or scientific-readiness claim."
+  ],
+  "hash_specification": {
+    "algorithm": "SHA-256",
+    "canonicalization": "UTF-8 json.dumps(document, sort_keys=True, separators=(\",\", \":\"), ensure_ascii=True)",
+    "self_hash_rule": "Remove the audit_sha256 member, canonicalize the remaining document, and hash those bytes."
+  },
+  "audit_sha256": "sha256:9f54adbc03b04d3f77af85623de998c255fad94ffa4aaa0e07459069656f0894"
+}
