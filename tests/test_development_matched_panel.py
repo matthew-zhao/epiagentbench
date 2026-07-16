@@ -14,6 +14,7 @@ from unittest.mock import patch
 import epiagentbench.development_matched_panel as matched
 from epiagentbench.development_matched_panel import (
     ASSIGNMENT_COUNT,
+    COHORT_ID,
     EPISODE_COUNT,
     FAMILIES,
     PROFILES,
@@ -69,7 +70,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def _cohort(
-        self, count: int = EPISODE_COUNT, *, cohort_id: str = matched.PANEL_ID
+        self, count: int = EPISODE_COUNT, *, cohort_id: str = COHORT_ID
     ) -> Path:
         cohort = self.root / f"cohort-{count}-{cohort_id}"
         cohort.mkdir(mode=0o700)
@@ -205,7 +206,28 @@ class MatchedPanelTests(unittest.TestCase):
         private = json.loads(self.private_path.read_text())
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
-        self.assertEqual(len(public["profiles"]), 4)
+        self.assertEqual(len(public["profiles"]), 6)
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v1")
+        self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
+        self.assertEqual(
+            public["schedule_design"],
+            {
+                "name": "private_family_stratified_near_balanced_williams",
+                "profile_position_count_min": 8,
+                "profile_position_count_max": 9,
+                "within_family_profile_position_count_min": 1,
+                "within_family_profile_position_count_max": 2,
+                "ordered_carryover_count_min": 8,
+                "ordered_carryover_count_max": 9,
+                "within_family_ordered_carryover_count_min": 1,
+                "within_family_ordered_carryover_count_max": 2,
+                "order_released_only_after_terminal_panel": True,
+            },
+        )
+        self.assertEqual(
+            public["run_contract"]["bootstrap"]["pairwise_multiplicity"],
+            "bonferroni_fifteen_pairs",
+        )
         self.assertEqual(os.stat(self.private_path).st_mode & 0o777, 0o600)
         encoded = json.dumps(public)
         self.assertNotIn(str(self.root), encoded)
@@ -221,12 +243,58 @@ class MatchedPanelTests(unittest.TestCase):
             Counter(item["family"] for item in private["episodes"]),
             Counter({family: 10 for family in FAMILIES}),
         )
-        for position in range(4):
+        profile_ids = {profile["profile_id"] for profile in PROFILES}
+        self.assertTrue(
+            all(
+                len(item["profile_order"]) == len(PROFILES)
+                and set(item["profile_order"]) == profile_ids
+                for item in private["schedule"]
+            )
+        )
+        for position in range(len(PROFILES)):
             counts = Counter(
                 item["profile_order"][position] for item in private["schedule"]
             )
-            self.assertEqual(set(counts), {profile["profile_id"] for profile in PROFILES})
-            self.assertTrue(set(counts.values()).issubset({12, 13}))
+            self.assertEqual(set(counts), profile_ids)
+            self.assertTrue(set(counts.values()).issubset({8, 9}))
+
+        family_by_ref = {
+            item["episode_ref"]: item["family"] for item in private["episodes"]
+        }
+        expected_carryovers = {
+            (first, second)
+            for first in profile_ids
+            for second in profile_ids
+            if first != second
+        }
+        overall_carryovers: Counter[tuple[str, str]] = Counter()
+        for family in FAMILIES:
+            family_schedule = [
+                item
+                for item in private["schedule"]
+                if family_by_ref[item["episode_ref"]] == family
+            ]
+            self.assertEqual(len(family_schedule), 10)
+            for position in range(len(PROFILES)):
+                counts = Counter(
+                    item["profile_order"][position] for item in family_schedule
+                )
+                self.assertEqual(set(counts), profile_ids)
+                self.assertTrue(set(counts.values()).issubset({1, 2}))
+            family_carryovers = Counter(
+                pair
+                for item in family_schedule
+                for pair in zip(
+                    item["profile_order"], item["profile_order"][1:]
+                )
+            )
+            self.assertEqual(set(family_carryovers), expected_carryovers)
+            self.assertTrue(
+                set(family_carryovers.values()).issubset({1, 2})
+            )
+            overall_carryovers.update(family_carryovers)
+        self.assertEqual(set(overall_carryovers), expected_carryovers)
+        self.assertTrue(set(overall_carryovers.values()).issubset({8, 9}))
 
     def test_prepare_rejects_wrong_cardinality_and_public_tamper(self):
         with self.assertRaisesRegex(ValueError, "exactly 50"):
@@ -247,6 +315,64 @@ class MatchedPanelTests(unittest.TestCase):
                 authentication_key=AUTHENTICATION_KEY,
             )
 
+    def test_six_treatment_williams_rows_and_family_extras_are_exact(self):
+        rows = matched._WILLIAMS
+        self.assertEqual(len(rows), 6)
+        self.assertEqual(rows[0], (0, 1, 5, 2, 4, 3))
+        self.assertTrue(all(set(row) == set(range(6)) for row in rows))
+        predecessor_counts = Counter(
+            (first, second)
+            for row in rows
+            for first, second in zip(row, row[1:])
+        )
+        self.assertEqual(
+            predecessor_counts,
+            Counter(
+                {
+                    (first, second): 1
+                    for first in range(6)
+                    for second in range(6)
+                    if first != second
+                }
+            ),
+        )
+
+        self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        nonce = bytes.fromhex(private["schedule_nonce_hex"])
+        profile_permutation = tuple(
+            sorted(
+                (profile["profile_id"] for profile in PROFILES),
+                key=lambda value: matched._keyed(nonce, "profile", value),
+            )
+        )
+        treatment_by_profile = {
+            profile_id: index
+            for index, profile_id in enumerate(profile_permutation)
+        }
+        row_id_by_order = {row: row_id for row_id, row in enumerate(rows)}
+        family_by_ref = {
+            item["episode_ref"]: item["family"] for item in private["episodes"]
+        }
+        rows_by_family = {family: Counter() for family in FAMILIES}
+        for item in private["schedule"]:
+            treatment_order = tuple(
+                treatment_by_profile[profile_id]
+                for profile_id in item["profile_order"]
+            )
+            rows_by_family[family_by_ref[item["episode_ref"]]][
+                row_id_by_order[treatment_order]
+            ] += 1
+
+        for family_index, family in enumerate(FAMILIES):
+            expected = Counter(range(6))
+            expected.update(matched._EXTRA_SEQUENCES[family_index])
+            self.assertEqual(rows_by_family[family], expected)
+        overall = sum(rows_by_family.values(), Counter())
+        self.assertEqual(overall, Counter({0: 9, 1: 9, 2: 8, 3: 8, 4: 8, 5: 8}))
+
     def test_prepare_rejects_incomplete_or_wrong_cohort_identity(self):
         incomplete = self._cohort()
         (incomplete.parent / ".freeze-incomplete").write_text("incomplete\n")
@@ -255,7 +381,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertFalse(self.private_path.exists())
         self.assertFalse(self.public_path.exists())
 
-        wrong = self._cohort(cohort_id="different-matched-panel")
+        wrong = self._cohort(cohort_id="development-matched-50x4-v1")
         with self.assertRaisesRegex(ValueError, "identifier"):
             self._prepare(wrong)
         self.assertFalse(self.private_path.exists())
@@ -275,9 +401,9 @@ class MatchedPanelTests(unittest.TestCase):
             )
         evaluate.assert_not_called()
 
-    def test_two_cursor_profiles_complete_200_without_partial_public_scores(self):
+    def test_six_profiles_complete_300_without_partial_public_scores(self):
         self._prepare()
-        calls: list[tuple[str, str]] = []
+        calls: list[tuple[str, str, str | None]] = []
 
         def evaluate(system: str, **kwargs):
             if not calls:
@@ -286,7 +412,7 @@ class MatchedPanelTests(unittest.TestCase):
                 self.assertEqual(running["summary"], {"primary_estimand": "pending"})
                 self.assertNotIn("family", json.dumps(running))
                 self.assertNotIn("profile_order", json.dumps(running))
-            calls.append((system, kwargs["model"]))
+            calls.append((system, kwargs["model"], kwargs["claude_effort"]))
             totals = {"claude": 10.0, "codex": 20.0}
             total = totals.get(system, 30.0 if "grok" in kwargs["model"] else 40.0)
             return self._result(system, kwargs["model"], kwargs["executable"], total)
@@ -294,9 +420,18 @@ class MatchedPanelTests(unittest.TestCase):
         payload, invoked = self._run_with(evaluate)
         self.assertEqual(payload["status"], "complete")
         self.assertEqual(invoked.call_count, ASSIGNMENT_COUNT)
-        cursor_models = {model for system, model in calls if system == "cursor"}
-        self.assertEqual(cursor_models, {"cursor-grok-4.5-high", "glm-5.2-high"})
-        self.assertEqual(sum(system == "cursor" for system, _ in calls), 100)
+        cursor_models = {
+            model for system, model, _ in calls if system == "cursor"
+        }
+        self.assertEqual(cursor_models, {"cursor-grok-4.5-high", "kimi-k2.7-code"})
+        self.assertEqual(sum(system == "cursor" for system, _, _ in calls), 100)
+        self.assertTrue(
+            all(
+                effort == "high"
+                for system, _, effort in calls
+                if system == "claude"
+            )
+        )
         means = {
             key: value["mean_total"]
             for key, value in payload["summary"]["profiles"].items()
@@ -305,9 +440,11 @@ class MatchedPanelTests(unittest.TestCase):
             means,
             {
                 "claude-opus-high": 10.0,
+                "claude-sonnet-high": 10.0,
                 "codex-sol": 20.0,
+                "codex-luna-medium": 20.0,
                 "cursor-grok-high": 30.0,
-                "cursor-glm-high": 40.0,
+                "cursor-kimi-k27-code": 40.0,
             },
         )
 
@@ -354,9 +491,11 @@ class MatchedPanelTests(unittest.TestCase):
     def test_aggregate_arithmetic_and_bootstrap_are_deterministic(self):
         totals = {
             "claude-opus-high": 10.0,
+            "claude-sonnet-high": 15.0,
             "codex-sol": 20.0,
+            "codex-luna-medium": 25.0,
             "cursor-grok-high": 30.0,
-            "cursor-glm-high": 40.0,
+            "cursor-kimi-k27-code": 40.0,
         }
         results = []
         for index in range(EPISODE_COUNT):
@@ -388,7 +527,7 @@ class MatchedPanelTests(unittest.TestCase):
                     for family in profile["by_family"].values()
                 )
             )
-        self.assertEqual(len(first["exploratory_pairwise_deltas"]), 6)
+        self.assertEqual(len(first["exploratory_pairwise_deltas"]), 15)
         self.assertEqual(
             first["exploratory_pairwise_deltas"][
                 "claude-opus-high_minus_codex-sol"
@@ -431,12 +570,14 @@ class MatchedPanelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "authentication failed"):
             matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
 
-    def test_exact_glm_high_receipt_rejects_reasoning_tier_downgrade(self):
+    def test_exact_kimi_code_receipt_rejects_model_alias_downgrade(self):
         profile = next(
-            profile for profile in PROFILES if profile["profile_id"] == "cursor-glm-high"
+            profile
+            for profile in PROFILES
+            if profile["profile_id"] == "cursor-kimi-k27-code"
         )
-        result = self._result("cursor", "glm-5.2-high", "cursor-agent", 50.0)
-        downgraded = replace(result, observed_models=("GLM 5.2",))
+        result = self._result("cursor", "kimi-k2.7-code", "cursor-agent", 50.0)
+        downgraded = replace(result, observed_models=("Kimi K2.7",))
         sanitized = matched._sanitize_result(
             episode={
                 "episode_ref": "episode_0001",
@@ -451,6 +592,23 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertFalse(sanitized["valid"])
         self.assertEqual(sanitized["total"], 0.0)
         self.assertIn("agent_failure:model_receipt_missing", sanitized["audit_events"])
+
+    def test_sonnet_five_receipt_identity_is_exact(self):
+        profile = next(
+            profile
+            for profile in PROFILES
+            if profile["profile_id"] == "claude-sonnet-high"
+        )
+        self.assertTrue(
+            matched._exact_model_receipt_satisfied(
+                profile, ("Claude Sonnet 5",)
+            )
+        )
+        self.assertFalse(
+            matched._exact_model_receipt_satisfied(
+                profile, ("Claude Sonnet 5 High",)
+            )
+        )
 
     def test_environment_preflight_gate_prevents_production_call(self):
         self._prepare()
@@ -472,8 +630,11 @@ class MatchedPanelTests(unittest.TestCase):
     def test_disposable_preflight_checks_all_profiles_without_scores(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight.json"
+        claude_efforts: list[str | None] = []
 
         def evaluate(system: str, **kwargs):
+            if system == "claude":
+                claude_efforts.append(kwargs["claude_effort"])
             return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), self._contracts(), patch(
@@ -492,6 +653,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertEqual(receipt["status"], "passed")
         self.assertEqual(invoked.call_count, len(PROFILES))
+        self.assertEqual(claude_efforts, ["high", "high"])
         self.assertEqual(receipt["production_episodes_consumed"], 0)
         self.assertTrue(all(not item["scored"] for item in receipt["profiles"]))
         self.assertNotIn("total", json.dumps(receipt))

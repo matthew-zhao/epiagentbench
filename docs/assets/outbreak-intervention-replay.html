@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; media-src 'none'; worker-src 'none'; connect-src 'none'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Outbreak Intervention Replay</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;max-width:736px;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Outbreak Intervention Replay" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src data:; font-src &#x27;none&#x27;; media-src &#x27;none&#x27;; worker-src &#x27;none&#x27;; connect-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Outbreak Intervention Replay&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(--background) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 12.5px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--viz-font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;epi-outbreak-replay&quot;&gt;
+  &lt;style&gt;
+    #epi-outbreak-replay {
+      color: var(--foreground);
+      width: 100%;
+    }
+    #epi-outbreak-replay .replay-controls {
+      align-items: end;
+    }
+    #epi-outbreak-replay .stage-control {
+      flex: 1 1 240px;
+    }
+    #epi-outbreak-replay .scene {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    #epi-outbreak-replay .zone {
+      fill: var(--muted);
+      stroke: var(--border);
+      stroke-width: 1;
+    }
+    #epi-outbreak-replay .zone-label,
+    #epi-outbreak-replay .scene-label,
+    #epi-outbreak-replay .outcome-label {
+      fill: var(--foreground);
+      font-family: inherit;
+    }
+    #epi-outbreak-replay .scene-note,
+    #epi-outbreak-replay .outcome-note {
+      fill: var(--muted-foreground);
+      font-family: inherit;
+    }
+    #epi-outbreak-replay .person {
+      fill: var(--secondary);
+      stroke: var(--secondary-foreground);
+      stroke-width: 1.2;
+    }
+    #epi-outbreak-replay .infection {
+      fill: var(--viz-series-1);
+      stroke: var(--background);
+      stroke-width: 1.5;
+    }
+    #epi-outbreak-replay .record {
+      fill: var(--viz-series-2);
+      stroke: var(--background);
+      stroke-width: 1.2;
+    }
+    #epi-outbreak-replay .spread-link {
+      fill: none;
+      stroke: var(--viz-series-1);
+      stroke-width: 2;
+      stroke-dasharray: 4 5;
+      opacity: 0.7;
+    }
+    #epi-outbreak-replay .report-link {
+      fill: none;
+      stroke: var(--viz-series-2);
+      stroke-width: 1.5;
+      stroke-dasharray: 2 4;
+      opacity: 0.75;
+    }
+    #epi-outbreak-replay .control-link {
+      fill: none;
+      stroke: var(--viz-series-3);
+      stroke-width: 3;
+    }
+    #epi-outbreak-replay .no-action-bar {
+      fill: var(--muted);
+    }
+    #epi-outbreak-replay .realized-bar {
+      fill: var(--viz-series-3);
+    }
+    #epi-outbreak-replay .failure-mark {
+      fill: var(--destructive);
+      stroke: var(--background);
+      stroke-width: 2;
+    }
+    #epi-outbreak-replay .moving-infection {
+      transition: transform 560ms ease;
+    }
+    #epi-outbreak-replay .model-grid {
+      margin-top: 10px;
+    }
+    #epi-outbreak-replay .model-choice {
+      text-align: left;
+    }
+    #epi-outbreak-replay .fact-label {
+      margin: 0 0 6px;
+      color: var(--muted-foreground);
+    }
+    #epi-outbreak-replay .fact-value {
+      margin: 0;
+    }
+    #epi-outbreak-replay .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      margin: 8px 0;
+    }
+    #epi-outbreak-replay .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #epi-outbreak-replay .legend-circle {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--viz-series-1);
+    }
+    #epi-outbreak-replay .legend-square {
+      width: 10px;
+      height: 10px;
+      background: var(--viz-series-2);
+    }
+    #epi-outbreak-replay .legend-line {
+      width: 18px;
+      border-top: 2px dashed var(--viz-series-1);
+    }
+    #epi-outbreak-replay .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    #epi-outbreak-replay .comparison-table th,
+    #epi-outbreak-replay .comparison-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    #epi-outbreak-replay .comparison-table th:last-child,
+    #epi-outbreak-replay .comparison-table td:last-child {
+      text-align: right;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #epi-outbreak-replay .moving-infection {
+        transition: none;
+      }
+    }
+    @media (max-width: 560px) {
+      #epi-outbreak-replay .comparison-table .optional-column {
+        display: none;
+      }
+    }
+  &lt;/style&gt;
+
+  &lt;div class=&quot;viz-controls replay-controls&quot;&gt;
+    &lt;label class=&quot;form-label&quot; for=&quot;epi-family&quot;&gt;Scenario
+      &lt;select class=&quot;form-select&quot; id=&quot;epi-family&quot;&gt;
+        &lt;option value=&quot;restaurant_point_source&quot;&gt;Restaurant point source&lt;/option&gt;
+        &lt;option value=&quot;institution_person_to_person&quot;&gt;Institutional spread&lt;/option&gt;
+        &lt;option value=&quot;repeated_introduction&quot;&gt;Repeated introduction&lt;/option&gt;
+        &lt;option value=&quot;coincidental_venue&quot;&gt;Coincidental venue&lt;/option&gt;
+        &lt;option value=&quot;reporting_artifact&quot;&gt;Reporting artifact&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/label&gt;
+    &lt;label class=&quot;form-label&quot; for=&quot;epi-model&quot;&gt;Agent + model
+      &lt;select class=&quot;form-select&quot; id=&quot;epi-model&quot;&gt;
+        &lt;option value=&quot;codex-sol&quot;&gt;Codex + Sol&lt;/option&gt;
+        &lt;option value=&quot;codex-luna-medium&quot;&gt;Codex + Luna&lt;/option&gt;
+        &lt;option value=&quot;claude-opus-high&quot;&gt;Claude + Opus&lt;/option&gt;
+        &lt;option value=&quot;claude-sonnet-high&quot;&gt;Claude + Sonnet&lt;/option&gt;
+        &lt;option value=&quot;cursor-grok-high&quot;&gt;Cursor + Grok&lt;/option&gt;
+        &lt;option value=&quot;cursor-kimi-k27-code&quot;&gt;Cursor + Kimi&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/label&gt;
+    &lt;button class=&quot;btn btn-primary&quot; type=&quot;button&quot; id=&quot;epi-play&quot;&gt;Play&lt;/button&gt;
+    &lt;label class=&quot;form-label stage-control&quot; for=&quot;epi-stage&quot;&gt;Stage: &lt;span id=&quot;epi-stage-name&quot;&gt;Emergence&lt;/span&gt;
+      &lt;input class=&quot;form-range&quot; id=&quot;epi-stage&quot; type=&quot;range&quot; min=&quot;0&quot; max=&quot;4&quot; step=&quot;1&quot; value=&quot;0&quot;&gt;
+    &lt;/label&gt;
+  &lt;/div&gt;
+
+  &lt;div class=&quot;legend text-small&quot; aria-label=&quot;Visual legend&quot;&gt;
+    &lt;span class=&quot;legend-item&quot;&gt;&lt;span class=&quot;legend-circle&quot;&gt;&lt;/span&gt;Schematic infection marker—not a count&lt;/span&gt;
+    &lt;span class=&quot;legend-item&quot;&gt;&lt;span class=&quot;legend-square&quot;&gt;&lt;/span&gt;Surveillance record&lt;/span&gt;
+    &lt;span class=&quot;legend-item&quot;&gt;&lt;span class=&quot;legend-line&quot;&gt;&lt;/span&gt;Illustrative transmission&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;div class=&quot;card&quot;&gt;
+    &lt;svg class=&quot;scene&quot; id=&quot;epi-scene&quot; viewBox=&quot;0 0 760 340&quot; role=&quot;img&quot; aria-label=&quot;Paused schematic of a restaurant point-source episode at emergence&quot;&gt;&lt;/svg&gt;
+  &lt;/div&gt;
+
+  &lt;div class=&quot;viz-grid&quot; aria-live=&quot;polite&quot;&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;p class=&quot;fact-label text-small&quot;&gt;Submitted assessment&lt;/p&gt;
+      &lt;p class=&quot;fact-value&quot; id=&quot;epi-assessment&quot;&gt;Revealed at the surveillance stage&lt;/p&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;p class=&quot;fact-label text-small&quot;&gt;Intervention attempt&lt;/p&gt;
+      &lt;p class=&quot;fact-value&quot; id=&quot;epi-response&quot;&gt;Revealed at the response stage&lt;/p&gt;
+    &lt;/section&gt;
+    &lt;section class=&quot;card&quot;&gt;
+      &lt;p class=&quot;fact-label text-small&quot;&gt;Realized endpoint&lt;/p&gt;
+      &lt;p class=&quot;fact-value&quot; id=&quot;epi-outcome&quot;&gt;Revealed at the outcome stage&lt;/p&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+
+  &lt;p class=&quot;text-small&quot;&gt;&lt;strong&gt;Two-cohort comparison:&lt;/strong&gt; the six rows below combine separate retired pilots. Use them to inspect behavior, not as a paired six-way ranking.&lt;/p&gt;
+  &lt;div class=&quot;viz-grid model-grid&quot; id=&quot;epi-model-grid&quot; aria-label=&quot;Select a model result&quot;&gt;&lt;/div&gt;
+
+  &lt;table class=&quot;comparison-table text-small&quot;&gt;
+    &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Profile&lt;/th&gt;&lt;th&gt;Cohort&lt;/th&gt;&lt;th class=&quot;optional-column&quot;&gt;Top submitted cause&lt;/th&gt;&lt;th&gt;Intervention endpoint&lt;/th&gt;&lt;th&gt;Score&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+    &lt;tbody id=&quot;epi-comparison&quot;&gt;&lt;/tbody&gt;
+  &lt;/table&gt;
+
+  &lt;p class=&quot;text-small text-muted&quot;&gt;Synthetic benchmark replay from two retired five-episode pilots. Positions and transmission choreography are illustrative; displayed endpoints are recorded simulator outputs. The two pilot cohorts are different and their scores are not a paired six-way ranking. Control chronology was not retained, so the replay shows endpoint state changes—not an invented action sequence. Intervention effects and burden weights are benchmark assumptions, not estimates of real-world effectiveness.&lt;/p&gt;
+  &lt;p class=&quot;sr-only&quot; id=&quot;epi-accessible-summary&quot; aria-live=&quot;polite&quot;&gt;&lt;/p&gt;
+
+  &lt;script&gt;
+    (() =&gt; {
+      const root = document.getElementById(&#x27;epi-outbreak-replay&#x27;);
+      const familySelect = root.querySelector(&#x27;#epi-family&#x27;);
+      const modelSelect = root.querySelector(&#x27;#epi-model&#x27;);
+      const stageInput = root.querySelector(&#x27;#epi-stage&#x27;);
+      const stageName = root.querySelector(&#x27;#epi-stage-name&#x27;);
+      const playButton = root.querySelector(&#x27;#epi-play&#x27;);
+      const scene = root.querySelector(&#x27;#epi-scene&#x27;);
+      const assessment = root.querySelector(&#x27;#epi-assessment&#x27;);
+      const response = root.querySelector(&#x27;#epi-response&#x27;);
+      const outcome = root.querySelector(&#x27;#epi-outcome&#x27;);
+      const modelGrid = root.querySelector(&#x27;#epi-model-grid&#x27;);
+      const comparison = root.querySelector(&#x27;#epi-comparison&#x27;);
+      const accessibleSummary = root.querySelector(&#x27;#epi-accessible-summary&#x27;);
+      const ns = &#x27;http://www.w3.org/2000/svg&#x27;;
+      const reducedMotion = window.matchMedia(&#x27;(prefers-reduced-motion: reduce)&#x27;).matches;
+      const stages = [&#x27;Emergence&#x27;, &#x27;Spread&#x27;, &#x27;Surveillance alert&#x27;, &#x27;Agent response&#x27;, &#x27;Counterfactual outcome&#x27;];
+
+      const profiles = {
+        &#x27;codex-sol&#x27;: { label: &#x27;Codex + Sol&#x27;, cohort: &#x27;earlier pilot&#x27; },
+        &#x27;codex-luna-medium&#x27;: { label: &#x27;Codex + Luna&#x27;, cohort: &#x27;new-model pilot&#x27; },
+        &#x27;claude-opus-high&#x27;: { label: &#x27;Claude + Opus&#x27;, cohort: &#x27;earlier pilot&#x27; },
+        &#x27;claude-sonnet-high&#x27;: { label: &#x27;Claude + Sonnet&#x27;, cohort: &#x27;new-model pilot&#x27; },
+        &#x27;cursor-grok-high&#x27;: { label: &#x27;Cursor + Grok&#x27;, cohort: &#x27;earlier pilot&#x27; },
+        &#x27;cursor-kimi-k27-code&#x27;: { label: &#x27;Cursor + Kimi&#x27;, cohort: &#x27;new-model pilot&#x27; }
+      };
+      const profileOrder = [&#x27;codex-sol&#x27;, &#x27;codex-luna-medium&#x27;, &#x27;claude-opus-high&#x27;, &#x27;claude-sonnet-high&#x27;, &#x27;cursor-grok-high&#x27;, &#x27;cursor-kimi-k27-code&#x27;];
+      const families = {
+        institution_person_to_person: { label: &#x27;Institutional person-to-person spread&#x27;, best: &#x27;All controls off on this realized branch&#x27;, infected: [0, 1, 2, 3, 4, 5] },
+        restaurant_point_source: { label: &#x27;Restaurant point source&#x27;, best: &#x27;Standard source control&#x27;, infected: [1, 3, 5, 7, 9] },
+        repeated_introduction: { label: &#x27;Repeated introduction&#x27;, best: &#x27;Standard entry control&#x27;, infected: [0, 3, 6, 9] },
+        coincidental_venue: { label: &#x27;Coincidental venue&#x27;, best: &#x27;All controls off&#x27;, infected: [2, 8] },
+        reporting_artifact: { label: &#x27;Reporting artifact&#x27;, best: &#x27;Standard reporting audit&#x27;, infected: [4] }
+      };
+
+      const rows = [
+        {f:&#x27;institution_person_to_person&#x27;,p:&#x27;codex-sol&#x27;,v:1,s:54.359,o:.98,h:&#x27;propagated&#x27;,hp:.86,a:&#x27;infection control off&#x27;,c:&#x27;infection control ×2&#x27;,ni:13,ri:13,na:0,ra:0,b:1,u:-1},
+        {f:&#x27;institution_person_to_person&#x27;,p:&#x27;claude-opus-high&#x27;,v:1,s:57.002,o:.90,h:&#x27;propagated&#x27;,hp:.72,a:&#x27;standard infection control&#x27;,c:&#x27;infection control ×1&#x27;,ni:13,ri:13,na:0,ra:0,b:2.875,u:-2.875},
+        {f:&#x27;institution_person_to_person&#x27;,p:&#x27;cursor-grok-high&#x27;,v:1,s:54.180,o:.88,h:&#x27;propagated&#x27;,hp:.58,a:&#x27;standard infection + entry control&#x27;,c:&#x27;infection ×1; entry ×1&#x27;,ni:13,ri:13,na:0,ra:0,b:4.4,u:-4.4},
+        {f:&#x27;institution_person_to_person&#x27;,p:&#x27;codex-luna-medium&#x27;,v:1,s:54.779,o:.98,h:&#x27;propagated&#x27;,hp:.75,a:&#x27;standard infection control&#x27;,c:&#x27;infection control ×1&#x27;,ni:14,ri:14,na:0,ra:0,b:2.875,u:-2.875},
+        {f:&#x27;institution_person_to_person&#x27;,p:&#x27;claude-sonnet-high&#x27;,v:1,s:49.761,o:.85,h:&#x27;propagated&#x27;,hp:.65,a:&#x27;standard infection, entry, and audit controls&#x27;,c:&#x27;infection ×1; entry ×1; audit ×1&#x27;,ni:14,ri:14,na:0,ra:0,b:5.225,u:-5.225},
+        {f:&#x27;institution_person_to_person&#x27;,p:&#x27;cursor-kimi-k27-code&#x27;,v:0,s:0,o:.95,h:&#x27;propagated&#x27;,hp:.80,a:&#x27;report drafted broad controls&#x27;,c:&#x27;none scored&#x27;,fail:&#x27;unauthorized tool attempt&#x27;},
+
+        {f:&#x27;restaurant_point_source&#x27;,p:&#x27;codex-sol&#x27;,v:1,s:86.361,o:.99,h:&#x27;common source&#x27;,hp:.93,a:&#x27;final report listed controls off&#x27;,c:&#x27;infection ×2; source ×2&#x27;,ni:13,ri:9,na:0,ra:0,b:1.2,u:2.8},
+        {f:&#x27;restaurant_point_source&#x27;,p:&#x27;claude-opus-high&#x27;,v:1,s:55.128,o:.85,h:&#x27;propagated&#x27;,hp:.55,a:&#x27;standard infection control&#x27;,c:&#x27;infection ×1&#x27;,ni:13,ri:13,na:0,ra:0,b:2.875,u:-2.875},
+        {f:&#x27;restaurant_point_source&#x27;,p:&#x27;cursor-grok-high&#x27;,v:1,s:85.006,o:.88,h:&#x27;common source&#x27;,hp:.70,a:&#x27;standard source control&#x27;,c:&#x27;source ×1&#x27;,ni:13,ri:9,na:0,ra:0,b:2.0125,u:1.9875},
+        {f:&#x27;restaurant_point_source&#x27;,p:&#x27;codex-luna-medium&#x27;,v:1,s:75.988,o:.95,h:&#x27;propagated&#x27;,hp:.45,a:&#x27;report listed source off + infection standard&#x27;,c:&#x27;infection ×1; source ×2&#x27;,ni:14,ri:10,na:0,ra:0,b:3.0125,u:.9875},
+        {f:&#x27;restaurant_point_source&#x27;,p:&#x27;claude-sonnet-high&#x27;,v:1,s:53.300,o:.85,h:&#x27;propagated&#x27;,hp:.55,a:&#x27;standard infection, source, and audit controls&#x27;,c:&#x27;infection ×1; source ×1; audit ×1&#x27;,ni:14,ri:10,na:0,ra:0,b:5.25,u:-1.25},
+        {f:&#x27;restaurant_point_source&#x27;,p:&#x27;cursor-kimi-k27-code&#x27;,v:1,s:55.114,o:.90,h:&#x27;common source&#x27;,hp:.40,a:&#x27;standard infection + source control&#x27;,c:&#x27;infection ×1; source ×1&#x27;,ni:14,ri:10,na:0,ra:0,b:4.675,u:-.675},
+
+        {f:&#x27;repeated_introduction&#x27;,p:&#x27;codex-sol&#x27;,v:1,s:56.172,o:.99,h:&#x27;repeated introduction&#x27;,hp:.50,a:&#x27;final report listed entry control off&#x27;,c:&#x27;infection ×2; entry ×2; audit ×2&#x27;,ni:12,ri:10,na:0,ra:0,b:2.5875,u:-.5875},
+        {f:&#x27;repeated_introduction&#x27;,p:&#x27;claude-opus-high&#x27;,v:1,s:57.239,o:.93,h:&#x27;propagated&#x27;,hp:.66,a:&#x27;standard infection control&#x27;,c:&#x27;infection ×1&#x27;,ni:12,ri:12,na:0,ra:0,b:2.75,u:-2.75},
+        {f:&#x27;repeated_introduction&#x27;,p:&#x27;cursor-grok-high&#x27;,v:1,s:52.866,o:.88,h:&#x27;propagated&#x27;,hp:.58,a:&#x27;infection + reporting audit; entry off&#x27;,c:&#x27;infection ×1; audit ×1&#x27;,ni:12,ri:12,na:0,ra:0,b:3.7375,u:-3.7375},
+        {f:&#x27;repeated_introduction&#x27;,p:&#x27;codex-luna-medium&#x27;,v:1,s:53.878,o:.97,h:&#x27;propagated&#x27;,hp:.72,a:&#x27;standard infection control&#x27;,c:&#x27;infection ×1&#x27;,ni:12,ri:12,na:0,ra:0,b:2.875,u:-2.875},
+        {f:&#x27;repeated_introduction&#x27;,p:&#x27;claude-sonnet-high&#x27;,v:1,s:49.892,o:.93,h:&#x27;propagated&#x27;,hp:.78,a:&#x27;intensive infection + standard entry/audit&#x27;,c:&#x27;infection ×1; entry ×1; audit ×1&#x27;,ni:12,ri:8,na:0,ra:0,b:13.475,u:-9.475},
+        {f:&#x27;repeated_introduction&#x27;,p:&#x27;cursor-kimi-k27-code&#x27;,v:1,s:51.117,o:.92,h:&#x27;propagated&#x27;,hp:.75,a:&#x27;standard infection control&#x27;,c:&#x27;infection ×1&#x27;,ni:12,ri:12,na:0,ra:0,b:2.75,u:-2.75},
+
+        {f:&#x27;coincidental_venue&#x27;,p:&#x27;codex-sol&#x27;,v:1,s:53.991,o:.08,h:&#x27;sporadic background&#x27;,hp:.78,a:&#x27;infection + source controls off&#x27;,c:&#x27;infection ×2; source ×2&#x27;,ni:2,ri:2,na:0,ra:0,b:.85,u:-.85},
+        {f:&#x27;coincidental_venue&#x27;,p:&#x27;claude-opus-high&#x27;,v:1,s:54.608,o:.20,h:&#x27;sporadic background&#x27;,hp:.42,a:&#x27;infection control off; audit recommended&#x27;,c:&#x27;infection ×2&#x27;,ni:2,ri:2,na:0,ra:0,b:.5,u:-.5},
+        {f:&#x27;coincidental_venue&#x27;,p:&#x27;cursor-grok-high&#x27;,v:1,s:48.333,o:.18,h:&#x27;sporadic background&#x27;,hp:.55,a:&#x27;standard infection control&#x27;,c:&#x27;infection ×1&#x27;,ni:2,ri:2,na:0,ra:0,b:2.75,u:-2.75},
+        {f:&#x27;coincidental_venue&#x27;,p:&#x27;codex-luna-medium&#x27;,v:1,s:52.041,o:.20,h:&#x27;repeated introduction&#x27;,hp:.35,a:&#x27;all controls off&#x27;,c:&#x27;no recorded state changes&#x27;,ni:1,ri:1,na:0,ra:0,b:0,u:0},
+        {f:&#x27;coincidental_venue&#x27;,p:&#x27;claude-sonnet-high&#x27;,v:1,s:58.990,o:.15,h:&#x27;sporadic background&#x27;,hp:.65,a:&#x27;standard infection + audit controls&#x27;,c:&#x27;infection ×1; audit ×1&#x27;,ni:1,ri:1,na:0,ra:0,b:3.4125,u:-3.4125},
+        {f:&#x27;coincidental_venue&#x27;,p:&#x27;cursor-kimi-k27-code&#x27;,v:0,s:0,o:null,h:null,hp:null,a:&#x27;no accepted report&#x27;,c:&#x27;none scored&#x27;,fail:&#x27;provider capacity failure&#x27;},
+
+        {f:&#x27;reporting_artifact&#x27;,p:&#x27;codex-sol&#x27;,v:1,s:43.805,o:.12,h:&#x27;reporting artifact&#x27;,hp:.70,a:&#x27;audit + infection controls off&#x27;,c:&#x27;audit ×3; infection ×2&#x27;,ni:1,ri:1,na:4,ra:1,b:1.925,u:-.425},
+        {f:&#x27;reporting_artifact&#x27;,p:&#x27;claude-opus-high&#x27;,v:1,s:72.083,o:.20,h:&#x27;reporting artifact&#x27;,hp:.58,a:&#x27;standard reporting audit&#x27;,c:&#x27;audit ×1&#x27;,ni:1,ri:1,na:4,ra:1,b:.825,u:.675},
+        {f:&#x27;reporting_artifact&#x27;,p:&#x27;cursor-grok-high&#x27;,v:1,s:42.739,o:.12,h:&#x27;reporting artifact&#x27;,hp:.70,a:&#x27;intensive reporting audit&#x27;,c:&#x27;audit ×1&#x27;,ni:1,ri:1,na:4,ra:0,b:2.475,u:-.475},
+        {f:&#x27;reporting_artifact&#x27;,p:&#x27;codex-luna-medium&#x27;,v:1,s:86.169,o:.04,h:&#x27;reporting artifact&#x27;,hp:.84,a:&#x27;standard reporting audit&#x27;,c:&#x27;audit ×1&#x27;,ni:1,ri:1,na:4,ra:1,b:.8625,u:.6375},
+        {f:&#x27;reporting_artifact&#x27;,p:&#x27;claude-sonnet-high&#x27;,v:0,s:0,o:null,h:null,hp:null,a:&#x27;report was rejected before acceptance&#x27;,c:&#x27;unscored trace; mismatch detected&#x27;,fail:&#x27;invalid one-shot handoff&#x27;},
+        {f:&#x27;reporting_artifact&#x27;,p:&#x27;cursor-kimi-k27-code&#x27;,v:1,s:46.201,o:.05,h:&#x27;reporting artifact&#x27;,hp:.55,a:&#x27;intensive reporting audit&#x27;,c:&#x27;audit ×1&#x27;,ni:1,ri:1,na:4,ra:0,b:2.475,u:-.475}
+      ];
+
+      const people = [[112,94],[180,88],[250,92],[320,88],[390,96],[130,174],[205,168],[280,178],[355,166],[425,176]];
+      let timer = null;
+
+      const add = (name, attrs, text) =&gt; {
+        const node = document.createElementNS(ns, name);
+        Object.entries(attrs || {}).forEach(([key, value]) =&gt; node.setAttribute(key, value));
+        if (text !== undefined) node.textContent = text;
+        scene.appendChild(node);
+        return node;
+      };
+      const selectedRow = () =&gt; rows.find((row) =&gt; row.f === familySelect.value &amp;&amp; row.p === modelSelect.value);
+      const percent = (value) =&gt; value === null || value === undefined ? &#x27;—&#x27; : `${Math.round(value * 100)}%`;
+      const signed = (value) =&gt; value &gt; 0 ? `+${value.toFixed(3)}` : value.toFixed(3);
+
+      const drawSpread = (family, stage) =&gt; {
+        add(&#x27;rect&#x27;, {x:28,y:28,width:450,height:216,rx:10,class:&#x27;zone&#x27;});
+        add(&#x27;rect&#x27;, {x:506,y:28,width:226,height:216,rx:10,class:&#x27;zone&#x27;});
+        add(&#x27;text&#x27;, {x:46,y:54,class:&#x27;zone-label&#x27;,&#x27;font-size&#x27;:13}, family === &#x27;restaurant_point_source&#x27; ? &#x27;Restaurant + community&#x27; : family === &#x27;institution_person_to_person&#x27; ? &#x27;Long-term-care setting&#x27; : &#x27;Synthetic community&#x27;);
+        add(&#x27;text&#x27;, {x:524,y:54,class:&#x27;zone-label&#x27;,&#x27;font-size&#x27;:13}, &#x27;Surveillance system&#x27;);
+        add(&#x27;text&#x27;, {x:46,y:230,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:11}, &#x27;ILLUSTRATIVE SPREAD&#x27;);
+
+        if (family === &#x27;restaurant_point_source&#x27;) {
+          add(&#x27;rect&#x27;, {x:240,y:116,width:54,height:28,rx:4,fill:&#x27;var(--viz-series-4)&#x27;,opacity:.32});
+          add(&#x27;text&#x27;, {x:267,y:134,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,class:&#x27;scene-label&#x27;,&#x27;font-size&#x27;:10}, &#x27;source&#x27;);
+        }
+        if (family === &#x27;repeated_introduction&#x27;) {
+          add(&#x27;text&#x27;, {x:440,y:74,&#x27;text-anchor&#x27;:&#x27;end&#x27;,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:10}, &#x27;separate arrivals&#x27;);
+        }
+        if (family === &#x27;reporting_artifact&#x27;) {
+          add(&#x27;text&#x27;, {x:46,y:74,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:10}, &#x27;one illness, several records&#x27;);
+        }
+
+        people.forEach(([x,y]) =&gt; add(&#x27;circle&#x27;, {cx:x,cy:y,r:13,class:&#x27;person&#x27;}));
+        const infected = families[family].infected;
+        if (stage &gt;= 1 || (stage === 0 &amp;&amp; family === &#x27;reporting_artifact&#x27;)) {
+          infected.forEach((index, order) =&gt; {
+            const [x,y] = people[index];
+            if (family === &#x27;institution_person_to_person&#x27; &amp;&amp; order &gt; 0) {
+              const [px,py] = people[infected[order - 1]];
+              add(&#x27;path&#x27;, {d:`M ${px} ${py} L ${x} ${y}`,class:&#x27;spread-link&#x27;});
+            } else if (family === &#x27;restaurant_point_source&#x27;) {
+              add(&#x27;path&#x27;, {d:`M 267 130 Q 300 140 ${x} ${y}`,class:&#x27;spread-link&#x27;});
+            } else if (family === &#x27;repeated_introduction&#x27;) {
+              add(&#x27;path&#x27;, {d:`M 460 ${55 + order * 38} L ${x} ${y}`,class:&#x27;spread-link&#x27;});
+            }
+            const dot = add(&#x27;circle&#x27;, {cx:x,cy:y,r:7,class:&#x27;infection moving-infection&#x27;});
+            if (!reducedMotion &amp;&amp; stage === 1) {
+              const origin = family === &#x27;restaurant_point_source&#x27; ? [267,130] : family === &#x27;repeated_introduction&#x27; ? [460,55 + order * 38] : order ? people[infected[order - 1]] : [x,y];
+              dot.style.transform = `translate(${origin[0]-x}px,${origin[1]-y}px)`;
+              requestAnimationFrame(() =&gt; { dot.style.transform = &#x27;translate(0,0)&#x27;; });
+            }
+          });
+        }
+
+        if (stage &gt;= 2) {
+          const recordCount = family === &#x27;reporting_artifact&#x27; ? 4 : Math.min(5, infected.length);
+          for (let i = 0; i &lt; recordCount; i += 1) {
+            const rx = 548 + (i % 3) * 48;
+            const ry = 90 + Math.floor(i / 3) * 56;
+            add(&#x27;path&#x27;, {d:`M ${people[infected[Math.min(i, infected.length - 1)]][0]} ${people[infected[Math.min(i, infected.length - 1)]][1]} Q 490 120 ${rx} ${ry}`,class:&#x27;report-link&#x27;});
+            add(&#x27;rect&#x27;, {x:rx-8,y:ry-8,width:16,height:16,rx:2,class:&#x27;record&#x27;});
+          }
+          add(&#x27;text&#x27;, {x:619,y:202,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:11}, &#x27;observed records trigger an alert&#x27;);
+        }
+      };
+
+      const drawResponse = (row, stage) =&gt; {
+        if (stage &lt; 3) return;
+        add(&#x27;path&#x27;, {d:&#x27;M 620 226 Q 540 276 440 226&#x27;,class:&#x27;control-link&#x27;});
+        add(&#x27;circle&#x27;, {cx:620,cy:226,r:13,fill:&#x27;var(--viz-series-3)&#x27;});
+        add(&#x27;text&#x27;, {x:620,y:230,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,fill:&#x27;var(--background)&#x27;,&#x27;font-size&#x27;:11}, &#x27;A&#x27;);
+        add(&#x27;text&#x27;, {x:440,y:266,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:10}, row.v ? `recorded: ${row.c}` : &#x27;run invalid before a scoreable endpoint&#x27;);
+      };
+
+      const drawOutcome = (row, family, stage) =&gt; {
+        if (stage &lt; 4) return;
+        if (!row.v) {
+          add(&#x27;circle&#x27;, {cx:365,cy:302,r:18,class:&#x27;failure-mark&#x27;});
+          add(&#x27;text&#x27;, {x:365,y:308,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,fill:&#x27;var(--background)&#x27;,&#x27;font-size&#x27;:18}, &#x27;×&#x27;);
+          add(&#x27;text&#x27;, {x:394,y:307,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:12}, row.fail);
+          return;
+        }
+        const artifact = family === &#x27;reporting_artifact&#x27;;
+        const baseline = artifact ? row.na : row.ni;
+        const realized = artifact ? row.ra : row.ri;
+        const unit = artifact ? &#x27;records&#x27; : &#x27;infections&#x27;;
+        const scale = 150 / Math.max(1, baseline);
+        add(&#x27;text&#x27;, {x:38,y:286,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:11}, `No action: ${baseline} ${unit}`);
+        add(&#x27;rect&#x27;, {x:148,y:275,width:baseline*scale,height:14,rx:3,class:&#x27;no-action-bar&#x27;});
+        add(&#x27;text&#x27;, {x:38,y:318,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:11}, `Realized: ${realized} ${unit}`);
+        add(&#x27;rect&#x27;, {x:148,y:307,width:realized*scale,height:14,rx:3,class:&#x27;realized-bar&#x27;});
+        add(&#x27;text&#x27;, {x:330,y:286,class:&#x27;outcome-note&#x27;,&#x27;font-size&#x27;:11}, `burden ${row.b.toFixed(3)}`);
+        add(&#x27;text&#x27;, {x:330,y:318,class:&#x27;outcome-note&#x27;,&#x27;font-size&#x27;:11}, `utility ${signed(row.u)}`);
+        add(&#x27;text&#x27;, {x:520,y:302,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:12}, `Score ${row.s.toFixed(3)}`);
+      };
+
+      const renderScene = () =&gt; {
+        const stage = Number(stageInput.value);
+        const family = familySelect.value;
+        const row = selectedRow();
+        const profile = profiles[row.p];
+        scene.replaceChildren();
+        drawSpread(family, stage);
+        drawResponse(row, stage);
+        drawOutcome(row, family, stage);
+        scene.setAttribute(&#x27;aria-label&#x27;, `${stages[stage]} stage for ${families[family].label}, showing ${profile.label} from the ${profile.cohort}`);
+
+        assessment.textContent = stage &gt;= 2 ? (row.h ? `Outbreak ${percent(row.o)}; top cause ${row.h} ${percent(row.hp)}.` : &#x27;No accepted assessment.&#x27;) : &#x27;Revealed at the surveillance stage.&#x27;;
+        response.textContent = stage &gt;= 3 ? `${row.c}. Final report: ${row.a}.` : &#x27;Revealed at the response stage.&#x27;;
+        outcome.textContent = stage &gt;= 4 ? (row.v ? `${families[family].best}; burden ${row.b.toFixed(3)}, utility ${signed(row.u)}, score ${row.s.toFixed(3)}.` : `Invalid: ${row.fail}; fixed-denominator score 0.`) : &#x27;Revealed at the outcome stage.&#x27;;
+        stageName.textContent = stages[stage];
+        accessibleSummary.textContent = `${stages[stage]}. ${families[family].label}. ${profile.label}. ${assessment.textContent} ${response.textContent} ${outcome.textContent}`;
+      };
+
+      const renderModels = () =&gt; {
+        const family = familySelect.value;
+        modelGrid.replaceChildren();
+        comparison.replaceChildren();
+        profileOrder.forEach((profileId) =&gt; {
+          const row = rows.find((item) =&gt; item.f === family &amp;&amp; item.p === profileId);
+          const profile = profiles[profileId];
+          const button = document.createElement(&#x27;button&#x27;);
+          button.type = &#x27;button&#x27;;
+          button.className = &#x27;btn model-choice&#x27;;
+          button.setAttribute(&#x27;aria-pressed&#x27;, String(profileId === modelSelect.value));
+          button.textContent = `${profile.label} · ${profile.cohort} · ${row.v ? row.s.toFixed(1) : &#x27;invalid&#x27;}`;
+          button.addEventListener(&#x27;click&#x27;, () =&gt; {
+            modelSelect.value = profileId;
+            renderModels();
+            renderScene();
+          });
+          modelGrid.appendChild(button);
+
+          const tr = document.createElement(&#x27;tr&#x27;);
+          const intervention = row.v ? row.c : row.fail;
+          [profile.label, profile.cohort, row.h ? `${row.h} ${percent(row.hp)}` : &#x27;No accepted assessment&#x27;, intervention, row.v ? row.s.toFixed(3) : &#x27;0 ×&#x27;].forEach((value, index) =&gt; {
+            const cell = document.createElement(index === 0 ? &#x27;th&#x27; : &#x27;td&#x27;);
+            if (index === 2) cell.className = &#x27;optional-column&#x27;;
+            cell.textContent = value;
+            tr.appendChild(cell);
+          });
+          comparison.appendChild(tr);
+        });
+      };
+
+      const stop = () =&gt; {
+        if (timer !== null) window.clearInterval(timer);
+        timer = null;
+        playButton.textContent = &#x27;Play&#x27;;
+      };
+      const play = () =&gt; {
+        if (timer !== null) { stop(); return; }
+        if (Number(stageInput.value) &gt;= 4) stageInput.value = &#x27;0&#x27;;
+        playButton.textContent = &#x27;Pause&#x27;;
+        renderScene();
+        timer = window.setInterval(() =&gt; {
+          const next = Number(stageInput.value) + 1;
+          stageInput.value = String(Math.min(4, next));
+          renderScene();
+          if (next &gt;= 4) stop();
+        }, reducedMotion ? 1500 : 1050);
+      };
+
+      familySelect.addEventListener(&#x27;change&#x27;, () =&gt; {
+        stop();
+        stageInput.value = &#x27;0&#x27;;
+        renderModels();
+        renderScene();
+      });
+      modelSelect.addEventListener(&#x27;change&#x27;, () =&gt; {
+        renderModels();
+        renderScene();
+      });
+      stageInput.addEventListener(&#x27;input&#x27;, () =&gt; {
+        stop();
+        renderScene();
+      });
+      playButton.addEventListener(&#x27;click&#x27;, play);
+      renderModels();
+      renderScene();
+    })();
+  &lt;/script&gt;
+&lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>
