@@ -16,6 +16,11 @@ import math
 from typing import Any, Callable, Iterable, Mapping
 
 from ..models import Observation, Oracle, PublicEpisode
+from ..replay_trace import (
+    FRAME_INTERVAL_MINUTES,
+    REPLAY_TRACE_SCHEMA_VERSION,
+    validate_replay_trace,
+)
 from .engine import EngineControl, TransmissionEvent
 from .live_surveillance import (
     CAUSAL_MODES,
@@ -217,6 +222,10 @@ class ClosedLoopStarsimRuntime:
                 "The public intervention cycle must match this experimental "
                 "Starsim adapter's fixed step"
             )
+        if self._tick_minutes != FRAME_INTERVAL_MINUTES:
+            raise ValueError(
+                "The closed-loop simulator step must match the replay frame interval"
+            )
 
         # Validate every level before simulator construction.  This keeps a bad
         # trusted profile from failing only after an evaluated action occurs.
@@ -241,10 +250,15 @@ class ClosedLoopStarsimRuntime:
         self._intervention_sequence = 0
         self._first_biological_effective_minute: int | None = None
         self._first_effective_minute: int | None = None
+        # Aggregate active/no-action states are retained only for a terminal,
+        # evaluator-owned replay.  Raw people, transmission ancestry, simulator
+        # parameters, and identifiers never enter this structure.
+        self._replay_state_pairs: dict[
+            int, tuple[tuple[int, int], tuple[int, int]]
+        ] = {}
 
         try:
-            self._active.advance_to(self._decision_minute)
-            self._shadow.advance_to(self._decision_minute)
+            self._advance_pair(self._decision_minute)
             active_snapshot = self._active.oracle_snapshot()
             shadow_snapshot = self._shadow.oracle_snapshot()
             if (
@@ -320,8 +334,7 @@ class ClosedLoopStarsimRuntime:
         absolute_target = self._decision_minute + public_minute
         engine_target = absolute_target // self._tick_minutes * self._tick_minutes
         if engine_target > self._active.current_minute:
-            self._active.advance_to(engine_target)
-            self._shadow.advance_to(engine_target)
+            self._advance_pair(engine_target)
 
         active_events = self._active.oracle_snapshot().transmission_events
         shadow_events = self._shadow.oracle_snapshot().transmission_events
@@ -563,6 +576,22 @@ class ClosedLoopStarsimRuntime:
                     f"closed_loop_fixed_{action_type}_{level}_utility"
                 ] = round(fixed_utilities[bundle], 6)
 
+        replay_trace = self._build_replay_trace()
+        replay_endpoint = replay_trace["frames"][-1]
+        if (
+            replay_endpoint["active_currently_infected"]
+            != len(active_snapshot.currently_infected_agent_ids)
+            or replay_endpoint["active_cumulative_infections"]
+            != active_infections
+            or replay_endpoint["active_reporting_artifacts"] != active_artifacts
+            or replay_endpoint["no_action_currently_infected"]
+            != len(shadow_snapshot.currently_infected_agent_ids)
+            or replay_endpoint["no_action_cumulative_infections"]
+            != shadow_infections
+            or replay_endpoint["no_action_reporting_artifacts"]
+            != shadow_artifacts
+        ):
+            raise RuntimeError("Terminal replay aggregates disagree with scoring")
         self._final_oracle = Oracle(
             family=f"{self._family}_closed_loop",
             is_outbreak=is_outbreak,
@@ -598,6 +627,7 @@ class ClosedLoopStarsimRuntime:
             followup_relevant_evidence_ids=(
                 self._stream.followup_relevant_evidence_ids
             ),
+            replay_trace=replay_trace,
         )
         self._active.close()
         self._shadow.close()
@@ -615,13 +645,153 @@ class ClosedLoopStarsimRuntime:
         self, absolute_target: int, *, materialize_observations: bool
     ) -> None:
         if absolute_target > self._active.current_minute:
-            self._active.advance_to(absolute_target)
-            self._shadow.advance_to(absolute_target)
+            self._advance_pair(absolute_target)
         if materialize_observations:
             self._ingest_active_events(
                 self._active.oracle_snapshot().transmission_events
             )
             self._materialize_artifacts_through(self._deadline_minutes)
+
+    def _advance_pair(self, absolute_target: int) -> None:
+        """Advance both CRN worlds and retain only bounded aggregate frames."""
+
+        active_delta = self._active.advance_to(absolute_target)
+        shadow_delta = self._shadow.advance_to(absolute_target)
+        active_states = self._aggregate_delta_states(active_delta)
+        shadow_states = self._aggregate_delta_states(shadow_delta)
+        if tuple(active_states) != tuple(shadow_states):
+            raise RuntimeError("Closed-loop worlds returned misaligned replay frames")
+        for minute in active_states:
+            if minute < self._decision_minute:
+                continue
+            pair = (active_states[minute], shadow_states[minute])
+            previous = self._replay_state_pairs.get(minute)
+            if previous is not None and previous != pair:
+                raise RuntimeError("A closed-loop replay frame changed after recording")
+            self._replay_state_pairs[minute] = pair
+
+    @staticmethod
+    def _aggregate_delta_states(delta: Any) -> dict[int, tuple[int, int]]:
+        """Normalize generic and LTC deltas to current/cumulative counts."""
+
+        raw_states = getattr(delta, "states", None)
+        if raw_states is not None:
+            normalized: dict[int, tuple[int, int]] = {}
+            for state in raw_states:
+                minute = getattr(state, "minute", None)
+                population = getattr(state, "population_size", None)
+                susceptible = getattr(state, "susceptible_count", None)
+                current = getattr(state, "infected_count", None)
+                if any(
+                    type(value) is not int or value < 0
+                    for value in (minute, population, susceptible, current)
+                ):
+                    raise RuntimeError("Disease engine returned an invalid replay state")
+                cumulative = population - susceptible
+                if not 0 <= current <= cumulative <= population:
+                    raise RuntimeError("Disease engine returned inconsistent replay counts")
+                normalized[minute] = (current, cumulative)
+            return normalized
+
+        raw_frames = getattr(delta, "frames", None)
+        if raw_frames is None:
+            raise RuntimeError("Disease engine did not return replayable state deltas")
+        normalized = {}
+        for frame in raw_frames:
+            minute = getattr(frame, "minute", None)
+            people = getattr(frame, "people", None)
+            if type(minute) is not int or minute < 0 or not isinstance(people, tuple):
+                raise RuntimeError("LTC engine returned an invalid replay frame")
+            current = 0
+            cumulative = 0
+            for person in people:
+                state = getattr(person, "state", None)
+                infection_minute = getattr(person, "infection_minute", None)
+                if state not in {
+                    "susceptible",
+                    "exposed_incubating",
+                    "infectious_symptomatic",
+                    "infectious_asymptomatic",
+                    "recovered",
+                } or (
+                    infection_minute is not None
+                    and (type(infection_minute) is not int or infection_minute < 0)
+                ):
+                    raise RuntimeError("LTC engine returned invalid aggregate state")
+                cumulative += infection_minute is not None
+                current += state not in {"susceptible", "recovered"}
+            if current > cumulative:
+                raise RuntimeError("LTC engine returned inconsistent replay counts")
+            normalized[minute] = (current, cumulative)
+        return normalized
+
+    def _build_replay_trace(self) -> dict[str, Any]:
+        """Return a closed, aggregate-only terminal trace for admin release."""
+
+        terminal_absolute_minute = self._config.horizon_days * DAY_MINUTES
+        expected_absolute_minutes = tuple(
+            range(
+                self._decision_minute,
+                terminal_absolute_minute + 1,
+                self._tick_minutes,
+            )
+        )
+        if tuple(sorted(self._replay_state_pairs)) != expected_absolute_minutes:
+            raise RuntimeError("Closed-loop replay frames are incomplete")
+
+        frames: list[dict[str, Any]] = []
+        for absolute_minute in expected_absolute_minutes:
+            public_minute = absolute_minute - self._decision_minute
+            active, no_action = self._replay_state_pairs[absolute_minute]
+            frames.append(
+                {
+                    "minute": public_minute,
+                    "active_currently_infected": active[0],
+                    "active_cumulative_infections": active[1],
+                    "active_reporting_artifacts": self._artifact_emissions_through(
+                        public_minute, active=True
+                    ),
+                    "no_action_currently_infected": no_action[0],
+                    "no_action_cumulative_infections": no_action[1],
+                    "no_action_reporting_artifacts": self._artifact_emissions_through(
+                        public_minute, active=False
+                    ),
+                    "effective_controls": {
+                        action_type: self._control_level_at_public_minute(
+                            action_type, public_minute
+                        )
+                        for action_type in RESPONSE_ACTION_TYPES
+                    },
+                }
+            )
+        return validate_replay_trace(
+            {
+                "schema_version": REPLAY_TRACE_SCHEMA_VERSION,
+                "frame_interval_minutes": FRAME_INTERVAL_MINUTES,
+                "frames": frames,
+                "agent_events": [],
+            }
+        )
+
+    def _artifact_emissions_through(
+        self, public_minute: int, *, active: bool
+    ) -> int:
+        through = min(public_minute, self._deadline_minutes)
+        emitted = 0
+        for release_minute, threshold_ppm in self._future_artifact_candidates:
+            if release_minute > through:
+                break
+            if not active:
+                emitted += 1
+                continue
+            audit_level = self._control_level_at_public_minute(
+                "audit_reporting", release_minute
+            )
+            residual = float(
+                self._level_values(audit_level, "audit_reporting")["effect_level"]
+            )
+            emitted += threshold_ppm / 1_000_000 < residual
+        return emitted
 
     def _ingest_active_events(
         self, events: Iterable[TransmissionEvent]

@@ -99,6 +99,49 @@ class SecureEpisodeSession:
         self._scored = True
         return result
 
+    def score_with_replay(
+        self,
+        submission: Mapping[str, Any],
+        audit_events: Sequence[str] = (),
+        agent_artifacts: Sequence[str | bytes] = (),
+    ) -> dict[str, Any]:
+        """Terminate and return score plus aggregate replay via the admin channel."""
+
+        if self._closed or self._scored:
+            raise RuntimeError("Secure episode is no longer scoreable")
+        if not self._valid_score_inputs(
+            submission, audit_events, agent_artifacts
+        ):
+            raise ValueError("Invalid score request")
+        for index, artifact in enumerate(agent_artifacts):
+            artifact_id = f"artifact_{index}"
+            chunks = self._artifact_chunks(artifact)
+            for chunk_index, chunk in enumerate(chunks):
+                self._admin_call(
+                    "audit_artifact",
+                    {
+                        "artifact_id": artifact_id,
+                        "chunk": chunk,
+                        "final": chunk_index == len(chunks) - 1,
+                    },
+                )
+        result = self._admin_call(
+            "score_with_replay",
+            {
+                "submission": dict(submission),
+                "audit_events": list(audit_events),
+            },
+        )
+        if (
+            not isinstance(result, dict)
+            or set(result) != {"scorecard", "replay_trace"}
+            or not isinstance(result["scorecard"], dict)
+            or not isinstance(result["replay_trace"], dict)
+        ):
+            raise RuntimeError("Trusted evaluator returned an invalid replay result")
+        self._scored = True
+        return result
+
     def score_request_fits(
         self,
         submission: Mapping[str, Any],
@@ -125,6 +168,36 @@ class SecureEpisodeSession:
             request = self._admin_request(
                 self._next_request_id + artifact_calls,
                 "score",
+                {
+                    "submission": dict(submission),
+                    "audit_events": list(audit_events),
+                },
+            )
+            payload = canonical_json(request)
+        except (TypeError, ValueError, OverflowError, RecursionError, WireError):
+            return False
+        return 0 < len(payload) <= MAX_MESSAGE_BYTES
+
+    def score_with_replay_request_fits(
+        self,
+        submission: Mapping[str, Any],
+        audit_events: Sequence[str] = (),
+        agent_artifacts: Sequence[str | bytes] = (),
+    ) -> bool:
+        """Preflight the exact terminal replay score request frame."""
+
+        if self._closed or self._scored or not self._valid_score_inputs(
+            submission, audit_events, agent_artifacts
+        ):
+            return False
+        try:
+            artifact_calls = sum(
+                len(self._artifact_chunks(artifact))
+                for artifact in agent_artifacts
+            )
+            request = self._admin_request(
+                self._next_request_id + artifact_calls,
+                "score_with_replay",
                 {
                     "submission": dict(submission),
                     "audit_events": list(audit_events),
@@ -544,7 +617,7 @@ def _serve_admin(
             assert isinstance(request, dict)
             method = request["method"]
             params = request["params"]
-            if method == "score":
+            if method in {"score", "score_with_replay"}:
                 if set(params) != {"submission", "audit_events"}:
                     raise ValueError("invalid")
                 submission = params["submission"]
@@ -553,9 +626,12 @@ def _serve_admin(
                     audit_events, list
                 ) or any(not isinstance(value, str) for value in audit_events):
                     raise ValueError("invalid")
-                result: Any = controller.score(
-                    submission, tuple(audit_events)
+                scorer = (
+                    controller.score
+                    if method == "score"
+                    else controller.score_with_replay
                 )
+                result: Any = scorer(submission, tuple(audit_events))
             elif method == "audit_artifact":
                 if set(params) != {"artifact_id", "chunk", "final"}:
                     raise ValueError("invalid")

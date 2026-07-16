@@ -97,11 +97,13 @@ class SecureServiceTests(unittest.TestCase):
     def test_admin_method_is_rejected_on_public_capability(self):
         session, client = launch_secure_episode(seed=3)
         try:
-            with self.assertRaisesRegex(
-                RemoteRequestError, "Investigation request rejected"
-            ) as raised:
-                client._request("score", {"submission": {}})
-            self.assertNotIn("score", str(raised.exception).lower())
+            for method in ("score", "score_with_replay"):
+                with self.subTest(method=method), self.assertRaisesRegex(
+                    RemoteRequestError, "Investigation request rejected"
+                ) as raised:
+                    client._request(method, {"submission": {}})
+                self.assertNotIn("score", str(raised.exception).lower())
+                self.assertNotIn("replay", str(raised.exception).lower())
             self.assertTrue(client.initial_observations())
         finally:
             client.close()

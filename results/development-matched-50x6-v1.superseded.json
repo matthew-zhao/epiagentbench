@@ -1,0 +1,12 @@
+{
+  "development_only": true,
+  "original_panel_id": "development-matched-50x6-v1",
+  "original_precommitment_sha256": "sha256:284a31dca99a9378fd81ffaa9902f49e78edfa674fab7f7fb834f7a3b42aea3b",
+  "preflight_provider_calls_started": 0,
+  "production_assignments_started": 0,
+  "reason": "The evaluator added terminal-only aggregate active/no-action trajectories and finite-enum agent-action traces. That scientific milestone changes the committed runtime and generator fingerprint, so the unused v1 cohort is preserved for audit but will never be evaluated or silently replayed under the changed harness.",
+  "replacement_panel_id": "development-matched-50x6-v2",
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_before_preflight",
+  "superseded_at_utc": "2026-07-16T22:02:54Z"
+}

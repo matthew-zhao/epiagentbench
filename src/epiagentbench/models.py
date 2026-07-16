@@ -78,6 +78,9 @@ class Oracle:
     followup_relevant_evidence_ids: frozenset[str] = field(
         default_factory=frozenset
     )
+    # Evaluator-only, aggregate replay data.  It is never serialized through the
+    # public investigation API and is omitted by ordinary score responses.
+    replay_trace: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

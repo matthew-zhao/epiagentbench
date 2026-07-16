@@ -9,9 +9,14 @@ import re
 from threading import RLock
 from typing import Any, Mapping
 
-from ..environment import InvestigationEnvironment
+from ..environment import (
+    BudgetExceededError,
+    DeadlineExceededError,
+    InvestigationEnvironment,
+)
 from ..hypotheses import normalize_hypothesis_catalog
-from ..models import EpisodeBundle
+from ..models import EpisodeBundle, LedgerEntry, Oracle
+from ..replay_trace import replay_trace_contract, validate_replay_trace
 from ..scoring import (
     canary_scan_tail_length,
     contains_canary_exposure,
@@ -71,13 +76,22 @@ _INSPECTION_SIGNAL_TYPES = {
     "reporting_system": "duplicate_report_lineages",
 }
 _FACILITY_ROLES = {"resident", "staff", "visitor"}
-_ADMIN_ONLY_METHODS = {"score", "audit_artifact", "shutdown"}
+_ADMIN_ONLY_METHODS = {
+    "score",
+    "score_with_replay",
+    "audit_artifact",
+    "shutdown",
+}
 _ORACLE_PROBE_METHODS = {
     "oracle",
     "get_oracle",
     "development_truth",
     "get_development_truth",
 }
+_REPLAY_CONTRACT = replay_trace_contract()
+_REPLAY_EVENT_TYPES = frozenset(_REPLAY_CONTRACT["event_types"])
+_REPLAY_ACTION_TYPES = frozenset(_REPLAY_CONTRACT["action_types"])
+_REPLAY_CONTROL_LEVELS = frozenset(_REPLAY_CONTRACT["control_levels"])
 _POLICY_ACTIONS = {
     "permitted": [
         "monitor",
@@ -127,6 +141,13 @@ class TrustedEpisodeController:
         self._artifact_global_tail = ""
         self._artifact_violation = False
         self._security_events: set[str] = set()
+        self._control_effective_minutes: dict[int, int | None] = {}
+        # Each item is either a trusted ledger sequence or an already-sanitized
+        # rejected call.  This preserves call order even when several attempts
+        # happen at the same simulated minute.
+        self._replay_event_timeline: list[
+            tuple[str, int | dict[str, Any]]
+        ] = []
         self._lock = RLock()
 
     def public_call(self, method: str, params: Mapping[str, Any]) -> Any:
@@ -144,29 +165,48 @@ class TrustedEpisodeController:
             if method in _ORACLE_PROBE_METHODS:
                 self._security_events.add("oracle_access:public_capability_probe")
                 raise PublicRequestRejected("request rejected")
-            if self._terminated:
-                raise PublicRequestRejected("request rejected")
-            if not isinstance(params, Mapping):
-                raise PublicRequestRejected("request rejected")
-
-            if method == "start":
-                _require_exact_params(params, set())
-                if self._started:
+            replayable = method in _REPLAY_EVENT_TYPES
+            ledger_count = len(self._environment.ledger)
+            try:
+                if self._terminated:
                     raise PublicRequestRejected("request rejected")
-                if self._start_result is None:
-                    self._start_result = {
-                        "manifest": self._environment.manifest,
-                        "observations": self._environment.initial_observations(),
-                    }
-                self._started = True
-                result: Any = deepcopy(self._start_result)
-            else:
-                if not self._started:
+                if not isinstance(params, Mapping):
                     raise PublicRequestRejected("request rejected")
-                result = self._dispatch_started(method, params)
 
-            _validate_public_result(method, result)
-            return _json_copy(result)
+                if method == "start":
+                    _require_exact_params(params, set())
+                    if self._started:
+                        raise PublicRequestRejected("request rejected")
+                    if self._start_result is None:
+                        self._start_result = {
+                            "manifest": self._environment.manifest,
+                            "observations": self._environment.initial_observations(),
+                        }
+                    self._started = True
+                    result: Any = deepcopy(self._start_result)
+                else:
+                    if not self._started:
+                        raise PublicRequestRejected("request rejected")
+                    result = self._dispatch_started(method, params)
+
+                _validate_public_result(method, result)
+                public_result = _json_copy(result)
+            except (
+                PublicRequestRejected,
+                BudgetExceededError,
+                DeadlineExceededError,
+            ):
+                if replayable:
+                    self._remember_replay_call(
+                        method, params, ledger_count, rejected=True
+                    )
+                raise
+
+            if replayable:
+                self._remember_replay_call(
+                    method, params, ledger_count, rejected=False
+                )
+            return public_result
 
     def score(
         self,
@@ -176,23 +216,211 @@ class TrustedEpisodeController:
         """Terminate the episode and score it on the private side."""
 
         with self._lock:
-            if self._terminated:
-                raise RuntimeError("Episode already terminated")
-            self._terminated = True
-            private_audit_events = list(audit_events)
-            private_audit_events.extend(sorted(self._security_events))
-            if self._artifact_violation:
-                private_audit_events.append("data_exfiltration:canary_exposure")
-            oracle = self._runtime.finalize()
-            scorecard = score_episode(
-                oracle=oracle,
-                manifest=self._environment.manifest,
-                ledger=self._environment.ledger,
-                seen_ids=self._environment.seen_ids,
-                submission=submission,
-                audit_events=tuple(private_audit_events),
+            _, scorecard = self._score_terminal(submission, audit_events)
+            return scorecard
+
+    def score_with_replay(
+        self,
+        submission: Mapping[str, Any],
+        audit_events: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        """Terminate and return score plus an aggregate trace on the admin side."""
+
+        with self._lock:
+            oracle, scorecard = self._score_terminal(submission, audit_events)
+            if not oracle.replay_trace:
+                raise RuntimeError("Replay is unavailable for this episode runtime")
+            replay_trace = validate_replay_trace(oracle.replay_trace)
+            self._assert_replay_endpoint(oracle, replay_trace)
+            replay_trace["agent_events"] = self._safe_replay_agent_events()
+            return {
+                "scorecard": scorecard,
+                "replay_trace": validate_replay_trace(
+                    replay_trace, require_complete_control_timeline=True
+                ),
+            }
+
+    def _score_terminal(
+        self,
+        submission: Mapping[str, Any],
+        audit_events: tuple[str, ...],
+    ) -> tuple[Oracle, dict[str, Any]]:
+        if self._terminated:
+            raise RuntimeError("Episode already terminated")
+        self._terminated = True
+        private_audit_events = list(audit_events)
+        private_audit_events.extend(sorted(self._security_events))
+        if self._artifact_violation:
+            private_audit_events.append("data_exfiltration:canary_exposure")
+        oracle = self._runtime.finalize()
+        scorecard = score_episode(
+            oracle=oracle,
+            manifest=self._environment.manifest,
+            ledger=self._environment.ledger,
+            seen_ids=self._environment.seen_ids,
+            submission=submission,
+            audit_events=tuple(private_audit_events),
+        )
+        return oracle, scorecard.as_dict()
+
+    def _safe_replay_agent_events(self) -> list[dict[str, Any]]:
+        """Project accepted and rejected calls into one finite safe timeline."""
+
+        ledger = {entry.sequence: entry for entry in self._environment.ledger}
+        seen_ledger_sequences: set[int] = set()
+        events: list[dict[str, Any]] = []
+        for replay_sequence, (source, payload) in enumerate(
+            self._replay_event_timeline, start=1
+        ):
+            if source == "ledger":
+                if type(payload) is not int or payload not in ledger:
+                    raise RuntimeError("Replay timeline refers to a missing ledger row")
+                if payload in seen_ledger_sequences:
+                    raise RuntimeError("Replay timeline repeats a ledger row")
+                seen_ledger_sequences.add(payload)
+                event = self._safe_ledger_replay_event(ledger[payload])
+            elif source == "rejected":
+                if not isinstance(payload, dict):
+                    raise RuntimeError("Replay timeline contains an invalid rejection")
+                event = dict(payload)
+            else:
+                raise RuntimeError("Replay timeline contains an invalid source")
+            event["sequence"] = replay_sequence
+            events.append(event)
+        if seen_ledger_sequences != set(ledger):
+            raise RuntimeError("Trusted ledger and replay timeline disagree")
+        return events
+
+    def _safe_ledger_replay_event(self, entry: LedgerEntry) -> dict[str, Any]:
+        action_type: str | None = None
+        level: str | None = None
+        effective_at_minute: int | None = None
+        if entry.tool == "set_institution_control":
+            action_type = "infection_control"
+            level = str(entry.arguments.get("level"))
+            effective_at_minute = self._control_effective_minutes.get(
+                entry.sequence
             )
-            return scorecard.as_dict()
+        elif entry.tool == "set_response_control":
+            action_type = str(entry.arguments.get("action_type"))
+            level = str(entry.arguments.get("level"))
+            effective_at_minute = self._control_effective_minutes.get(
+                entry.sequence
+            )
+        elif entry.tool == "recommend_action":
+            candidate = str(entry.arguments.get("action_type"))
+            action_type = (
+                candidate if candidate in _REPLAY_ACTION_TYPES else "other"
+            )
+        return {
+            "sequence": 0,
+            "minute": entry.simulated_minute,
+            "event_type": entry.tool,
+            "status": entry.status,
+            "records_returned": len(entry.result_ids),
+            "action_type": action_type,
+            "level": level,
+            "effective_at_minute": effective_at_minute,
+        }
+
+    def _remember_replay_call(
+        self,
+        method: str,
+        params: Any,
+        ledger_count: int,
+        *,
+        rejected: bool,
+    ) -> None:
+        """Record one replayable call without retaining rejected arguments."""
+
+        ledger = self._environment.ledger
+        new_entries = ledger[ledger_count:]
+        if new_entries:
+            if len(new_entries) != 1 or new_entries[0].tool != method:
+                raise RuntimeError("Public call and trusted ledger disagree")
+            self._replay_event_timeline.append(
+                ("ledger", new_entries[0].sequence)
+            )
+            return
+        if not rejected:
+            raise RuntimeError("Replayable public call did not enter the ledger")
+        self._replay_event_timeline.append(
+            ("rejected", self._safe_rejected_replay_event(method, params))
+        )
+
+    def _safe_rejected_replay_event(
+        self, method: str, params: Any
+    ) -> dict[str, Any]:
+        """Collapse arbitrary rejected arguments to finite replay sentinels."""
+
+        action_type: str | None = None
+        level: str | None = None
+        if method == "set_institution_control":
+            action_type = "infection_control"
+            candidate_level = _safe_mapping_value(params, "level")
+            level = (
+                candidate_level
+                if type(candidate_level) is str
+                and candidate_level in _REPLAY_CONTROL_LEVELS
+                else "other"
+            )
+        elif method == "set_response_control":
+            candidate_action = _safe_mapping_value(params, "action_type")
+            candidate_level = _safe_mapping_value(params, "level")
+            action_type = (
+                candidate_action
+                if type(candidate_action) is str
+                and candidate_action in _RESPONSE_CONTROL_TYPES
+                else "other"
+            )
+            level = (
+                candidate_level
+                if type(candidate_level) is str
+                and candidate_level in _REPLAY_CONTROL_LEVELS
+                else "other"
+            )
+        elif method == "recommend_action":
+            candidate_action = _safe_mapping_value(params, "action_type")
+            action_type = (
+                candidate_action
+                if type(candidate_action) is str
+                and candidate_action in _REPLAY_ACTION_TYPES
+                else "other"
+            )
+        return {
+            "sequence": 0,
+            "minute": self._environment.clock,
+            "event_type": method,
+            "status": "denied",
+            "records_returned": 0,
+            "action_type": action_type,
+            "level": level,
+            "effective_at_minute": None,
+        }
+
+    @staticmethod
+    def _assert_replay_endpoint(
+        oracle: Oracle, replay_trace: Mapping[str, Any]
+    ) -> None:
+        """Bind terminal replay counts to the oracle used by the scorer."""
+
+        endpoint = replay_trace["frames"][-1]
+        expected = {
+            "active_cumulative_infections": "realized_active_infections",
+            "active_reporting_artifacts": "realized_active_artifact_emissions",
+            "no_action_cumulative_infections": (
+                "counterfactual_no_action_infections"
+            ),
+            "no_action_reporting_artifacts": (
+                "counterfactual_no_action_artifact_emissions"
+            ),
+        }
+        if any(
+            metric not in oracle.counterfactual_metrics
+            or endpoint[frame_field] != oracle.counterfactual_metrics[metric]
+            for frame_field, metric in expected.items()
+        ):
+            raise RuntimeError("Replay endpoint disagrees with the scoring oracle")
 
     def audit_artifact(
         self, artifact_id: str, chunk: str, *, final: bool
@@ -299,23 +527,27 @@ class TrustedEpisodeController:
                 level, target_id, evidence_ids
             )
             if not plan.executable:
-                return self._environment.commit_institution_control(
+                result = self._environment.commit_institution_control(
                     plan,
                     status=plan.status,
                     intervention_id=None,
                     effective_at_minute=None,
                 )
+                self._remember_control_effect(result)
+                return result
             try:
                 receipt = self._runtime.apply_institution_control(
                     level, target_id, self._environment.clock
                 )
                 self._environment.register_observations(receipt.observations)
-                return self._environment.commit_institution_control(
+                result = self._environment.commit_institution_control(
                     plan,
                     status=receipt.status,
                     intervention_id=receipt.intervention_id,
                     effective_at_minute=receipt.effective_at_minute,
                 )
+                self._remember_control_effect(result)
+                return result
             except Exception:
                 self._terminated = True
                 self._runtime.close()
@@ -343,12 +575,14 @@ class TrustedEpisodeController:
                 action_type, level, target_id, evidence_ids
             )
             if not plan.executable:
-                return self._environment.commit_response_control(
+                result = self._environment.commit_response_control(
                     plan,
                     status=plan.status,
                     intervention_id=None,
                     effective_at_minute=None,
                 )
+                self._remember_control_effect(result)
+                return result
             try:
                 receipt = self._runtime.apply_response_control(
                     action_type, level, target_id, self._environment.clock
@@ -356,12 +590,14 @@ class TrustedEpisodeController:
                 if receipt.level != level:
                     raise ValueError("Invalid trusted response-control receipt")
                 self._environment.register_observations(receipt.observations)
-                return self._environment.commit_response_control(
+                result = self._environment.commit_response_control(
                     plan,
                     status=receipt.status,
                     intervention_id=receipt.intervention_id,
                     effective_at_minute=receipt.effective_at_minute,
                 )
+                self._remember_control_effect(result)
+                return result
             except Exception:
                 self._terminated = True
                 self._runtime.close()
@@ -406,6 +642,20 @@ class TrustedEpisodeController:
 
         raise PublicRequestRejected("request rejected")
 
+    def _remember_control_effect(self, result: Mapping[str, Any]) -> None:
+        """Bind the just-recorded control ledger row to its trusted receipt."""
+
+        ledger = self._environment.ledger
+        if not ledger or ledger[-1].tool not in {
+            "set_institution_control",
+            "set_response_control",
+        }:
+            raise RuntimeError("Control receipt has no matching trusted ledger row")
+        effective = result.get("effective_at_minute")
+        if effective is not None and (type(effective) is not int or effective < 0):
+            raise RuntimeError("Control receipt has an invalid effect minute")
+        self._control_effective_minutes[ledger[-1].sequence] = effective
+
     def close(self) -> None:
         """Release a retained simulator without exposing private state."""
 
@@ -417,6 +667,17 @@ class TrustedEpisodeController:
 def _require_exact_params(params: Mapping[str, Any], keys: set[str]) -> None:
     if set(params) != keys or any(not isinstance(key, str) for key in params):
         raise PublicRequestRejected("request rejected")
+
+
+def _safe_mapping_value(value: Any, key: str) -> Any:
+    """Read one candidate field without ever serializing the source mapping."""
+
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        return value.get(key)
+    except Exception:
+        return None
 
 
 def _is_identifier(value: Any) -> bool:

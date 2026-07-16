@@ -9,7 +9,7 @@ not be published as a leaderboard score.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 import json
@@ -126,6 +126,7 @@ class PilotRunResult:
     captured_stdout_sha256: str = ""
     captured_stderr_sha256: str = ""
     command_sha256: str = ""
+    replay_trace: dict[str, Any] = field(default_factory=dict)
 
 
 def _task_prompt() -> str:
@@ -1221,18 +1222,20 @@ def evaluate_local_cli_agent(
             accepted = submission if not any(
                 event.startswith("agent_failure:") for event in audit
             ) else {}
-            if not session.score_request_fits(
+            if not session.score_with_replay_request_fits(
                 accepted,
                 audit_events=audit,
                 agent_artifacts=(json.dumps(accepted),),
             ):
                 audit.append("agent_failure:oversize_submission")
                 accepted = {}
-            scorecard = session.score(
+            terminal = session.score_with_replay(
                 accepted,
                 audit_events=audit,
                 agent_artifacts=(json.dumps(accepted),),
             )
+            scorecard = terminal["scorecard"]
+            replay_trace = terminal["replay_trace"]
             return PilotRunResult(
                 system=system,
                 requested_model=requested_model,
@@ -1264,6 +1267,7 @@ def evaluate_local_cli_agent(
                         ).encode("ascii")
                     ).hexdigest()
                 ),
+                replay_trace=replay_trace,
             )
         finally:
             session.close()

@@ -39,6 +39,11 @@ from .development_pilot import (
     _utc_now,
 )
 from .pilot import PilotRunResult, _task_prompt, evaluate_local_cli_agent
+from .replay_trace import (
+    replay_trace_contract,
+    replay_trace_sha256,
+    validate_replay_trace,
+)
 from .trusted.cohort_freezer import (
     _RUNTIME_DISTRIBUTIONS,
     _distribution_identity,
@@ -49,9 +54,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v1"
+PANEL_ID = "development-matched-50x6-v2"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v2"
+SCHEMA_VERSION = "development_matched_panel_v3"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
@@ -132,6 +137,26 @@ _EXTRA_SEQUENCES = (
 _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
+_COHORT_RETIREMENT_DOMAIN = (
+    b"EpiAgentBench authenticated terminal cohort retirement v1\x00"
+)
+_COHORT_RETIREMENT_SCHEMA = "epiagentbench.cohort_retirement.v1"
+_COHORT_RETIREMENT_FILE = ".epiagentbench-cohort-retired.json"
+_COHORT_RETIREMENT_KEYS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "cohort_id",
+        "panel_id",
+        "pack_set_commitment",
+        "public_precommitment_sha256",
+        "terminal_results_sha256",
+        "terminal_trace_results_sha256",
+        "terminal_status",
+        "terminal_assignments",
+        "retired_at_utc",
+    }
+)
 _MAX_PANEL_JSON_BYTES = 64 * 1024 * 1024
 _EXPECTED_RECEIPT_IDENTITIES = {
     "claude-opus-high": "claudeopus48",
@@ -356,6 +381,199 @@ def _load_private_state(path: Path, key: bytes) -> dict[str, Any]:
     ):
         raise ValueError("Private matched-panel state authentication failed")
     return sealed
+
+
+def _cohort_retirement_path(cohort_manifest_path: Path) -> Path:
+    return cohort_manifest_path.parent / _COHORT_RETIREMENT_FILE
+
+
+def _cohort_retirement_tag(value: Mapping[str, Any], key: bytes) -> str:
+    return hmac.new(
+        key,
+        _COHORT_RETIREMENT_DOMAIN + _canonical_bytes(value),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _load_cohort_retirement_marker(path: Path, key: bytes) -> dict[str, Any]:
+    """Load one owner-only retirement record and verify its closed HMAC schema."""
+
+    sealed = _load_json(path, private=True)
+    authentication = sealed.pop("authentication", None)
+    supplied = (
+        authentication.get("tag") if isinstance(authentication, dict) else None
+    )
+    expected = _cohort_retirement_tag(sealed, key)
+    if (
+        set(sealed) != _COHORT_RETIREMENT_KEYS
+        or not isinstance(authentication, dict)
+        or set(authentication) != {"algorithm", "tag"}
+        or authentication.get("algorithm") != "hmac-sha256"
+        or not isinstance(supplied, str)
+        or not hmac.compare_digest(supplied, expected)
+        or sealed.get("schema_version") != _COHORT_RETIREMENT_SCHEMA
+        or sealed.get("status") != "retired_terminal_trace_release"
+    ):
+        raise ValueError("Cohort retirement marker authentication failed")
+    return sealed
+
+
+def _cohort_retirement_if_present(
+    cohort_manifest_path: Path, key: bytes
+) -> dict[str, Any] | None:
+    path = _cohort_retirement_path(cohort_manifest_path)
+    if not path.exists() and not path.is_symlink():
+        return None
+    return _load_cohort_retirement_marker(path, key)
+
+
+def _create_private_json_once(path: Path, value: Any) -> bool:
+    """Atomically create, but never replace, one owner-only JSON record."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    parent_metadata = path.parent.lstat()
+    if not stat.S_ISDIR(parent_metadata.st_mode) or path.parent.is_symlink():
+        raise ValueError("Retirement marker parent must be a real directory")
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    if not 0 < len(payload) <= _MAX_PANEL_JSON_BYTES:
+        raise ValueError("Retirement marker exceeds the size limit")
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(16)}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor: int | None = None
+    created_temporary = False
+    try:
+        descriptor = os.open(temporary, flags, 0o600)
+        created_temporary = True
+        with os.fdopen(descriptor, "wb", closefd=True) as stream:
+            descriptor = None
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            # A same-directory hard link is an atomic no-replace publication.
+            # If any marker already exists, including a symlink or malformed
+            # file, retain it for authentication checks rather than clobber it.
+            os.link(temporary, path, follow_symlinks=False)
+        except FileExistsError:
+            return False
+        os.chmod(path, 0o600)
+        _fsync_directory(path.parent)
+        return True
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if created_temporary:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+
+
+def _assert_retirement_matches_panel(
+    marker: Mapping[str, Any],
+    *,
+    manifest: PrivateEpisodeCohortManifest,
+    public_manifest: Mapping[str, Any],
+) -> None:
+    if (
+        marker.get("cohort_id") != manifest.cohort_id
+        or marker.get("panel_id") != PANEL_ID
+        or marker.get("pack_set_commitment") != manifest.pack_set_commitment
+        or marker.get("public_precommitment_sha256")
+        != public_manifest.get("precommitment_sha256")
+    ):
+        raise ValueError("Cohort retirement marker belongs to another panel")
+
+
+def _terminal_trace_results_hash(artifact: Mapping[str, Any]) -> str:
+    results = artifact.get("results")
+    if not isinstance(results, list):
+        raise ValueError("Terminal artifact has no replay result matrix")
+    projection = []
+    for result in results:
+        if not isinstance(result, Mapping):
+            raise ValueError("Terminal artifact has an invalid replay result")
+        projection.append(
+            {
+                "episode_ref": result.get("episode_ref"),
+                "profile_id": result.get("profile_id"),
+                "trace_status": result.get("trace_status"),
+                "replay_trace_sha256": result.get("replay_trace_sha256"),
+            }
+        )
+    return _component_hash(projection)
+
+
+def _terminal_cohort_retirement(
+    *,
+    manifest: PrivateEpisodeCohortManifest,
+    public_manifest: Mapping[str, Any],
+    artifact: Mapping[str, Any],
+) -> dict[str, Any]:
+    results_sha256 = artifact.get("results_sha256")
+    terminal_assignments = artifact.get("terminal_assignments")
+    terminal_status = artifact.get("status")
+    retired_at_utc = artifact.get("completed_at_utc")
+    if (
+        not isinstance(results_sha256, str)
+        or not results_sha256.startswith("sha256:")
+        or type(terminal_assignments) is not int
+        or terminal_assignments != ASSIGNMENT_COUNT
+        or terminal_status not in {"complete", "complete_with_transport_voids"}
+        or not isinstance(retired_at_utc, str)
+        or not retired_at_utc
+    ):
+        raise ValueError("Terminal artifact cannot retire its frozen cohort")
+    return {
+        "schema_version": _COHORT_RETIREMENT_SCHEMA,
+        "status": "retired_terminal_trace_release",
+        "cohort_id": manifest.cohort_id,
+        "panel_id": PANEL_ID,
+        "pack_set_commitment": manifest.pack_set_commitment,
+        "public_precommitment_sha256": public_manifest["precommitment_sha256"],
+        "terminal_results_sha256": results_sha256,
+        "terminal_trace_results_sha256": _terminal_trace_results_hash(artifact),
+        "terminal_status": terminal_status,
+        "terminal_assignments": terminal_assignments,
+        "retired_at_utc": retired_at_utc,
+    }
+
+
+def _ensure_terminal_cohort_retirement(
+    *,
+    cohort_manifest_path: Path,
+    manifest: PrivateEpisodeCohortManifest,
+    public_manifest: Mapping[str, Any],
+    artifact: Mapping[str, Any],
+    authentication_key: bytes,
+) -> dict[str, Any]:
+    """Create or verify the retirement barrier before public trace release."""
+
+    expected = _terminal_cohort_retirement(
+        manifest=manifest,
+        public_manifest=public_manifest,
+        artifact=artifact,
+    )
+    path = _cohort_retirement_path(cohort_manifest_path)
+    existing = _cohort_retirement_if_present(
+        cohort_manifest_path, authentication_key
+    )
+    if existing is None:
+        sealed = {
+            **expected,
+            "authentication": {
+                "algorithm": "hmac-sha256",
+                "tag": _cohort_retirement_tag(expected, authentication_key),
+            },
+        }
+        _create_private_json_once(path, sealed)
+        existing = _load_cohort_retirement_marker(path, authentication_key)
+    if existing != expected:
+        raise ValueError("Cohort retirement marker differs from terminal results")
+    return existing
 
 
 def _assert_distinct_paths(*paths: Path) -> None:
@@ -609,6 +827,8 @@ def _load_frozen_cohort(
     if incomplete_marker.exists() or incomplete_marker.is_symlink():
         raise ValueError("Frozen cohort retains its incomplete marker")
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
+    if _cohort_retirement_if_present(manifest_path, authentication_key) is not None:
+        raise ValueError("Frozen cohort is retired and cannot be prepared again")
     if manifest.cohort_id != COHORT_ID:
         raise ValueError("Frozen cohort identifier does not match the panel")
     if len(manifest.episodes) != EPISODE_COUNT or [
@@ -703,6 +923,7 @@ def prepare_panel(
     }
     timeouts = {"seconds_per_assignment": timeout_seconds}
     runtime = _runtime_contract()
+    replay = replay_trace_contract()
     public: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "panel_id": PANEL_ID,
@@ -734,6 +955,7 @@ def prepare_panel(
         "cli_contract": cli,
         "source_contract": source,
         "runtime_contract": runtime,
+        "replay_trace_contract": replay,
         "budget_contract": budgets,
         "timeout_contract": timeouts,
         "contract_hashes": {
@@ -743,6 +965,7 @@ def prepare_panel(
             "budgets_sha256": _component_hash(budgets),
             "timeouts_sha256": _component_hash(timeouts),
             "runtime_sha256": _component_hash(runtime),
+            "replay_sha256": _component_hash(replay),
         },
         "private_schedule_commitment": _schedule_commitment(schedule, nonce),
         "private_family_map_commitment": _family_map_commitment(episodes, nonce),
@@ -768,6 +991,14 @@ def prepare_panel(
             ),
             "partial_public_results": False,
             "environment_preflight_required_before_production_launch": True,
+            "replay_trace_release": {
+                "capture": "evaluator_generated_aggregate_only",
+                "partial_publication": False,
+                "release": "terminal_retired_panel_only",
+                "frame_interval_minutes": replay["frame_interval_minutes"],
+                "matched_no_action_twin_equality_required": True,
+                "scored_endpoint_equality_required": True,
+            },
             "primary_estimand": "fixed 50-episode mean per profile only with zero transport voids",
             "bootstrap": {
                 "method": "deterministic family-stratified percentile",
@@ -818,6 +1049,7 @@ def prepare_panel(
                 "cli_sha256": public["contract_hashes"]["cli_sha256"],
                 "profiles_sha256": public["contract_hashes"]["profiles_sha256"],
                 "runtime_sha256": public["contract_hashes"]["runtime_sha256"],
+                "replay_sha256": public["contract_hashes"]["replay_sha256"],
             },
         },
         "assignments": [],
@@ -860,6 +1092,7 @@ def _validate_contracts(
         "source_contract": _source_contract(root),
         "cli_contract": _cli_contract(),
         "runtime_contract": _runtime_contract(),
+        "replay_trace_contract": replay_trace_contract(),
         "profiles": _profile_contract(),
     }
     for name, expected in expected_contracts.items():
@@ -875,6 +1108,7 @@ def _validate_contracts(
             ("budgets_sha256", public["budget_contract"]),
             ("timeouts_sha256", public["timeout_contract"]),
             ("runtime_sha256", public["runtime_contract"]),
+            ("replay_sha256", public["replay_trace_contract"]),
         )
     ):
         raise ValueError("Matched-panel component commitment mismatch")
@@ -895,6 +1129,17 @@ def _validate_contracts(
         str(private.get("cohort_manifest_path"))
     )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
+    retirement = _cohort_retirement_if_present(
+        manifest_path, authentication_key
+    )
+    if retirement is not None:
+        if private.get("status") != "complete":
+            raise ValueError("Frozen cohort was retired before this panel completed")
+        _assert_retirement_matches_panel(
+            retirement,
+            manifest=manifest,
+            public_manifest=public,
+        )
     if (
         manifest.cohort_id != COHORT_ID
         or manifest.generator_fingerprint != installed
@@ -980,6 +1225,7 @@ def _assert_environment_preflight(
             "cli_sha256",
             "profiles_sha256",
             "runtime_sha256",
+            "replay_sha256",
         )
     }
     if (
@@ -1066,6 +1312,7 @@ def run_environment_preflight(
                 "cli_sha256",
                 "profiles_sha256",
                 "runtime_sha256",
+                "replay_sha256",
             )
         }
         cli_versions = {
@@ -1119,6 +1366,12 @@ def run_environment_preflight(
                     profile, result.observed_models
                 )
                 metrics = result.scorecard.get("metrics", {})
+                try:
+                    validate_replay_trace(result.replay_trace)
+                except (TypeError, ValueError) as error:
+                    raise RuntimeError(
+                        "Disposable provider preflight replay contract failed"
+                    ) from error
                 if (
                     result.system != profile["system"]
                     or result.requested_model != profile["requested_model"]
@@ -1155,6 +1408,7 @@ def run_environment_preflight(
                             receipt_ok if receipt_required else None
                         ),
                         "raw_result_sha256": raw_hash,
+                        "replay_trace_validated": True,
                         "scored": False,
                     }
                 )
@@ -1224,6 +1478,7 @@ def _preflight_execution(
     private_state_path: Path,
     public_manifest_path: Path,
     public_results_path: Path,
+    allowed_private_artifact_paths: Sequence[Path] = (),
 ) -> None:
     public_relative = _relative_to_root(public_manifest_path, root)
     private_relative = _relative_to_root(private_state_path, root)
@@ -1234,11 +1489,32 @@ def _preflight_execution(
         raise RuntimeError("Private matched-panel state must never be tracked")
     if os.stat(private_state_path).st_mode & 0o077:
         raise RuntimeError("Private matched-panel state permissions are too broad")
-    expected_dirty = f"?? {results_relative}" if public_results_path.exists() else ""
+    expected_dirty = (
+        {f"?? {results_relative}"} if public_results_path.exists() else set()
+    )
+    for artifact_path in allowed_private_artifact_paths:
+        if not artifact_path.exists() and not artifact_path.is_symlink():
+            continue
+        metadata = artifact_path.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_mode & 0o077
+        ):
+            raise RuntimeError("Authenticated private run artifact is unsafe")
+        try:
+            artifact_relative = _relative_to_root(artifact_path, root)
+        except ValueError:
+            # An external private cohort cannot appear in this repository's
+            # status output, but its marker still must be a safe owner-only file.
+            continue
+        if _git_output(root, "ls-files", artifact_relative):
+            raise RuntimeError("Authenticated private run artifact is unsafe")
+        expected_dirty.add(f"?? {artifact_relative}")
     observed_dirty = _git_output(
         root, "status", "--porcelain", "--untracked-files=all"
     )
-    if observed_dirty != expected_dirty:
+    observed_lines = {line for line in observed_dirty.splitlines() if line}
+    if observed_lines != expected_dirty:
         raise RuntimeError("Matched-panel execution worktree is not clean")
 
 
@@ -1520,17 +1796,71 @@ def verify_revealed_commitments(
         raise ValueError("Revealed family map does not match its precommitment")
 
 
+def _terminal_replay_payload(
+    assignment: Mapping[str, Any], episode: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Validate and bind a private trace for a terminal, not-yet-public artifact."""
+
+    raw_result = assignment.get("raw_result")
+    if not isinstance(raw_result, Mapping):
+        raise ValueError("Completed assignment has no authenticated raw result")
+    trace = validate_replay_trace(raw_result.get("replay_trace"))
+    episode_ref = str(assignment["episode_ref"])
+    profile_id = str(assignment["profile_id"])
+    pack_commitment = str(episode["pack_commitment"])
+    return {
+        "trace_status": "recorded",
+        "replay_trace": trace,
+        "replay_trace_sha256": replay_trace_sha256(
+            trace,
+            episode_ref=episode_ref,
+            profile_id=profile_id,
+            pack_commitment=pack_commitment,
+        ),
+    }
+
+
+def _no_action_projection(
+    trace: Mapping[str, Any],
+) -> tuple[tuple[int, int, int, int], ...]:
+    return tuple(
+        (
+            int(frame["minute"]),
+            int(frame["no_action_currently_infected"]),
+            int(frame["no_action_cumulative_infections"]),
+            int(frame["no_action_reporting_artifacts"]),
+        )
+        for frame in trace["frames"]
+    )
+
+
 def _complete_artifact(
     public_manifest: Mapping[str, Any], private: Mapping[str, Any]
 ) -> dict[str, Any]:
     episodes = {str(item["episode_ref"]): item for item in private["episodes"]}
     results: list[dict[str, Any]] = []
+    no_action_by_episode: dict[
+        str, tuple[tuple[int, int, int, int], ...]
+    ] = {}
+    recorded_by_episode: Counter[str] = Counter()
     voids = 0
     for assignment in private["assignments"]:
         episode = episodes[str(assignment["episode_ref"])]
         if assignment["status"] == "complete":
             result = dict(assignment["public_result"])
             result["family"] = episode["family"]
+            replay = _terminal_replay_payload(assignment, episode)
+            result.update(replay)
+            episode_ref = str(assignment["episode_ref"])
+            projection = _no_action_projection(replay["replay_trace"])
+            prior = no_action_by_episode.setdefault(episode_ref, projection)
+            if not hmac.compare_digest(
+                _component_hash(prior), _component_hash(projection)
+            ):
+                raise ValueError(
+                    "Matched profiles disagree on the no-action replay twin"
+                )
+            recorded_by_episode[episode_ref] += 1
         else:
             voids += 1
             result = {
@@ -1539,8 +1869,14 @@ def _complete_artifact(
                 "family": episode["family"],
                 "status": "transport_void",
                 "reason": assignment.get("void_reason", "transport_unavailable"),
+                "trace_status": "unavailable_transport_void",
             }
         results.append(result)
+    if voids == 0 and (
+        set(recorded_by_episode) != set(episodes)
+        or set(recorded_by_episode.values()) != {len(PROFILES)}
+    ):
+        raise ValueError("Complete panel is missing matched replay traces")
     summary = (
         aggregate_complete_results(results)
         if voids == 0
@@ -1584,7 +1920,7 @@ def _complete_artifact(
         "commitment_reveal": {
             "schedule_nonce_hex": private["schedule_nonce_hex"],
         },
-        "panel_retired_after_publication": True,
+        "cohort_retired_before_trace_publication": True,
     }
     verify_revealed_commitments(public_manifest, artifact)
     artifact["results_sha256"] = _component_hash(artifact)
@@ -1621,12 +1957,18 @@ def _run_panel_locked(
         public=public_manifest,
         authentication_key=authentication_key,
     )
+    cohort_manifest_path = _existing_path_without_final_symlink(
+        str(private["cohort_manifest_path"])
+    )
     _assert_environment_preflight(root, private, public_manifest)
     _preflight_execution(
         root=root,
         private_state_path=private_state_path,
         public_manifest_path=public_manifest_path,
         public_results_path=public_results_path,
+        allowed_private_artifact_paths=(
+            _cohort_retirement_path(cohort_manifest_path),
+        ),
     )
     _git_output(
         root,
@@ -1658,6 +2000,13 @@ def _run_panel_locked(
             )
     if private.get("status") == "complete":
         expected = _complete_artifact(public_manifest, private)
+        _ensure_terminal_cohort_retirement(
+            cohort_manifest_path=cohort_manifest_path,
+            manifest=manifest,
+            public_manifest=public_manifest,
+            artifact=expected,
+            authentication_key=authentication_key,
+        )
         if existing is not None and existing.get("status", "").startswith("complete"):
             if existing != expected:
                 raise ValueError("Completed public artifact differs from private state")
@@ -1768,6 +2117,13 @@ def _run_panel_locked(
     private["panel_completed_at_utc"] = _utc_now()
     _write_private_state(private_state_path, private, authentication_key)
     artifact = _complete_artifact(public_manifest, private)
+    _ensure_terminal_cohort_retirement(
+        cohort_manifest_path=cohort_manifest_path,
+        manifest=manifest,
+        public_manifest=public_manifest,
+        artifact=artifact,
+        authentication_key=authentication_key,
+    )
     _atomic_json(public_results_path, artifact)
     return artifact
 

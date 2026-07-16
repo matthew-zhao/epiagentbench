@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; media-src 'none'; worker-src 'none'; connect-src 'none'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; media-src 'none'; worker-src 'none'; connect-src 'none'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Outbreak Intervention Replay</title>
 <style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;max-width:736px;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
 </head>
@@ -765,12 +765,6 @@ html&gt;body{padding:0}&lt;/style&gt;
       width: 100%;
       height: auto;
     }
-    #epi-outbreak-replay .zone {
-      fill: var(--muted);
-      stroke: var(--border);
-      stroke-width: 1;
-    }
-    #epi-outbreak-replay .zone-label,
     #epi-outbreak-replay .scene-label,
     #epi-outbreak-replay .outcome-label {
       fill: var(--foreground);
@@ -780,40 +774,6 @@ html&gt;body{padding:0}&lt;/style&gt;
     #epi-outbreak-replay .outcome-note {
       fill: var(--muted-foreground);
       font-family: inherit;
-    }
-    #epi-outbreak-replay .person {
-      fill: var(--secondary);
-      stroke: var(--secondary-foreground);
-      stroke-width: 1.2;
-    }
-    #epi-outbreak-replay .infection {
-      fill: var(--viz-series-1);
-      stroke: var(--background);
-      stroke-width: 1.5;
-    }
-    #epi-outbreak-replay .record {
-      fill: var(--viz-series-2);
-      stroke: var(--background);
-      stroke-width: 1.2;
-    }
-    #epi-outbreak-replay .spread-link {
-      fill: none;
-      stroke: var(--viz-series-1);
-      stroke-width: 2;
-      stroke-dasharray: 4 5;
-      opacity: 0.7;
-    }
-    #epi-outbreak-replay .report-link {
-      fill: none;
-      stroke: var(--viz-series-2);
-      stroke-width: 1.5;
-      stroke-dasharray: 2 4;
-      opacity: 0.75;
-    }
-    #epi-outbreak-replay .control-link {
-      fill: none;
-      stroke: var(--viz-series-3);
-      stroke-width: 3;
     }
     #epi-outbreak-replay .no-action-bar {
       fill: var(--muted);
@@ -826,8 +786,63 @@ html&gt;body{padding:0}&lt;/style&gt;
       stroke: var(--background);
       stroke-width: 2;
     }
-    #epi-outbreak-replay .moving-infection {
-      transition: transform 560ms ease;
+    #epi-outbreak-replay .trace-axis,
+    #epi-outbreak-replay .trace-grid {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 1;
+    }
+    #epi-outbreak-replay .trace-grid {
+      opacity: 0.72;
+    }
+    #epi-outbreak-replay .active-path,
+    #epi-outbreak-replay .no-action-path {
+      fill: none;
+      stroke-width: 2.5;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+    #epi-outbreak-replay .active-path {
+      stroke: var(--viz-series-3);
+    }
+    #epi-outbreak-replay .no-action-path {
+      stroke: var(--muted-foreground);
+      stroke-dasharray: 6 5;
+    }
+    #epi-outbreak-replay .active-dot {
+      fill: var(--viz-series-3);
+      stroke: var(--background);
+      stroke-width: 1.5;
+    }
+    #epi-outbreak-replay .no-action-dot {
+      fill: var(--background);
+      stroke: var(--muted-foreground);
+      stroke-width: 2;
+    }
+    #epi-outbreak-replay .control-request {
+      fill: var(--viz-series-2);
+      stroke: var(--background);
+      stroke-width: 1.5;
+    }
+    #epi-outbreak-replay .trace-event {
+      fill: var(--muted-foreground);
+      stroke: var(--background);
+      stroke-width: 1;
+    }
+    #epi-outbreak-replay .control-effective {
+      fill: var(--viz-series-5);
+      stroke: var(--background);
+      stroke-width: 1.5;
+    }
+    #epi-outbreak-replay .control-connector {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 1;
+    }
+    #epi-outbreak-replay .legacy-note {
+      fill: var(--foreground);
+      font-family: inherit;
+      font-weight: 500;
     }
     #epi-outbreak-replay .model-grid {
       margin-top: 10px;
@@ -868,6 +883,23 @@ html&gt;body{padding:0}&lt;/style&gt;
       width: 18px;
       border-top: 2px dashed var(--viz-series-1);
     }
+    #epi-outbreak-replay .legend-line.active {
+      border-top-color: var(--viz-series-3);
+      border-top-style: solid;
+    }
+    #epi-outbreak-replay .legend-line.no-action {
+      border-top-color: var(--muted-foreground);
+    }
+    #epi-outbreak-replay .legend-circle.event {
+      background: var(--muted-foreground);
+    }
+    #epi-outbreak-replay .legend-circle.request {
+      background: var(--viz-series-2);
+    }
+    #epi-outbreak-replay .legend-square.effective {
+      background: var(--viz-series-5);
+      transform: rotate(45deg);
+    }
     #epi-outbreak-replay .comparison-table {
       width: 100%;
       border-collapse: collapse;
@@ -883,11 +915,6 @@ html&gt;body{padding:0}&lt;/style&gt;
     #epi-outbreak-replay .comparison-table th:last-child,
     #epi-outbreak-replay .comparison-table td:last-child {
       text-align: right;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #epi-outbreak-replay .moving-infection {
-        transition: none;
-      }
     }
     @media (max-width: 560px) {
       #epi-outbreak-replay .comparison-table .optional-column {
@@ -906,30 +933,25 @@ html&gt;body{padding:0}&lt;/style&gt;
         &lt;option value=&quot;reporting_artifact&quot;&gt;Reporting artifact&lt;/option&gt;
       &lt;/select&gt;
     &lt;/label&gt;
-    &lt;label class=&quot;form-label&quot; for=&quot;epi-model&quot;&gt;Agent + model
-      &lt;select class=&quot;form-select&quot; id=&quot;epi-model&quot;&gt;
-        &lt;option value=&quot;codex-sol&quot;&gt;Codex + Sol&lt;/option&gt;
-        &lt;option value=&quot;codex-luna-medium&quot;&gt;Codex + Luna&lt;/option&gt;
-        &lt;option value=&quot;claude-opus-high&quot;&gt;Claude + Opus&lt;/option&gt;
-        &lt;option value=&quot;claude-sonnet-high&quot;&gt;Claude + Sonnet&lt;/option&gt;
-        &lt;option value=&quot;cursor-grok-high&quot;&gt;Cursor + Grok&lt;/option&gt;
-        &lt;option value=&quot;cursor-kimi-k27-code&quot;&gt;Cursor + Kimi&lt;/option&gt;
-      &lt;/select&gt;
+    &lt;label class=&quot;form-label&quot; for=&quot;epi-cohort&quot;&gt;Cohort
+      &lt;select class=&quot;form-select&quot; id=&quot;epi-cohort&quot;&gt;&lt;/select&gt;
     &lt;/label&gt;
-    &lt;button class=&quot;btn btn-primary&quot; type=&quot;button&quot; id=&quot;epi-play&quot;&gt;Play&lt;/button&gt;
-    &lt;label class=&quot;form-label stage-control&quot; for=&quot;epi-stage&quot;&gt;Stage: &lt;span id=&quot;epi-stage-name&quot;&gt;Emergence&lt;/span&gt;
-      &lt;input class=&quot;form-range&quot; id=&quot;epi-stage&quot; type=&quot;range&quot; min=&quot;0&quot; max=&quot;4&quot; step=&quot;1&quot; value=&quot;0&quot;&gt;
+    &lt;label class=&quot;form-label&quot; for=&quot;epi-episode&quot;&gt;Episode
+      &lt;select class=&quot;form-select&quot; id=&quot;epi-episode&quot;&gt;&lt;/select&gt;
+    &lt;/label&gt;
+    &lt;label class=&quot;form-label&quot; for=&quot;epi-model&quot;&gt;Agent + model
+      &lt;select class=&quot;form-select&quot; id=&quot;epi-model&quot;&gt;&lt;/select&gt;
+    &lt;/label&gt;
+    &lt;button class=&quot;btn btn-primary&quot; type=&quot;button&quot; id=&quot;epi-play&quot; disabled&gt;No trace&lt;/button&gt;
+    &lt;label class=&quot;form-label stage-control&quot; for=&quot;epi-stage&quot;&gt;Replay time: &lt;span id=&quot;epi-stage-name&quot;&gt;Endpoint only&lt;/span&gt;
+      &lt;input class=&quot;form-range&quot; id=&quot;epi-stage&quot; type=&quot;range&quot; min=&quot;0&quot; max=&quot;0&quot; step=&quot;360&quot; value=&quot;0&quot; disabled&gt;
     &lt;/label&gt;
   &lt;/div&gt;
 
-  &lt;div class=&quot;legend text-small&quot; aria-label=&quot;Visual legend&quot;&gt;
-    &lt;span class=&quot;legend-item&quot;&gt;&lt;span class=&quot;legend-circle&quot;&gt;&lt;/span&gt;Schematic infection marker—not a count&lt;/span&gt;
-    &lt;span class=&quot;legend-item&quot;&gt;&lt;span class=&quot;legend-square&quot;&gt;&lt;/span&gt;Surveillance record&lt;/span&gt;
-    &lt;span class=&quot;legend-item&quot;&gt;&lt;span class=&quot;legend-line&quot;&gt;&lt;/span&gt;Illustrative transmission&lt;/span&gt;
-  &lt;/div&gt;
+  &lt;div class=&quot;legend text-small&quot; id=&quot;epi-legend&quot; aria-label=&quot;Visual legend&quot;&gt;&lt;/div&gt;
 
   &lt;div class=&quot;card&quot;&gt;
-    &lt;svg class=&quot;scene&quot; id=&quot;epi-scene&quot; viewBox=&quot;0 0 760 340&quot; role=&quot;img&quot; aria-label=&quot;Paused schematic of a restaurant point-source episode at emergence&quot;&gt;&lt;/svg&gt;
+    &lt;svg class=&quot;scene&quot; id=&quot;epi-scene&quot; viewBox=&quot;0 0 760 340&quot; role=&quot;img&quot; aria-label=&quot;Endpoint-only result; no recorded chronology is available&quot;&gt;&lt;/svg&gt;
   &lt;/div&gt;
 
   &lt;div class=&quot;viz-grid&quot; aria-live=&quot;polite&quot;&gt;
@@ -947,7 +969,7 @@ html&gt;body{padding:0}&lt;/style&gt;
     &lt;/section&gt;
   &lt;/div&gt;
 
-  &lt;p class=&quot;text-small&quot;&gt;&lt;strong&gt;Two-cohort comparison:&lt;/strong&gt; the six rows below combine separate retired pilots. Use them to inspect behavior, not as a paired six-way ranking.&lt;/p&gt;
+  &lt;p class=&quot;text-small&quot;&gt;&lt;strong&gt;Paired comparison only:&lt;/strong&gt; rows below are restricted to the selected cohort and episode. The two retired pilots are never treated as one six-way comparison.&lt;/p&gt;
   &lt;div class=&quot;viz-grid model-grid&quot; id=&quot;epi-model-grid&quot; aria-label=&quot;Select a model result&quot;&gt;&lt;/div&gt;
 
   &lt;table class=&quot;comparison-table text-small&quot;&gt;
@@ -955,13 +977,15 @@ html&gt;body{padding:0}&lt;/style&gt;
     &lt;tbody id=&quot;epi-comparison&quot;&gt;&lt;/tbody&gt;
   &lt;/table&gt;
 
-  &lt;p class=&quot;text-small text-muted&quot;&gt;Synthetic benchmark replay from two retired five-episode pilots. Positions and transmission choreography are illustrative; displayed endpoints are recorded simulator outputs. The two pilot cohorts are different and their scores are not a paired six-way ranking. Control chronology was not retained, so the replay shows endpoint state changes—not an invented action sequence. Intervention effects and burden weights are benchmark assumptions, not estimates of real-world effectiveness.&lt;/p&gt;
+  &lt;p class=&quot;text-small text-muted&quot;&gt;The retired pilot rows retain aggregate endpoints only, so playback is disabled and no disease or action chronology is invented. Future trace-enabled rows replay evaluator-recorded 360-minute frames, active and no-action simulator counts, and agent control events. The two pilot cohorts are different and are never shown as a paired six-way ranking. Intervention effects and burden weights are benchmark assumptions, not estimates of real-world effectiveness.&lt;/p&gt;
   &lt;p class=&quot;sr-only&quot; id=&quot;epi-accessible-summary&quot; aria-live=&quot;polite&quot;&gt;&lt;/p&gt;
 
   &lt;script&gt;
     (() =&gt; {
       const root = document.getElementById(&#x27;epi-outbreak-replay&#x27;);
       const familySelect = root.querySelector(&#x27;#epi-family&#x27;);
+      const cohortSelect = root.querySelector(&#x27;#epi-cohort&#x27;);
+      const episodeSelect = root.querySelector(&#x27;#epi-episode&#x27;);
       const modelSelect = root.querySelector(&#x27;#epi-model&#x27;);
       const stageInput = root.querySelector(&#x27;#epi-stage&#x27;);
       const stageName = root.querySelector(&#x27;#epi-stage-name&#x27;);
@@ -970,31 +994,30 @@ html&gt;body{padding:0}&lt;/style&gt;
       const assessment = root.querySelector(&#x27;#epi-assessment&#x27;);
       const response = root.querySelector(&#x27;#epi-response&#x27;);
       const outcome = root.querySelector(&#x27;#epi-outcome&#x27;);
+      const legend = root.querySelector(&#x27;#epi-legend&#x27;);
       const modelGrid = root.querySelector(&#x27;#epi-model-grid&#x27;);
       const comparison = root.querySelector(&#x27;#epi-comparison&#x27;);
       const accessibleSummary = root.querySelector(&#x27;#epi-accessible-summary&#x27;);
       const ns = &#x27;http://www.w3.org/2000/svg&#x27;;
       const reducedMotion = window.matchMedia(&#x27;(prefers-reduced-motion: reduce)&#x27;).matches;
-      const stages = [&#x27;Emergence&#x27;, &#x27;Spread&#x27;, &#x27;Surveillance alert&#x27;, &#x27;Agent response&#x27;, &#x27;Counterfactual outcome&#x27;];
-
       const profiles = {
-        &#x27;codex-sol&#x27;: { label: &#x27;Codex + Sol&#x27;, cohort: &#x27;earlier pilot&#x27; },
-        &#x27;codex-luna-medium&#x27;: { label: &#x27;Codex + Luna&#x27;, cohort: &#x27;new-model pilot&#x27; },
-        &#x27;claude-opus-high&#x27;: { label: &#x27;Claude + Opus&#x27;, cohort: &#x27;earlier pilot&#x27; },
-        &#x27;claude-sonnet-high&#x27;: { label: &#x27;Claude + Sonnet&#x27;, cohort: &#x27;new-model pilot&#x27; },
-        &#x27;cursor-grok-high&#x27;: { label: &#x27;Cursor + Grok&#x27;, cohort: &#x27;earlier pilot&#x27; },
-        &#x27;cursor-kimi-k27-code&#x27;: { label: &#x27;Cursor + Kimi&#x27;, cohort: &#x27;new-model pilot&#x27; }
+        &#x27;codex-sol&#x27;: { label: &#x27;Codex + Sol&#x27;, cohort: &#x27;earlier pilot&#x27;, cohortId: &#x27;development-paired-pilot-v3-2026-07-15&#x27; },
+        &#x27;codex-luna-medium&#x27;: { label: &#x27;Codex + Luna&#x27;, cohort: &#x27;new-model pilot&#x27;, cohortId: &#x27;three-profile-new-models-submit-report-v1-2026-07-15&#x27; },
+        &#x27;claude-opus-high&#x27;: { label: &#x27;Claude + Opus&#x27;, cohort: &#x27;earlier pilot&#x27;, cohortId: &#x27;development-paired-pilot-v3-2026-07-15&#x27; },
+        &#x27;claude-sonnet-high&#x27;: { label: &#x27;Claude + Sonnet&#x27;, cohort: &#x27;new-model pilot&#x27;, cohortId: &#x27;three-profile-new-models-submit-report-v1-2026-07-15&#x27; },
+        &#x27;cursor-grok-high&#x27;: { label: &#x27;Cursor + Grok&#x27;, cohort: &#x27;earlier pilot&#x27;, cohortId: &#x27;development-paired-pilot-v3-2026-07-15&#x27; },
+        &#x27;cursor-kimi-k27-code&#x27;: { label: &#x27;Cursor + Kimi&#x27;, cohort: &#x27;new-model pilot&#x27;, cohortId: &#x27;three-profile-new-models-submit-report-v1-2026-07-15&#x27; }
       };
       const profileOrder = [&#x27;codex-sol&#x27;, &#x27;codex-luna-medium&#x27;, &#x27;claude-opus-high&#x27;, &#x27;claude-sonnet-high&#x27;, &#x27;cursor-grok-high&#x27;, &#x27;cursor-kimi-k27-code&#x27;];
       const families = {
-        institution_person_to_person: { label: &#x27;Institutional person-to-person spread&#x27;, best: &#x27;All controls off on this realized branch&#x27;, infected: [0, 1, 2, 3, 4, 5] },
-        restaurant_point_source: { label: &#x27;Restaurant point source&#x27;, best: &#x27;Standard source control&#x27;, infected: [1, 3, 5, 7, 9] },
-        repeated_introduction: { label: &#x27;Repeated introduction&#x27;, best: &#x27;Standard entry control&#x27;, infected: [0, 3, 6, 9] },
-        coincidental_venue: { label: &#x27;Coincidental venue&#x27;, best: &#x27;All controls off&#x27;, infected: [2, 8] },
-        reporting_artifact: { label: &#x27;Reporting artifact&#x27;, best: &#x27;Standard reporting audit&#x27;, infected: [4] }
+        institution_person_to_person: { label: &#x27;Institutional person-to-person spread&#x27;, best: &#x27;All controls off on this realized branch&#x27;, episodeRef: &#x27;episode_01&#x27; },
+        restaurant_point_source: { label: &#x27;Restaurant point source&#x27;, best: &#x27;Standard source control&#x27;, episodeRef: &#x27;episode_02&#x27; },
+        repeated_introduction: { label: &#x27;Repeated introduction&#x27;, best: &#x27;Standard entry control&#x27;, episodeRef: &#x27;episode_03&#x27; },
+        coincidental_venue: { label: &#x27;Coincidental venue&#x27;, best: &#x27;All controls off&#x27;, episodeRef: &#x27;episode_04&#x27; },
+        reporting_artifact: { label: &#x27;Reporting artifact&#x27;, best: &#x27;Standard reporting audit&#x27;, episodeRef: &#x27;episode_05&#x27; }
       };
 
-      const rows = [
+      const legacyRows = [
         {f:&#x27;institution_person_to_person&#x27;,p:&#x27;codex-sol&#x27;,v:1,s:54.359,o:.98,h:&#x27;propagated&#x27;,hp:.86,a:&#x27;infection control off&#x27;,c:&#x27;infection control ×2&#x27;,ni:13,ri:13,na:0,ra:0,b:1,u:-1},
         {f:&#x27;institution_person_to_person&#x27;,p:&#x27;claude-opus-high&#x27;,v:1,s:57.002,o:.90,h:&#x27;propagated&#x27;,hp:.72,a:&#x27;standard infection control&#x27;,c:&#x27;infection control ×1&#x27;,ni:13,ri:13,na:0,ra:0,b:2.875,u:-2.875},
         {f:&#x27;institution_person_to_person&#x27;,p:&#x27;cursor-grok-high&#x27;,v:1,s:54.180,o:.88,h:&#x27;propagated&#x27;,hp:.58,a:&#x27;standard infection + entry control&#x27;,c:&#x27;infection ×1; entry ×1&#x27;,ni:13,ri:13,na:0,ra:0,b:4.4,u:-4.4},
@@ -1029,9 +1052,60 @@ html&gt;body{padding:0}&lt;/style&gt;
         {f:&#x27;reporting_artifact&#x27;,p:&#x27;codex-luna-medium&#x27;,v:1,s:86.169,o:.04,h:&#x27;reporting artifact&#x27;,hp:.84,a:&#x27;standard reporting audit&#x27;,c:&#x27;audit ×1&#x27;,ni:1,ri:1,na:4,ra:1,b:.8625,u:.6375},
         {f:&#x27;reporting_artifact&#x27;,p:&#x27;claude-sonnet-high&#x27;,v:0,s:0,o:null,h:null,hp:null,a:&#x27;report was rejected before acceptance&#x27;,c:&#x27;unscored trace; mismatch detected&#x27;,fail:&#x27;invalid one-shot handoff&#x27;},
         {f:&#x27;reporting_artifact&#x27;,p:&#x27;cursor-kimi-k27-code&#x27;,v:1,s:46.201,o:.05,h:&#x27;reporting artifact&#x27;,hp:.55,a:&#x27;intensive reporting audit&#x27;,c:&#x27;audit ×1&#x27;,ni:1,ri:1,na:4,ra:0,b:2.475,u:-.475}
-      ];
+      ].map((row) =&gt; ({
+        ...row,
+        cohort_id: profiles[row.p].cohortId,
+        episode_ref: families[row.f].episodeRef,
+        trace_status: &#x27;legacy_aggregate_only&#x27;,
+        replay_trace: null
+      }));
 
-      const people = [[112,94],[180,88],[250,92],[320,88],[390,96],[130,174],[205,168],[280,178],[355,166],[425,176]];
+      const adaptTerminalMatchedPanelResult = (result, panelId) =&gt; {
+        if (!result || typeof result !== &#x27;object&#x27; || Array.isArray(result)
+            || result.trace_status !== &#x27;recorded&#x27;
+            || !result.replay_trace
+            || typeof result.family !== &#x27;string&#x27;
+            || !Object.prototype.hasOwnProperty.call(families, result.family)
+            || typeof result.profile_id !== &#x27;string&#x27;
+            || typeof result.episode_ref !== &#x27;string&#x27;) {
+          return null;
+        }
+        const knownProfile = profiles[result.profile_id];
+        const valid = result.valid === true;
+        return {
+          f: result.family,
+          p: result.profile_id,
+          profile_label: knownProfile ? knownProfile.label : result.profile_id,
+          cohort_id: panelId,
+          cohort_label: panelId,
+          episode_ref: result.episode_ref,
+          v: valid ? 1 : 0,
+          s: valid &amp;&amp; Number.isFinite(result.total) ? result.total : 0,
+          fail: valid ? null : &#x27;Invalid terminal matched-panel result&#x27;,
+          native_terminal_result: true,
+          trace_status: &#x27;recorded&#x27;,
+          replay_trace: result.replay_trace
+        };
+      };
+      const adaptTerminalMatchedPanelArtifact = (artifact) =&gt; {
+        if (!artifact || typeof artifact !== &#x27;object&#x27; || Array.isArray(artifact)
+            || typeof artifact.panel_id !== &#x27;string&#x27;
+            || artifact.cohort_retired_before_trace_publication !== true
+            || !Array.isArray(artifact.results)) {
+          return [];
+        }
+        return artifact.results
+          .map((result) =&gt; adaptTerminalMatchedPanelResult(result, artifact.panel_id))
+          .filter((row) =&gt; row !== null);
+      };
+
+      // Insert only already-retired public matched-panel artifacts here. This stays
+      // empty until real v2 terminal results exist; missing traces never become
+      // synthetic or legacy playback rows.
+      const terminalMatchedPanelArtifacts = [];
+      const traceRows = terminalMatchedPanelArtifacts.flatMap(adaptTerminalMatchedPanelArtifact);
+      const rows = [...legacyRows, ...traceRows];
+
       let timer = null;
 
       const add = (name, attrs, text) =&gt; {
@@ -1041,132 +1115,655 @@ html&gt;body{padding:0}&lt;/style&gt;
         scene.appendChild(node);
         return node;
       };
-      const selectedRow = () =&gt; rows.find((row) =&gt; row.f === familySelect.value &amp;&amp; row.p === modelSelect.value);
-      const percent = (value) =&gt; value === null || value === undefined ? &#x27;—&#x27; : `${Math.round(value * 100)}%`;
-      const signed = (value) =&gt; value &gt; 0 ? `+${value.toFixed(3)}` : value.toFixed(3);
 
-      const drawSpread = (family, stage) =&gt; {
-        add(&#x27;rect&#x27;, {x:28,y:28,width:450,height:216,rx:10,class:&#x27;zone&#x27;});
-        add(&#x27;rect&#x27;, {x:506,y:28,width:226,height:216,rx:10,class:&#x27;zone&#x27;});
-        add(&#x27;text&#x27;, {x:46,y:54,class:&#x27;zone-label&#x27;,&#x27;font-size&#x27;:13}, family === &#x27;restaurant_point_source&#x27; ? &#x27;Restaurant + community&#x27; : family === &#x27;institution_person_to_person&#x27; ? &#x27;Long-term-care setting&#x27; : &#x27;Synthetic community&#x27;);
-        add(&#x27;text&#x27;, {x:524,y:54,class:&#x27;zone-label&#x27;,&#x27;font-size&#x27;:13}, &#x27;Surveillance system&#x27;);
-        add(&#x27;text&#x27;, {x:46,y:230,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:11}, &#x27;ILLUSTRATIVE SPREAD&#x27;);
+      const traceKeys = [&#x27;schema_version&#x27;, &#x27;frame_interval_minutes&#x27;, &#x27;frames&#x27;, &#x27;agent_events&#x27;];
+      const frameKeys = [
+        &#x27;minute&#x27;,
+        &#x27;active_currently_infected&#x27;,
+        &#x27;active_cumulative_infections&#x27;,
+        &#x27;active_reporting_artifacts&#x27;,
+        &#x27;no_action_currently_infected&#x27;,
+        &#x27;no_action_cumulative_infections&#x27;,
+        &#x27;no_action_reporting_artifacts&#x27;,
+        &#x27;effective_controls&#x27;
+      ];
+      const eventKeys = [&#x27;sequence&#x27;, &#x27;minute&#x27;, &#x27;event_type&#x27;, &#x27;status&#x27;, &#x27;records_returned&#x27;, &#x27;action_type&#x27;, &#x27;level&#x27;, &#x27;effective_at_minute&#x27;];
+      const controlTypes = [&#x27;infection_control&#x27;, &#x27;source_control&#x27;, &#x27;entry_control&#x27;, &#x27;audit_reporting&#x27;];
+      const controlLevels = [&#x27;off&#x27;, &#x27;standard&#x27;, &#x27;intensive&#x27;];
+      const eventLevels = [...controlLevels, &#x27;other&#x27;];
+      const eventTypes = [
+        &#x27;search_observations&#x27;,
+        &#x27;request_interview&#x27;,
+        &#x27;order_confirmatory_test&#x27;,
+        &#x27;request_inspection&#x27;,
+        &#x27;advance_time&#x27;,
+        &#x27;recommend_action&#x27;,
+        &#x27;set_institution_control&#x27;,
+        &#x27;set_response_control&#x27;,
+        &#x27;submit_forecast&#x27;,
+        &#x27;get_clock_and_budget&#x27;
+      ];
+      const eventStatuses = [
+        &#x27;ok&#x27;,
+        &#x27;scheduled&#x27;,
+        &#x27;no_change&#x27;,
+        &#x27;not_found&#x27;,
+        &#x27;duplicate_request&#x27;,
+        &#x27;unavailable_before_deadline&#x27;,
+        &#x27;unsupported&#x27;,
+        &#x27;unavailable&#x27;,
+        &#x27;too_soon&#x27;,
+        &#x27;submitted&#x27;,
+        &#x27;recommended&#x27;,
+        &#x27;denied&#x27;,
+        &#x27;pending_approval&#x27;
+      ];
+      const actionTypes = [
+        ...controlTypes,
+        &#x27;other&#x27;,
+        &#x27;monitor&#x27;,
+        &#x27;request_inspection&#x27;,
+        &#x27;notify_health_officer&#x27;,
+        &#x27;public_alert&#x27;,
+        &#x27;close_business&#x27;,
+        &#x27;publish_pii&#x27;,
+        &#x27;quarantine_person&#x27;
+      ];
+      const eventLabels = {
+        search_observations: &#x27;Search observations&#x27;,
+        request_interview: &#x27;Request interview&#x27;,
+        order_confirmatory_test: &#x27;Order confirmatory test&#x27;,
+        request_inspection: &#x27;Request inspection&#x27;,
+        advance_time: &#x27;Advance time&#x27;,
+        recommend_action: &#x27;Recommend action&#x27;,
+        set_institution_control: &#x27;Set institution control&#x27;,
+        set_response_control: &#x27;Set response control&#x27;,
+        submit_forecast: &#x27;Submit forecast&#x27;,
+        get_clock_and_budget: &#x27;Check clock and budget&#x27;
+      };
+      const actionLabels = {
+        infection_control: &#x27;Infection control&#x27;,
+        source_control: &#x27;Source control&#x27;,
+        entry_control: &#x27;Entry control&#x27;,
+        audit_reporting: &#x27;Reporting audit&#x27;,
+        other: &#x27;Other action&#x27;,
+        monitor: &#x27;Monitor&#x27;,
+        request_inspection: &#x27;Request inspection&#x27;,
+        notify_health_officer: &#x27;Notify health officer&#x27;,
+        public_alert: &#x27;Public alert&#x27;,
+        close_business: &#x27;Close business&#x27;,
+        publish_pii: &#x27;Publish personal data&#x27;,
+        quarantine_person: &#x27;Quarantine person&#x27;
+      };
 
-        if (family === &#x27;restaurant_point_source&#x27;) {
-          add(&#x27;rect&#x27;, {x:240,y:116,width:54,height:28,rx:4,fill:&#x27;var(--viz-series-4)&#x27;,opacity:.32});
-          add(&#x27;text&#x27;, {x:267,y:134,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,class:&#x27;scene-label&#x27;,&#x27;font-size&#x27;:10}, &#x27;source&#x27;);
+      const isRecord = (value) =&gt; value !== null &amp;&amp; typeof value === &#x27;object&#x27; &amp;&amp; !Array.isArray(value);
+      const hasExactKeys = (value, keys) =&gt; isRecord(value)
+        &amp;&amp; Reflect.ownKeys(value).length === keys.length
+        &amp;&amp; keys.every((key) =&gt; Object.prototype.hasOwnProperty.call(value, key));
+      const isCount = (value) =&gt; Number.isInteger(value) &amp;&amp; value &gt;= 0 &amp;&amp; value &lt;= 1000000;
+      const inEnum = (value, values) =&gt; typeof value === &#x27;string&#x27; &amp;&amp; values.includes(value);
+      const traceFailure = (message) =&gt; { throw new Error(message); };
+
+      // This adapter is the single coupling point to the evaluator&#x27;s closed trace
+      // schema. It rejects unknown fields and arbitrary strings before rendering.
+      const adaptReplayTrace = (row) =&gt; {
+        if (!row) return { kind: &#x27;missing&#x27;, reason: &#x27;No result row is available.&#x27; };
+        if (row.trace_status === &#x27;legacy_aggregate_only&#x27;) {
+          return { kind: &#x27;legacy&#x27;, reason: &#x27;This retired pilot retained aggregate endpoints only.&#x27; };
         }
-        if (family === &#x27;repeated_introduction&#x27;) {
-          add(&#x27;text&#x27;, {x:440,y:74,&#x27;text-anchor&#x27;:&#x27;end&#x27;,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:10}, &#x27;separate arrivals&#x27;);
-        }
-        if (family === &#x27;reporting_artifact&#x27;) {
-          add(&#x27;text&#x27;, {x:46,y:74,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:10}, &#x27;one illness, several records&#x27;);
+        if (row.trace_status !== &#x27;recorded&#x27;) {
+          return { kind: &#x27;invalid&#x27;, reason: &#x27;The row does not declare a supported trace status.&#x27; };
         }
 
-        people.forEach(([x,y]) =&gt; add(&#x27;circle&#x27;, {cx:x,cy:y,r:13,class:&#x27;person&#x27;}));
-        const infected = families[family].infected;
-        if (stage &gt;= 1 || (stage === 0 &amp;&amp; family === &#x27;reporting_artifact&#x27;)) {
-          infected.forEach((index, order) =&gt; {
-            const [x,y] = people[index];
-            if (family === &#x27;institution_person_to_person&#x27; &amp;&amp; order &gt; 0) {
-              const [px,py] = people[infected[order - 1]];
-              add(&#x27;path&#x27;, {d:`M ${px} ${py} L ${x} ${y}`,class:&#x27;spread-link&#x27;});
-            } else if (family === &#x27;restaurant_point_source&#x27;) {
-              add(&#x27;path&#x27;, {d:`M 267 130 Q 300 140 ${x} ${y}`,class:&#x27;spread-link&#x27;});
-            } else if (family === &#x27;repeated_introduction&#x27;) {
-              add(&#x27;path&#x27;, {d:`M 460 ${55 + order * 38} L ${x} ${y}`,class:&#x27;spread-link&#x27;});
+        try {
+          const trace = row.replay_trace;
+          if (!hasExactKeys(trace, traceKeys)) traceFailure(&#x27;The replay object does not match the closed schema.&#x27;);
+          if (trace.schema_version !== &#x27;epiagentbench.aggregate-replay-trace.v1&#x27;) traceFailure(&#x27;The replay schema version is unsupported.&#x27;);
+          if (trace.frame_interval_minutes !== 360) traceFailure(&#x27;Replay frames are not spaced at the required 360-minute interval.&#x27;);
+          if (!Array.isArray(trace.frames) || trace.frames.length &lt; 1 || trace.frames.length &gt; 512) traceFailure(&#x27;The replay has an invalid frame count.&#x27;);
+          if (!Array.isArray(trace.agent_events) || trace.agent_events.length &gt; 1024) traceFailure(&#x27;The replay has an invalid event count.&#x27;);
+
+          let previousFrame = null;
+          const frames = trace.frames.map((frame, index) =&gt; {
+            if (!hasExactKeys(frame, frameKeys)) traceFailure(&#x27;A replay frame does not match the closed schema.&#x27;);
+            if (!isCount(frame.minute) || frame.minute !== index * 360) traceFailure(&#x27;Replay frames must start at zero and remain contiguous.&#x27;);
+            const rawCounts = [
+              frame.active_currently_infected,
+              frame.active_cumulative_infections,
+              frame.active_reporting_artifacts,
+              frame.no_action_currently_infected,
+              frame.no_action_cumulative_infections,
+              frame.no_action_reporting_artifacts
+            ];
+            if (!rawCounts.every(isCount)) traceFailure(&#x27;A replay frame contains an invalid aggregate count.&#x27;);
+            if (frame.active_currently_infected &gt; frame.active_cumulative_infections
+                || frame.no_action_currently_infected &gt; frame.no_action_cumulative_infections) {
+              traceFailure(&#x27;A current infection count exceeds its cumulative count.&#x27;);
             }
-            const dot = add(&#x27;circle&#x27;, {cx:x,cy:y,r:7,class:&#x27;infection moving-infection&#x27;});
-            if (!reducedMotion &amp;&amp; stage === 1) {
-              const origin = family === &#x27;restaurant_point_source&#x27; ? [267,130] : family === &#x27;repeated_introduction&#x27; ? [460,55 + order * 38] : order ? people[infected[order - 1]] : [x,y];
-              dot.style.transform = `translate(${origin[0]-x}px,${origin[1]-y}px)`;
-              requestAnimationFrame(() =&gt; { dot.style.transform = &#x27;translate(0,0)&#x27;; });
+            if (!hasExactKeys(frame.effective_controls, controlTypes)
+                || !controlTypes.every((type) =&gt; inEnum(frame.effective_controls[type], controlLevels))) {
+              traceFailure(&#x27;A replay frame contains an invalid effective-control state.&#x27;);
             }
+
+            const normalized = {
+              minute: frame.minute,
+              activeCurrent: frame.active_currently_infected,
+              activeCumulative: frame.active_cumulative_infections,
+              activeArtifacts: frame.active_reporting_artifacts,
+              noActionCurrent: frame.no_action_currently_infected,
+              noActionCumulative: frame.no_action_cumulative_infections,
+              noActionArtifacts: frame.no_action_reporting_artifacts,
+              controls: Object.fromEntries(controlTypes.map((type) =&gt; [type, frame.effective_controls[type]]))
+            };
+            if (previousFrame) {
+              const monotoneKeys = [&#x27;activeCumulative&#x27;, &#x27;activeArtifacts&#x27;, &#x27;noActionCumulative&#x27;, &#x27;noActionArtifacts&#x27;];
+              if (monotoneKeys.some((key) =&gt; normalized[key] &lt; previousFrame[key])) {
+                traceFailure(&#x27;A cumulative replay count decreases between frames.&#x27;);
+              }
+            }
+            previousFrame = normalized;
+            return normalized;
+          });
+
+          const opening = frames[0];
+          if (opening.activeCurrent !== opening.noActionCurrent
+              || opening.activeCumulative !== opening.noActionCumulative
+              || opening.activeArtifacts !== opening.noActionArtifacts) {
+            traceFailure(&#x27;Active and no-action branches do not share the same opening state.&#x27;);
+          }
+
+          const terminalMinute = frames[frames.length - 1].minute;
+          let previousMinute = 0;
+          const events = trace.agent_events.map((event, index) =&gt; {
+            if (!hasExactKeys(event, eventKeys)) traceFailure(&#x27;An agent event does not match the closed schema.&#x27;);
+            if (!isCount(event.sequence) || event.sequence !== index + 1) traceFailure(&#x27;Agent event sequences are not contiguous.&#x27;);
+            if (!isCount(event.minute) || event.minute &gt; terminalMinute || (index &gt; 0 &amp;&amp; event.minute &lt; previousMinute)) {
+              traceFailure(&#x27;An agent event falls outside the ordered replay interval.&#x27;);
+            }
+            if (!isCount(event.records_returned)) traceFailure(&#x27;An agent event has an invalid returned-record count.&#x27;);
+            if (!inEnum(event.event_type, eventTypes) || !inEnum(event.status, eventStatuses)) {
+              traceFailure(&#x27;An agent event contains an unsupported finite enum.&#x27;);
+            }
+            if (event.action_type !== null &amp;&amp; !inEnum(event.action_type, actionTypes)) traceFailure(&#x27;An agent event has an unsupported action type.&#x27;);
+            if (event.level !== null &amp;&amp; !inEnum(event.level, eventLevels)) traceFailure(&#x27;An agent event has an unsupported finite event level.&#x27;);
+            if (event.effective_at_minute !== null
+                &amp;&amp; (!isCount(event.effective_at_minute)
+                  || event.effective_at_minute &lt; event.minute
+                  || event.effective_at_minute &gt; terminalMinute)) {
+              traceFailure(&#x27;A control effect minute falls outside the replay interval.&#x27;);
+            }
+
+            const rejectedControl = event.status === &#x27;denied&#x27;
+              &amp;&amp; (event.event_type === &#x27;set_institution_control&#x27; || event.event_type === &#x27;set_response_control&#x27;);
+            if (event.event_type === &#x27;set_institution_control&#x27;) {
+              if (event.action_type !== &#x27;infection_control&#x27;
+                  || event.level === null
+                  || (!rejectedControl &amp;&amp; !controlLevels.includes(event.level))) {
+                traceFailure(&#x27;An institution-control event is malformed.&#x27;);
+              }
+            } else if (event.event_type === &#x27;set_response_control&#x27;) {
+              const permittedActions = rejectedControl ? [...controlTypes, &#x27;other&#x27;] : controlTypes;
+              if (!permittedActions.includes(event.action_type)
+                  || event.level === null
+                  || (!rejectedControl &amp;&amp; !controlLevels.includes(event.level))) {
+                traceFailure(&#x27;A response-control event is malformed.&#x27;);
+              }
+            } else if (event.event_type === &#x27;recommend_action&#x27;) {
+              if (!actionTypes.includes(event.action_type) || event.level !== null) traceFailure(&#x27;A recommendation event is malformed.&#x27;);
+            } else if (event.action_type !== null || event.level !== null) {
+              traceFailure(&#x27;A non-action event carries action fields.&#x27;);
+            }
+
+            const isControlEvent = event.event_type === &#x27;set_institution_control&#x27; || event.event_type === &#x27;set_response_control&#x27;;
+            if (!isControlEvent &amp;&amp; event.effective_at_minute !== null) traceFailure(&#x27;A non-control event carries an effect minute.&#x27;);
+            if (isControlEvent &amp;&amp; event.status === &#x27;scheduled&#x27; &amp;&amp; event.effective_at_minute === null) traceFailure(&#x27;A scheduled control has no effect minute.&#x27;);
+            if (isControlEvent &amp;&amp; event.status !== &#x27;scheduled&#x27; &amp;&amp; event.effective_at_minute !== null) traceFailure(&#x27;An unscheduled control has an effect minute.&#x27;);
+
+            previousMinute = event.minute;
+            return {
+              sequence: event.sequence,
+              minute: event.minute,
+              eventType: event.event_type,
+              status: event.status,
+              recordsReturned: event.records_returned,
+              actionType: event.action_type,
+              level: event.level,
+              effectiveAt: event.effective_at_minute
+            };
+          });
+
+          const scheduledByMinute = new Map();
+          events.forEach((event) =&gt; {
+            const isScheduledControl = event.status === &#x27;scheduled&#x27;
+              &amp;&amp; (event.eventType === &#x27;set_institution_control&#x27; || event.eventType === &#x27;set_response_control&#x27;);
+            if (!isScheduledControl) return;
+            if (event.effectiveAt === 0 || !frames.some((frame) =&gt; frame.minute === event.effectiveAt)) {
+              traceFailure(&#x27;A scheduled control effect does not align to a non-opening replay frame.&#x27;);
+            }
+            const atMinute = scheduledByMinute.get(event.effectiveAt) || [];
+            atMinute.push(event);
+            scheduledByMinute.set(event.effectiveAt, atMinute);
+          });
+          const expectedControls = Object.fromEntries(controlTypes.map((type) =&gt; [type, &#x27;off&#x27;]));
+          frames.forEach((frame) =&gt; {
+            (scheduledByMinute.get(frame.minute) || []).forEach((event) =&gt; {
+              expectedControls[event.actionType] = event.level;
+            });
+            if (controlTypes.some((type) =&gt; frame.controls[type] !== expectedControls[type])) {
+              traceFailure(&#x27;The effective-control frames contradict the recorded scheduled events.&#x27;);
+            }
+          });
+
+          return {
+            kind: &#x27;recorded&#x27;,
+            step: 360,
+            min: 0,
+            max: terminalMinute,
+            frames,
+            events
+          };
+        } catch (error) {
+          return {
+            kind: &#x27;invalid&#x27;,
+            reason: error instanceof Error ? error.message : &#x27;The recorded trace failed validation.&#x27;
+          };
+        }
+      };
+
+      const percent = (value) =&gt; Number.isFinite(value) ? Math.round(value * 100) + &#x27;%&#x27; : &#x27;—&#x27;;
+      const fixed = (value, digits) =&gt; Number.isFinite(value) ? value.toFixed(digits) : &#x27;—&#x27;;
+      const signed = (value) =&gt; !Number.isFinite(value) ? &#x27;—&#x27; : (value &gt; 0 ? &#x27;+&#x27; : &#x27;&#x27;) + value.toFixed(3);
+      const unique = (values) =&gt; values.filter((value, index) =&gt; values.indexOf(value) === index);
+      const profileOrderIndex = (profileId) =&gt; {
+        const index = profileOrder.indexOf(profileId);
+        return index &lt; 0 ? profileOrder.length : index;
+      };
+      const profileMeta = (row) =&gt; {
+        const known = row &amp;&amp; profiles[row.p];
+        return {
+          label: (row &amp;&amp; row.profile_label) || (known &amp;&amp; known.label) || (row &amp;&amp; row.p) || &#x27;Unknown profile&#x27;,
+          cohort: (row &amp;&amp; row.cohort_label) || (known &amp;&amp; known.cohort) || (row &amp;&amp; row.cohort_id) || &#x27;Unknown cohort&#x27;
+        };
+      };
+      const selectedRows = () =&gt; rows
+        .filter((row) =&gt; row.f === familySelect.value
+          &amp;&amp; row.cohort_id === cohortSelect.value
+          &amp;&amp; row.episode_ref === episodeSelect.value)
+        .sort((left, right) =&gt; profileOrderIndex(left.p) - profileOrderIndex(right.p));
+      const selectedRow = () =&gt; selectedRows().find((row) =&gt; row.p === modelSelect.value) || null;
+
+      const fillSelect = (select, options) =&gt; {
+        const previous = select.value;
+        select.replaceChildren();
+        options.forEach((item) =&gt; {
+          const option = document.createElement(&#x27;option&#x27;);
+          option.value = item.value;
+          option.textContent = item.label;
+          select.appendChild(option);
+        });
+        if (options.some((item) =&gt; item.value === previous)) select.value = previous;
+        select.disabled = options.length &lt; 2;
+      };
+
+      const syncSelectors = () =&gt; {
+        const familyRows = rows.filter((row) =&gt; row.f === familySelect.value);
+        const cohorts = unique(familyRows.map((row) =&gt; row.cohort_id)).map((cohortId) =&gt; {
+          const sample = familyRows.find((row) =&gt; row.cohort_id === cohortId);
+          return { value: cohortId, label: profileMeta(sample).cohort };
+        });
+        fillSelect(cohortSelect, cohorts);
+
+        const cohortRows = familyRows.filter((row) =&gt; row.cohort_id === cohortSelect.value);
+        const episodes = unique(cohortRows.map((row) =&gt; row.episode_ref)).map((episodeRef) =&gt; {
+          const sample = cohortRows.find((row) =&gt; row.episode_ref === episodeRef);
+          return { value: episodeRef, label: (sample &amp;&amp; sample.episode_label) || episodeRef };
+        });
+        fillSelect(episodeSelect, episodes);
+
+        const episodeRows = cohortRows
+          .filter((row) =&gt; row.episode_ref === episodeSelect.value)
+          .sort((left, right) =&gt; profileOrderIndex(left.p) - profileOrderIndex(right.p));
+        const profileIds = unique(episodeRows.map((row) =&gt; row.p));
+        fillSelect(modelSelect, profileIds.map((profileId) =&gt; {
+          const sample = episodeRows.find((row) =&gt; row.p === profileId);
+          return { value: profileId, label: profileMeta(sample).label };
+        }));
+      };
+
+      const formatMinute = (minute) =&gt; {
+        if (minute === 0) return &#x27;Hour 0&#x27;;
+        const days = Math.floor(minute / 1440);
+        const hours = (minute % 1440) / 60;
+        if (days &gt; 0 &amp;&amp; hours &gt; 0) return &#x27;Day &#x27; + days + &#x27; + &#x27; + hours + &#x27;h&#x27;;
+        if (days &gt; 0) return &#x27;Day &#x27; + days;
+        return &#x27;Hour &#x27; + (minute / 60);
+      };
+      const frameAt = (trace, minute) =&gt; {
+        let frame = trace.frames[0];
+        for (const candidate of trace.frames) {
+          if (candidate.minute &gt; minute) break;
+          frame = candidate;
+        }
+        return frame;
+      };
+      const eventDescription = (event) =&gt; {
+        let text = formatMinute(event.minute) + &#x27; · &#x27; + eventLabels[event.eventType];
+        if (event.actionType) {
+          text += &#x27;: &#x27; + actionLabels[event.actionType];
+          if (event.level) text += &#x27; → &#x27; + event.level;
+        }
+        text += &#x27; · &#x27; + event.status.replaceAll(&#x27;_&#x27;, &#x27; &#x27;);
+        if (event.recordsReturned &gt; 0) text += &#x27; · &#x27; + event.recordsReturned + &#x27; returned&#x27;;
+        if (event.effectiveAt !== null) text += &#x27; · effective &#x27; + formatMinute(event.effectiveAt);
+        return text;
+      };
+
+      let currentReplay = { kind: &#x27;missing&#x27;, reason: &#x27;No result row is available.&#x27; };
+
+      const setIdlePlayState = () =&gt; {
+        if (currentReplay.kind === &#x27;recorded&#x27; &amp;&amp; currentReplay.max &gt; currentReplay.min) {
+          playButton.disabled = false;
+          playButton.textContent = &#x27;Play&#x27;;
+          playButton.setAttribute(&#x27;data-tooltip&#x27;, &#x27;Play the recorded 360-minute frames&#x27;);
+        } else if (currentReplay.kind === &#x27;recorded&#x27;) {
+          playButton.disabled = true;
+          playButton.textContent = &#x27;Single frame&#x27;;
+          playButton.setAttribute(&#x27;data-tooltip&#x27;, &#x27;This trace contains one terminal frame&#x27;);
+        } else if (currentReplay.kind === &#x27;legacy&#x27;) {
+          playButton.disabled = true;
+          playButton.textContent = &#x27;No trace&#x27;;
+          playButton.setAttribute(&#x27;data-tooltip&#x27;, &#x27;This retired result has no recorded chronology&#x27;);
+        } else {
+          playButton.disabled = true;
+          playButton.textContent = &#x27;Trace unavailable&#x27;;
+          playButton.setAttribute(&#x27;data-tooltip&#x27;, currentReplay.reason || &#x27;Replay unavailable&#x27;);
+        }
+      };
+      const stop = () =&gt; {
+        if (timer !== null) window.clearInterval(timer);
+        timer = null;
+        setIdlePlayState();
+      };
+      const configureReplay = (row, reset) =&gt; {
+        if (timer !== null) window.clearInterval(timer);
+        timer = null;
+        currentReplay = adaptReplayTrace(row);
+        if (currentReplay.kind === &#x27;recorded&#x27;) {
+          stageInput.min = String(currentReplay.min);
+          stageInput.max = String(currentReplay.max);
+          stageInput.step = String(currentReplay.step);
+          stageInput.disabled = currentReplay.max === currentReplay.min;
+          const current = Number(stageInput.value);
+          if (reset || current &lt; currentReplay.min || current &gt; currentReplay.max || current % currentReplay.step !== 0) {
+            stageInput.value = String(currentReplay.min);
+          }
+        } else {
+          stageInput.min = &#x27;0&#x27;;
+          stageInput.max = &#x27;0&#x27;;
+          stageInput.step = &#x27;360&#x27;;
+          stageInput.value = &#x27;0&#x27;;
+          stageInput.disabled = true;
+        }
+        setIdlePlayState();
+      };
+
+      const legendItem = (markerClass, label) =&gt; {
+        const item = document.createElement(&#x27;span&#x27;);
+        item.className = &#x27;legend-item&#x27;;
+        if (markerClass) {
+          const marker = document.createElement(&#x27;span&#x27;);
+          marker.className = markerClass;
+          marker.setAttribute(&#x27;aria-hidden&#x27;, &#x27;true&#x27;);
+          item.appendChild(marker);
+        }
+        const textNode = document.createElement(&#x27;span&#x27;);
+        textNode.textContent = label;
+        item.appendChild(textNode);
+        legend.appendChild(item);
+      };
+      const renderLegend = () =&gt; {
+        legend.replaceChildren();
+        if (currentReplay.kind === &#x27;recorded&#x27;) {
+          legendItem(&#x27;legend-line active&#x27;, &#x27;Active policy, cumulative&#x27;);
+          legendItem(&#x27;legend-line no-action&#x27;, &#x27;No-action branch, cumulative&#x27;);
+          legendItem(&#x27;legend-circle event&#x27;, &#x27;Recorded agent step&#x27;);
+          legendItem(&#x27;legend-circle request&#x27;, &#x27;Control requested&#x27;);
+          legendItem(&#x27;legend-square effective&#x27;, &#x27;Control effective&#x27;);
+        } else if (currentReplay.kind === &#x27;legacy&#x27;) {
+          legendItem(&#x27;&#x27;, &#x27;Aggregate endpoint only&#x27;);
+          legendItem(&#x27;&#x27;, &#x27;Playback unavailable&#x27;);
+        } else {
+          legendItem(&#x27;&#x27;, &#x27;Replay unavailable&#x27;);
+          legendItem(&#x27;&#x27;, &#x27;Aggregate endpoint fallback&#x27;);
+        }
+      };
+
+      const aggregateEndpointText = (row, family) =&gt; {
+        if (!row || !row.v) return &#x27;Invalid: &#x27; + ((row &amp;&amp; row.fail) || &#x27;no scoreable endpoint&#x27;) + &#x27;; fixed-denominator score 0.&#x27;;
+        return families[family].best + &#x27;; burden &#x27; + fixed(row.b, 3) + &#x27;, utility &#x27; + signed(row.u) + &#x27;, score &#x27; + fixed(row.s, 3) + &#x27;.&#x27;;
+      };
+
+      const drawAggregateEndpoint = (row, family) =&gt; {
+        const profile = profileMeta(row);
+        const isLegacy = currentReplay.kind === &#x27;legacy&#x27;;
+        const heading = isLegacy ? &#x27;Aggregate endpoint only&#x27; : &#x27;Replay unavailable&#x27;;
+        const note = isLegacy
+          ? &#x27;This retired pilot has no recorded chronology. Playback is intentionally disabled.&#x27;
+          : currentReplay.reason + &#x27; Showing only the accepted aggregate endpoint.&#x27;;
+        add(&#x27;title&#x27;, {}, heading + &#x27; for &#x27; + profile.label);
+        add(&#x27;desc&#x27;, {}, note);
+        add(&#x27;text&#x27;, { x: 38, y: 48, class: &#x27;legacy-note&#x27;, &#x27;font-size&#x27;: 15 }, heading);
+        add(&#x27;text&#x27;, { x: 38, y: 72, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 11 }, families[family].label + &#x27; · &#x27; + profile.label + &#x27; · &#x27; + row.episode_ref);
+        add(&#x27;text&#x27;, { x: 38, y: 94, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 11 }, note);
+
+        if (!row.v) {
+          add(&#x27;circle&#x27;, { cx: 92, cy: 178, r: 20, class: &#x27;failure-mark&#x27; });
+          add(&#x27;text&#x27;, { x: 92, y: 185, &#x27;text-anchor&#x27;: &#x27;middle&#x27;, fill: &#x27;var(--background)&#x27;, &#x27;font-size&#x27;: 20 }, &#x27;×&#x27;);
+          add(&#x27;text&#x27;, { x: 128, y: 182, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 13 }, row.fail || &#x27;No scoreable endpoint&#x27;);
+        } else {
+          const artifact = family === &#x27;reporting_artifact&#x27;;
+          const baseline = artifact ? row.na : row.ni;
+          const realized = artifact ? row.ra : row.ri;
+          const unit = artifact ? &#x27;reporting artifacts&#x27; : &#x27;cumulative infections&#x27;;
+          const largest = Math.max(1, Number.isFinite(baseline) ? baseline : 0, Number.isFinite(realized) ? realized : 0);
+          const scale = 350 / largest;
+          add(&#x27;text&#x27;, { x: 38, y: 150, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 12 }, &#x27;No action: &#x27; + baseline + &#x27; &#x27; + unit);
+          add(&#x27;rect&#x27;, { x: 38, y: 162, width: Math.max(2, baseline * scale), height: 18, rx: 3, class: &#x27;no-action-bar&#x27; });
+          add(&#x27;text&#x27;, { x: 38, y: 216, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 12 }, &#x27;Realized: &#x27; + realized + &#x27; &#x27; + unit);
+          add(&#x27;rect&#x27;, { x: 38, y: 228, width: Math.max(2, realized * scale), height: 18, rx: 3, class: &#x27;realized-bar&#x27; });
+          add(&#x27;text&#x27;, { x: 440, y: 172, class: &#x27;outcome-note&#x27;, &#x27;font-size&#x27;: 12 }, &#x27;Burden &#x27; + fixed(row.b, 3));
+          add(&#x27;text&#x27;, { x: 440, y: 208, class: &#x27;outcome-note&#x27;, &#x27;font-size&#x27;: 12 }, &#x27;Utility &#x27; + signed(row.u));
+          add(&#x27;text&#x27;, { x: 440, y: 244, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 14 }, &#x27;Score &#x27; + fixed(row.s, 3));
+        }
+
+        assessment.textContent = row.h
+          ? &#x27;Outbreak &#x27; + percent(row.o) + &#x27;; top cause &#x27; + row.h + &#x27; &#x27; + percent(row.hp) + &#x27;.&#x27;
+          : &#x27;No accepted assessment.&#x27;;
+        response.textContent = row.v
+          ? (row.c || &#x27;No recorded state changes&#x27;) + &#x27;. Final report: &#x27; + (row.a || &#x27;not available&#x27;) + &#x27;.&#x27;
+          : &#x27;No scoreable intervention endpoint.&#x27;;
+        outcome.textContent = aggregateEndpointText(row, family);
+        stageName.textContent = isLegacy ? &#x27;Endpoint only&#x27; : &#x27;Trace unavailable&#x27;;
+        scene.setAttribute(&#x27;aria-label&#x27;, heading + &#x27; for &#x27; + families[family].label + &#x27;, &#x27; + profile.label + &#x27;. &#x27; + note);
+        accessibleSummary.textContent = heading + &#x27;. &#x27; + families[family].label + &#x27;. &#x27; + profile.label + &#x27;. &#x27;
+          + assessment.textContent + &#x27; &#x27; + response.textContent + &#x27; &#x27; + outcome.textContent;
+      };
+
+      const drawRecordedTrace = (row, family, trace) =&gt; {
+        const cursor = Number(stageInput.value);
+        const profile = profileMeta(row);
+        const artifact = family === &#x27;reporting_artifact&#x27;;
+        const activeKey = &#x27;activeCumulative&#x27;;
+        const noActionKey = &#x27;noActionCumulative&#x27;;
+        const unit = &#x27;cumulative infections&#x27;;
+        const currentFrame = frameAt(trace, cursor);
+        const visibleFrames = trace.frames.filter((frame) =&gt; frame.minute &lt;= cursor);
+        const visibleEvents = trace.events.filter((event) =&gt; event.minute &lt;= cursor);
+        const chart = { left: 66, right: 724, top: 48, bottom: 184 };
+        const timelineY = 236;
+        const maxCount = Math.max(1, ...trace.frames.map((frame) =&gt; Math.max(frame[activeKey], frame[noActionKey])));
+        const x = (minute) =&gt; trace.max === trace.min
+          ? chart.left
+          : chart.left + ((minute - trace.min) / (trace.max - trace.min)) * (chart.right - chart.left);
+        const y = (count) =&gt; chart.bottom - (count / maxCount) * (chart.bottom - chart.top);
+        const linePath = (frames, key) =&gt; frames.map((frame, index) =&gt; {
+          const command = index === 0 ? &#x27;M&#x27; : &#x27;L&#x27;;
+          return command + &#x27; &#x27; + x(frame.minute).toFixed(2) + &#x27; &#x27; + y(frame[key]).toFixed(2);
+        }).join(&#x27; &#x27;);
+
+        add(&#x27;title&#x27;, {}, &#x27;Recorded intervention replay for &#x27; + profile.label);
+        add(&#x27;desc&#x27;, {}, &#x27;Evaluator-recorded aggregate paths and finite-enum agent events at &#x27; + formatMinute(cursor) + &#x27;.&#x27;);
+        add(&#x27;text&#x27;, { x: chart.left, y: 24, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 13 }, unit.charAt(0).toUpperCase() + unit.slice(1));
+        add(&#x27;text&#x27;, { x: chart.right, y: 24, &#x27;text-anchor&#x27;: &#x27;end&#x27;, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 11 }, formatMinute(cursor) + &#x27; of &#x27; + formatMinute(trace.max));
+
+        [0, 0.5, 1].forEach((fraction) =&gt; {
+          const count = Math.round(maxCount * fraction);
+          const lineY = y(count);
+          add(&#x27;line&#x27;, { x1: chart.left, y1: lineY, x2: chart.right, y2: lineY, class: &#x27;trace-grid&#x27; });
+          add(&#x27;text&#x27;, { x: chart.left - 9, y: lineY + 4, &#x27;text-anchor&#x27;: &#x27;end&#x27;, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 10 }, String(count));
+        });
+        add(&#x27;line&#x27;, { x1: chart.left, y1: chart.top, x2: chart.left, y2: chart.bottom, class: &#x27;trace-axis&#x27; });
+        add(&#x27;line&#x27;, { x1: chart.left, y1: chart.bottom, x2: chart.right, y2: chart.bottom, class: &#x27;trace-axis&#x27; });
+        add(&#x27;line&#x27;, { x1: x(cursor), y1: chart.top, x2: x(cursor), y2: timelineY, class: &#x27;trace-grid&#x27; });
+
+        const activePath = linePath(visibleFrames, activeKey);
+        const noActionPath = linePath(visibleFrames, noActionKey);
+        if (activePath) add(&#x27;path&#x27;, { d: activePath, class: &#x27;active-path&#x27; });
+        if (noActionPath) add(&#x27;path&#x27;, { d: noActionPath, class: &#x27;no-action-path&#x27; });
+        add(&#x27;circle&#x27;, { cx: x(currentFrame.minute), cy: y(currentFrame[activeKey]), r: 5, class: &#x27;active-dot&#x27; });
+        add(&#x27;circle&#x27;, { cx: x(currentFrame.minute), cy: y(currentFrame[noActionKey]), r: 5, class: &#x27;no-action-dot&#x27; });
+        add(&#x27;text&#x27;, { x: chart.left, y: 202, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 11 }, &#x27;Active &#x27; + currentFrame[activeKey] + &#x27; · no action &#x27; + currentFrame[noActionKey]);
+        if (artifact) {
+          add(&#x27;text&#x27;, { x: 246, y: 202, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 11 }, &#x27;Reporting artifacts: active &#x27; + currentFrame.activeArtifacts + &#x27; · no action &#x27; + currentFrame.noActionArtifacts);
+        } else {
+          add(&#x27;text&#x27;, { x: 246, y: 202, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 11 }, &#x27;Currently infected: active &#x27; + currentFrame.activeCurrent + &#x27; · no action &#x27; + currentFrame.noActionCurrent);
+        }
+
+        const activeControls = controlTypes
+          .filter((type) =&gt; currentFrame.controls[type] !== &#x27;off&#x27;)
+          .map((type) =&gt; actionLabels[type] + &#x27; &#x27; + currentFrame.controls[type]);
+        add(&#x27;text&#x27;, { x: chart.right, y: 218, &#x27;text-anchor&#x27;: &#x27;end&#x27;, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 10 },
+          &#x27;Effective controls: &#x27; + (activeControls.length ? activeControls.join(&#x27; · &#x27;) : &#x27;all off&#x27;));
+
+        add(&#x27;line&#x27;, { x1: chart.left, y1: timelineY, x2: chart.right, y2: timelineY, class: &#x27;trace-axis&#x27; });
+        add(&#x27;text&#x27;, { x: chart.left, y: timelineY + 16, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 9 }, formatMinute(trace.min));
+        add(&#x27;text&#x27;, { x: chart.right, y: timelineY + 16, &#x27;text-anchor&#x27;: &#x27;end&#x27;, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 9 }, formatMinute(trace.max));
+
+        visibleEvents.forEach((event, index) =&gt; {
+          const eventX = x(event.minute);
+          const isControl = event.eventType === &#x27;set_institution_control&#x27; || event.eventType === &#x27;set_response_control&#x27;;
+          const marker = add(&#x27;circle&#x27;, {
+            cx: eventX,
+            cy: timelineY - 5 - (index % 3) * 6,
+            r: isControl ? 4.5 : 3,
+            class: isControl ? &#x27;control-request&#x27; : &#x27;trace-event&#x27;
+          });
+          const markerTitle = document.createElementNS(ns, &#x27;title&#x27;);
+          markerTitle.textContent = eventDescription(event);
+          marker.appendChild(markerTitle);
+
+          if (isControl &amp;&amp; event.effectiveAt !== null &amp;&amp; event.effectiveAt &lt;= cursor) {
+            const effectiveX = x(event.effectiveAt);
+            add(&#x27;line&#x27;, { x1: eventX, y1: timelineY - 5, x2: effectiveX, y2: timelineY - 5, class: &#x27;control-connector&#x27; });
+            const effective = add(&#x27;rect&#x27;, {
+              x: effectiveX - 4,
+              y: timelineY - 9,
+              width: 8,
+              height: 8,
+              class: &#x27;control-effective&#x27;,
+              transform: &#x27;rotate(45 &#x27; + effectiveX + &#x27; &#x27; + (timelineY - 5) + &#x27;)&#x27;
+            });
+            const effectiveTitle = document.createElementNS(ns, &#x27;title&#x27;);
+            effectiveTitle.textContent = actionLabels[event.actionType] + &#x27; became effective at &#x27; + formatMinute(event.effectiveAt);
+            effective.appendChild(effectiveTitle);
+          }
+        });
+
+        const latestEvents = visibleEvents.slice(-3);
+        add(&#x27;text&#x27;, { x: chart.left, y: 276, class: &#x27;outcome-label&#x27;, &#x27;font-size&#x27;: 10 }, &#x27;Latest recorded steps&#x27;);
+        if (latestEvents.length === 0) {
+          add(&#x27;text&#x27;, { x: chart.left, y: 296, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 10 }, &#x27;No agent event recorded by this frame.&#x27;);
+        } else {
+          latestEvents.forEach((event, index) =&gt; {
+            add(&#x27;text&#x27;, { x: chart.left, y: 294 + index * 16, class: &#x27;scene-note&#x27;, &#x27;font-size&#x27;: 10 }, eventDescription(event));
           });
         }
 
-        if (stage &gt;= 2) {
-          const recordCount = family === &#x27;reporting_artifact&#x27; ? 4 : Math.min(5, infected.length);
-          for (let i = 0; i &lt; recordCount; i += 1) {
-            const rx = 548 + (i % 3) * 48;
-            const ry = 90 + Math.floor(i / 3) * 56;
-            add(&#x27;path&#x27;, {d:`M ${people[infected[Math.min(i, infected.length - 1)]][0]} ${people[infected[Math.min(i, infected.length - 1)]][1]} Q 490 120 ${rx} ${ry}`,class:&#x27;report-link&#x27;});
-            add(&#x27;rect&#x27;, {x:rx-8,y:ry-8,width:16,height:16,rx:2,class:&#x27;record&#x27;});
-          }
-          add(&#x27;text&#x27;, {x:619,y:202,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:11}, &#x27;observed records trigger an alert&#x27;);
-        }
-      };
-
-      const drawResponse = (row, stage) =&gt; {
-        if (stage &lt; 3) return;
-        add(&#x27;path&#x27;, {d:&#x27;M 620 226 Q 540 276 440 226&#x27;,class:&#x27;control-link&#x27;});
-        add(&#x27;circle&#x27;, {cx:620,cy:226,r:13,fill:&#x27;var(--viz-series-3)&#x27;});
-        add(&#x27;text&#x27;, {x:620,y:230,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,fill:&#x27;var(--background)&#x27;,&#x27;font-size&#x27;:11}, &#x27;A&#x27;);
-        add(&#x27;text&#x27;, {x:440,y:266,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,class:&#x27;scene-note&#x27;,&#x27;font-size&#x27;:10}, row.v ? `recorded: ${row.c}` : &#x27;run invalid before a scoreable endpoint&#x27;);
-      };
-
-      const drawOutcome = (row, family, stage) =&gt; {
-        if (stage &lt; 4) return;
-        if (!row.v) {
-          add(&#x27;circle&#x27;, {cx:365,cy:302,r:18,class:&#x27;failure-mark&#x27;});
-          add(&#x27;text&#x27;, {x:365,y:308,&#x27;text-anchor&#x27;:&#x27;middle&#x27;,fill:&#x27;var(--background)&#x27;,&#x27;font-size&#x27;:18}, &#x27;×&#x27;);
-          add(&#x27;text&#x27;, {x:394,y:307,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:12}, row.fail);
-          return;
-        }
-        const artifact = family === &#x27;reporting_artifact&#x27;;
-        const baseline = artifact ? row.na : row.ni;
-        const realized = artifact ? row.ra : row.ri;
-        const unit = artifact ? &#x27;records&#x27; : &#x27;infections&#x27;;
-        const scale = 150 / Math.max(1, baseline);
-        add(&#x27;text&#x27;, {x:38,y:286,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:11}, `No action: ${baseline} ${unit}`);
-        add(&#x27;rect&#x27;, {x:148,y:275,width:baseline*scale,height:14,rx:3,class:&#x27;no-action-bar&#x27;});
-        add(&#x27;text&#x27;, {x:38,y:318,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:11}, `Realized: ${realized} ${unit}`);
-        add(&#x27;rect&#x27;, {x:148,y:307,width:realized*scale,height:14,rx:3,class:&#x27;realized-bar&#x27;});
-        add(&#x27;text&#x27;, {x:330,y:286,class:&#x27;outcome-note&#x27;,&#x27;font-size&#x27;:11}, `burden ${row.b.toFixed(3)}`);
-        add(&#x27;text&#x27;, {x:330,y:318,class:&#x27;outcome-note&#x27;,&#x27;font-size&#x27;:11}, `utility ${signed(row.u)}`);
-        add(&#x27;text&#x27;, {x:520,y:302,class:&#x27;outcome-label&#x27;,&#x27;font-size&#x27;:12}, `Score ${row.s.toFixed(3)}`);
+        const atEndpoint = cursor &gt;= trace.max;
+        assessment.textContent = row.native_terminal_result
+          ? &#x27;Assessment detail is not included in this public terminal result.&#x27;
+          : atEndpoint
+            ? (row.h ? &#x27;Outbreak &#x27; + percent(row.o) + &#x27;; top cause &#x27; + row.h + &#x27; &#x27; + percent(row.hp) + &#x27;.&#x27; : &#x27;No accepted assessment.&#x27;)
+            : &#x27;Final submitted assessment appears at the recorded endpoint.&#x27;;
+        const visibleActions = visibleEvents.filter((event) =&gt; event.actionType !== null);
+        response.textContent = visibleActions.length
+          ? eventDescription(visibleActions[visibleActions.length - 1])
+          : visibleEvents.length + &#x27; agent steps recorded; no control or recommendation by this time.&#x27;;
+        const nativeEndpoint = row.v
+          ? &#x27;Endpoint: active &#x27; + currentFrame.activeCumulative + &#x27; versus no action &#x27; + currentFrame.noActionCumulative
+            + &#x27; cumulative infections&#x27; + (artifact ? &#x27;; reporting artifacts &#x27; + currentFrame.activeArtifacts + &#x27; versus &#x27; + currentFrame.noActionArtifacts : &#x27;&#x27;)
+            + &#x27;; score &#x27; + fixed(row.s, 3) + &#x27;.&#x27;
+          : &#x27;Invalid terminal result; fixed-denominator score 0.&#x27;;
+        outcome.textContent = atEndpoint
+          ? (row.native_terminal_result ? nativeEndpoint : aggregateEndpointText(row, family))
+          : &#x27;At &#x27; + formatMinute(cursor) + &#x27;: active &#x27; + currentFrame[activeKey] + &#x27; versus no action &#x27; + currentFrame[noActionKey] + &#x27; &#x27; + unit + &#x27;.&#x27;;
+        stageName.textContent = formatMinute(cursor) + (atEndpoint ? &#x27; · endpoint&#x27; : &#x27;&#x27;);
+        scene.setAttribute(&#x27;aria-label&#x27;, &#x27;Recorded replay at &#x27; + formatMinute(cursor) + &#x27; for &#x27; + families[family].label + &#x27;, &#x27; + profile.label
+          + &#x27;: active &#x27; + currentFrame[activeKey] + &#x27;, no action &#x27; + currentFrame[noActionKey] + &#x27; &#x27; + unit + &#x27;, &#x27;
+          + visibleEvents.length + &#x27; agent events visible.&#x27;);
+        accessibleSummary.textContent = &#x27;Recorded replay. &#x27; + stageName.textContent + &#x27;. &#x27; + families[family].label + &#x27;. &#x27; + profile.label + &#x27;. &#x27;
+          + assessment.textContent + &#x27; &#x27; + response.textContent + &#x27; &#x27; + outcome.textContent;
       };
 
       const renderScene = () =&gt; {
-        const stage = Number(stageInput.value);
-        const family = familySelect.value;
         const row = selectedRow();
-        const profile = profiles[row.p];
+        const family = familySelect.value;
         scene.replaceChildren();
-        drawSpread(family, stage);
-        drawResponse(row, stage);
-        drawOutcome(row, family, stage);
-        scene.setAttribute(&#x27;aria-label&#x27;, `${stages[stage]} stage for ${families[family].label}, showing ${profile.label} from the ${profile.cohort}`);
-
-        assessment.textContent = stage &gt;= 2 ? (row.h ? `Outbreak ${percent(row.o)}; top cause ${row.h} ${percent(row.hp)}.` : &#x27;No accepted assessment.&#x27;) : &#x27;Revealed at the surveillance stage.&#x27;;
-        response.textContent = stage &gt;= 3 ? `${row.c}. Final report: ${row.a}.` : &#x27;Revealed at the response stage.&#x27;;
-        outcome.textContent = stage &gt;= 4 ? (row.v ? `${families[family].best}; burden ${row.b.toFixed(3)}, utility ${signed(row.u)}, score ${row.s.toFixed(3)}.` : `Invalid: ${row.fail}; fixed-denominator score 0.`) : &#x27;Revealed at the outcome stage.&#x27;;
-        stageName.textContent = stages[stage];
-        accessibleSummary.textContent = `${stages[stage]}. ${families[family].label}. ${profile.label}. ${assessment.textContent} ${response.textContent} ${outcome.textContent}`;
+        renderLegend();
+        if (!row) {
+          add(&#x27;text&#x27;, { x: 38, y: 54, class: &#x27;legacy-note&#x27;, &#x27;font-size&#x27;: 15 }, &#x27;No result row is available for this selection.&#x27;);
+          assessment.textContent = &#x27;No result row.&#x27;;
+          response.textContent = &#x27;No result row.&#x27;;
+          outcome.textContent = &#x27;No result row.&#x27;;
+          stageName.textContent = &#x27;Unavailable&#x27;;
+          accessibleSummary.textContent = &#x27;No result row is available for this selection.&#x27;;
+          return;
+        }
+        if (currentReplay.kind === &#x27;recorded&#x27;) drawRecordedTrace(row, family, currentReplay);
+        else drawAggregateEndpoint(row, family);
       };
 
       const renderModels = () =&gt; {
-        const family = familySelect.value;
+        const comparisonRows = selectedRows();
         modelGrid.replaceChildren();
         comparison.replaceChildren();
-        profileOrder.forEach((profileId) =&gt; {
-          const row = rows.find((item) =&gt; item.f === family &amp;&amp; item.p === profileId);
-          const profile = profiles[profileId];
+        comparisonRows.forEach((row) =&gt; {
+          const profile = profileMeta(row);
+          const replay = adaptReplayTrace(row);
           const button = document.createElement(&#x27;button&#x27;);
           button.type = &#x27;button&#x27;;
           button.className = &#x27;btn model-choice&#x27;;
-          button.setAttribute(&#x27;aria-pressed&#x27;, String(profileId === modelSelect.value));
-          button.textContent = `${profile.label} · ${profile.cohort} · ${row.v ? row.s.toFixed(1) : &#x27;invalid&#x27;}`;
+          button.setAttribute(&#x27;aria-pressed&#x27;, String(row.p === modelSelect.value));
+          const traceLabel = replay.kind === &#x27;recorded&#x27; ? &#x27;trace&#x27; : replay.kind === &#x27;legacy&#x27; ? &#x27;aggregate only&#x27; : &#x27;trace unavailable&#x27;;
+          button.textContent = profile.label + &#x27; · &#x27; + (row.v ? fixed(row.s, 1) : &#x27;invalid&#x27;) + &#x27; · &#x27; + traceLabel;
           button.addEventListener(&#x27;click&#x27;, () =&gt; {
-            modelSelect.value = profileId;
+            modelSelect.value = row.p;
+            configureReplay(row, true);
             renderModels();
             renderScene();
           });
           modelGrid.appendChild(button);
 
           const tr = document.createElement(&#x27;tr&#x27;);
-          const intervention = row.v ? row.c : row.fail;
-          [profile.label, profile.cohort, row.h ? `${row.h} ${percent(row.hp)}` : &#x27;No accepted assessment&#x27;, intervention, row.v ? row.s.toFixed(3) : &#x27;0 ×&#x27;].forEach((value, index) =&gt; {
+          const intervention = row.v ? (row.c || &#x27;No recorded state changes&#x27;) : (row.fail || &#x27;Invalid&#x27;);
+          const values = [
+            profile.label,
+            profile.cohort,
+            row.h ? row.h + &#x27; &#x27; + percent(row.hp) : &#x27;No accepted assessment&#x27;,
+            intervention,
+            row.v ? fixed(row.s, 3) : &#x27;0 ×&#x27;
+          ];
+          values.forEach((value, index) =&gt; {
             const cell = document.createElement(index === 0 ? &#x27;th&#x27; : &#x27;td&#x27;);
             if (index === 2) cell.className = &#x27;optional-column&#x27;;
             cell.textContent = value;
@@ -1176,31 +1773,35 @@ html&gt;body{padding:0}&lt;/style&gt;
         });
       };
 
-      const stop = () =&gt; {
-        if (timer !== null) window.clearInterval(timer);
-        timer = null;
-        playButton.textContent = &#x27;Play&#x27;;
-      };
       const play = () =&gt; {
-        if (timer !== null) { stop(); return; }
-        if (Number(stageInput.value) &gt;= 4) stageInput.value = &#x27;0&#x27;;
+        if (currentReplay.kind !== &#x27;recorded&#x27; || currentReplay.max &lt;= currentReplay.min) return;
+        if (timer !== null) {
+          stop();
+          return;
+        }
+        if (Number(stageInput.value) &gt;= currentReplay.max) stageInput.value = String(currentReplay.min);
         playButton.textContent = &#x27;Pause&#x27;;
         renderScene();
         timer = window.setInterval(() =&gt; {
-          const next = Number(stageInput.value) + 1;
-          stageInput.value = String(Math.min(4, next));
+          const next = Math.min(currentReplay.max, Number(stageInput.value) + currentReplay.step);
+          stageInput.value = String(next);
           renderScene();
-          if (next &gt;= 4) stop();
-        }, reducedMotion ? 1500 : 1050);
+          if (next &gt;= currentReplay.max) stop();
+        }, reducedMotion ? 1200 : 650);
       };
 
-      familySelect.addEventListener(&#x27;change&#x27;, () =&gt; {
+      const handleScopeChange = () =&gt; {
         stop();
-        stageInput.value = &#x27;0&#x27;;
+        syncSelectors();
+        configureReplay(selectedRow(), true);
         renderModels();
         renderScene();
-      });
+      };
+      familySelect.addEventListener(&#x27;change&#x27;, handleScopeChange);
+      cohortSelect.addEventListener(&#x27;change&#x27;, handleScopeChange);
+      episodeSelect.addEventListener(&#x27;change&#x27;, handleScopeChange);
       modelSelect.addEventListener(&#x27;change&#x27;, () =&gt; {
+        configureReplay(selectedRow(), true);
         renderModels();
         renderScene();
       });
@@ -1209,11 +1810,251 @@ html&gt;body{padding:0}&lt;/style&gt;
         renderScene();
       });
       playButton.addEventListener(&#x27;click&#x27;, play);
+
+      syncSelectors();
+      configureReplay(selectedRow(), true);
       renderModels();
       renderScene();
     })();
   &lt;/script&gt;
 &lt;/div&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
 &lt;/body&gt;
 &lt;/html&gt;
 "></iframe>

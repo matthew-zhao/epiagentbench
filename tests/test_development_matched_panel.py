@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from contextlib import contextmanager, ExitStack
-from dataclasses import replace
+from dataclasses import asdict, replace
 import hashlib
 import json
 import os
@@ -24,6 +24,7 @@ from epiagentbench.development_matched_panel import (
     run_panel,
 )
 from epiagentbench.pilot import PilotRunResult
+from epiagentbench.replay_trace import replay_trace_sha256
 from epiagentbench.trusted.episode_pack import (
     PrivateEpisodeCohortManifest,
     PrivateEpisodePack,
@@ -159,6 +160,29 @@ class MatchedPanelTests(unittest.TestCase):
 
     @staticmethod
     def _result(system: str, model: str, executable: str, total: float) -> PilotRunResult:
+        replay_trace = {
+            "schema_version": "epiagentbench.aggregate-replay-trace.v1",
+            "frame_interval_minutes": 360,
+            "frames": [
+                {
+                    "minute": minute,
+                    "active_currently_infected": 2,
+                    "active_cumulative_infections": 2,
+                    "active_reporting_artifacts": 0,
+                    "no_action_currently_infected": 2,
+                    "no_action_cumulative_infections": 2,
+                    "no_action_reporting_artifacts": 0,
+                    "effective_controls": {
+                        "infection_control": "off",
+                        "source_control": "off",
+                        "entry_control": "off",
+                        "audit_reporting": "off",
+                    },
+                }
+                for minute in (0, 360)
+            ],
+            "agent_events": [],
+        }
         return PilotRunResult(
             system=system,
             requested_model=model,
@@ -173,13 +197,21 @@ class MatchedPanelTests(unittest.TestCase):
                 "valid": True,
                 "total": total,
                 "dimensions": {name: 0.0 for name in matched.DIMENSION_MAXIMA},
-                "metrics": {"integrity_pass": True, "tool_calls": 2},
+                "metrics": {
+                    "integrity_pass": True,
+                    "tool_calls": 2,
+                    "realized_active_infections": 2,
+                    "counterfactual_no_action_infections": 2,
+                    "realized_active_artifact_emissions": 0,
+                    "counterfactual_no_action_artifact_emissions": 0,
+                },
                 "violations": [],
             },
             audit_events=(),
             stdout_bytes=10,
             stderr_bytes=0,
             diagnostic="",
+            replay_trace=replay_trace,
         )
 
     def _run_with(self, side_effect):
@@ -207,8 +239,13 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v1")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v2")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
+        self.assertEqual(
+            public["run_contract"]["replay_trace_release"]["release"],
+            "terminal_retired_panel_only",
+        )
+        self.assertIn("replay_sha256", public["contract_hashes"])
         self.assertEqual(
             public["schedule_design"],
             {
@@ -229,10 +266,21 @@ class MatchedPanelTests(unittest.TestCase):
             "bonferroni_fifteen_pairs",
         )
         self.assertEqual(os.stat(self.private_path).st_mode & 0o777, 0o600)
+        cohort_manifest_path = Path(private["cohort_manifest_path"])
+        self.assertFalse(
+            matched._cohort_retirement_path(cohort_manifest_path).exists()
+        )
         encoded = json.dumps(public)
+        hidden_assignment_surface = json.dumps(
+            {
+                "episodes": public["episodes"],
+                "schedule_design": public["schedule_design"],
+                "results": public["results"],
+            }
+        )
         self.assertNotIn(str(self.root), encoded)
         for family in FAMILIES:
-            self.assertNotIn(family, encoded)
+            self.assertNotIn(family, hidden_assignment_surface)
         for forbidden in ("pack_path", "seed", "episode_secret", "profile_order"):
             self.assertNotIn(forbidden, encoded)
 
@@ -401,25 +449,210 @@ class MatchedPanelTests(unittest.TestCase):
             )
         evaluate.assert_not_called()
 
+    def test_clean_worktree_gate_allows_only_the_private_retirement_marker(self):
+        self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        retirement_path = matched._cohort_retirement_path(
+            Path(private["cohort_manifest_path"])
+        )
+        matched._atomic_json(retirement_path, {"test": True}, private=True)
+        matched._atomic_json(self.results_path, {"status": "complete"})
+        public_relative = matched._relative_to_root(self.public_path, self.root)
+        private_relative = matched._relative_to_root(self.private_path, self.root)
+        results_relative = matched._relative_to_root(self.results_path, self.root)
+        retirement_relative = matched._relative_to_root(retirement_path, self.root)
+
+        def git_output(_: Path, *arguments: str) -> str:
+            if arguments == (
+                "ls-files",
+                "--error-unmatch",
+                public_relative,
+            ):
+                return public_relative
+            if arguments in {
+                ("ls-files", private_relative),
+                ("ls-files", retirement_relative),
+            }:
+                return ""
+            if arguments == (
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+            ):
+                return "\n".join(
+                    (
+                        f"?? {retirement_relative}",
+                        f"?? {results_relative}",
+                    )
+                )
+            self.fail(f"unexpected git probe: {arguments!r}")
+
+        with patch(
+            "epiagentbench.development_matched_panel._git_output",
+            side_effect=git_output,
+        ):
+            matched._preflight_execution(
+                root=self.root,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                allowed_private_artifact_paths=(retirement_path,),
+            )
+
+        def dirty_git_output(root: Path, *arguments: str) -> str:
+            observed = git_output(root, *arguments)
+            if arguments == (
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+            ):
+                return observed + "\n?? unexpected-private-file"
+            return observed
+
+        with patch(
+            "epiagentbench.development_matched_panel._git_output",
+            side_effect=dirty_git_output,
+        ), self.assertRaisesRegex(RuntimeError, "worktree is not clean"):
+            matched._preflight_execution(
+                root=self.root,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                allowed_private_artifact_paths=(retirement_path,),
+            )
+
     def test_six_profiles_complete_300_without_partial_public_scores(self):
         self._prepare()
+        private_before_run = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        cohort_manifest_path = Path(private_before_run["cohort_manifest_path"])
+        retirement_path = matched._cohort_retirement_path(cohort_manifest_path)
         calls: list[tuple[str, str, str | None]] = []
+        terminal_write_saw_retirement = False
+        captured_progress_artifacts = 0
 
         def evaluate(system: str, **kwargs):
-            if not calls:
-                running = json.loads(self.results_path.read_text())
-                self.assertEqual(running["results"], [])
-                self.assertEqual(running["summary"], {"primary_estimand": "pending"})
-                self.assertNotIn("family", json.dumps(running))
-                self.assertNotIn("profile_order", json.dumps(running))
+            running = json.loads(self.results_path.read_text())
+            self.assertEqual(running["results"], [])
+            self.assertEqual(running["summary"], {"primary_estimand": "pending"})
+            self.assertNotIn("replay_trace", json.dumps(running))
+            self.assertNotIn("family", json.dumps(running))
+            self.assertNotIn("profile_order", json.dumps(running))
             calls.append((system, kwargs["model"], kwargs["claude_effort"]))
             totals = {"claude": 10.0, "codex": 20.0}
             total = totals.get(system, 30.0 if "grok" in kwargs["model"] else 40.0)
             return self._result(system, kwargs["model"], kwargs["executable"], total)
 
-        payload, invoked = self._run_with(evaluate)
+        original_atomic_json = matched._atomic_json
+
+        def guarded_atomic_json(path, value, **kwargs):
+            nonlocal terminal_write_saw_retirement, captured_progress_artifacts
+            if (
+                Path(path) == self.results_path
+                and isinstance(value, dict)
+                and value.get("status")
+                in {"running", "stopped_transport_void"}
+            ):
+                captured_progress_artifacts += 1
+                self.assertEqual(value.get("results"), [])
+                self.assertNotIn("replay_trace", json.dumps(value))
+            if (
+                Path(path) == self.results_path
+                and isinstance(value, dict)
+                and str(value.get("status", "")).startswith("complete")
+            ):
+                terminal_write_saw_retirement = True
+                self.assertTrue(retirement_path.exists())
+                matched._load_cohort_retirement_marker(
+                    retirement_path, AUTHENTICATION_KEY
+                )
+            return original_atomic_json(path, value, **kwargs)
+
+        with patch(
+            "epiagentbench.development_matched_panel._atomic_json",
+            side_effect=guarded_atomic_json,
+        ):
+            payload, invoked = self._run_with(evaluate)
         self.assertEqual(payload["status"], "complete")
         self.assertEqual(invoked.call_count, ASSIGNMENT_COUNT)
+        self.assertTrue(terminal_write_saw_retirement)
+        self.assertGreater(captured_progress_artifacts, ASSIGNMENT_COUNT)
+        self.assertTrue(payload["cohort_retired_before_trace_publication"])
+        self.assertTrue(
+            all(result["trace_status"] == "recorded" for result in payload["results"])
+        )
+        self.assertTrue(
+            all(
+                result["replay_trace_sha256"].startswith("sha256:")
+                for result in payload["results"]
+            )
+        )
+        for result in payload["results"]:
+            with self.subTest(
+                episode_ref=result["episode_ref"],
+                profile_id=result["profile_id"],
+            ):
+                self.assertEqual(
+                    result["replay_trace_sha256"],
+                    replay_trace_sha256(
+                        result["replay_trace"],
+                        episode_ref=result["episode_ref"],
+                        profile_id=result["profile_id"],
+                        pack_commitment=result["pack_commitment"],
+                    ),
+                )
+        self.assertEqual(os.stat(retirement_path).st_mode & 0o777, 0o600)
+        retirement = matched._load_cohort_retirement_marker(
+            retirement_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(retirement["cohort_id"], COHORT_ID)
+        self.assertEqual(retirement["panel_id"], matched.PANEL_ID)
+        self.assertEqual(
+            retirement["public_precommitment_sha256"],
+            payload["precommitment_sha256"],
+        )
+        self.assertEqual(
+            retirement["terminal_results_sha256"], payload["results_sha256"]
+        )
+        self.assertEqual(
+            retirement["terminal_trace_results_sha256"],
+            matched._terminal_trace_results_hash(payload),
+        )
+        self.assertEqual(retirement["terminal_assignments"], ASSIGNMENT_COUNT)
+
+        resumed, resumed_invoked = self._run_with(
+            lambda *_args, **_kwargs: self.fail(
+                "a terminal retry must not invoke a provider"
+            )
+        )
+        self.assertEqual(resumed, payload)
+        resumed_invoked.assert_not_called()
+
+        with self._contracts(), self.assertRaisesRegex(ValueError, "retired"):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=cohort_manifest_path,
+                authentication_key_file=self.key_path,
+                private_state_path=self.root
+                / "run_artifacts"
+                / "reused-private.json",
+                public_manifest_path=self.root
+                / "results"
+                / "reused-manifest.json",
+            )
+
+        tampered = json.loads(retirement_path.read_text())
+        tampered["terminal_results_sha256"] = "sha256:" + "f" * 64
+        matched._atomic_json(retirement_path, tampered, private=True)
+        with self.assertRaisesRegex(ValueError, "authentication"):
+            self._run_with(
+                lambda *_args, **_kwargs: self.fail(
+                    "tampered retirement must fail before a provider call"
+                )
+            )
         cursor_models = {
             model for system, model, _ in calls if system == "cursor"
         }
@@ -447,6 +680,57 @@ class MatchedPanelTests(unittest.TestCase):
                 "cursor-kimi-k27-code": 40.0,
             },
         )
+
+    def test_terminalization_rejects_cross_profile_no_action_mismatch(self):
+        first = asdict(
+            self._result("codex", "gpt-5.6-sol", "codex", 50.0)
+        )
+        second = asdict(
+            self._result("codex", "gpt-5.6-luna", "codex", 50.0)
+        )
+        second["replay_trace"]["frames"][1][
+            "no_action_currently_infected"
+        ] = 1
+        # Both traces remain individually valid; only their shared no-action
+        # counterfactual has been made inconsistent.
+        matched.validate_replay_trace(first["replay_trace"])
+        matched.validate_replay_trace(second["replay_trace"])
+
+        private = {
+            "episodes": [
+                {
+                    "episode_ref": "episode_0001",
+                    "family": FAMILIES[0],
+                    "pack_commitment": "sha256:" + "1" * 64,
+                }
+            ],
+            "assignments": [
+                {
+                    "episode_ref": "episode_0001",
+                    "profile_id": "codex-sol",
+                    "status": "complete",
+                    "public_result": {
+                        "episode_ref": "episode_0001",
+                        "profile_id": "codex-sol",
+                    },
+                    "raw_result": first,
+                },
+                {
+                    "episode_ref": "episode_0001",
+                    "profile_id": "codex-luna-medium",
+                    "status": "complete",
+                    "public_result": {
+                        "episode_ref": "episode_0001",
+                        "profile_id": "codex-luna-medium",
+                    },
+                    "raw_result": second,
+                },
+            ],
+        }
+        with self.assertRaisesRegex(
+            ValueError, "profiles disagree on the no-action replay twin"
+        ):
+            matched._complete_artifact({}, private)
 
     def test_orphan_is_sealed_never_retried_and_void_suppresses_means(self):
         self._prepare()
@@ -593,6 +877,29 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(sanitized["total"], 0.0)
         self.assertIn("agent_failure:model_receipt_missing", sanitized["audit_events"])
 
+    def test_terminal_trace_survives_an_invalid_model_scorecard(self):
+        result = self._result("codex", "gpt-5.6-sol", "codex", 0.0)
+        invalid = replace(
+            result,
+            scorecard={
+                "valid": False,
+                "total": 0.0,
+                "dimensions": {},
+                "metrics": {"integrity_pass": False, "tool_calls": 1},
+                "violations": ["invalid_submission"],
+            },
+        )
+        payload = matched._terminal_replay_payload(
+            {
+                "episode_ref": "episode_0001",
+                "profile_id": "codex-sol",
+                "raw_result": asdict(invalid),
+            },
+            {"pack_commitment": "sha256:" + "1" * 64},
+        )
+        self.assertEqual(payload["trace_status"], "recorded")
+        self.assertTrue(payload["replay_trace_sha256"].startswith("sha256:"))
+
     def test_sonnet_five_receipt_identity_is_exact(self):
         profile = next(
             profile
@@ -656,6 +963,10 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(claude_efforts, ["high", "high"])
         self.assertEqual(receipt["production_episodes_consumed"], 0)
         self.assertTrue(all(not item["scored"] for item in receipt["profiles"]))
+        self.assertTrue(
+            all(item["replay_trace_validated"] for item in receipt["profiles"])
+        )
+        self.assertNotIn("agent_events", json.dumps(receipt))
         self.assertNotIn("total", json.dumps(receipt))
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
