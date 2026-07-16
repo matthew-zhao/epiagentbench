@@ -81,6 +81,24 @@ _CLAUDE_MCP_TOOL_NAMES = tuple(
     f"mcp__epiagent__{tool_name}" for tool_name in _PUBLIC_TOOL_NAMES
 )
 _CLAUDE_EXPECTED_TOOLS = (*_CLAUDE_MCP_TOOL_NAMES, "StructuredOutput")
+_CLAUDE_UNSUPPORTED_SCHEMA_KEYS = frozenset(
+    {
+        "$id",
+        "$schema",
+        "allOf",
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "maxItems",
+        "maxLength",
+        "maximum",
+        "minItems",
+        "minLength",
+        "minimum",
+        "multipleOf",
+        "title",
+        "uniqueItems",
+    }
+)
 _FENCED_JSON_BLOCK = re.compile(
     r"```(?:json)?[ \t]*\r?\n(?P<body>.*?)\r?\n?[ \t]*```",
     re.IGNORECASE | re.DOTALL,
@@ -189,6 +207,72 @@ def _compact_json_schema(schema_path: str) -> str:
     )
 
 
+def _claude_provider_schema(schema_path: str) -> dict[str, Any]:
+    """Project the evaluator schema onto Claude's supported output subset.
+
+    Anthropic documents that unsupported constraints should be removed from the
+    provider schema and enforced again by the application's original-schema
+    validator.  Local references are inlined and every object remains closed;
+    the trusted benchmark scorer still enforces the complete source schema.
+    """
+
+    try:
+        source = _decode_json(Path(schema_path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+        raise ValueError("Invalid Claude JSON schema") from error
+    if not isinstance(source, dict):
+        raise ValueError("Invalid Claude JSON schema")
+    properties = source.get("properties")
+    required = source.get("required")
+    definitions = source.get("$defs")
+    if (
+        not isinstance(properties, dict)
+        or set(properties) != _SUBMISSION_KEYS
+        or not isinstance(required, list)
+        or set(required) != _SUBMISSION_KEYS
+        or not isinstance(definitions, dict)
+    ):
+        raise ValueError("Claude projection requires the complete submission schema")
+
+    def project(value: Any) -> Any:
+        if isinstance(value, list):
+            return [project(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        reference = value.get("$ref")
+        if reference is not None:
+            prefix = "#/$defs/"
+            if not isinstance(reference, str) or not reference.startswith(prefix):
+                raise ValueError("Unsupported Claude schema reference")
+            name = reference[len(prefix) :]
+            target = definitions.get(name)
+            if not isinstance(target, dict):
+                raise ValueError("Unknown Claude schema reference")
+            return project(target)
+        projected = {
+            key: project(child)
+            for key, child in value.items()
+            if key not in _CLAUDE_UNSUPPORTED_SCHEMA_KEYS and key != "$defs"
+        }
+        if projected.get("type") == "object":
+            projected["additionalProperties"] = False
+        return projected
+
+    projected = project(source)
+    if not isinstance(projected, dict):
+        raise ValueError("Invalid Claude provider schema")
+    return projected
+
+
+def _compact_claude_provider_schema(schema_path: str) -> str:
+    return json.dumps(
+        _claude_provider_schema(schema_path),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 def build_agent_command(
     system: str,
     *,
@@ -265,7 +349,7 @@ def build_agent_command(
             0 < claude_max_budget_usd <= 100
         ):
             raise ValueError("Invalid Claude budget")
-        compact_schema = _compact_json_schema(schema_path)
+        compact_schema = _compact_claude_provider_schema(schema_path)
         command = [
             executable,
             "--print",
@@ -549,11 +633,8 @@ def _claude_tool_audit(
         return ("agent_failure:mcp_unavailable",)
     initialization = initializations[0]
     tools = initialization.get("tools")
-    if (
-        not isinstance(tools, list)
-        or not all(isinstance(tool, str) for tool in tools)
-        or len(tools) != len(_CLAUDE_EXPECTED_TOOLS)
-        or set(tools) != set(_CLAUDE_EXPECTED_TOOLS)
+    if not isinstance(tools, list) or not all(
+        isinstance(tool, str) for tool in tools
     ):
         return ("agent_failure:mcp_unavailable",)
     servers = initialization.get("mcp_servers")
@@ -565,6 +646,17 @@ def _claude_tool_audit(
         or servers[0].get("status") != "connected"
     ):
         return ("agent_failure:mcp_unavailable",)
+
+    tool_inventory = set(tools)
+    expected_mcp = set(_CLAUDE_MCP_TOOL_NAMES)
+    if not expected_mcp.issubset(tool_inventory):
+        return ("agent_failure:mcp_unavailable",)
+    if tool_inventory - set(_CLAUDE_EXPECTED_TOOLS):
+        return ("agent_failure:unauthorized_tool",)
+    if "StructuredOutput" not in tool_inventory:
+        return ("agent_failure:structured_output_unavailable",)
+    if len(tools) != len(_CLAUDE_EXPECTED_TOOLS):
+        return ("agent_failure:unauthorized_tool",)
 
     allowed = set(_CLAUDE_EXPECTED_TOOLS)
     for record in records:
