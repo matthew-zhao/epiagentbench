@@ -5,8 +5,9 @@ trusted development-pilot machinery for commitments, sanitization, and atomic
 checkpoints while fixing one Claude configuration across five fresh episodes.
 Provider execution remains host-networked and non-hermetic.
 
-The v2 identifier is deliberate: v1 was permanently voided after a Claude MCP
-isolation failure and its assignments are never reused here.
+The v3 identifier is deliberate: v1 was voided after an MCP isolation failure,
+and v2 was voided when Claude Code silently declined the unprojected evaluator
+schema.  Neither panel's assignments are ever reused here.
 """
 
 from __future__ import annotations
@@ -44,14 +45,15 @@ from .pilot import (
     PilotRunResult,
     _CLAUDE_EXPECTED_TOOLS as _PILOT_CLAUDE_EXPECTED_TOOLS,
     _PUBLIC_TOOL_NAMES as _PILOT_PUBLIC_TOOL_NAMES,
+    _claude_provider_schema,
     _task_prompt,
     evaluate_local_cli_agent,
 )
 from .trusted.cohort_freezer import compute_generator_fingerprint
 
 
-PANEL_ID = "development-opus-high-pilot-v2-2026-07-15"
-SCHEMA_VERSION = "development_opus_pilot_v2"
+PANEL_ID = "development-opus-high-pilot-v3-2026-07-15"
+SCHEMA_VERSION = "development_opus_pilot_v3"
 SYSTEM = "claude"
 REQUESTED_MODEL = "claude-opus-4-8"
 CLAUDE_EFFORT = "high"
@@ -111,7 +113,27 @@ def _claude_isolation_contract() -> dict[str, Any]:
         "expected_init_tools": list(EXPECTED_CLAUDE_INIT_TOOLS),
         "expected_init_tool_count": len(EXPECTED_CLAUDE_INIT_TOOLS),
         "inventory_failure_event": "agent_failure:mcp_unavailable",
+        "structured_output_failure_event": (
+            "agent_failure:structured_output_unavailable"
+        ),
         "unauthorized_tool_event": "agent_failure:unauthorized_tool",
+    }
+
+
+def _claude_structured_output_contract(root: Path) -> dict[str, Any]:
+    evaluator_schema = root / "schemas" / "submission.schema.json"
+    provider_schema = _claude_provider_schema(str(evaluator_schema))
+    return {
+        "transport": "Claude --json-schema",
+        "provider_schema_projection": (
+            "documented compatibility projection removes unsupported constraints, "
+            "inlines local references, and closes every object"
+        ),
+        "provider_schema_sha256": _sha256(_canonical_bytes(provider_schema)),
+        "evaluator_schema": "schemas/submission.schema.json",
+        "evaluator_schema_sha256": _sha256(evaluator_schema.read_bytes()),
+        "full_schema_revalidated_by_trusted_scorer": True,
+        "structured_output_init_tool_required": True,
     }
 
 
@@ -312,7 +334,7 @@ def prepare_panel(
         "fallback_model": None,
         "requested_effort": CLAUDE_EFFORT,
         "effort_attribution": "requested_only_unverified",
-        "native_output_contract": "Claude --json-schema with submission.schema.json",
+        "native_output_contract": _claude_structured_output_contract(root),
         "claude_isolation_contract": _claude_isolation_contract(),
         "timeout_seconds_per_assignment": timeout_seconds,
         "claude_max_budget_usd_per_assignment": claude_max_budget_usd,
@@ -554,8 +576,8 @@ def _validate_commitments(
         "claude_cli_version"
     ):
         raise ValueError("Opus run contract has no pinned Claude CLI version")
-    if contract.get("native_output_contract") != (
-        "Claude --json-schema with submission.schema.json"
+    if contract.get("native_output_contract") != _claude_structured_output_contract(
+        root
     ):
         raise ValueError("Opus structured-output contract is not fixed")
     if contract.get("claude_isolation_contract") != _claude_isolation_contract():
@@ -673,7 +695,10 @@ def _execution_environment(root: Path) -> dict[str, Any]:
         "platform": platform.platform(),
         "machine": platform.machine(),
         "provider_network_access": True,
-        "sandbox": "Claude safe mode with public MCP only; not hermetic",
+        "sandbox": (
+            "isolated Claude HOME/config with verified public MCP-only inventory; "
+            "provider execution remains host-networked and non-hermetic"
+        ),
         "claude_available": True,
         "claude_cli_version": claude_cli_version,
     }
@@ -735,7 +760,18 @@ def _running_public_artifact(
     public["completed_assignments"] = completed_assignments
     public["summary"] = aggregate_results([])
     if running_assignment is not None:
-        public["running_assignment"] = dict(running_assignment)
+        public["running_assignment"] = {
+            key: running_assignment[key]
+            for key in (
+                "episode_ref",
+                "system",
+                "status",
+                "started_at_utc",
+                "error_type",
+                "error",
+            )
+            if key in running_assignment
+        }
     return public
 
 
@@ -951,11 +987,11 @@ def run_panel(
                 claude_max_budget_usd=budget,
                 claude_effort=CLAUDE_EFFORT,
             )
+            marker["raw_result"] = asdict(result)
             _raise_on_opus_startup_failure(result)
             if result.cli_version != pinned_claude_version:
                 raise RuntimeError("Claude CLI version changed during an assignment")
             finished_at = _utc_now()
-            marker["raw_result"] = asdict(result)
             sanitized = _sanitize_result(
                 episode=private_episode,
                 result=result,

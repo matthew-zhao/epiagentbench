@@ -18,6 +18,7 @@ from epiagentbench.development_opus_pilot import (
     REQUESTED_MODEL,
     _canonical_bytes,
     _claude_isolation_contract,
+    _claude_structured_output_contract,
     _family_commitment,
     _private_panel,
     _raise_on_opus_startup_failure,
@@ -81,7 +82,12 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
     def _fake_root(self, root: Path) -> None:
         (root / "schemas").mkdir()
         (root / "schemas" / "submission.schema.json").write_text(
-            "{}", encoding="utf-8"
+            (
+                Path(__file__).resolve().parents[1]
+                / "schemas"
+                / "submission.schema.json"
+            ).read_text(encoding="utf-8"),
+            encoding="utf-8",
         )
         package = root / "src" / "epiagentbench"
         package.mkdir(parents=True)
@@ -178,9 +184,9 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
             self.assertEqual(public["panel_id"], PANEL_ID)
             self.assertEqual(
                 public["panel_id"],
-                "development-opus-high-pilot-v2-2026-07-15",
+                "development-opus-high-pilot-v3-2026-07-15",
             )
-            self.assertEqual(public["schema_version"], "development_opus_pilot_v2")
+            self.assertEqual(public["schema_version"], "development_opus_pilot_v3")
             private = json.loads(private_text)
             self.assertEqual(
                 {item["family"] for item in private["episodes"]}, set(FAMILIES)
@@ -222,6 +228,10 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
             self.assertEqual(
                 isolation["expected_mcp_servers"], {"epiagent": "connected"}
             )
+            self.assertEqual(
+                isolation["structured_output_failure_event"],
+                "agent_failure:structured_output_unavailable",
+            )
             self.assertIsNone(public["run_contract"]["fallback_model"])
             self.assertTrue(
                 public["run_contract"]["exact_model_receipt_required"]
@@ -233,7 +243,15 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
                 public["run_contract"]["claude_max_budget_usd_per_assignment"],
                 5.0,
             )
-            self.assertIn("--json-schema", public["run_contract"]["native_output_contract"])
+            output_contract = public["run_contract"]["native_output_contract"]
+            self.assertEqual(
+                output_contract, _claude_structured_output_contract(root)
+            )
+            self.assertEqual(output_contract["transport"], "Claude --json-schema")
+            self.assertTrue(
+                output_contract["full_schema_revalidated_by_trusted_scorer"]
+            )
+            self.assertTrue(output_contract["provider_schema_sha256"].startswith("sha256:"))
             self.assertFalse(public["paired"])
             self.assertFalse(public["calibrated"])
             self.assertFalse(public["hermetic"])
@@ -421,6 +439,16 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "MCP was unavailable"):
             _raise_on_opus_startup_failure(mcp_unavailable)
 
+        structured_output_unavailable = self.result(
+            observed_models=(REQUESTED_MODEL,),
+            valid=False,
+            returncode=0,
+            tool_calls=0,
+            audit_events=("agent_failure:structured_output_unavailable",),
+        )
+        with self.assertRaisesRegex(RuntimeError, "structured output was unavailable"):
+            _raise_on_opus_startup_failure(structured_output_unavailable)
+
     def test_run_threads_exact_model_high_effort_and_native_schema_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -540,12 +568,95 @@ class DevelopmentOpusPilotTests(unittest.TestCase):
             unsigned = dict(completed)
             supplied = unsigned.pop("results_sha256")
             self.assertEqual(supplied, _sha256(_canonical_bytes(unsigned)))
+
+    def test_startup_failure_persists_raw_result_before_panel_retirement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            private_path = root / "run_artifacts" / "private.json"
+            public_path = root / "results" / "manifest.json"
+            results_path = root / "results" / "results.json"
+            private_path.parent.mkdir()
+            public_path.parent.mkdir()
+            master = b"z" * 32
+            private = {
+                "panel_id": PANEL_ID,
+                "episodes": [dict(item) for item in _private_panel(master)],
+                "assignments": [],
+                "status": "prepared",
+            }
+            public = {
+                "panel_id": PANEL_ID,
+                "precommitment_sha256": "sha256:test",
+                "benchmark_base_commit": "a" * 40,
+                "episodes": [
+                    {"episode_ref": item["episode_ref"]}
+                    for item in private["episodes"]
+                ],
+                "run_contract": {
+                    "timeout_seconds_per_assignment": 900,
+                    "claude_max_budget_usd_per_assignment": 5.0,
+                    "claude_cli_version": self.CLAUDE_VERSION,
+                },
+                "score_dimension_maxima": dict(DIMENSION_MAXIMA),
+                "limitations": ["development only"],
+            }
+            environment = {
+                "execution_commit": "b" * 40,
+                "git_status_at_start": "",
+                "starsim": "3.5.1",
+                "claude_available": True,
+                "claude_cli_version": self.CLAUDE_VERSION,
+            }
+            private_path.write_text(json.dumps(private), encoding="utf-8")
+            os.chmod(private_path, 0o600)
+            public_path.write_text(json.dumps(public), encoding="utf-8")
+            failed = self.result(
+                valid=False,
+                tool_calls=0,
+                audit_events=("agent_failure:structured_output_unavailable",),
+            )
+            with patch(
+                "epiagentbench.development_opus_pilot._validate_commitments",
+                return_value=master,
+            ), patch(
+                "epiagentbench.development_opus_pilot._preflight_execution",
+                return_value=environment,
+            ), patch(
+                "epiagentbench.development_opus_pilot._git_output",
+                return_value="",
+            ), patch(
+                "epiagentbench.development_opus_pilot.evaluate_local_cli_agent",
+                return_value=failed,
+            ), patch(
+                "epiagentbench.development_opus_pilot._claude_version",
+                return_value=self.CLAUDE_VERSION,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "cannot be retried"):
+                    run_panel(
+                        root=root,
+                        private_manifest_path=private_path,
+                        public_manifest_path=public_path,
+                        public_results_path=results_path,
+                    )
+
+            checkpoint = json.loads(private_path.read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["status"], "blocked_infrastructure")
+            self.assertEqual(len(checkpoint["assignments"]), 1)
+            marker = checkpoint["assignments"][0]
+            self.assertEqual(marker["status"], "in_progress")
+            self.assertEqual(
+                marker["raw_result"]["audit_events"],
+                ["agent_failure:structured_output_unavailable"],
+            )
+            blocked = json.loads(results_path.read_text(encoding="utf-8"))
+            self.assertEqual(blocked["status"], "blocked_infrastructure")
+            self.assertEqual(blocked["completed_assignments"], 0)
             public_text = results_path.read_text(encoding="utf-8")
             self.assertNotIn("private diagnostic", public_text)
-            self.assertNotIn("structured native output", public_text)
+            self.assertNotIn("raw_action_utility", public_text)
             private_text = private_path.read_text(encoding="utf-8")
             self.assertIn("private diagnostic", private_text)
-            self.assertIn("structured native output", private_text)
+            self.assertIn("raw_action_utility", private_text)
 
 
 if __name__ == "__main__":

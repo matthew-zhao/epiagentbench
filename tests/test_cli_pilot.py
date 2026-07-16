@@ -9,6 +9,9 @@ from unittest.mock import patch
 from epiagentbench.pilot import (
     ClaudeEffort,
     _CLAUDE_EXPECTED_TOOLS,
+    _CLAUDE_MCP_TOOL_NAMES,
+    _CLAUDE_UNSUPPORTED_SCHEMA_KEYS,
+    _claude_provider_schema,
     _isolate_claude_environment,
     _prepare_workspace,
     build_agent_command,
@@ -66,8 +69,11 @@ class CliPilotTests(unittest.TestCase):
         claude_effort: str | ClaudeEffort | None = None,
     ) -> list[str]:
         with tempfile.TemporaryDirectory() as temp:
-            schema = Path(temp) / "schema.json"
-            schema.write_text('{"type":"object"}', encoding="utf-8")
+            schema = (
+                Path(__file__).resolve().parents[1]
+                / "schemas"
+                / "submission.schema.json"
+            )
             return build_agent_command(
                 system,
                 executable=system,
@@ -122,7 +128,13 @@ class CliPilotTests(unittest.TestCase):
         schema_index = claude.index("--json-schema")
         self.assertEqual(
             json.loads(claude[schema_index + 1]),
-            {"type": "object"},
+            _claude_provider_schema(
+                str(
+                    Path(__file__).resolve().parents[1]
+                    / "schemas"
+                    / "submission.schema.json"
+                )
+            ),
         )
 
         cursor = self._command("cursor")
@@ -137,6 +149,28 @@ class CliPilotTests(unittest.TestCase):
         self.assertNotIn("--approve-mcps", cursor)
         self.assertNotIn("--force", cursor)
         self.assertNotIn("--yolo", cursor)
+
+    def test_claude_provider_schema_projects_then_trusted_scorer_revalidates(self):
+        schema_path = (
+            Path(__file__).resolve().parents[1]
+            / "schemas"
+            / "submission.schema.json"
+        )
+        source = json.loads(schema_path.read_text(encoding="utf-8"))
+        projected = _claude_provider_schema(str(schema_path))
+        encoded = json.dumps(projected, sort_keys=True)
+        for keyword in _CLAUDE_UNSUPPORTED_SCHEMA_KEYS:
+            self.assertNotIn(f'"{keyword}"', encoded)
+        self.assertNotIn('"$ref"', encoded)
+        self.assertNotIn('"$defs"', encoded)
+        self.assertEqual(set(projected["properties"]), set(source["properties"]))
+        self.assertEqual(set(projected["required"]), set(source["required"]))
+        self.assertEqual(
+            source["properties"]["executive_brief"]["maxLength"], 4000
+        )
+        self.assertNotIn(
+            "maxLength", projected["properties"]["executive_brief"]
+        )
 
     def test_claude_environment_is_private_and_clears_safe_mode(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -289,6 +323,31 @@ class CliPilotTests(unittest.TestCase):
         )
         self.assertIsNone(submission)
         self.assertIn("agent_failure:mcp_unavailable", audit)
+
+    def test_claude_mcp_without_structured_output_is_infrastructure(self):
+        stream = b"\n".join(
+            [
+                json.dumps(
+                    _claude_init(
+                        "claude-opus-4-8",
+                        tools=list(_CLAUDE_MCP_TOOL_NAMES),
+                    )
+                ).encode(),
+                json.dumps(
+                    {
+                        "type": "result",
+                        "result": json.dumps(_submission()),
+                        "modelUsage": {"claude-opus-4-8": {}},
+                    }
+                ).encode(),
+            ]
+        )
+        submission, _, audit = parse_agent_output(
+            "claude", requested_model="claude-opus-4-8", stdout=stream
+        )
+        self.assertIsNone(submission)
+        self.assertIn("agent_failure:structured_output_unavailable", audit)
+        self.assertNotIn("agent_failure:mcp_unavailable", audit)
 
     def test_claude_exact_inventory_and_public_tool_use_are_accepted(self):
         expected = _submission()

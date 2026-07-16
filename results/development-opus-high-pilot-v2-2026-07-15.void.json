@@ -1,0 +1,77 @@
+{
+  "schema_version": "development_opus_pilot_void_v1",
+  "panel_id": "development-opus-high-pilot-v2-2026-07-15",
+  "created_at_utc": "2026-07-15T23:56:43Z",
+  "status": "void_harness_infrastructure_failure",
+  "development_only": true,
+  "leaderboard_eligible": false,
+  "model_score_valid": false,
+  "panel_retired": true,
+  "assignments_may_be_reused": false,
+  "summary": {
+    "planned_assignments": 5,
+    "started_assignments": 1,
+    "completed_assignments": 0,
+    "scored_assignments": 0,
+    "disposition": "No Opus performance result exists for this panel. Do not report its zero-filled running summary as a model score."
+  },
+  "source_artifacts": {
+    "public_manifest": {
+      "filename": "development-opus-high-pilot-v2-2026-07-15.manifest.json",
+      "file_sha256": "sha256:fd2768fa09b6b7d2cbaaaf75fdb9a71bd4eb6a8f23d7b5a32b12e6be965bbf98",
+      "precommitment_sha256": "sha256:7e8dc7eca3da8d61e7f6f3a3ad828bc2193bfd68fd87ff7ce0a60d8c3ee7279d",
+      "benchmark_base_commit": "27f27ff8f001f62286143dff57ea5fb5327ecdbd"
+    },
+    "blocked_public_results": {
+      "filename": "development-opus-high-pilot-v2-2026-07-15.results.json",
+      "file_sha256": "sha256:b188fbe8dacdf8dd974f9c94a18e0ce76f5d67df285bf1c24213ecff4048aa9a",
+      "execution_commit": "27ffe22b1cfe2679f0ff64b3baa4b26028809f61",
+      "status": "blocked_infrastructure"
+    }
+  },
+  "original_failure": {
+    "public_error": "Required episode MCP was unavailable before the agent ran",
+    "original_audit_interpretation": "The startup receipt did not equal the precommitted set of 12 public MCP tools plus StructuredOutput.",
+    "observability_limitation": "The v2 harness persisted the private raw result only after its startup check, so the rejected receipt was not retained. This ordering is corrected before any successor panel."
+  },
+  "root_cause": {
+    "classification": "Claude structured-output schema incompatibility, not an episode-MCP outage",
+    "finding": "With the complete evaluator submission schema, Claude Code exposed all 12 epiagent MCP tools and reported the epiagent server connected, but silently omitted StructuredOutput. The exact-inventory audit therefore produced the broader mcp_unavailable event.",
+    "trigger": "The evaluator schema included constraints that Anthropic documents as unsupported for structured-output grammar compilation, including numeric bounds and maxLength, plus a conditional schema branch.",
+    "model_attribution": "No completed v2 assignment was retained, so the panel cannot support an Opus capability claim."
+  },
+  "unscored_diagnostic_evidence": [
+    {
+      "configuration": "minimal compatible schema, isolated HOME/config, exact public MCP config",
+      "result": "13 initialization tools: 12 epiagent MCP tools plus StructuredOutput; sole epiagent server connected; exact claude-opus-4-8 receipt"
+    },
+    {
+      "configuration": "complete unprojected evaluator schema",
+      "result": "12 initialization tools: every epiagent MCP tool present and server connected, but StructuredOutput absent"
+    },
+    {
+      "configuration": "documented provider-compatible schema projection with full-schema trusted revalidation retained",
+      "result": "13 initialization tools restored; StructuredOutput invoked successfully; sole epiagent server connected; exact claude-opus-4-8 receipt"
+    }
+  ],
+  "successor_requirements": [
+    "Use fresh hidden episodes under a new panel identifier and never reuse v2 assignments.",
+    "Precommit the provider-schema projection hash and the unchanged full evaluator-schema hash.",
+    "Require all 12 public MCP tools, StructuredOutput, and the sole connected epiagent server in the initialization receipt.",
+    "Revalidate provider-structured output against the complete evaluator schema inside the trusted scorer.",
+    "Persist the private raw result before classifying a startup failure.",
+    "Use a distinct structured_output_unavailable event so a healthy MCP server is not mislabeled."
+  ],
+  "limitations": [
+    "The diagnostic calls were unscored synthetic smokes and were not prospectively committed benchmark assignments.",
+    "Provider execution was host-networked and non-hermetic.",
+    "Model identity was provider-reported, and requested high effort was not independently verifiable.",
+    "The v2 public execution label mentions safe mode even though its more specific precommitted invocation contract correctly records safe_mode false; the successor label is corrected."
+  ],
+  "hash_specification": {
+    "algorithm": "SHA-256",
+    "canonicalization": "UTF-8 json.dumps(document, sort_keys=True, separators=(\",\", \":\"), ensure_ascii=True)",
+    "self_hash_rule": "Remove the void_sha256 member, canonicalize the remaining document, and hash those bytes."
+  },
+  "void_sha256": "sha256:ea14213ad85e28d37e78400870f02cc6a0ae3ca02dfbf6ae6a8bb22c984226a5"
+}

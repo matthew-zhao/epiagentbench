@@ -1,0 +1,148 @@
+{
+  "calibrated": false,
+  "completed_assignments": 0,
+  "development_only": true,
+  "execution_environment": {
+    "claude_available": true,
+    "claude_cli_version": "2.1.195 (Claude Code)",
+    "execution_commit": "27ffe22b1cfe2679f0ff64b3baa4b26028809f61",
+    "git_status_at_start": "",
+    "machine": "arm64",
+    "platform": "macOS-26.4-arm64-arm-64bit-Mach-O",
+    "provider_network_access": true,
+    "python": "3.13.7",
+    "sandbox": "Claude safe mode with public MCP only; not hermetic",
+    "starsim": "3.5.1"
+  },
+  "hermetic": false,
+  "infrastructure_error_type": "RuntimeError",
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked Claude CLI execution is not hermetic",
+    "this unpaired panel cannot support cross-system causal comparisons",
+    "synthetic LTC-v3 development episodes are not externally calibrated",
+    "one episode per causal family is too small for uncertainty estimates",
+    "final publication opens the master secret for exact replay and permanently retires this panel"
+  ],
+  "paired": false,
+  "panel_id": "development-opus-high-pilot-v2-2026-07-15",
+  "planned_assignments": 5,
+  "precommitment_sha256": "sha256:7e8dc7eca3da8d61e7f6f3a3ad828bc2193bfd68fd87ff7ce0a60d8c3ee7279d",
+  "results": [],
+  "run_contract": {
+    "backend": "starsim-ltc-v3",
+    "claude_cli_version": "2.1.195 (Claude Code)",
+    "claude_isolation_contract": {
+      "allowed_tools": [
+        "mcp__epiagent__*"
+      ],
+      "declared_builtin_tools": [
+        "Read"
+      ],
+      "disallowed_tools": [
+        "Read"
+      ],
+      "environment_roots": [
+        "HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+        "CLAUDE_CONFIG_DIR"
+      ],
+      "expected_init_tool_count": 13,
+      "expected_init_tools": [
+        "mcp__epiagent__get_manifest",
+        "mcp__epiagent__initial_observations",
+        "mcp__epiagent__search_observations",
+        "mcp__epiagent__request_interview",
+        "mcp__epiagent__order_confirmatory_test",
+        "mcp__epiagent__request_inspection",
+        "mcp__epiagent__advance_time",
+        "mcp__epiagent__recommend_action",
+        "mcp__epiagent__set_institution_control",
+        "mcp__epiagent__set_response_control",
+        "mcp__epiagent__submit_forecast",
+        "mcp__epiagent__get_clock_and_budget",
+        "StructuredOutput"
+      ],
+      "expected_mcp_servers": {
+        "epiagent": "connected"
+      },
+      "inventory_failure_event": "agent_failure:mcp_unavailable",
+      "isolated_assignment_environment": true,
+      "permission_mode": "dontAsk",
+      "safe_mode": false,
+      "setting_sources": [
+        "project"
+      ],
+      "slash_commands_disabled": true,
+      "strict_explicit_mcp_config": true,
+      "temporary_home_and_config": true,
+      "unauthorized_tool_event": "agent_failure:unauthorized_tool",
+      "unset_environment": [
+        "CLAUDE_CODE_SAFE_MODE"
+      ]
+    },
+    "claude_max_budget_usd_per_assignment": 5.0,
+    "effort_attribution": "requested_only_unverified",
+    "exact_model_receipt_required": true,
+    "executable": "claude",
+    "failure_policy": "timeouts, invalid structured submissions, and nonexact or missing model receipts remain in the fixed five-episode denominator with score zero; infrastructure or harness exceptions stop and retire the panel",
+    "fallback_model": null,
+    "final_commitment_opening": "publish the panel master secret only after all five assignments finish",
+    "native_output_contract": "Claude --json-schema with submission.schema.json",
+    "requested_effort": "high",
+    "requested_model": "claude-opus-4-8",
+    "retry_policy": "no retries after an assignment starts",
+    "system": "claude",
+    "timeout_seconds_per_assignment": 900
+  },
+  "running_assignment": {
+    "episode_ref": "episode_01",
+    "error": "Required episode MCP was unavailable before the agent ran",
+    "error_type": "RuntimeError",
+    "started_at_utc": "2026-07-15T23:45:47.278684Z",
+    "status": "in_progress",
+    "system": "claude"
+  },
+  "schema_version": "development_opus_pilot_v2",
+  "score_dimension_maxima": {
+    "classification": 15.0,
+    "efficiency": 10.0,
+    "evidence": 10.0,
+    "handoff": 5.0,
+    "hypothesis": 10.0,
+    "line_list": 15.0,
+    "prospective_forecast": 10.0,
+    "response_utility": 25.0
+  },
+  "started_at_utc": "2026-07-15T23:45:47.237928Z",
+  "status": "blocked_infrastructure",
+  "summary": {
+    "audit_event_counts": {},
+    "completed": 0,
+    "exact_model_receipts": 0,
+    "integrity_pass": 0,
+    "mcp_inventory_unverified": 0,
+    "mcp_inventory_verified": 0,
+    "mean_dimensions": {
+      "classification": 0.0,
+      "efficiency": 0.0,
+      "evidence": 0.0,
+      "handoff": 0.0,
+      "hypothesis": 0.0,
+      "line_list": 0.0,
+      "prospective_forecast": 0.0,
+      "response_utility": 0.0
+    },
+    "mean_total": 0.0,
+    "median_elapsed_seconds": null,
+    "median_total": 0.0,
+    "planned": 5,
+    "schema_constrained_submissions_accepted": 0,
+    "unauthorized_tool_clear": 0,
+    "unauthorized_tool_detected": 0,
+    "valid": 0
+  }
+}
