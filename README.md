@@ -206,9 +206,9 @@ attribution rather than silently scoring it. See
 [`docs/SCIENTIFIC_VALIDATION.md`](docs/SCIENTIFIC_VALIDATION.md) for the dated
 smoke results and remaining gates.
 
-### Fresh 50-episode, six-profile matched panel
+### Trace-enabled 50-episode, six-profile matched panel
 
-The [precommitted comparison](results/development-matched-50x6-v1.manifest.json)
+The [v2 precommitted comparison](results/development-matched-50x6-v2.manifest.json)
 uses 50 newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and
 the same six full agent+model profiles on every episode:
 
@@ -219,15 +219,26 @@ the same six full agent+model profiles on every episode:
 - Cursor + Grok 4.5 High
 - Cursor + Kimi K2.7 Code
 
-The earlier [50×4
-precommitment](results/development-matched-50x4-v1.manifest.json) is preserved
-for audit history but was [abandoned before
-preflight](results/development-matched-50x4-v1.superseded.json). A read-only
-integrity audit exposed private pack fields to the internal orchestration
-context. No evaluated model or provider received them and zero production
-assignments started, but the cohort was conservatively discarded. The fresh
-50×6 panel therefore has new seeds, secrets, authentication key, schedule
-nonce, and packs—not a modified or replayed version of that cohort.
+The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
+is preserved for audit history but was [abandoned before any provider preflight
+or production assignment](results/development-matched-50x6-v1.superseded.json)
+when terminal replay traces changed the frozen evaluator and generator
+fingerprint. V2 therefore has new seeds, secrets, authentication key, schedule
+nonce, and packs—not a modified or replayed version of v1. The still earlier
+[50×4 precommitment](results/development-matched-50x4-v1.manifest.json) was
+likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
+after its private pack surface entered an internal audit context.
+
+Each completed v2 assignment records an evaluator-owned, aggregate-only trace:
+six-hour active-policy and matched no-action infection frames, reporting-artifact
+counts, finite-enum agent steps, and requested/effective control changes. The
+trace excludes people, contact edges, target and evidence identifiers, model
+text, causal labels, seeds, and simulator parameters. Rejected calls are reduced
+to finite sentinels. Traces remain private through all progress checkpoints and
+can be released only after all 300 assignments are terminal and an authenticated
+cohort-retirement marker is durable. The panel rejects traces that disagree with
+the score endpoint, contradict their control events, or give the six profiles
+different no-action futures for the same episode.
 
 The runner predeclares a hidden six-condition Williams schedule with 300 assignments. Every
 profile occupies each execution position 8 or 9 times overall and 1 or 2 times
@@ -249,7 +260,9 @@ base-model leaderboard, or a real-world superiority claim. The expected serial
 runtime is roughly 19–21 hours. Claude is capped at $5 per assignment ($500
 across its 100 production calls); Codex and Cursor do not yet have a
 benchmark-enforced spend cap. The runner, runtime, hidden cohort, and public
-manifest are frozen before any provider preflight or production call.
+manifest are frozen before any provider preflight or production call. At this
+precommit, zero provider preflight calls and zero production assignments have
+started, so no v2 scores are reported yet.
 
 ### New-model capability pilot (2026-07-15)
 
@@ -283,9 +296,10 @@ The [capability report](docs/MODEL_CAPABILITY_REPORT_2026-07-15.md),
 [standalone capability chart](docs/assets/model-capability-profile-2026-07-15.html),
 and [interactive outbreak/intervention
 replay](docs/assets/outbreak-intervention-replay.html) explain where the close
-scores come from. The replay combines endpoint-faithful results from the two
-retired pilot cohorts for the six profiles; it labels the transmission motion
-as illustrative and never invents hidden reasoning or action chronology.
+scores come from. The two retired pilot cohorts retain endpoints but no action
+chronology, so their playback is now explicitly disabled. Once terminal v2
+results exist, the same replay accepts only the evaluator-recorded aggregate
+trajectory and finite action trace; it does not synthesize missing history.
 GitHub displays HTML source rather than executing it; download either HTML
 file and open it locally to use the controls.
 
