@@ -1,0 +1,11 @@
+{
+  "development_only": true,
+  "original_panel_id": "development-matched-50x4-v1",
+  "original_precommitment_sha256": "sha256:06206c9a583f76cf1b020b20f7c3f2605f21c32af9d851c1abe8e84014e84203",
+  "production_assignments_started": 0,
+  "reason": "A read-only integrity audit exposed private pack payload fields to the internal orchestration context. No evaluated model or provider received them, but the cohort was conservatively retired under the no-secret-exposure policy.",
+  "replacement_panel_id": "development-matched-50x6-v1",
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_before_preflight",
+  "superseded_at_utc": "2026-07-16T20:55:43Z"
+}

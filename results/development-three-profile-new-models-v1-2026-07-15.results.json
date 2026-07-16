@@ -1,0 +1,206 @@
+{
+  "artifact_type": "sanitized_capability_aggregate",
+  "comparison_scope": "internally paired across these three profiles only; not mergeable with the previously published four-profile cohort",
+  "continuity_disclosure": "Episode 2 continued with the never-started Sonnet assignment after Kimi and Luna results were already durable. No inference was retried, but this continuation was not expressly allowed by the conservative abort wording in the precommitment.",
+  "development_only": true,
+  "dimension_maxima": {
+    "classification": 15.0,
+    "efficiency": 10.0,
+    "evidence": 10.0,
+    "handoff": 5.0,
+    "hypothesis": 10.0,
+    "line_list": 15.0,
+    "prospective_forecast": 10.0,
+    "response_utility": 25.0
+  },
+  "episodes": [
+    {
+      "best_fixed_response_bundle": "infection_control=off;source_control=off;entry_control=off;audit_reporting=off",
+      "family": "institution_person_to_person",
+      "results": {
+        "claude-sonnet-high": {"score": 49.761, "valid": true},
+        "codex-luna-medium": {"score": 54.779, "valid": true},
+        "cursor-kimi-k27-code": {"failure_category": "unauthorized_tool_attempt", "score": 0.0, "valid": false}
+      }
+    },
+    {
+      "best_fixed_response_bundle": "infection_control=off;source_control=standard;entry_control=off;audit_reporting=off",
+      "family": "restaurant_point_source",
+      "results": {
+        "claude-sonnet-high": {"score": 53.3, "valid": true},
+        "codex-luna-medium": {"score": 75.988, "valid": true},
+        "cursor-kimi-k27-code": {"score": 55.114, "valid": true}
+      }
+    },
+    {
+      "best_fixed_response_bundle": "infection_control=off;source_control=off;entry_control=standard;audit_reporting=off",
+      "family": "repeated_introduction",
+      "results": {
+        "claude-sonnet-high": {"score": 49.892, "valid": true},
+        "codex-luna-medium": {"score": 53.878, "valid": true},
+        "cursor-kimi-k27-code": {"score": 51.117, "valid": true}
+      }
+    },
+    {
+      "best_fixed_response_bundle": "infection_control=off;source_control=off;entry_control=off;audit_reporting=off",
+      "family": "coincidental_venue",
+      "results": {
+        "claude-sonnet-high": {"score": 58.99, "valid": true},
+        "codex-luna-medium": {"score": 52.041, "valid": true},
+        "cursor-kimi-k27-code": {"failure_category": "provider_capacity_resource_exhausted", "score": 0.0, "valid": false}
+      }
+    },
+    {
+      "best_fixed_response_bundle": "infection_control=off;source_control=off;entry_control=off;audit_reporting=standard",
+      "family": "reporting_artifact",
+      "results": {
+        "claude-sonnet-high": {"failure_category": "rejected_submit_report_then_post_submission_activity", "score": 0.0, "valid": false},
+        "codex-luna-medium": {"score": 86.169, "valid": true},
+        "cursor-kimi-k27-code": {"score": 46.201, "valid": true}
+      }
+    }
+  ],
+  "fixed_denominator_contract": "all five scheduled assignments per profile remain in the mean; invalid assignments score zero",
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "Five episodes, one per causal family, are an integration pilot rather than a statistically stable leaderboard.",
+    "The run used local networked cloud-agent CLIs and was not hermetic.",
+    "Codex Luna identity is command-attested because its CLI stream did not emit an independently observed model name.",
+    "The panel is internally paired only and cannot be numerically merged with the earlier four-profile cohort.",
+    "Episode 2 used the disclosed continuity recovery described in this artifact.",
+    "Capability patterns come from one seed per family and require multiple held-out seeds for confidence intervals."
+  ],
+  "pairwise": [
+    {
+      "both_valid_n": 4,
+      "left": "claude-sonnet-high",
+      "mean_delta_both_valid_only": -6.186,
+      "mean_delta_fixed_denominator": -22.182,
+      "right": "codex-luna-medium"
+    },
+    {
+      "both_valid_n": 2,
+      "left": "claude-sonnet-high",
+      "mean_delta_both_valid_only": -1.519,
+      "mean_delta_fixed_denominator": 11.902,
+      "right": "cursor-kimi-k27-code"
+    },
+    {
+      "both_valid_n": 3,
+      "left": "codex-luna-medium",
+      "mean_delta_both_valid_only": 21.201,
+      "mean_delta_fixed_denominator": 34.085,
+      "right": "cursor-kimi-k27-code"
+    }
+  ],
+  "panel_id": "three-profile-new-models-submit-report-v1-2026-07-15",
+  "panel_retired_after_publication": true,
+  "precommitment_canonical_sha256": "sha256:afff90b6349bfa1094de59e60773eb44fbdde5e7732e7ec2f49e4dc2ef58937c",
+  "profiles": {
+    "claude-sonnet-high": {
+      "conditional_mean_valid_only": 52.986,
+      "dimension_percent_conditional_on_valid": {
+        "classification": 98.192,
+        "efficiency": 49.758,
+        "evidence": 25.535,
+        "handoff": 100.0,
+        "hypothesis": 63.825,
+        "line_list": 90.385,
+        "prospective_forecast": 57.875,
+        "response_utility": 0.0
+      },
+      "dimension_percent_fixed_denominator": {
+        "classification": 78.553,
+        "efficiency": 39.806,
+        "evidence": 20.428,
+        "handoff": 80.0,
+        "hypothesis": 51.06,
+        "line_list": 72.308,
+        "prospective_forecast": 46.3,
+        "response_utility": 0.0
+      },
+      "fixed_denominator_mean": 42.389,
+      "invalid_assignments": 1,
+      "requested_model": "claude-sonnet-5",
+      "requested_reasoning": "high",
+      "system": "claude",
+      "valid_assignments": 4
+    },
+    "codex-luna-medium": {
+      "conditional_mean_valid_only": 64.571,
+      "dimension_percent_conditional_on_valid": {
+        "classification": 99.091,
+        "efficiency": 49.748,
+        "evidence": 39.644,
+        "handoff": 100.0,
+        "hypothesis": 69.838,
+        "line_list": 89.285,
+        "prospective_forecast": 53.914,
+        "response_utility": 40.0
+      },
+      "dimension_percent_fixed_denominator": {
+        "classification": 99.091,
+        "efficiency": 49.748,
+        "evidence": 39.644,
+        "handoff": 100.0,
+        "hypothesis": 69.838,
+        "line_list": 89.285,
+        "prospective_forecast": 53.914,
+        "response_utility": 40.0
+      },
+      "fixed_denominator_mean": 64.571,
+      "invalid_assignments": 0,
+      "requested_model": "gpt-5.6-luna",
+      "requested_reasoning": "medium",
+      "system": "codex",
+      "valid_assignments": 5
+    },
+    "cursor-kimi-k27-code": {
+      "conditional_mean_valid_only": 50.811,
+      "dimension_percent_conditional_on_valid": {
+        "classification": 99.371,
+        "efficiency": 40.65,
+        "evidence": 39.03,
+        "handoff": 100.0,
+        "hypothesis": 62.26,
+        "line_list": 66.667,
+        "prospective_forecast": 67.113,
+        "response_utility": 0.0
+      },
+      "dimension_percent_fixed_denominator": {
+        "classification": 59.623,
+        "efficiency": 24.39,
+        "evidence": 23.418,
+        "handoff": 60.0,
+        "hypothesis": 37.356,
+        "line_list": 40.0,
+        "prospective_forecast": 40.268,
+        "response_utility": 0.0
+      },
+      "fixed_denominator_mean": 30.486,
+      "invalid_assignments": 2,
+      "requested_model": "kimi-k2.7-code",
+      "requested_reasoning": "model default; Cursor exposes no reasoning tier",
+      "system": "cursor",
+      "valid_assignments": 3
+    }
+  },
+  "ranking": [
+    {"profile_id": "codex-luna-medium", "rank": 1, "score": 64.571, "valid_assignments": 5},
+    {"profile_id": "claude-sonnet-high", "rank": 2, "score": 42.389, "valid_assignments": 4},
+    {"profile_id": "cursor-kimi-k27-code", "rank": 3, "score": 30.486, "valid_assignments": 3}
+  ],
+  "sanitization": {
+    "excluded": [
+      "seeds and episode secrets",
+      "private filenames and local paths",
+      "raw submissions, prompts, stdout, and evidence identifiers",
+      "CLI session identifiers and provider endpoints",
+      "per-assignment raw hashes and continuity artifact identifiers"
+    ],
+    "post_run_verification": "all 15 assignment bindings, profile orders, executable/source/runtime pins, model receipts where available, and the disclosed continuity recovery were verified before sanitization"
+  },
+  "schema_version": "epiagentbench.public_capability_aggregate.v1",
+  "status": "complete_with_disclosed_continuity_recovery"
+}

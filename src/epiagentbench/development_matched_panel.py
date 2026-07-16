@@ -1,4 +1,4 @@
-"""Precommitted 50-episode, four-profile development comparison.
+"""Precommitted 50-episode, six-profile development comparison.
 
 This host-networked runner is deliberately ineligible for a leaderboard.  It
 binds a fresh authenticated LTC-v3 cohort, hides families and execution order
@@ -40,6 +40,8 @@ from .development_pilot import (
 )
 from .pilot import PilotRunResult, _task_prompt, evaluate_local_cli_agent
 from .trusted.cohort_freezer import (
+    _RUNTIME_DISTRIBUTIONS,
+    _distribution_identity,
     _existing_path_without_final_symlink,
     _read_authentication_key,
     compute_generator_fingerprint,
@@ -47,12 +49,13 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x4-v1"
-SCHEMA_VERSION = "development_matched_panel_v1"
+PANEL_ID = "development-matched-50x6-v1"
+COHORT_ID = PANEL_ID
+SCHEMA_VERSION = "development_matched_panel_v2"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
-ASSIGNMENT_COUNT = 200
+ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 FAMILIES = (
     "institution_person_to_person",
@@ -71,9 +74,25 @@ PROFILES: tuple[Mapping[str, Any], ...] = (
         "model_receipt_policy": "provider_match_required",
     },
     {
+        "profile_id": "claude-sonnet-high",
+        "system": "claude",
+        "requested_model": "claude-sonnet-5",
+        "requested_reasoning": "high",
+        "executable": "claude",
+        "model_receipt_policy": "provider_match_required",
+    },
+    {
         "profile_id": "codex-sol",
         "system": "codex",
         "requested_model": "gpt-5.6-sol",
+        "requested_reasoning": "medium",
+        "executable": "codex",
+        "model_receipt_policy": "command_attested",
+    },
+    {
+        "profile_id": "codex-luna-medium",
+        "system": "codex",
+        "requested_model": "gpt-5.6-luna",
         "requested_reasoning": "medium",
         "executable": "codex",
         "model_receipt_policy": "command_attested",
@@ -87,10 +106,10 @@ PROFILES: tuple[Mapping[str, Any], ...] = (
         "model_receipt_policy": "provider_match_required",
     },
     {
-        "profile_id": "cursor-glm-high",
+        "profile_id": "cursor-kimi-k27-code",
         "system": "cursor",
-        "requested_model": "glm-5.2-high",
-        "requested_reasoning": "high_model_alias",
+        "requested_model": "kimi-k2.7-code",
+        "requested_reasoning": "model default; Cursor exposes no reasoning tier",
         "executable": "cursor-agent",
         "model_receipt_policy": "provider_match_required",
     },
@@ -98,16 +117,27 @@ PROFILES: tuple[Mapping[str, Any], ...] = (
 
 _PROFILE_BY_ID = {str(profile["profile_id"]): profile for profile in PROFILES}
 _PROFILE_IDS = tuple(_PROFILE_BY_ID)
-_WILLIAMS = ((0, 1, 3, 2), (1, 2, 0, 3), (2, 3, 1, 0), (3, 0, 2, 1))
-_EXTRA_SEQUENCES = ((0, 1), (0, 1), (0, 2), (1, 3), (2, 3))
-_SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v1\x00"
-_FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v1\x00"
-_PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v1\x00"
+_WILLIAMS_BASE = (0, 1, 5, 2, 4, 3)
+_WILLIAMS = tuple(
+    tuple((treatment + shift) % len(_WILLIAMS_BASE) for treatment in _WILLIAMS_BASE)
+    for shift in range(len(_WILLIAMS_BASE))
+)
+_EXTRA_SEQUENCES = (
+    (0, 1, 2, 3),
+    (4, 5, 0, 1),
+    (2, 3, 4, 5),
+    (0, 1, 2, 3),
+    (0, 1, 4, 5),
+)
+_SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
+_FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
+_PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _MAX_PANEL_JSON_BYTES = 64 * 1024 * 1024
 _EXPECTED_RECEIPT_IDENTITIES = {
     "claude-opus-high": "claudeopus48",
+    "claude-sonnet-high": "claudesonnet5",
     "cursor-grok-high": "cursorgrok45high",
-    "cursor-glm-high": "glm52high",
+    "cursor-kimi-k27-code": "kimik27code",
 }
 _MATCHED_PANEL_NETWORK_OVERRIDES = (
     "ALL_PROXY",
@@ -122,6 +152,61 @@ _MATCHED_PANEL_NETWORK_OVERRIDES = (
     "http_proxy",
     "https_proxy",
 )
+
+
+def _validate_schedule_design() -> None:
+    treatments = set(range(len(PROFILES)))
+    expected_pairs = {
+        (first, second)
+        for first in treatments
+        for second in treatments
+        if first != second
+    }
+    if (
+        len(PROFILES) != 6
+        or len(_PROFILE_BY_ID) != len(PROFILES)
+        or EPISODE_COUNT != len(FAMILIES) * EPISODES_PER_FAMILY
+        or ASSIGNMENT_COUNT != EPISODE_COUNT * len(PROFILES)
+        or len(_WILLIAMS) != len(PROFILES)
+        or any(set(row) != treatments for row in _WILLIAMS)
+        or len(_EXTRA_SEQUENCES) != len(FAMILIES)
+        or any(len(extra) != 4 for extra in _EXTRA_SEQUENCES)
+    ):
+        raise RuntimeError("Invalid six-treatment matched-panel design")
+    base_carryovers = Counter(
+        pair for row in _WILLIAMS for pair in zip(row, row[1:])
+    )
+    if set(base_carryovers) != expected_pairs or set(base_carryovers.values()) != {1}:
+        raise RuntimeError("Williams rows are not first-order carryover balanced")
+
+    overall_rows: list[tuple[int, ...]] = []
+    for extra in _EXTRA_SEQUENCES:
+        if any(row_id not in treatments for row_id in extra):
+            raise RuntimeError("Williams extra sequence identifier is invalid")
+        family_rows = list(_WILLIAMS) + [_WILLIAMS[row_id] for row_id in extra]
+        overall_rows.extend(family_rows)
+        for position in treatments:
+            counts = Counter(row[position] for row in family_rows)
+            if set(counts) != treatments or not set(counts.values()).issubset({1, 2}):
+                raise RuntimeError("Within-family profile positions are unbalanced")
+        carryovers = Counter(
+            pair for row in family_rows for pair in zip(row, row[1:])
+        )
+        if set(carryovers) != expected_pairs or not set(
+            carryovers.values()
+        ).issubset({1, 2}):
+            raise RuntimeError("Within-family carryovers are unbalanced")
+    for position in treatments:
+        counts = Counter(row[position] for row in overall_rows)
+        if set(counts) != treatments or not set(counts.values()).issubset({8, 9}):
+            raise RuntimeError("Overall profile positions are unbalanced")
+    carryovers = Counter(
+        pair for row in overall_rows for pair in zip(row, row[1:])
+    )
+    if set(carryovers) != expected_pairs or not set(carryovers.values()).issubset(
+        {8, 9}
+    ):
+        raise RuntimeError("Overall carryovers are unbalanced")
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -423,9 +508,15 @@ def _runtime_contract() -> dict[str, Any]:
         raise RuntimeError("Unable to pin the required Starsim runtime")
     return {
         "python": sys.version.split()[0],
+        "python_implementation": sys.implementation.name,
+        "python_cache_tag": sys.implementation.cache_tag,
         "starsim": starsim_version,
         "platform": platform.system(),
         "machine": platform.machine(),
+        "scientific_distributions": {
+            name: dict(_distribution_identity(name))
+            for name in _RUNTIME_DISTRIBUTIONS
+        },
     }
 
 
@@ -450,7 +541,9 @@ def _private_schedule(
         )
         if len(family_episodes) != EPISODES_PER_FAMILY:
             raise ValueError("Frozen cohort is not exactly balanced by family")
-        sequence_ids = list(range(4)) * 2 + list(_EXTRA_SEQUENCES[family_index])
+        sequence_ids = list(range(len(_WILLIAMS))) + list(
+            _EXTRA_SEQUENCES[family_index]
+        )
         sequence_ids = [
             sequence_id
             for _, sequence_id in sorted(
@@ -516,7 +609,7 @@ def _load_frozen_cohort(
     if incomplete_marker.exists() or incomplete_marker.is_symlink():
         raise ValueError("Frozen cohort retains its incomplete marker")
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
-    if manifest.cohort_id != PANEL_ID:
+    if manifest.cohort_id != COHORT_ID:
         raise ValueError("Frozen cohort identifier does not match the panel")
     if len(manifest.episodes) != EPISODE_COUNT or [
         index for index, _ in manifest.episodes
@@ -565,6 +658,7 @@ def prepare_panel(
 ) -> dict[str, Any]:
     """Bind a fresh authenticated cohort and write its public precommitment."""
 
+    _validate_schedule_design()
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError("Commit and clean the matched-panel harness before prepare")
     _assert_distinct_paths(
@@ -595,7 +689,9 @@ def prepare_panel(
     schedule = _private_schedule(episodes, nonce)
     keys = _assignment_keys(schedule)
     if len(keys) != ASSIGNMENT_COUNT or len(set(keys)) != ASSIGNMENT_COUNT:
-        raise RuntimeError("Matched schedule does not contain 200 unique assignments")
+        raise RuntimeError(
+            f"Matched schedule does not contain {ASSIGNMENT_COUNT} unique assignments"
+        )
 
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -620,6 +716,7 @@ def prepare_panel(
         "benchmark_base_commit": _git_output(root, "rev-parse", "HEAD"),
         "backend": BACKEND,
         "cohort": {
+            "cohort_id": COHORT_ID,
             "episode_count": EPISODE_COUNT,
             "balanced_mode_count": len(FAMILIES),
             "episodes_per_mode": EPISODES_PER_FAMILY,
@@ -651,10 +748,14 @@ def prepare_panel(
         "private_family_map_commitment": _family_map_commitment(episodes, nonce),
         "schedule_design": {
             "name": "private_family_stratified_near_balanced_williams",
-            "profile_position_count_min": 12,
-            "profile_position_count_max": 13,
-            "within_family_profile_position_count_min": 2,
-            "within_family_profile_position_count_max": 3,
+            "profile_position_count_min": 8,
+            "profile_position_count_max": 9,
+            "within_family_profile_position_count_min": 1,
+            "within_family_profile_position_count_max": 2,
+            "ordered_carryover_count_min": 8,
+            "ordered_carryover_count_max": 9,
+            "within_family_ordered_carryover_count_min": 1,
+            "within_family_ordered_carryover_count_max": 2,
             "order_released_only_after_terminal_panel": True,
         },
         "run_contract": {
@@ -672,7 +773,7 @@ def prepare_panel(
                 "method": "deterministic family-stratified percentile",
                 "replicates": BOOTSTRAP_REPLICATES,
                 "profile_confidence": 0.95,
-                "pairwise_multiplicity": "bonferroni_six_pairs",
+                "pairwise_multiplicity": "bonferroni_fifteen_pairs",
                 "resampling_unit": "episode",
                 "strata": "five scenario families",
                 "pairwise_resampling": "paired within episode",
@@ -744,6 +845,7 @@ def _validate_contracts(
     dict[str, PrivateEpisodePack],
     list[dict[str, Any]],
 ]:
+    _validate_schedule_design()
     _validate_public_hash(public)
     if (
         public.get("panel_id") != PANEL_ID
@@ -776,16 +878,28 @@ def _validate_contracts(
         )
     ):
         raise ValueError("Matched-panel component commitment mismatch")
+    cohort_contract = public.get("cohort", {})
+    if (
+        not isinstance(cohort_contract, dict)
+        or cohort_contract.get("cohort_id") != COHORT_ID
+    ):
+        raise ValueError("Frozen cohort identity contract mismatch")
+    expected_generator = cohort_contract.get("generator_fingerprint")
+    if not isinstance(expected_generator, str):
+        raise ValueError("Frozen cohort generator commitment is invalid")
     installed = compute_generator_fingerprint()
-    if public.get("cohort", {}).get("generator_fingerprint") != installed:
+    if not hmac.compare_digest(installed, expected_generator):
         raise ValueError("Installed generator differs from the frozen panel")
 
     manifest_path = _existing_path_without_final_symlink(
         str(private.get("cohort_manifest_path"))
     )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
-    if manifest.pack_set_commitment != public.get("cohort", {}).get(
-        "pack_set_commitment"
+    if (
+        manifest.cohort_id != COHORT_ID
+        or manifest.generator_fingerprint != installed
+        or manifest.pack_set_commitment
+        != cohort_contract.get("pack_set_commitment")
     ):
         raise ValueError("Frozen set no longer matches the public commitment")
     private_episodes = private.get("episodes")
@@ -874,7 +988,7 @@ def _assert_environment_preflight(
         or preflight.get("passed_contract_hashes") != expected
     ):
         raise RuntimeError(
-            "A disposable four-profile environment preflight bound to the current "
+            "A disposable six-profile environment preflight bound to the current "
             "contracts must pass before any production episode is launched"
         )
     receipt_path = Path(str(preflight.get("public_receipt_path", "")))
@@ -910,7 +1024,7 @@ def run_environment_preflight(
         )
     if not os.environ.get("CURSOR_API_KEY", "").strip():
         raise RuntimeError(
-            "Disposable four-profile preflight requires CURSOR_API_KEY before "
+            "Disposable six-profile preflight requires CURSOR_API_KEY before "
             "any provider call"
         )
     _assert_distinct_paths(
@@ -996,7 +1110,7 @@ def run_environment_preflight(
                     timeout_seconds=timeout,
                     claude_max_budget_usd=budget,
                     claude_effort=(
-                        "high" if profile_id == "claude-opus-high" else None
+                        "high" if profile["system"] == "claude" else None
                     ),
                 )
                 _raise_on_harness_startup_failure(result)
@@ -1244,7 +1358,9 @@ def aggregate_complete_results(
     """Compute predeclared statistics for a zero-transport-void complete panel."""
 
     if len(results) != ASSIGNMENT_COUNT:
-        raise ValueError("Complete matched-panel aggregation requires 200 results")
+        raise ValueError(
+            f"Complete matched-panel aggregation requires {ASSIGNMENT_COUNT} results"
+        )
     keyed: dict[tuple[str, str], Mapping[str, Any]] = {}
     for result in results:
         key = (str(result.get("episode_ref")), str(result.get("profile_id")))
@@ -1484,7 +1600,7 @@ def _run_panel_locked(
     public_results_path: Path,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
-    """Run or resume the 200 assignments, never retrying a durable start."""
+    """Run or resume the 300 assignments, never retrying a durable start."""
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError("Explicit acknowledgement of unbounded provider spend is required")
@@ -1605,7 +1721,7 @@ def _run_panel_locked(
                 timeout_seconds=timeout,
                 claude_max_budget_usd=budget,
                 claude_effort=(
-                    "high" if profile["profile_id"] == "claude-opus-high" else None
+                    "high" if profile["system"] == "claude" else None
                 ),
             )
             marker["raw_result"] = asdict(result)
@@ -1645,7 +1761,9 @@ def _run_panel_locked(
         assignment["status"] not in {"complete", "transport_void"}
         for assignment in assignments
     ):
-        raise RuntimeError("Matched panel did not reach 200 terminal assignments")
+        raise RuntimeError(
+            f"Matched panel did not reach {ASSIGNMENT_COUNT} terminal assignments"
+        )
     private["status"] = "complete"
     private["panel_completed_at_utc"] = _utc_now()
     _write_private_state(private_state_path, private, authentication_key)

@@ -1,4 +1,4 @@
-"""Prepare or run the precommitted 50-episode, four-profile development panel."""
+"""Prepare or run the precommitted 50-episode, six-profile development panel."""
 
 from __future__ import annotations
 
