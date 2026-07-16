@@ -135,6 +135,11 @@ def build_parser() -> argparse.ArgumentParser:
     private_cohort.add_argument("--output-directory", required=True)
     private_cohort.add_argument("--authentication-key-file", required=True)
     private_cohort.add_argument("--episodes", type=int, default=100)
+    private_cohort.add_argument(
+        "--backend",
+        choices=("starsim", "starsim-ltc-v3"),
+        default="starsim",
+    )
     nors_fetch = subparsers.add_parser(
         "fetch-nors-snapshot",
         help="download and hash one public CDC NORS snapshot",
@@ -286,6 +291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_directory=args.output_directory,
                 authentication_key_file=args.authentication_key_file,
                 episodes=args.episodes,
+                backend=args.backend,
             )
         except CohortFreezeError as exc:
             raise SystemExit(str(exc)) from None

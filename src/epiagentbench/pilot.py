@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
 import json
 import math
 import os
@@ -18,6 +19,7 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -121,6 +123,9 @@ class PilotRunResult:
     stdout_bytes: int
     stderr_bytes: int
     diagnostic: str
+    captured_stdout_sha256: str = ""
+    captured_stderr_sha256: str = ""
+    command_sha256: str = ""
 
 
 def _task_prompt() -> str:
@@ -876,6 +881,162 @@ def _isolate_claude_environment(
         environment[name] = str(path)
 
 
+def _isolate_cursor_environment(
+    environment: dict[str, str], root: Path
+) -> None:
+    """Build a minimal Cursor environment rooted in one disposable directory.
+
+    Cursor is a Node application and can inherit storage or code-injection
+    locations from both Cursor-specific and general-purpose environment
+    variables.  Preserve only the explicit API credential plus ordinary
+    executable, locale, certificate, and proxy settings needed to reach the
+    provider.  Everything else is dropped before private roots are installed.
+    """
+
+    passthrough_names = {
+        "ALL_PROXY",
+        "CURL_CA_BUNDLE",
+        "CURSOR_API_KEY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "LANG",
+        "LANGUAGE",
+        "NO_PROXY",
+        "NODE_EXTRA_CA_CERTS",
+        "PATH",
+        "REQUESTS_CA_BUNDLE",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "all_proxy",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+    }
+    preserved = {
+        name: value
+        for name, value in environment.items()
+        if name in passthrough_names or name.startswith("LC_")
+    }
+    environment.clear()
+    environment.update(preserved)
+
+    isolated_paths = {
+        "HOME": root / "cursor-home",
+        "XDG_CONFIG_HOME": root / "cursor-xdg" / "config",
+        "XDG_CACHE_HOME": root / "cursor-xdg" / "cache",
+        "XDG_DATA_HOME": root / "cursor-xdg" / "data",
+        "XDG_STATE_HOME": root / "cursor-xdg" / "state",
+        "XDG_RUNTIME_DIR": root / "cursor-xdg" / "runtime",
+        "TMPDIR": root / "cursor-tmp",
+        "TMP": root / "cursor-tmp",
+        "TEMP": root / "cursor-tmp",
+        "NODE_COMPILE_CACHE": root / "node-compile-cache",
+        "CURSOR_DATA_DIR": root / "cursor-data",
+        "CURSOR_CONFIG_DIR": root / "cursor-config",
+        "CURSOR_PROJECTS_DIR": root / "cursor-projects",
+        "CURSOR_EXEC_DAEMON_DATA_DIR": root / "cursor-exec-daemon",
+        "CURSOR_WORKTREES_ROOT": root / "cursor-worktrees",
+    }
+    for name, path in isolated_paths.items():
+        path.mkdir(parents=True, mode=0o700, exist_ok=True)
+        path.chmod(0o700)
+        environment[name] = str(path)
+
+
+def _snapshot_cursor_host_chat_metadata(chats_root: Path) -> str | None:
+    """Hash host Cursor chat metadata without reading any chat contents.
+
+    ``None`` means the tree could not be completely inspected. Callers treat
+    that state as a persistence failure rather than assuming isolation held.
+    """
+
+    try:
+        root_metadata = chats_root.lstat()
+    except FileNotFoundError:
+        return "absent"
+    except OSError:
+        return None
+    if not (
+        stat.S_ISDIR(root_metadata.st_mode)
+        or stat.S_ISREG(root_metadata.st_mode)
+    ):
+        return None
+
+    digest = hashlib.sha256()
+    pending = [(".", chats_root)]
+    while pending:
+        relative, path = pending.pop()
+        try:
+            metadata = path.lstat()
+        except OSError:
+            return None
+        if stat.S_ISLNK(metadata.st_mode):
+            return None
+        record = (
+            relative,
+            metadata.st_mode,
+            metadata.st_size,
+            metadata.st_mtime_ns,
+            metadata.st_ctime_ns,
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_uid,
+            metadata.st_gid,
+        )
+        digest.update(
+            json.dumps(record, ensure_ascii=True, separators=(",", ":")).encode(
+                "ascii"
+            )
+        )
+        digest.update(b"\n")
+        if not stat.S_ISDIR(metadata.st_mode):
+            continue
+        try:
+            children = sorted(path.iterdir(), key=lambda child: child.name)
+        except OSError:
+            return None
+        pending.extend(
+            (str(Path(relative) / child.name), child)
+            for child in reversed(children)
+        )
+    return "sha256:" + digest.hexdigest()
+
+
+def _snapshot_cursor_host_state() -> str | None:
+    """Commit metadata for known Cursor CLI persistence roots, never contents."""
+
+    home = Path.home()
+    paths = (
+        home / ".cursor" / "chats",
+        home / ".cursor" / "projects",
+        home / ".cursor" / "ai-tracking",
+        home / ".cursor" / "agent-cli-state.json",
+        home / ".cursor" / "cli-config.json",
+    )
+    digest = hashlib.sha256()
+    for path in paths:
+        snapshot = _snapshot_cursor_host_chat_metadata(path)
+        if snapshot is None:
+            return None
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(snapshot.encode("ascii"))
+        digest.update(b"\n")
+    return "sha256:" + digest.hexdigest()
+
+
+def _cursor_host_persistence_audit(
+    before: str | None, after: str | None
+) -> tuple[str, ...]:
+    """Classify host-state uncertainty as infrastructure, never model conduct."""
+
+    if before is None or after is None:
+        return ("infrastructure_failure:cursor_host_state_unverifiable",)
+    if before != after:
+        return ("infrastructure_failure:cursor_host_state_changed",)
+    return ()
+
+
 def evaluate_local_cli_agent(
     system: str,
     *,
@@ -898,6 +1059,11 @@ def evaluate_local_cli_agent(
     effort = _validate_claude_effort(claude_effort)
     if effort is not None and system != "claude":
         raise ValueError("Claude effort is only valid for the Claude system")
+    if system == "cursor" and not os.environ.get("CURSOR_API_KEY", "").strip():
+        raise RuntimeError(
+            "Isolated Cursor evaluation requires CURSOR_API_KEY; refusing to "
+            "reuse login state from the host home directory"
+        )
     requested_model = model or DEFAULT_MODELS[system]
     executable_name = executable or DEFAULT_EXECUTABLES[system]
     resolved = shutil.which(executable_name)
@@ -909,39 +1075,43 @@ def evaluate_local_cli_agent(
         # On macOS /tmp aliases /private/tmp, so use one identity for enable/run.
         root = Path(temp).resolve()
         socket_path = str(root / "episode.sock")
-        session = launch_socket_episode(
-            public_socket_path=socket_path,
-            seed=seed,
-            family=family,
-            backend=backend,
-            episode_secret=episode_secret,
+        workspace, public_root, schema_path, mcp_path = _prepare_workspace(
+            root, socket_path
         )
+        final_path = workspace / "final.json"
+        command = build_agent_command(
+            system,
+            executable=resolved,
+            model=requested_model,
+            workspace=str(workspace),
+            schema_path=str(schema_path),
+            mcp_path=str(mcp_path),
+            final_output_path=str(final_path),
+            python=sys.executable,
+            public_root=str(public_root),
+            socket_path=socket_path,
+            claude_max_budget_usd=claude_max_budget_usd,
+            claude_effort=effort,
+        )
+        environment = os.environ.copy()
+        environment.pop("EPIAGENT_SOCKET", None)
+        audit: list[str] = []
+        cursor_host_audit = False
+        cursor_host_state_before: str | None = None
+        if system == "cursor":
+            cursor_host_audit = True
+            cursor_host_state_before = _snapshot_cursor_host_state()
+            if cursor_host_state_before is None:
+                raise RuntimeError(
+                    "Cursor isolation preflight could not verify host chat "
+                    "metadata; refusing to launch the provider CLI"
+                )
+            _isolate_cursor_environment(environment, root)
+        elif system == "claude":
+            _isolate_claude_environment(environment, root)
+
         try:
-            workspace, public_root, schema_path, mcp_path = _prepare_workspace(
-                root, socket_path
-            )
-            final_path = workspace / "final.json"
-            command = build_agent_command(
-                system,
-                executable=resolved,
-                model=requested_model,
-                workspace=str(workspace),
-                schema_path=str(schema_path),
-                mcp_path=str(mcp_path),
-                final_output_path=str(final_path),
-                python=sys.executable,
-                public_root=str(public_root),
-                socket_path=socket_path,
-                claude_max_budget_usd=claude_max_budget_usd,
-                claude_effort=effort,
-            )
-            environment = os.environ.copy()
-            environment.pop("EPIAGENT_SOCKET", None)
-            if system == "cursor":
-                environment["CURSOR_DATA_DIR"] = str(root / "cursor-data")
-            elif system == "claude":
-                _isolate_claude_environment(environment, root)
-            version = subprocess.run(
+            version_process = subprocess.run(
                 [resolved, "--version"],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
@@ -949,9 +1119,14 @@ def evaluate_local_cli_agent(
                 env=environment,
                 timeout=15,
                 check=False,
-            ).stdout.decode("utf-8", errors="replace").strip()[:200]
-
-            audit: list[str] = []
+            )
+            version = version_process.stdout.decode(
+                "utf-8", errors="replace"
+            ).strip()[:200]
+            if version_process.returncode != 0 or not version:
+                raise RuntimeError(
+                    "Provider CLI version preflight failed before episode launch"
+                )
             if system == "cursor":
                 enabled = subprocess.run(
                     [resolved, "mcp", "enable", "epiagent"],
@@ -964,27 +1139,61 @@ def evaluate_local_cli_agent(
                     check=False,
                 )
                 if enabled.returncode != 0:
-                    audit.append("agent_failure:mcp_enable")
-            started = time.monotonic()
-            try:
-                process = subprocess.run(
-                    command,
-                    cwd=workspace,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env=environment,
-                    timeout=timeout_seconds,
-                    check=False,
+                    raise RuntimeError(
+                        "Cursor MCP enablement failed before the paid agent call"
+                    )
+        finally:
+            if cursor_host_audit:
+                readiness_after = _snapshot_cursor_host_state()
+                isolation_events = _cursor_host_persistence_audit(
+                    cursor_host_state_before, readiness_after
                 )
-                returncode = process.returncode
-                stdout = _bounded(process.stdout)
-                stderr = _bounded(process.stderr)
-            except subprocess.TimeoutExpired as exc:
-                returncode = 124
-                stdout = _bounded(exc.stdout or b"")
-                stderr = _bounded(exc.stderr or b"")
-                audit.append("agent_failure:timeout")
+                if isolation_events:
+                    raise RuntimeError(
+                        "Cursor readiness isolation guard failed: "
+                        + isolation_events[0]
+                    )
+                cursor_host_state_before = readiness_after
+
+        session = launch_socket_episode(
+            public_socket_path=socket_path,
+            seed=seed,
+            family=family,
+            backend=backend,
+            episode_secret=episode_secret,
+        )
+        try:
+            try:
+                started = time.monotonic()
+                try:
+                    process = subprocess.run(
+                        command,
+                        cwd=workspace,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        env=environment,
+                        timeout=timeout_seconds,
+                        check=False,
+                    )
+                    returncode = process.returncode
+                    stdout = _bounded(process.stdout)
+                    stderr = _bounded(process.stderr)
+                except subprocess.TimeoutExpired as exc:
+                    returncode = 124
+                    stdout = _bounded(exc.stdout or b"")
+                    stderr = _bounded(exc.stderr or b"")
+                    audit.append("agent_failure:timeout")
+            finally:
+                if cursor_host_audit:
+                    isolation_events = _cursor_host_persistence_audit(
+                        cursor_host_state_before,
+                        _snapshot_cursor_host_state(),
+                    )
+                    if isolation_events:
+                        raise RuntimeError(
+                            "Cursor isolation guard failed: " + isolation_events[0]
+                        )
             elapsed = time.monotonic() - started
             if returncode != 0:
                 audit.append("agent_failure:nonzero_exit")
@@ -1039,6 +1248,22 @@ def evaluate_local_cli_agent(
                 stdout_bytes=len(stdout),
                 stderr_bytes=len(stderr),
                 diagnostic=diagnostic,
+                captured_stdout_sha256=(
+                    "sha256:" + hashlib.sha256(stdout).hexdigest()
+                ),
+                captured_stderr_sha256=(
+                    "sha256:" + hashlib.sha256(stderr).hexdigest()
+                ),
+                command_sha256=(
+                    "sha256:"
+                    + hashlib.sha256(
+                        json.dumps(
+                            command,
+                            ensure_ascii=True,
+                            separators=(",", ":"),
+                        ).encode("ascii")
+                    ).hexdigest()
+                ),
             )
         finally:
             session.close()

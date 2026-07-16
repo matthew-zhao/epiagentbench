@@ -20,6 +20,7 @@ from epiagentbench.trusted.episode_pack import (
     PrivateEpisodeCohortManifest,
     PrivateEpisodePack,
 )
+from epiagentbench.trusted.ltc_closed_loop import LtcStarsimV3Backend
 from epiagentbench.trusted.starsim_episode import (
     LIVE_FAMILY_TO_MODE,
     StarsimSurveillanceBackend,
@@ -226,6 +227,68 @@ class PrivateCohortFreezeTests(unittest.TestCase):
                 )
                 self.assertEqual(launch["backend"], "starsim")
 
+    def test_freeze_fifty_ltc_episodes_is_exactly_balanced_without_simulation(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            key_path = root / "authentication.key"
+            cohort_path = root / "private-ltc-cohort"
+            _write_key(key_path)
+
+            with patch.object(
+                LtcStarsimV3Backend,
+                "create_runtime",
+                side_effect=AssertionError("freezer must not simulate"),
+            ), patch.object(
+                LtcStarsimV3Backend,
+                "create_episode",
+                side_effect=AssertionError("freezer must not simulate"),
+            ):
+                frozen = freeze_private_starsim_cohort(
+                    cohort_id="private-ltc-fifty",
+                    output_directory=cohort_path,
+                    authentication_key_file=key_path,
+                    episodes=50,
+                    backend="starsim-ltc-v3",
+                )
+
+            descriptor = frozen.public_descriptor
+            self.assertEqual(descriptor["episode_count"], 50)
+            self.assertEqual(descriptor["backend"], "starsim-ltc-v3")
+            self.assertEqual(set(descriptor["mode_counts"].values()), {10})
+
+            packs = tuple(
+                PrivateEpisodePack.read(path, AUTHENTICATION_KEY)
+                for path in frozen.pack_paths
+            )
+            self.assertEqual(len(packs), 50)
+            self.assertEqual({pack.backend for pack in packs}, {"starsim-ltc-v3"})
+            self.assertEqual(
+                {
+                    family: sum(pack.family == family for pack in packs)
+                    for family in LIVE_FAMILY_TO_MODE
+                },
+                {family: 10 for family in LIVE_FAMILY_TO_MODE},
+            )
+
+    def test_freeze_rejects_backend_outside_strict_allowlist(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            key_path = root / "authentication.key"
+            cohort_path = root / "unsupported-cohort"
+            _write_key(key_path)
+
+            with self.assertRaisesRegex(
+                CohortFreezeError, "Unsupported cohort backend"
+            ):
+                freeze_private_starsim_cohort(
+                    cohort_id="unsupported-backend",
+                    output_directory=cohort_path,
+                    authentication_key_file=key_path,
+                    episodes=5,
+                    backend="reference",
+                )
+            self.assertFalse(cohort_path.exists())
+
     def test_owner_only_external_key_and_no_overwrite_are_required(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -287,6 +350,23 @@ class PrivateCohortCliTests(unittest.TestCase):
             ]
         )
         self.assertEqual(args.episodes, 100)
+        self.assertEqual(args.backend, "starsim")
+
+    def test_cli_rejects_backend_outside_strict_allowlist(self):
+        with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+            build_parser().parse_args(
+                [
+                    "freeze-private-cohort",
+                    "--cohort-id",
+                    "pilot",
+                    "--output-directory",
+                    "/tmp/not-created-by-parser",
+                    "--authentication-key-file",
+                    "/tmp/key-not-read-by-parser",
+                    "--backend",
+                    "reference",
+                ]
+            )
 
     def test_cli_forbids_external_candidate_profile_until_replay_supports_it(self):
         with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
@@ -327,6 +407,8 @@ class PrivateCohortCliTests(unittest.TestCase):
                         str(key_path),
                         "--episodes",
                         "5",
+                        "--backend",
+                        "starsim-ltc-v3",
                     ]
                 )
             self.assertEqual(status, 0)
@@ -336,6 +418,9 @@ class PrivateCohortCliTests(unittest.TestCase):
                 output["public_descriptor"]["blind_scientific_validation_run"]
             )
             self.assertFalse(output["public_descriptor"]["docker_execution_run"])
+            self.assertEqual(
+                output["public_descriptor"]["backend"], "starsim-ltc-v3"
+            )
             self.assertNotIn(str(key_path), stream.getvalue())
             self.assertNotIn(AUTHENTICATION_KEY.decode(), stream.getvalue())
 

@@ -206,6 +206,89 @@ attribution rather than silently scoring it. See
 [`docs/SCIENTIFIC_VALIDATION.md`](docs/SCIENTIFIC_VALIDATION.md) for the dated
 smoke results and remaining gates.
 
+### Fresh 50-episode matched panel (precommitted; not yet run)
+
+The next comparison is a new, separately frozen panel rather than 45 cases
+appended to the exposed five-case pilot. Its [public
+precommitment](results/development-matched-50x4-v1.manifest.json) binds 50
+private `starsim-ltc-v3` episodes—10 from each of the five causal families—and
+four full agent+CLI profiles. Every profile receives the same 50 episodes, for
+200 planned scored assignments. Families and execution order remain hidden
+until the panel is terminal, when they are revealed so the commitments can be
+checked. Seeds, presentation secrets, and private file paths are never
+published.
+
+The hidden schedule uses a family-stratified, near-balanced Williams rotation:
+each profile occupies each execution position 12 or 13 times overall and 2 or
+3 times within each family. Predeclared model-attributable failures—including
+invalid final reports, timeouts, and model-receipt mismatches—remain in the
+fixed 50-episode denominator with zero points. Harness startup, isolation,
+evaluator, or transport exceptions are instead sealed as non-retryable
+transport voids; any such void makes the official matched comparison
+unavailable, so the runner cannot manufacture a ranking by dropping
+inconvenient failures.
+
+Before a production episode can run, the harness requires a separate,
+disposable four-profile preflight. It checks authentication, exact model
+routing where provider receipts exist, MCP connectivity, source/runtime pins,
+and Cursor state isolation, reports no scores, and consumes zero production
+episodes. Cursor now requires an explicit `CURSOR_API_KEY`; host login state is
+never copied into an assignment. A failed preflight cannot be treated as a
+model score. The preflight itself makes four real provider calls and therefore
+also requires the explicit unbounded-spend acknowledgement.
+
+The terminal report predeclares per-family valid rates and fixed-denominator
+means, plus 20,000-draw episode-level family-stratified bootstrap intervals.
+Pairwise intervals resample within-episode score differences and adjust the six
+exploratory comparisons together. These intervals describe variation under
+this versioned synthetic generator with equal 20% family weights. They do not
+include model rerun variability, simulator misspecification, or uncertainty
+about the real frequency of surveillance scenario types.
+
+This remains development evidence, not held-out epidemiological calibration,
+a base-model leaderboard, or a real-world superiority claim. Its HMAC
+checkpoints, public progress watermark, and host-global lock are not a remote,
+rollback-resistant execution ledger. The prior
+five-case run averaged about 252 seconds per assignment, implying roughly 14
+hours if all 200 calls run serially. Claude is capped at $5 per assignment
+($250 maximum across its 50 production calls); Codex and Cursor still lack a
+benchmark-enforced dollar cap, so the paid run requires an explicit unbounded
+spend acknowledgement after the preflight receipt is committed.
+
+The versioned workflow is:
+
+```bash
+# Requires an owner-only authentication key and `pip install -e '.[starsim]'`.
+PYTHONPATH=src python -m epiagentbench.cli freeze-private-cohort \
+  --cohort-id development-matched-50x4-v1 \
+  --output-directory run_artifacts/development-matched-50x4-v1.cohort \
+  --authentication-key-file run_artifacts/development-matched-50x4-v1.authentication.key \
+  --episodes 50 \
+  --backend starsim-ltc-v3
+
+PYTHONPATH=src python examples/run_development_matched_panel.py prepare \
+  --cohort-manifest run_artifacts/development-matched-50x4-v1.cohort/cohort.manifest \
+  --authentication-key run_artifacts/development-matched-50x4-v1.authentication.key \
+  --private-state run_artifacts/development-matched-50x4-v1.private.json \
+  --public-manifest results/development-matched-50x4-v1.manifest.json
+
+# Commit the public manifest before preflight. CURSOR_API_KEY must be set.
+PYTHONPATH=src python examples/run_development_matched_panel.py preflight \
+  --authentication-key run_artifacts/development-matched-50x4-v1.authentication.key \
+  --private-state run_artifacts/development-matched-50x4-v1.private.json \
+  --public-manifest results/development-matched-50x4-v1.manifest.json \
+  --public-preflight results/development-matched-50x4-v1.preflight.json \
+  --acknowledge-unbounded-provider-spend
+
+# Commit the passed preflight receipt before authorizing the 200-call run.
+PYTHONPATH=src python examples/run_development_matched_panel.py run \
+  --authentication-key run_artifacts/development-matched-50x4-v1.authentication.key \
+  --private-state run_artifacts/development-matched-50x4-v1.private.json \
+  --public-manifest results/development-matched-50x4-v1.manifest.json \
+  --public-results results/development-matched-50x4-v1.results.json \
+  --acknowledge-unbounded-provider-spend
+```
+
 ### Later four-profile submit-report pilot (2026-07-15)
 
 **This is a descriptive full-system integration pilot, not a leaderboard or a
