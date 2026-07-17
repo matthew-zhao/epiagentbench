@@ -1,0 +1,12 @@
+{
+  "development_only": true,
+  "original_panel_id": "development-matched-50x6-v3",
+  "original_precommitment_sha256": "sha256:677b427075a669eca49ebcfa39971631edb52dd958caa26b0a49651f15afc22a",
+  "preflight_provider_calls_started": 0,
+  "production_assignments_started": 0,
+  "reason": "A post-precommit isolation audit proved that Claude 2.1.195 derived its credential namespace from the per-assignment disposable configuration path. The unchanged runner would therefore require repeated interactive Glean gateway authorization across the 100 Claude assignments. No provider preflight or production call started. V3 is preserved rather than modified; V4 adds an explicit panel-specific credential-only secure-storage contract while retaining disposable conversation and configuration roots.",
+  "replacement_panel_id": "development-matched-50x6-v4",
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_before_preflight",
+  "superseded_at_utc": "2026-07-17T05:28:41Z"
+}

@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from typing import Any, Mapping, Sequence
 
 from .trusted.service import launch_socket_episode
@@ -826,7 +827,12 @@ def _bounded(value: bytes) -> bytes:
 
 
 def _diagnostic(
-    stdout: bytes, stderr: bytes, *, temporary_root: str, returncode: int
+    stdout: bytes,
+    stderr: bytes,
+    *,
+    temporary_root: str,
+    returncode: int,
+    redacted_paths: Sequence[str] = (),
 ) -> str:
     """Return a bounded path-redacted startup diagnostic, never environment data."""
 
@@ -857,18 +863,191 @@ def _diagnostic(
         stderr_text = stderr.decode("utf-8", errors="replace")[-2_000:]
         text = f"stdout:\n{stdout_text}\nstderr:\n{stderr_text}"
     text = text.replace(temporary_root, "<pilot>")
+    for path in redacted_paths:
+        if path:
+            text = text.replace(path, "<secure-storage>")
     home = str(Path.home())
     if home:
         text = text.replace(home, "~")
     return text.strip()
 
 
-def _isolate_claude_environment(
-    environment: dict[str, str], root: Path
+def _reject_claude_plaintext_fallback(
+    secure_storage_dir: Path | None,
 ) -> None:
-    """Discard inherited Claude state and use temporary private directories."""
+    """Fail closed if Claude falls back to a plaintext credential file.
 
-    environment.pop("CLAUDE_CODE_SAFE_MODE", None)
+    Only metadata for the fixed fallback filename is inspected.  The error is
+    deliberately generic so neither credential material nor its host path can
+    enter runner diagnostics.
+    """
+
+    if secure_storage_dir is None:
+        return
+    try:
+        (secure_storage_dir / ".credentials.json").lstat()
+    except FileNotFoundError:
+        return
+    except (OSError, ValueError):
+        raise RuntimeError(
+            "Claude secure-storage guard could not verify credential isolation"
+        ) from None
+    raise RuntimeError(
+        "Claude secure-storage guard detected a plaintext credential fallback"
+    )
+
+
+def _claude_secure_storage_keychain_service(
+    secure_storage_dir: str | os.PathLike[str],
+) -> str:
+    """Derive Claude Code's Keychain service from one canonical real path."""
+
+    resolved_path = _canonical_claude_secure_storage_path(secure_storage_dir)
+    normalized = unicodedata.normalize("NFC", str(resolved_path))
+    suffix = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+    return f"Claude Code-credentials-{suffix}"
+
+
+def _canonical_claude_secure_storage_path(
+    secure_storage_dir: str | os.PathLike[str],
+) -> Path:
+    """Reject aliases instead of silently switching credential namespaces."""
+
+    try:
+        raw_path = os.fspath(secure_storage_dir)
+    except TypeError:
+        raise ValueError("Invalid Claude secure-storage directory") from None
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise ValueError("Invalid Claude secure-storage directory")
+    try:
+        candidate = Path(raw_path).expanduser()
+        if not candidate.is_absolute():
+            raise ValueError
+        resolved_path = candidate.resolve(strict=True)
+        metadata = candidate.stat()
+    except (OSError, RuntimeError, ValueError):
+        raise ValueError("Invalid Claude secure-storage directory") from None
+    if candidate != resolved_path or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("Invalid Claude secure-storage directory")
+    return candidate
+
+
+def _resolve_macos_security_executable(
+    executable: str | os.PathLike[str],
+) -> Path:
+    """Resolve a non-writable regular executable without exposing its path."""
+
+    try:
+        raw_executable = os.fspath(executable)
+    except TypeError:
+        raise RuntimeError("macOS Keychain executable is unavailable") from None
+    if not isinstance(raw_executable, str) or not raw_executable.strip():
+        raise RuntimeError("macOS Keychain executable is unavailable")
+    try:
+        candidate = Path(raw_executable).expanduser()
+        if not candidate.is_absolute():
+            located = shutil.which(raw_executable)
+            if located is None:
+                raise FileNotFoundError
+            candidate = Path(located)
+        resolved = candidate.resolve(strict=True)
+        metadata = resolved.stat()
+    except (OSError, RuntimeError, ValueError):
+        raise RuntimeError("macOS Keychain executable is unavailable") from None
+    executable_bits = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+    unsafe_write_bits = stat.S_IWGRP | stat.S_IWOTH
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or not metadata.st_mode & executable_bits
+        or metadata.st_mode & unsafe_write_bits
+    ):
+        raise RuntimeError("macOS Keychain executable is unavailable")
+    return resolved
+
+
+def _attest_claude_secure_storage_keychain(
+    secure_storage_dir: str | os.PathLike[str],
+    *,
+    security_executable: str | os.PathLike[str] = "/usr/bin/security",
+) -> bool:
+    """Return whether Claude's expected generic-password item exists.
+
+    The password value is never requested or captured.  Exit status 44 is the
+    only condition classified as absence; platform, executable, account, and
+    all other command failures are fail-closed infrastructure errors.
+    """
+
+    if sys.platform != "darwin":
+        raise RuntimeError("Claude Keychain attestation requires macOS")
+    account = os.environ.get("USER", "").strip()
+    if not account:
+        raise RuntimeError("Claude Keychain attestation account is unavailable")
+    executable = _resolve_macos_security_executable(security_executable)
+    service = _claude_secure_storage_keychain_service(secure_storage_dir)
+    try:
+        process = subprocess.run(
+            [
+                str(executable),
+                "find-generic-password",
+                "-s",
+                service,
+                "-a",
+                account,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError("Claude Keychain attestation failed") from None
+    if process.returncode == 0:
+        return True
+    if process.returncode == 44:
+        return False
+    raise RuntimeError("Claude Keychain attestation failed")
+
+
+def _isolate_claude_environment(
+    environment: dict[str, str],
+    root: Path,
+    secure_storage_dir: Path | None = None,
+) -> None:
+    """Build a minimal Claude environment with disposable ordinary storage.
+
+    Claude, Anthropic, and Glean authentication or routing values are not
+    inherited.  A persistent secure-storage configuration is available only
+    when the caller supplies it explicitly.
+    """
+
+    passthrough_names = {
+        "ALL_PROXY",
+        "CURL_CA_BUNDLE",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "LANG",
+        "LANGUAGE",
+        "LOGNAME",
+        "NO_PROXY",
+        "NODE_EXTRA_CA_CERTS",
+        "PATH",
+        "REQUESTS_CA_BUNDLE",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "USER",
+        "all_proxy",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+    }
+    preserved = {
+        name: value
+        for name, value in environment.items()
+        if name in passthrough_names or name.startswith("LC_")
+    }
+    environment.clear()
+    environment.update(preserved)
     isolated_paths = {
         "HOME": root / "claude-home",
         "CLAUDE_CONFIG_DIR": root / "claude-config",
@@ -876,10 +1055,20 @@ def _isolate_claude_environment(
         "XDG_CACHE_HOME": root / "xdg" / "cache",
         "XDG_DATA_HOME": root / "xdg" / "data",
         "XDG_STATE_HOME": root / "xdg" / "state",
+        "XDG_RUNTIME_DIR": root / "xdg" / "runtime",
+        "TMPDIR": root / "claude-tmp",
+        "TMP": root / "claude-tmp",
+        "TEMP": root / "claude-tmp",
+        "NODE_COMPILE_CACHE": root / "node-compile-cache",
     }
     for name, path in isolated_paths.items():
         path.mkdir(parents=True, mode=0o700, exist_ok=True)
+        path.chmod(0o700)
         environment[name] = str(path)
+    if secure_storage_dir is not None:
+        environment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = str(
+            secure_storage_dir
+        )
 
 
 def _isolate_cursor_environment(
@@ -1051,6 +1240,7 @@ def evaluate_local_cli_agent(
     timeout_seconds: int = 600,
     claude_max_budget_usd: float = 1.0,
     claude_effort: str | ClaudeEffort | None = None,
+    claude_secure_storage_dir: str | os.PathLike[str] | None = None,
 ) -> PilotRunResult:
     """Run and score one explicitly non-hermetic local CLI smoke episode."""
 
@@ -1061,6 +1251,29 @@ def evaluate_local_cli_agent(
     effort = _validate_claude_effort(claude_effort)
     if effort is not None and system != "claude":
         raise ValueError("Claude effort is only valid for the Claude system")
+    if claude_secure_storage_dir is not None and system != "claude":
+        raise ValueError(
+            "Claude secure storage is only valid for the Claude system"
+        )
+    secure_storage_path: Path | None = None
+    if claude_secure_storage_dir is not None:
+        try:
+            secure_storage_value = os.fspath(claude_secure_storage_dir)
+        except TypeError as error:
+            raise ValueError("Invalid Claude secure-storage directory") from error
+        if (
+            not isinstance(secure_storage_value, str)
+            or not secure_storage_value.strip()
+        ):
+            raise ValueError("Invalid Claude secure-storage directory")
+        try:
+            secure_storage_path = _canonical_claude_secure_storage_path(
+                secure_storage_value
+            )
+        except ValueError:
+            raise ValueError(
+                "Invalid Claude secure-storage directory"
+            ) from None
     if system == "cursor" and not os.environ.get("CURSOR_API_KEY", "").strip():
         raise RuntimeError(
             "Isolated Cursor evaluation requires CURSOR_API_KEY; refusing to "
@@ -1110,7 +1323,12 @@ def evaluate_local_cli_agent(
                 )
             _isolate_cursor_environment(environment, root)
         elif system == "claude":
-            _isolate_claude_environment(environment, root)
+            _isolate_claude_environment(
+                environment,
+                root,
+                secure_storage_path,
+            )
+            _reject_claude_plaintext_fallback(secure_storage_path)
 
         try:
             version_process = subprocess.run(
@@ -1145,6 +1363,8 @@ def evaluate_local_cli_agent(
                         "Cursor MCP enablement failed before the paid agent call"
                     )
         finally:
+            if system == "claude":
+                _reject_claude_plaintext_fallback(secure_storage_path)
             if cursor_host_audit:
                 readiness_after = _snapshot_cursor_host_state()
                 isolation_events = _cursor_host_persistence_audit(
@@ -1166,6 +1386,8 @@ def evaluate_local_cli_agent(
         )
         try:
             try:
+                if system == "claude":
+                    _reject_claude_plaintext_fallback(secure_storage_path)
                 started = time.monotonic()
                 try:
                     process = subprocess.run(
@@ -1187,6 +1409,8 @@ def evaluate_local_cli_agent(
                     stderr = _bounded(exc.stderr or b"")
                     audit.append("agent_failure:timeout")
             finally:
+                if system == "claude":
+                    _reject_claude_plaintext_fallback(secure_storage_path)
                 if cursor_host_audit:
                     isolation_events = _cursor_host_persistence_audit(
                         cursor_host_state_before,
@@ -1215,6 +1439,11 @@ def evaluate_local_cli_agent(
                 stderr,
                 temporary_root=str(root),
                 returncode=returncode,
+                redacted_paths=(
+                    (str(secure_storage_path),)
+                    if secure_storage_path is not None
+                    else ()
+                ),
             )
             if submission is None:
                 diagnostic = "\n".join(

@@ -59,16 +59,23 @@ CLI_VERSIONS = {
 class MatchedPanelTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = TemporaryDirectory()
+        self.secure_temporary = TemporaryDirectory(
+            prefix="epiagentbench-claude-auth-", dir=Path.home()
+        )
         self.root = Path(self.temporary.name)
+        self.claude_secure_storage_dir = Path(self.secure_temporary.name)
+        os.chmod(self.claude_secure_storage_dir, 0o700)
         self.key_path = self.root / "authentication.key"
         self.key_path.write_bytes(AUTHENTICATION_KEY)
         os.chmod(self.key_path, 0o600)
         self.private_path = self.root / "run_artifacts" / "private.json"
         self.public_path = self.root / "results" / "manifest.json"
         self.results_path = self.root / "results" / "results.json"
+        self.keychain_present = False
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+        self.secure_temporary.cleanup()
 
     def _cohort(
         self, count: int = EPISODE_COUNT, *, cohort_id: str = COHORT_ID
@@ -140,6 +147,13 @@ class MatchedPanelTests(unittest.TestCase):
                     return_value=GENERATOR,
                 )
             )
+            stack.enter_context(
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_attest_claude_secure_storage_keychain",
+                    side_effect=lambda _path: self.keychain_present,
+                )
+            )
             yield
 
     def _prepare(self, manifest_path: Path | None = None) -> dict:
@@ -152,6 +166,7 @@ class MatchedPanelTests(unittest.TestCase):
                 root=self.root,
                 cohort_manifest_path=manifest_path,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 timeout_seconds=30,
@@ -215,7 +230,8 @@ class MatchedPanelTests(unittest.TestCase):
         )
 
     def _run_with(self, side_effect):
-        with self._contracts(), patch(
+        self.keychain_present = True
+        with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), self._contracts(), patch(
             "epiagentbench.development_matched_panel._preflight_execution"
         ), patch(
             "epiagentbench.development_matched_panel._assert_environment_preflight"
@@ -226,6 +242,7 @@ class MatchedPanelTests(unittest.TestCase):
             payload = run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
@@ -239,13 +256,48 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v3")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v4")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["replay_trace_release"]["release"],
             "terminal_retired_panel_only",
         )
         self.assertIn("replay_sha256", public["contract_hashes"])
+        self.assertIn("claude_auth_sha256", public["contract_hashes"])
+        self.assertEqual(
+            public["claude_auth_contract"]["secure_storage_role"],
+            "stable_credential_only",
+        )
+        self.assertEqual(
+            public["claude_auth_contract"]["credential_backend"],
+            {
+                "macos_keychain": "required",
+                "plaintext_fallback": "forbidden",
+                "initial_namespace_state": "absent_at_prepare",
+                "first_claude_call": "record_required_after_success",
+                "later_claude_calls": "record_required_before_and_after",
+            },
+        )
+        self.assertEqual(
+            private["claude_secure_storage_dir"],
+            str(self.claude_secure_storage_dir.resolve()),
+        )
+        self.assertEqual(
+            private["claude_secure_storage_identity"],
+            {
+                "device": self.claude_secure_storage_dir.stat().st_dev,
+                "inode": self.claude_secure_storage_dir.stat().st_ino,
+            },
+        )
+        self.assertEqual(
+            len(bytes.fromhex(private["claude_auth_commitment_key_hex"])),
+            32,
+        )
+        self.assertTrue(
+            public["claude_auth_contract"][
+                "secure_storage_namespace_commitment"
+            ].startswith("hmac-sha256:")
+        )
         self.assertEqual(
             public["schedule_design"],
             {
@@ -279,6 +331,8 @@ class MatchedPanelTests(unittest.TestCase):
             }
         )
         self.assertNotIn(str(self.root), encoded)
+        self.assertNotIn(str(self.claude_secure_storage_dir), encoded)
+        self.assertNotIn(private["claude_auth_commitment_key_hex"], encoded)
         for family in FAMILIES:
             self.assertNotIn(family, hidden_assignment_surface)
         for forbidden in ("pack_path", "seed", "episode_secret", "profile_order"):
@@ -361,7 +415,252 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
                 public=public,
                 authentication_key=AUTHENTICATION_KEY,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
             )
+
+    def test_claude_secure_storage_validation_rejects_unsafe_paths(self):
+        self.assertEqual(
+            matched._validate_claude_secure_storage_dir(
+                self.claude_secure_storage_dir, root=self.root
+            ),
+            self.claude_secure_storage_dir.resolve(),
+        )
+
+        invalid_file = self.claude_secure_storage_dir / "not-a-directory"
+        invalid_file.write_text("not credentials\n")
+        missing = self.claude_secure_storage_dir / "missing"
+        repository_storage = self.root / "claude-auth"
+        repository_storage.mkdir(mode=0o700)
+        with TemporaryDirectory(dir="/tmp") as temporary_storage:
+            os.chmod(temporary_storage, 0o700)
+            unsafe = (
+                Path("relative-auth"),
+                invalid_file,
+                missing,
+                repository_storage,
+                Path(temporary_storage),
+            )
+            for path in unsafe:
+                with self.subTest(path=path), self.assertRaises(ValueError):
+                    matched._validate_claude_secure_storage_dir(
+                        path, root=self.root
+                    )
+
+        os.chmod(self.claude_secure_storage_dir, 0o755)
+        try:
+            with self.assertRaisesRegex(ValueError, "exact 0700"):
+                matched._validate_claude_secure_storage_dir(
+                    self.claude_secure_storage_dir, root=self.root
+                )
+        finally:
+            os.chmod(self.claude_secure_storage_dir, 0o700)
+
+        target = self.claude_secure_storage_dir / "real"
+        target.mkdir(mode=0o700)
+        alias = self.claude_secure_storage_dir / "alias"
+        alias.symlink_to(target, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            matched._validate_claude_secure_storage_dir(alias, root=self.root)
+
+    def test_cli_contract_pins_claude_auth_dependency_files(self):
+        def identity(executable: str) -> dict[str, str]:
+            return {
+                "name": executable,
+                "version": f"{executable}-test",
+                "executable_sha256": "sha256:" + "1" * 64,
+            }
+
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "epiagentbench.development_matched_panel._read_cli_identity",
+                side_effect=identity,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._glean_helper_identity",
+                return_value={
+                    "path": str(matched._GLEAN_HELPER_PATH),
+                    "version": "glean-helper-test",
+                    "sha256": "sha256:" + "2" * 64,
+                },
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._fixed_file_sha256",
+                return_value="sha256:" + "3" * 64,
+            ) as fixed_hash,
+        ):
+            contract = matched._cli_contract()
+
+        dependencies = contract["claude_auth_dependencies"]
+        self.assertEqual(
+            dependencies["macos_security_metadata_tool"]["path"],
+            "/usr/bin/security",
+        )
+        self.assertEqual(
+            dependencies["glean_llm_gateway_token_wrapper"]["path"],
+            "/usr/local/bin/glean-llm-gateway-token",
+        )
+        self.assertEqual(
+            dependencies["managed_settings"]["path"],
+            "/Library/Application Support/ClaudeCode/managed-settings.json",
+        )
+        hashed_paths = {call.args[0] for call in fixed_hash.call_args_list}
+        self.assertEqual(
+            hashed_paths,
+            {
+                matched._MACOS_SECURITY_PATH,
+                matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
+                matched._CLAUDE_MANAGED_SETTINGS_PATH,
+            },
+        )
+
+    def test_prepare_rejects_secure_storage_nested_in_frozen_cohort(self):
+        with TemporaryDirectory(
+            prefix="epiagentbench-cohort-separation-", dir=Path.home()
+        ) as container:
+            container_path = Path(container)
+            os.chmod(container_path, 0o700)
+            cohort = container_path / "cohort"
+            cohort.mkdir(mode=0o700)
+            manifest_path = cohort / "cohort.manifest"
+            manifest_path.write_bytes(b"placeholder")
+            os.chmod(manifest_path, 0o600)
+            nested_storage = cohort / "claude-auth"
+            nested_storage.mkdir(mode=0o700)
+            with self._contracts(), self.assertRaisesRegex(
+                ValueError, "must not overlap"
+            ):
+                prepare_panel(
+                    root=self.root,
+                    cohort_manifest_path=manifest_path,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=nested_storage,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                )
+
+    def test_prepare_rejects_frozen_cohort_nested_in_secure_storage(self):
+        with TemporaryDirectory(
+            prefix="epiagentbench-reverse-separation-", dir=Path.home()
+        ) as container:
+            secure_storage = Path(container)
+            os.chmod(secure_storage, 0o700)
+            cohort = secure_storage / "cohort"
+            cohort.mkdir(mode=0o700)
+            manifest_path = cohort / "cohort.manifest"
+            manifest_path.write_bytes(b"placeholder")
+            os.chmod(manifest_path, 0o600)
+            with self._contracts(), self.assertRaisesRegex(
+                ValueError, "must not overlap"
+            ):
+                prepare_panel(
+                    root=self.root,
+                    cohort_manifest_path=manifest_path,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=secure_storage,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                )
+
+    def test_prepare_requires_fresh_keychain_namespace_before_writing(self):
+        manifest_path = self._cohort()
+        self.keychain_present = True
+        with self._contracts(), self.assertRaisesRegex(
+            RuntimeError, "Keychain record must be absent"
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        self.assertFalse(self.private_path.exists())
+        self.assertFalse(self.public_path.exists())
+
+    def test_prepare_rejects_plaintext_fallback_before_writing(self):
+        manifest_path = self._cohort()
+        fallback = self.claude_secure_storage_dir / ".credentials.json"
+        fallback.write_text('{"token":"test-only"}', encoding="utf-8")
+        with self._contracts(), self.assertRaisesRegex(
+            RuntimeError, "plaintext credential fallback"
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        self.assertFalse(self.private_path.exists())
+        self.assertFalse(self.public_path.exists())
+
+    def test_auth_path_mismatch_stops_preflight_and_run_before_provider(self):
+        self._prepare()
+        with TemporaryDirectory(
+            prefix="epiagentbench-other-claude-auth-", dir=Path.home()
+        ) as other:
+            other_path = Path(other)
+            os.chmod(other_path, 0o700)
+            with patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate, self.assertRaisesRegex(ValueError, "does not match"):
+                run_panel(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=other_path,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    public_results_path=self.results_path,
+                    acknowledge_unbounded_provider_spend=True,
+                )
+            evaluate.assert_not_called()
+
+            with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate, self.assertRaisesRegex(ValueError, "does not match"):
+                run_environment_preflight(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=other_path,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    public_preflight_path=self.root / "results" / "preflight.json",
+                    acknowledge_unbounded_provider_spend=True,
+                )
+            evaluate.assert_not_called()
+
+    def test_replaced_secure_storage_directory_stops_before_provider(self):
+        self._prepare()
+        original = self.claude_secure_storage_dir
+        moved = original.with_name(original.name + "-original")
+        original.rename(moved)
+        original.mkdir(mode=0o700)
+        try:
+            with (
+                patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+                self._contracts(),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "evaluate_local_cli_agent"
+                ) as evaluate,
+                self.assertRaisesRegex(ValueError, "filesystem identity changed"),
+            ):
+                run_environment_preflight(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=original,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    public_preflight_path=self.root / "results" / "preflight.json",
+                    acknowledge_unbounded_provider_spend=True,
+                )
+            evaluate.assert_not_called()
+        finally:
+            original.rmdir()
+            moved.rename(original)
 
     def test_six_treatment_williams_rows_and_family_extras_are_exact(self):
         rows = matched._WILLIAMS
@@ -443,6 +742,7 @@ class MatchedPanelTests(unittest.TestCase):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
@@ -531,6 +831,7 @@ class MatchedPanelTests(unittest.TestCase):
         cohort_manifest_path = Path(private_before_run["cohort_manifest_path"])
         retirement_path = matched._cohort_retirement_path(cohort_manifest_path)
         calls: list[tuple[str, str, str | None]] = []
+        auth_kwargs_seen: list[tuple[str, bool, Path | None]] = []
         terminal_write_saw_retirement = False
         captured_progress_artifacts = 0
 
@@ -542,6 +843,13 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertNotIn("family", json.dumps(running))
             self.assertNotIn("profile_order", json.dumps(running))
             calls.append((system, kwargs["model"], kwargs["claude_effort"]))
+            auth_kwargs_seen.append(
+                (
+                    system,
+                    "claude_secure_storage_dir" in kwargs,
+                    kwargs.get("claude_secure_storage_dir"),
+                )
+            )
             totals = {"claude": 10.0, "codex": 20.0}
             total = totals.get(system, 30.0 if "grok" in kwargs["model"] else 40.0)
             return self._result(system, kwargs["model"], kwargs["executable"], total)
@@ -631,11 +939,13 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(resumed, payload)
         resumed_invoked.assert_not_called()
 
+        self.keychain_present = False
         with self._contracts(), self.assertRaisesRegex(ValueError, "retired"):
             prepare_panel(
                 root=self.root,
                 cohort_manifest_path=cohort_manifest_path,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.root
                 / "run_artifacts"
                 / "reused-private.json",
@@ -658,6 +968,17 @@ class MatchedPanelTests(unittest.TestCase):
         }
         self.assertEqual(cursor_models, {"cursor-grok-4.5-high", "kimi-k2.7-code"})
         self.assertEqual(sum(system == "cursor" for system, _, _ in calls), 100)
+        self.assertTrue(
+            all(
+                (
+                    present
+                    and value == self.claude_secure_storage_dir.resolve()
+                )
+                if system == "claude"
+                else (not present and value is None)
+                for system, present, value in auth_kwargs_seen
+            )
+        )
         self.assertTrue(
             all(
                 effort == "high"
@@ -927,6 +1248,7 @@ class MatchedPanelTests(unittest.TestCase):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
@@ -934,14 +1256,110 @@ class MatchedPanelTests(unittest.TestCase):
             )
         evaluate.assert_not_called()
 
+    def test_missing_cursor_key_stops_production_before_durable_start(self):
+        self._prepare()
+        self.keychain_present = True
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "requires CURSOR_API_KEY"),
+        ):
+            run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["status"], "prepared")
+        self.assertEqual(private["assignments"], [])
+        self.assertFalse(self.results_path.exists())
+
+    def test_terminal_crash_recovery_finalizes_without_provider_credentials(self):
+        self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        private["status"] = "running"
+        private["panel_started_at_utc"] = "start"
+        private["assignments"] = [
+            {
+                "episode_ref": episode_ref,
+                "profile_id": profile_id,
+                "status": "transport_void",
+                "started_at_utc": "start",
+                "finished_at_utc": "finish",
+                "void_reason": "test_terminal_checkpoint",
+            }
+            for episode_ref, profile_id in matched._assignment_keys(
+                private["schedule"]
+            )
+        ]
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        self.keychain_present = False
+
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            result = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+        self.assertEqual(result["status"], "complete_with_transport_voids")
+        self.assertEqual(result["terminal_assignments"], ASSIGNMENT_COUNT)
+
     def test_disposable_preflight_checks_all_profiles_without_scores(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight.json"
         claude_efforts: list[str | None] = []
+        auth_kwargs_seen: list[tuple[str, bool, Path | None]] = []
 
         def evaluate(system: str, **kwargs):
+            auth_kwargs_seen.append(
+                (
+                    system,
+                    "claude_secure_storage_dir" in kwargs,
+                    kwargs.get("claude_secure_storage_dir"),
+                )
+            )
             if system == "claude":
                 claude_efforts.append(kwargs["claude_effort"])
+                self.keychain_present = True
             return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), self._contracts(), patch(
@@ -953,6 +1371,7 @@ class MatchedPanelTests(unittest.TestCase):
             receipt = run_environment_preflight(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_preflight_path=preflight_path,
@@ -961,8 +1380,32 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "passed")
         self.assertEqual(invoked.call_count, len(PROFILES))
         self.assertEqual(claude_efforts, ["high", "high"])
+        self.assertTrue(
+            all(
+                (
+                    present
+                    and value == self.claude_secure_storage_dir.resolve()
+                )
+                if system == "claude"
+                else (not present and value is None)
+                for system, present, value in auth_kwargs_seen
+            )
+        )
         self.assertEqual(receipt["production_episodes_consumed"], 0)
         self.assertTrue(all(not item["scored"] for item in receipt["profiles"]))
+        claude_receipts = [
+            item for item in receipt["profiles"] if item["system"] == "claude"
+        ]
+        self.assertEqual(
+            [item["credential_namespace_state_before"] for item in claude_receipts],
+            ["absent", "present"],
+        )
+        self.assertTrue(
+            all(
+                item["credential_namespace_state_after"] == "present"
+                for item in claude_receipts
+            )
+        )
         self.assertTrue(
             all(item["replay_trace_validated"] for item in receipt["profiles"])
         )
@@ -972,6 +1415,10 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, AUTHENTICATION_KEY
         )
         self.assertEqual(private["environment_preflight"]["status"], "passed")
+        self.assertIn(
+            "claude_auth_sha256",
+            private["environment_preflight"]["passed_contract_hashes"],
+        )
         self.assertEqual(private["assignments"], [])
 
     def test_disposable_preflight_requires_cursor_key_before_any_call(self):
@@ -982,12 +1429,42 @@ class MatchedPanelTests(unittest.TestCase):
             run_environment_preflight(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_preflight_path=self.root / "results" / "preflight.json",
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluate.assert_not_called()
+
+    def test_plaintext_fallback_stops_preflight_before_one_shot_state(self):
+        self._prepare()
+        fallback = self.claude_secure_storage_dir / ".credentials.json"
+        fallback.write_text('{"token":"test-only"}', encoding="utf-8")
+        preflight_path = self.root / "results" / "preflight.json"
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "plaintext credential fallback"),
+        ):
+            run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["environment_preflight"]["status"], "required")
+        self.assertFalse(preflight_path.exists())
 
     def test_failed_disposable_preflight_is_one_shot(self):
         self._prepare()
@@ -1004,6 +1481,7 @@ class MatchedPanelTests(unittest.TestCase):
             receipt = run_environment_preflight(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_preflight_path=preflight_path,
@@ -1024,6 +1502,7 @@ class MatchedPanelTests(unittest.TestCase):
             run_environment_preflight(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_preflight_path=preflight_path,
@@ -1039,6 +1518,7 @@ class MatchedPanelTests(unittest.TestCase):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=copied_state_path,
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
@@ -1052,6 +1532,7 @@ class MatchedPanelTests(unittest.TestCase):
                 root=self.root,
                 cohort_manifest_path=manifest,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.private_path,
             )
@@ -1080,6 +1561,7 @@ class MatchedPanelTests(unittest.TestCase):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,

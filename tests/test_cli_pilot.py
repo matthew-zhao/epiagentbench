@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,11 +14,15 @@ from epiagentbench.pilot import (
     _CLAUDE_EXPECTED_TOOLS,
     _CLAUDE_MCP_TOOL_NAMES,
     _CLAUDE_UNSUPPORTED_SCHEMA_KEYS,
+    _attest_claude_secure_storage_keychain,
     _claude_provider_schema,
+    _claude_secure_storage_keychain_service,
     _cursor_host_persistence_audit,
+    _diagnostic,
     _isolate_claude_environment,
     _isolate_cursor_environment,
     _prepare_workspace,
+    _reject_claude_plaintext_fallback,
     _snapshot_cursor_host_chat_metadata,
     _snapshot_cursor_host_state,
     build_agent_command,
@@ -179,19 +184,51 @@ class CliPilotTests(unittest.TestCase):
             "maxLength", projected["properties"]["executive_brief"]
         )
 
-    def test_claude_environment_is_private_and_clears_safe_mode(self):
+    def test_claude_environment_is_private_and_scrubs_inherited_routing(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            secure = root / "explicit-secure-storage"
             environment = {
                 "HOME": "/inherited/home",
                 "CLAUDE_CONFIG_DIR": "/inherited/claude",
                 "XDG_CONFIG_HOME": "/inherited/xdg",
                 "CLAUDE_CODE_SAFE_MODE": "1",
+                "CLAUDE_CODE_OAUTH_TOKEN": "hostile-token",
+                "CLAUDE_SECURESTORAGE_CONFIG_DIR": "/inherited/secure",
+                "ANTHROPIC_API_KEY": "hostile-token",
+                "ANTHROPIC_BASE_URL": "https://attacker.invalid",
+                "GLEAN_API_TOKEN": "hostile-token",
+                "GLEAN_BASE_URL": "https://attacker.invalid",
+                "SCIO_API_URL": "https://attacker.invalid",
+                "NODE_OPTIONS": "--require=/inherited/inject.js",
+                "SSH_AUTH_SOCK": "/inherited/agent.sock",
                 "PATH": "/bin",
+                "HTTPS_PROXY": "https://proxy.invalid",
+                "SSL_CERT_FILE": "/etc/ssl/cert.pem",
+                "USER": "pilot-user",
+                "LC_ALL": "C.UTF-8",
             }
-            _isolate_claude_environment(environment, root)
-            self.assertNotIn("CLAUDE_CODE_SAFE_MODE", environment)
+            _isolate_claude_environment(environment, root, secure)
             self.assertEqual(environment["PATH"], "/bin")
+            self.assertEqual(environment["HTTPS_PROXY"], "https://proxy.invalid")
+            self.assertEqual(environment["SSL_CERT_FILE"], "/etc/ssl/cert.pem")
+            self.assertEqual(environment["USER"], "pilot-user")
+            self.assertEqual(environment["LC_ALL"], "C.UTF-8")
+            self.assertEqual(
+                environment["CLAUDE_SECURESTORAGE_CONFIG_DIR"], str(secure)
+            )
+            for name in (
+                "CLAUDE_CODE_SAFE_MODE",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_BASE_URL",
+                "GLEAN_API_TOKEN",
+                "GLEAN_BASE_URL",
+                "SCIO_API_URL",
+                "NODE_OPTIONS",
+                "SSH_AUTH_SOCK",
+            ):
+                self.assertNotIn(name, environment)
             for name in (
                 "HOME",
                 "CLAUDE_CONFIG_DIR",
@@ -199,10 +236,322 @@ class CliPilotTests(unittest.TestCase):
                 "XDG_CACHE_HOME",
                 "XDG_DATA_HOME",
                 "XDG_STATE_HOME",
+                "XDG_RUNTIME_DIR",
+                "TMPDIR",
+                "TMP",
+                "TEMP",
+                "NODE_COMPILE_CACHE",
             ):
                 path = Path(environment[name])
                 self.assertTrue(path.is_dir())
                 self.assertTrue(path.is_relative_to(root))
+                self.assertEqual(path.stat().st_mode & 0o077, 0)
+
+    def test_claude_explicit_secure_storage_is_reused_across_disposable_roots(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            secure = base / "persistent-secure-storage"
+            secure.mkdir()
+            roots = (base / "run-one", base / "run-two")
+            environments = []
+            for root in roots:
+                root.mkdir()
+                environment = {"PATH": "/bin"}
+                _isolate_claude_environment(environment, root, secure)
+                environments.append(environment)
+
+            self.assertEqual(
+                environments[0]["CLAUDE_SECURESTORAGE_CONFIG_DIR"], str(secure)
+            )
+            self.assertEqual(
+                environments[1]["CLAUDE_SECURESTORAGE_CONFIG_DIR"], str(secure)
+            )
+            self.assertNotEqual(environments[0]["HOME"], environments[1]["HOME"])
+            self.assertNotEqual(
+                environments[0]["CLAUDE_CONFIG_DIR"],
+                environments[1]["CLAUDE_CONFIG_DIR"],
+            )
+
+    def test_claude_without_explicit_secure_storage_remains_compatible(self):
+        with tempfile.TemporaryDirectory() as temp:
+            environment = {
+                "PATH": "/bin",
+                "CLAUDE_SECURESTORAGE_CONFIG_DIR": "/inherited/secure",
+            }
+            _isolate_claude_environment(environment, Path(temp))
+            self.assertNotIn("CLAUDE_SECURESTORAGE_CONFIG_DIR", environment)
+
+    def test_claude_plaintext_secure_storage_fallback_is_rejected_without_leak(self):
+        with tempfile.TemporaryDirectory() as temp:
+            secure = Path(temp) / "secret-host-path"
+            secure.mkdir()
+            (secure / ".credentials.json").write_text(
+                '{"token":"must-not-leak"}', encoding="utf-8"
+            )
+            with self.assertRaises(RuntimeError) as caught:
+                _reject_claude_plaintext_fallback(secure)
+            diagnostic = str(caught.exception)
+            self.assertNotIn(str(secure), diagnostic)
+            self.assertNotIn("must-not-leak", diagnostic)
+
+    def test_claude_secure_storage_path_is_redacted_from_diagnostics(self):
+        secure = Path.home() / ".stable-claude-secure-storage"
+        diagnostic = _diagnostic(
+            b"",
+            f"credential error at {secure}/.credentials.json".encode(),
+            temporary_root="/tmp/disposable-pilot",
+            returncode=1,
+            redacted_paths=(str(secure),),
+        )
+        self.assertNotIn(str(secure), diagnostic)
+        self.assertNotIn("~/.stable-claude-secure-storage", diagnostic)
+        self.assertIn("<secure-storage>/.credentials.json", diagnostic)
+
+    def test_claude_keychain_service_uses_resolved_path_hash(self):
+        with tempfile.TemporaryDirectory() as temp:
+            secure = Path(temp).resolve() / "secure-storage"
+            secure.mkdir()
+            resolved = secure.resolve()
+            suffix = hashlib.sha256(
+                str(resolved).encode("utf-8")
+            ).hexdigest()[:8]
+            self.assertEqual(
+                _claude_secure_storage_keychain_service(secure),
+                f"Claude Code-credentials-{suffix}",
+            )
+
+    def test_claude_keychain_service_rejects_symlink_alias(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            secure = root / "secure-storage"
+            secure.mkdir()
+            alias = root / "secure-alias"
+            alias.symlink_to(secure, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "Invalid Claude"):
+                _claude_secure_storage_keychain_service(alias)
+
+    def test_claude_keychain_service_normalizes_unicode_to_nfc(self):
+        decomposed = Path("/tmp/epiagentbench-e\u0301")
+        normalized = "/tmp/epiagentbench-\u00e9"
+        suffix = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+        with patch(
+            "epiagentbench.pilot._canonical_claude_secure_storage_path",
+            return_value=decomposed,
+        ):
+            service = _claude_secure_storage_keychain_service(decomposed)
+        self.assertEqual(service, f"Claude Code-credentials-{suffix}")
+
+    def test_claude_keychain_attestation_reports_present_or_absent_metadata_only(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            secure = root / "secure-storage"
+            secure.mkdir()
+            security = root / "security"
+            security.write_text("test executable", encoding="utf-8")
+            security.chmod(0o700)
+            service = _claude_secure_storage_keychain_service(secure)
+
+            for returncode, expected in ((0, True), (44, False)):
+                with (
+                    self.subTest(returncode=returncode),
+                    patch("epiagentbench.pilot.sys.platform", "darwin"),
+                    patch.dict(os.environ, {"USER": "pilot-account"}),
+                    patch(
+                        "epiagentbench.pilot.subprocess.run",
+                        return_value=subprocess.CompletedProcess(
+                            [], returncode
+                        ),
+                    ) as run,
+                ):
+                    present = _attest_claude_secure_storage_keychain(
+                        secure,
+                        security_executable=security,
+                    )
+                self.assertIs(present, expected)
+                command = run.call_args.args[0]
+                self.assertEqual(
+                    command,
+                    [
+                        str(security.resolve()),
+                        "find-generic-password",
+                        "-s",
+                        service,
+                        "-a",
+                        "pilot-account",
+                    ],
+                )
+                self.assertNotIn("-w", command)
+                self.assertNotIn("-g", command)
+                self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
+                self.assertEqual(run.call_args.kwargs["stdout"], subprocess.DEVNULL)
+                self.assertEqual(run.call_args.kwargs["stderr"], subprocess.DEVNULL)
+                self.assertFalse(run.call_args.kwargs["check"])
+
+    def test_claude_keychain_attestation_fails_closed_without_path_or_password(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            secure = root / "secret-secure-storage"
+            secure.mkdir()
+            security = root / "security"
+            security.write_text("test executable", encoding="utf-8")
+            security.chmod(0o700)
+
+            failures = (
+                subprocess.CompletedProcess([], 45),
+                OSError(f"{secure}: password=must-not-leak"),
+            )
+            for failure in failures:
+                outcome = (
+                    {"return_value": failure}
+                    if isinstance(failure, subprocess.CompletedProcess)
+                    else {"side_effect": failure}
+                )
+                with (
+                    self.subTest(failure=type(failure).__name__),
+                    patch("epiagentbench.pilot.sys.platform", "darwin"),
+                    patch.dict(os.environ, {"USER": "pilot-account"}),
+                    patch("epiagentbench.pilot.subprocess.run", **outcome),
+                    self.assertRaises(RuntimeError) as caught,
+                ):
+                    _attest_claude_secure_storage_keychain(
+                        secure,
+                        security_executable=security,
+                    )
+                diagnostic = str(caught.exception)
+                self.assertNotIn(str(secure), diagnostic)
+                self.assertNotIn("must-not-leak", diagnostic)
+                self.assertIsNone(caught.exception.__cause__)
+
+    def test_claude_keychain_attestation_requires_darwin_and_safe_executable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            secure = root / "secret-secure-storage"
+            secure.mkdir()
+            unsafe_security = root / "security"
+            unsafe_security.write_text("not executable", encoding="utf-8")
+            unsafe_security.chmod(0o600)
+
+            with (
+                patch("epiagentbench.pilot.sys.platform", "linux"),
+                patch("epiagentbench.pilot.subprocess.run") as run,
+                self.assertRaises(RuntimeError) as caught,
+            ):
+                _attest_claude_secure_storage_keychain(secure)
+            run.assert_not_called()
+            self.assertNotIn(str(secure), str(caught.exception))
+
+            with (
+                patch("epiagentbench.pilot.sys.platform", "darwin"),
+                patch.dict(os.environ, {"USER": "pilot-account"}),
+                patch("epiagentbench.pilot.subprocess.run") as run,
+                self.assertRaises(RuntimeError) as caught,
+            ):
+                _attest_claude_secure_storage_keychain(
+                    secure,
+                    security_executable=unsafe_security,
+                )
+            run.assert_not_called()
+            self.assertNotIn(str(unsafe_security), str(caught.exception))
+
+    def test_claude_readiness_plaintext_fallback_stops_before_episode(self):
+        with tempfile.TemporaryDirectory() as temp:
+            secure = Path(temp).resolve() / "secure-storage"
+            secure.mkdir()
+
+            def readiness(command, **kwargs):
+                (secure / ".credentials.json").write_text(
+                    '{"token":"test-only"}', encoding="utf-8"
+                )
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=b"claude 1", stderr=b""
+                )
+
+            with (
+                patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+                patch("epiagentbench.pilot.subprocess.run", side_effect=readiness),
+                patch("epiagentbench.pilot.launch_socket_episode") as launch,
+                self.assertRaisesRegex(RuntimeError, "plaintext credential fallback"),
+            ):
+                evaluate_local_cli_agent(
+                    "claude",
+                    seed=17,
+                    claude_secure_storage_dir=secure,
+                )
+            launch.assert_not_called()
+
+    def test_claude_agent_plaintext_fallback_closes_episode(self):
+        class Session:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        with tempfile.TemporaryDirectory() as temp:
+            secure = Path(temp).resolve() / "secure-storage"
+            secure.mkdir()
+            call_count = 0
+
+            def cli(command, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    return subprocess.CompletedProcess(
+                        command, 0, stdout=b"claude 1", stderr=b""
+                    )
+                (secure / ".credentials.json").write_text(
+                    '{"token":"test-only"}', encoding="utf-8"
+                )
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=b"", stderr=b""
+                )
+
+            session = Session()
+            with (
+                patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+                patch("epiagentbench.pilot.subprocess.run", side_effect=cli),
+                patch(
+                    "epiagentbench.pilot.launch_socket_episode",
+                    return_value=session,
+                ),
+                self.assertRaisesRegex(RuntimeError, "plaintext credential fallback"),
+            ):
+                evaluate_local_cli_agent(
+                    "claude",
+                    seed=17,
+                    claude_secure_storage_dir=secure,
+                )
+            self.assertEqual(call_count, 2)
+            self.assertTrue(session.closed)
+
+    def test_claude_secure_storage_argument_is_rejected_for_non_claude(self):
+        with (
+            patch("epiagentbench.pilot.shutil.which") as which,
+            self.assertRaisesRegex(ValueError, "only valid for the Claude"),
+        ):
+            evaluate_local_cli_agent(
+                "codex",
+                seed=17,
+                claude_secure_storage_dir="/explicit/secure-storage",
+            )
+        which.assert_not_called()
+
+    def test_claude_secure_storage_symlink_is_rejected_before_cli_lookup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            secure = root / "secure-storage"
+            secure.mkdir()
+            alias = root / "secure-alias"
+            alias.symlink_to(secure, target_is_directory=True)
+            with (
+                patch("epiagentbench.pilot.shutil.which") as which,
+                self.assertRaisesRegex(ValueError, "Invalid Claude"),
+            ):
+                evaluate_local_cli_agent(
+                    "claude",
+                    seed=17,
+                    claude_secure_storage_dir=alias,
+                )
+            which.assert_not_called()
 
     def test_cursor_environment_uses_only_disposable_storage_roots(self):
         with tempfile.TemporaryDirectory() as temp:

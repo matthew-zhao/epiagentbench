@@ -38,7 +38,13 @@ from .development_pilot import (
     _sha256,
     _utc_now,
 )
-from .pilot import PilotRunResult, _task_prompt, evaluate_local_cli_agent
+from .pilot import (
+    PilotRunResult,
+    _attest_claude_secure_storage_keychain,
+    _reject_claude_plaintext_fallback,
+    _task_prompt,
+    evaluate_local_cli_agent,
+)
 from .replay_trace import (
     replay_trace_contract,
     replay_trace_sha256,
@@ -54,9 +60,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v3"
+PANEL_ID = "development-matched-50x6-v4"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v3"
+SCHEMA_VERSION = "development_matched_panel_v4"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
@@ -177,6 +183,15 @@ _MATCHED_PANEL_NETWORK_OVERRIDES = (
     "http_proxy",
     "https_proxy",
 )
+_CLAUDE_AUTH_NAMESPACE_DOMAIN = b"EpiAgentBench Claude auth namespace v1\x00"
+_GLEAN_HELPER_PATH = Path("/usr/local/bin/glean-helper")
+_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH = Path(
+    "/usr/local/bin/glean-llm-gateway-token"
+)
+_CLAUDE_MANAGED_SETTINGS_PATH = Path(
+    "/Library/Application Support/ClaudeCode/managed-settings.json"
+)
+_MACOS_SECURITY_PATH = Path("/usr/bin/security")
 
 
 def _validate_schedule_design() -> None:
@@ -617,6 +632,237 @@ def _component_hash(value: Any) -> str:
     return _sha256(_canonical_bytes(value))
 
 
+def _path_is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def _paths_overlap(first: Path, second: Path) -> bool:
+    return _path_is_within(first, second) or _path_is_within(second, first)
+
+
+def _validate_claude_secure_storage_dir(path: Path, *, root: Path) -> Path:
+    """Validate the stable Claude credential namespace without following links."""
+
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        raise ValueError("Claude secure storage directory must be an absolute path")
+
+    current = Path(candidate.anchor)
+    for component in candidate.parts[1:]:
+        current = current / component
+        try:
+            metadata = current.lstat()
+        except OSError:
+            raise ValueError(
+                "Claude secure storage directory must be an existing real directory"
+            ) from None
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError(
+                "Claude secure storage directory must not contain symlink components"
+            )
+
+    try:
+        resolved = candidate.resolve(strict=True)
+        metadata = resolved.stat()
+    except OSError:
+        raise ValueError(
+            "Claude secure storage directory must be an existing real directory"
+        ) from None
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("Claude secure storage path must be a real directory")
+    if metadata.st_uid != os.getuid():
+        raise ValueError(
+            "Claude secure storage directory must be owned by the current user"
+        )
+    if stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise ValueError(
+            "Claude secure storage directory must have exact 0700 permissions"
+        )
+
+    resolved_root = root.resolve(strict=True)
+    if _path_is_within(resolved, resolved_root):
+        raise ValueError(
+            "Claude secure storage directory must be outside the repository"
+        )
+    resolved_tmp = Path("/tmp").resolve(strict=True)
+    if _path_is_within(resolved, resolved_tmp):
+        raise ValueError("Claude secure storage directory must be outside /tmp")
+    return resolved
+
+
+def _claude_secure_storage_identity(path: Path) -> dict[str, int]:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        raise RuntimeError(
+            "Claude secure-storage filesystem identity is unavailable"
+        ) from None
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        raise RuntimeError("Claude secure-storage filesystem identity changed")
+    return {
+        "device": int(metadata.st_dev),
+        "inode": int(metadata.st_ino),
+    }
+
+
+def _private_claude_storage_identity(
+    private: Mapping[str, Any],
+) -> dict[str, int]:
+    value = private.get("claude_secure_storage_identity")
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"device", "inode"}
+        or any(type(value[name]) is not int or value[name] < 0 for name in value)
+    ):
+        raise ValueError("Invalid private Claude secure-storage identity")
+    return {"device": value["device"], "inode": value["inode"]}
+
+
+def _assert_claude_storage_separate_from_artifacts(
+    secure_storage_dir: Path,
+    *,
+    cohort_manifest_path: Path,
+    authentication_key_file: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    additional_artifact_paths: Sequence[Path] = (),
+) -> None:
+    artifact_parents = [
+        (cohort_manifest_path.parent.resolve(strict=True), "frozen cohort directory"),
+        (
+            authentication_key_file.parent.resolve(strict=True),
+            "authentication-key directory",
+        ),
+        (private_state_path.parent.resolve(strict=False), "private-state directory"),
+        (
+            public_manifest_path.parent.resolve(strict=False),
+            "public-manifest directory",
+        ),
+    ]
+    artifact_parents.extend(
+        (
+            path.parent.resolve(strict=False),
+            "additional public-artifact directory",
+        )
+        for path in additional_artifact_paths
+    )
+    for parent, label in artifact_parents:
+        if _paths_overlap(secure_storage_dir, parent):
+            raise ValueError(
+                "Claude secure storage directory and the "
+                f"{label} must not overlap"
+            )
+
+
+def _claude_auth_namespace_commitment(
+    path: Path,
+    identity: Mapping[str, int],
+    key: bytes,
+) -> str:
+    if len(key) != 32:
+        raise ValueError("Invalid Claude namespace commitment key")
+    digest = hmac.new(key, digestmod=hashlib.sha256)
+    digest.update(_CLAUDE_AUTH_NAMESPACE_DOMAIN)
+    digest.update(os.fsencode(str(path)))
+    digest.update(b"\x00")
+    digest.update(_canonical_bytes(dict(identity)))
+    return "hmac-sha256:" + digest.hexdigest()
+
+
+def _claude_auth_contract(
+    path: Path,
+    identity: Mapping[str, int],
+    commitment_key: bytes,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "epiagentbench.claude_auth.v2",
+        "secure_storage_namespace_commitment": (
+            _claude_auth_namespace_commitment(path, identity, commitment_key)
+        ),
+        "secure_storage_role": "stable_credential_only",
+        "filesystem_identity": "private_device_and_inode_committed",
+        "per_invocation_isolation": {
+            "home_root": "fresh",
+            "config_root": "fresh",
+            "session_root": "fresh",
+        },
+        "credential_backend": {
+            "macos_keychain": "required",
+            "plaintext_fallback": "forbidden",
+            "initial_namespace_state": "absent_at_prepare",
+            "first_claude_call": "record_required_after_success",
+            "later_claude_calls": "record_required_before_and_after",
+        },
+        "inherited_provider_routing": "scrubbed",
+    }
+
+
+def _require_claude_credential_state(
+    path: Path,
+    *,
+    root: Path,
+    expected_identity: Mapping[str, int],
+    keychain_record_present: bool,
+) -> None:
+    """Verify credential metadata without retrieving credential contents."""
+
+    def assert_identity() -> None:
+        resolved = _validate_claude_secure_storage_dir(path, root=root)
+        if resolved != path or _claude_secure_storage_identity(path) != dict(
+            expected_identity
+        ):
+            raise RuntimeError("Claude secure-storage filesystem identity changed")
+
+    assert_identity()
+    _reject_claude_plaintext_fallback(path)
+    observed = _attest_claude_secure_storage_keychain(path)
+    assert_identity()
+    if observed is not keychain_record_present:
+        expectation = "present" if keychain_record_present else "absent"
+        raise RuntimeError(
+            "Claude credential namespace Keychain record must be " + expectation
+        )
+
+
+def _validate_claude_auth_binding(
+    *,
+    root: Path,
+    claude_secure_storage_dir: Path,
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> Path:
+    resolved = _validate_claude_secure_storage_dir(
+        claude_secure_storage_dir, root=root
+    )
+    if private.get("claude_secure_storage_dir") != str(resolved):
+        raise ValueError(
+            "Claude secure storage directory does not match authenticated private state"
+        )
+    try:
+        commitment_key = bytes.fromhex(
+            str(private.get("claude_auth_commitment_key_hex", ""))
+        )
+    except ValueError:
+        raise ValueError("Invalid private Claude namespace commitment key") from None
+    if len(commitment_key) != 32:
+        raise ValueError("Invalid private Claude namespace commitment key")
+    expected_identity = _private_claude_storage_identity(private)
+    if _claude_secure_storage_identity(resolved) != expected_identity:
+        raise ValueError("Claude secure-storage filesystem identity changed")
+    expected = _claude_auth_contract(
+        resolved,
+        expected_identity,
+        commitment_key,
+    )
+    if public.get("claude_auth_contract") != expected:
+        raise ValueError("Claude secure storage namespace commitment mismatch")
+    return resolved
+
+
 def _profile_contract() -> list[dict[str, Any]]:
     return [dict(profile) for profile in PROFILES]
 
@@ -692,6 +938,46 @@ def _read_cli_identity(executable: str) -> dict[str, str]:
     }
 
 
+def _fixed_file_sha256(path: Path, *, label: str) -> str:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        raise RuntimeError(f"Required {label} is unavailable") from None
+    if not stat.S_ISREG(metadata.st_mode):
+        raise RuntimeError(f"Required {label} must be a regular file")
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        raise RuntimeError(f"Unable to hash required {label}") from None
+    return "sha256:" + digest.hexdigest()
+
+
+def _glean_helper_identity() -> dict[str, str]:
+    digest = _fixed_file_sha256(_GLEAN_HELPER_PATH, label="Glean helper")
+    try:
+        process = subprocess.run(
+            [str(_GLEAN_HELPER_PATH), "--version"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise RuntimeError("Unable to pin Glean helper version") from None
+    version = process.stdout.decode("utf-8", errors="replace").strip()[:200]
+    if process.returncode != 0 or not version:
+        raise RuntimeError("Unable to pin Glean helper version")
+    return {
+        "path": str(_GLEAN_HELPER_PATH),
+        "version": version,
+        "sha256": digest,
+    }
+
+
 def _cli_contract() -> dict[str, Any]:
     network_overrides = [
         name for name in _MATCHED_PANEL_NETWORK_OVERRIDES if os.environ.get(name)
@@ -709,6 +995,30 @@ def _cli_contract() -> dict[str, Any]:
         "executables": [
             identities[executable] for executable in sorted(identities)
         ],
+        "claude_auth_dependencies": {
+            "macos_security_metadata_tool": {
+                "path": str(_MACOS_SECURITY_PATH),
+                "sha256": _fixed_file_sha256(
+                    _MACOS_SECURITY_PATH,
+                    label="macOS Keychain metadata tool",
+                ),
+            },
+            "glean_helper": _glean_helper_identity(),
+            "glean_llm_gateway_token_wrapper": {
+                "path": str(_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
+                "sha256": _fixed_file_sha256(
+                    _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
+                    label="Glean LLM gateway token wrapper",
+                ),
+            },
+            "managed_settings": {
+                "path": str(_CLAUDE_MANAGED_SETTINGS_PATH),
+                "sha256": _fixed_file_sha256(
+                    _CLAUDE_MANAGED_SETTINGS_PATH,
+                    label="Claude managed settings",
+                ),
+            },
+        },
         "ambient_proxy_or_custom_ca_overrides": [],
     }
 
@@ -871,6 +1181,7 @@ def prepare_panel(
     root: Path,
     cohort_manifest_path: Path,
     authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
     private_state_path: Path,
     public_manifest_path: Path,
     timeout_seconds: int = 900,
@@ -901,11 +1212,32 @@ def prepare_panel(
     ):
         raise ValueError("Invalid Claude assignment budget")
 
+    resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
+        claude_secure_storage_dir, root=root
+    )
+    claude_secure_storage_identity = _claude_secure_storage_identity(
+        resolved_claude_secure_storage_dir
+    )
+
     key_path = _existing_path_without_final_symlink(authentication_key_file)
     key = _read_authentication_key(key_path)
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
+    _assert_claude_storage_separate_from_artifacts(
+        resolved_claude_secure_storage_dir,
+        cohort_manifest_path=manifest_path,
+        authentication_key_file=key_path,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+    )
+    _require_claude_credential_state(
+        resolved_claude_secure_storage_dir,
+        root=root,
+        expected_identity=claude_secure_storage_identity,
+        keychain_record_present=False,
+    )
     manifest, episodes = _load_frozen_cohort(manifest_path, key)
     nonce = secrets.token_bytes(32)
+    claude_auth_commitment_key = secrets.token_bytes(32)
     schedule = _private_schedule(episodes, nonce)
     keys = _assignment_keys(schedule)
     if len(keys) != ASSIGNMENT_COUNT or len(set(keys)) != ASSIGNMENT_COUNT:
@@ -916,6 +1248,11 @@ def prepare_panel(
     profiles = _profile_contract()
     source = _source_contract(root)
     cli = _cli_contract()
+    claude_auth = _claude_auth_contract(
+        resolved_claude_secure_storage_dir,
+        claude_secure_storage_identity,
+        claude_auth_commitment_key,
+    )
     budgets = {
         "claude_max_budget_usd_per_assignment": float(claude_max_budget_usd),
         "other_provider_spend_cap": None,
@@ -924,6 +1261,12 @@ def prepare_panel(
     timeouts = {"seconds_per_assignment": timeout_seconds}
     runtime = _runtime_contract()
     replay = replay_trace_contract()
+    _require_claude_credential_state(
+        resolved_claude_secure_storage_dir,
+        root=root,
+        expected_identity=claude_secure_storage_identity,
+        keychain_record_present=False,
+    )
     public: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "panel_id": PANEL_ID,
@@ -953,6 +1296,7 @@ def prepare_panel(
         ],
         "profiles": profiles,
         "cli_contract": cli,
+        "claude_auth_contract": claude_auth,
         "source_contract": source,
         "runtime_contract": runtime,
         "replay_trace_contract": replay,
@@ -961,6 +1305,7 @@ def prepare_panel(
         "contract_hashes": {
             "source_sha256": _component_hash(source),
             "cli_sha256": _component_hash(cli),
+            "claude_auth_sha256": _component_hash(claude_auth),
             "profiles_sha256": _component_hash(profiles),
             "budgets_sha256": _component_hash(budgets),
             "timeouts_sha256": _component_hash(timeouts),
@@ -1039,6 +1384,9 @@ def prepare_panel(
         "status": "prepared",
         "public_precommitment_sha256": public["precommitment_sha256"],
         "cohort_manifest_path": str(manifest_path.resolve()),
+        "claude_secure_storage_dir": str(resolved_claude_secure_storage_dir),
+        "claude_secure_storage_identity": claude_secure_storage_identity,
+        "claude_auth_commitment_key_hex": claude_auth_commitment_key.hex(),
         "episodes": episodes,
         "schedule_nonce_hex": nonce.hex(),
         "schedule": schedule,
@@ -1047,6 +1395,9 @@ def prepare_panel(
             "required_contract_hashes": {
                 "source_sha256": public["contract_hashes"]["source_sha256"],
                 "cli_sha256": public["contract_hashes"]["cli_sha256"],
+                "claude_auth_sha256": public["contract_hashes"][
+                    "claude_auth_sha256"
+                ],
                 "profiles_sha256": public["contract_hashes"]["profiles_sha256"],
                 "runtime_sha256": public["contract_hashes"]["runtime_sha256"],
                 "replay_sha256": public["contract_hashes"]["replay_sha256"],
@@ -1072,6 +1423,7 @@ def _validate_contracts(
     private: Mapping[str, Any],
     public: Mapping[str, Any],
     authentication_key: bytes,
+    claude_secure_storage_dir: Path,
 ) -> tuple[
     PrivateEpisodeCohortManifest,
     dict[str, PrivateEpisodePack],
@@ -1088,6 +1440,12 @@ def _validate_contracts(
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Matched-panel manifest contract mismatch")
+    _validate_claude_auth_binding(
+        root=root,
+        claude_secure_storage_dir=claude_secure_storage_dir,
+        private=private,
+        public=public,
+    )
     expected_contracts = {
         "source_contract": _source_contract(root),
         "cli_contract": _cli_contract(),
@@ -1104,6 +1462,7 @@ def _validate_contracts(
         for field, value in (
             ("source_sha256", public["source_contract"]),
             ("cli_sha256", public["cli_contract"]),
+            ("claude_auth_sha256", public["claude_auth_contract"]),
             ("profiles_sha256", public["profiles"]),
             ("budgets_sha256", public["budget_contract"]),
             ("timeouts_sha256", public["timeout_contract"]),
@@ -1223,6 +1582,7 @@ def _assert_environment_preflight(
         for name in (
             "source_sha256",
             "cli_sha256",
+            "claude_auth_sha256",
             "profiles_sha256",
             "runtime_sha256",
             "replay_sha256",
@@ -1257,6 +1617,7 @@ def run_environment_preflight(
     *,
     root: Path,
     authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
     private_state_path: Path,
     public_manifest_path: Path,
     public_preflight_path: Path,
@@ -1268,11 +1629,9 @@ def run_environment_preflight(
         raise RuntimeError(
             "Explicit acknowledgement of unbounded preflight provider spend is required"
         )
-    if not os.environ.get("CURSOR_API_KEY", "").strip():
-        raise RuntimeError(
-            "Disposable six-profile preflight requires CURSOR_API_KEY before "
-            "any provider call"
-        )
+    resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
+        claude_secure_storage_dir, root=root
+    )
     _assert_distinct_paths(
         authentication_key_file,
         private_state_path,
@@ -1285,11 +1644,37 @@ def run_environment_preflight(
         )
         private = _load_private_state(private_state_path, authentication_key)
         public = _load_json(public_manifest_path)
+        _validate_claude_auth_binding(
+            root=root,
+            claude_secure_storage_dir=resolved_claude_secure_storage_dir,
+            private=private,
+            public=public,
+        )
+        claude_secure_storage_identity = _private_claude_storage_identity(
+            private
+        )
+        cohort_manifest_path = _existing_path_without_final_symlink(
+            str(private.get("cohort_manifest_path"))
+        )
+        _assert_claude_storage_separate_from_artifacts(
+            resolved_claude_secure_storage_dir,
+            cohort_manifest_path=cohort_manifest_path,
+            authentication_key_file=authentication_key_file,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+            additional_artifact_paths=(public_preflight_path,),
+        )
+        if not os.environ.get("CURSOR_API_KEY", "").strip():
+            raise RuntimeError(
+                "Disposable six-profile preflight requires CURSOR_API_KEY before "
+                "any provider call"
+            )
         _validate_contracts(
             root=root,
             private=private,
             public=public,
             authentication_key=authentication_key,
+            claude_secure_storage_dir=resolved_claude_secure_storage_dir,
         )
         if private.get("assignments") or private.get("status") != "prepared":
             raise RuntimeError("Environment preflight must precede production execution")
@@ -1298,11 +1683,23 @@ def run_environment_preflight(
             raise RuntimeError("Environment preflight is not in its one-shot required state")
         if public_preflight_path.exists() or public_preflight_path.is_symlink():
             raise FileExistsError("Refusing to replace an environment preflight receipt")
+        _require_claude_credential_state(
+            resolved_claude_secure_storage_dir,
+            root=root,
+            expected_identity=claude_secure_storage_identity,
+            keychain_record_present=False,
+        )
         _preflight_execution(
             root=root,
             private_state_path=private_state_path,
             public_manifest_path=public_manifest_path,
             public_results_path=public_preflight_path,
+        )
+        _require_claude_credential_state(
+            resolved_claude_secure_storage_dir,
+            root=root,
+            expected_identity=claude_secure_storage_identity,
+            keychain_record_present=False,
         )
 
         contract_hashes = {
@@ -1310,6 +1707,7 @@ def run_environment_preflight(
             for name in (
                 "source_sha256",
                 "cli_sha256",
+                "claude_auth_sha256",
                 "profiles_sha256",
                 "runtime_sha256",
                 "replay_sha256",
@@ -1333,6 +1731,7 @@ def run_environment_preflight(
         _write_private_state(private_state_path, private, authentication_key)
 
         public_attempts: list[dict[str, Any]] = []
+        claude_profiles_passed = 0
         for profile in PROFILES:
             profile_id = str(profile["profile_id"])
             marker: dict[str, Any] = {
@@ -1347,6 +1746,29 @@ def run_environment_preflight(
             ).digest()
             failure_stage = "provider_launch"
             try:
+                claude_keychain_before: str | None = None
+                if profile["system"] == "claude":
+                    expected_present = claude_profiles_passed > 0
+                    failure_stage = "credential_attestation"
+                    _require_claude_credential_state(
+                        resolved_claude_secure_storage_dir,
+                        root=root,
+                        expected_identity=claude_secure_storage_identity,
+                        keychain_record_present=expected_present,
+                    )
+                    claude_keychain_before = (
+                        "present" if expected_present else "absent"
+                    )
+                    failure_stage = "provider_launch"
+                claude_auth_kwargs = (
+                    {
+                        "claude_secure_storage_dir": (
+                            resolved_claude_secure_storage_dir
+                        )
+                    }
+                    if profile["system"] == "claude"
+                    else {}
+                )
                 result = evaluate_local_cli_agent(
                     str(profile["system"]),
                     seed=int.from_bytes(digest[:6], "big"),
@@ -1360,7 +1782,17 @@ def run_environment_preflight(
                     claude_effort=(
                         "high" if profile["system"] == "claude" else None
                     ),
+                    **claude_auth_kwargs,
                 )
+                if profile["system"] == "claude":
+                    failure_stage = "credential_attestation"
+                    _require_claude_credential_state(
+                        resolved_claude_secure_storage_dir,
+                        root=root,
+                        expected_identity=claude_secure_storage_identity,
+                        keychain_record_present=True,
+                    )
+                failure_stage = "provider_contract"
                 _raise_on_harness_startup_failure(result)
                 receipt_required = profile["model_receipt_policy"] == "provider_match_required"
                 receipt_ok = _exact_model_receipt_satisfied(
@@ -1404,21 +1836,26 @@ def run_environment_preflight(
                         "raw_result_sha256": raw_hash,
                     }
                 )
-                public_attempts.append(
-                    {
-                        "profile_id": profile_id,
-                        "system": profile["system"],
-                        "requested_model": profile["requested_model"],
-                        "observed_models": list(result.observed_models),
-                        "cli_version": result.cli_version,
-                        "model_receipt_satisfied": (
-                            receipt_ok if receipt_required else None
-                        ),
-                        "raw_result_sha256": raw_hash,
-                        "replay_trace_validated": True,
-                        "scored": False,
-                    }
-                )
+                public_attempt: dict[str, Any] = {
+                    "profile_id": profile_id,
+                    "system": profile["system"],
+                    "requested_model": profile["requested_model"],
+                    "observed_models": list(result.observed_models),
+                    "cli_version": result.cli_version,
+                    "model_receipt_satisfied": (
+                        receipt_ok if receipt_required else None
+                    ),
+                    "raw_result_sha256": raw_hash,
+                    "replay_trace_validated": True,
+                    "scored": False,
+                }
+                if profile["system"] == "claude":
+                    public_attempt["credential_namespace_state_before"] = (
+                        claude_keychain_before
+                    )
+                    public_attempt["credential_namespace_state_after"] = "present"
+                    claude_profiles_passed += 1
+                public_attempts.append(public_attempt)
                 _write_private_state(private_state_path, private, authentication_key)
             except Exception as error:
                 marker.update(
@@ -1940,6 +2377,7 @@ def _run_panel_locked(
     *,
     root: Path,
     authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
     private_state_path: Path,
     public_manifest_path: Path,
     public_results_path: Path,
@@ -1949,6 +2387,9 @@ def _run_panel_locked(
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError("Explicit acknowledgement of unbounded provider spend is required")
+    resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
+        claude_secure_storage_dir, root=root
+    )
     _assert_distinct_paths(
         authentication_key_file,
         private_state_path,
@@ -1965,9 +2406,19 @@ def _run_panel_locked(
         private=private,
         public=public_manifest,
         authentication_key=authentication_key,
+        claude_secure_storage_dir=resolved_claude_secure_storage_dir,
     )
+    claude_secure_storage_identity = _private_claude_storage_identity(private)
     cohort_manifest_path = _existing_path_without_final_symlink(
         str(private["cohort_manifest_path"])
+    )
+    _assert_claude_storage_separate_from_artifacts(
+        resolved_claude_secure_storage_dir,
+        cohort_manifest_path=cohort_manifest_path,
+        authentication_key_file=authentication_key_file,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+        additional_artifact_paths=(public_results_path,),
     )
     _assert_environment_preflight(root, private, public_manifest)
     _preflight_execution(
@@ -2034,11 +2485,34 @@ def _run_panel_locked(
         _atomic_json(public_results_path, stopped)
         return stopped
 
+    keys = _assignment_keys(schedule)
+    remaining_profile_ids = {
+        profile_id for _, profile_id in keys[len(assignments) :]
+    }
+    remaining_systems = {
+        str(_PROFILE_BY_ID[profile_id]["system"])
+        for profile_id in remaining_profile_ids
+    }
+    if (
+        "cursor" in remaining_systems
+        and not os.environ.get("CURSOR_API_KEY", "").strip()
+    ):
+        raise RuntimeError(
+            "Production execution requires CURSOR_API_KEY before any new "
+            "assignment is durably started"
+        )
+    if "claude" in remaining_systems:
+        _require_claude_credential_state(
+            resolved_claude_secure_storage_dir,
+            root=root,
+            expected_identity=claude_secure_storage_identity,
+            keychain_record_present=True,
+        )
+
     private["status"] = "running"
     _write_private_state(private_state_path, private, authentication_key)
     _atomic_json(public_results_path, _public_running(public_manifest, private))
     episode_by_ref = {str(item["episode_ref"]): item for item in private["episodes"]}
-    keys = _assignment_keys(schedule)
     cli_versions = {
         str(item["name"]): str(item["version"])
         for item in public_manifest["cli_contract"]["executables"]
@@ -2060,6 +2534,13 @@ def _run_panel_locked(
                 public_manifest["cohort"]["pack_set_commitment"]
             ),
         )
+        if profile["system"] == "claude":
+            _require_claude_credential_state(
+                resolved_claude_secure_storage_dir,
+                root=root,
+                expected_identity=claude_secure_storage_identity,
+                keychain_record_present=True,
+            )
         started = _utc_now()
         marker: dict[str, Any] = {
             "episode_ref": ref,
@@ -2071,6 +2552,15 @@ def _run_panel_locked(
         _write_private_state(private_state_path, private, authentication_key)
         _atomic_json(public_results_path, _public_running(public_manifest, private))
         try:
+            claude_auth_kwargs = (
+                {
+                    "claude_secure_storage_dir": (
+                        resolved_claude_secure_storage_dir
+                    )
+                }
+                if profile["system"] == "claude"
+                else {}
+            )
             result = evaluate_local_cli_agent(
                 str(profile["system"]),
                 **launch_kwargs,
@@ -2081,7 +2571,15 @@ def _run_panel_locked(
                 claude_effort=(
                     "high" if profile["system"] == "claude" else None
                 ),
+                **claude_auth_kwargs,
             )
+            if profile["system"] == "claude":
+                _require_claude_credential_state(
+                    resolved_claude_secure_storage_dir,
+                    root=root,
+                    expected_identity=claude_secure_storage_identity,
+                    keychain_record_present=True,
+                )
             marker["raw_result"] = asdict(result)
             _raise_on_harness_startup_failure(result)
             if (
@@ -2141,6 +2639,7 @@ def run_panel(
     *,
     root: Path,
     authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
     private_state_path: Path,
     public_manifest_path: Path,
     public_results_path: Path,
@@ -2156,6 +2655,7 @@ def run_panel(
         return _run_panel_locked(
             root=root,
             authentication_key_file=authentication_key_file,
+            claude_secure_storage_dir=claude_secure_storage_dir,
             private_state_path=private_state_path,
             public_manifest_path=public_manifest_path,
             public_results_path=public_results_path,

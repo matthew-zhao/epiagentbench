@@ -19,12 +19,14 @@ def main() -> None:
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--cohort-manifest", required=True, type=Path)
     prepare.add_argument("--authentication-key", required=True, type=Path)
+    prepare.add_argument("--claude-secure-storage-dir", required=True, type=Path)
     prepare.add_argument("--private-state", required=True, type=Path)
     prepare.add_argument("--public-manifest", required=True, type=Path)
     prepare.add_argument("--timeout", type=int, default=900)
     prepare.add_argument("--claude-max-budget-usd", type=float, default=5.0)
     preflight = commands.add_parser("preflight")
     preflight.add_argument("--authentication-key", required=True, type=Path)
+    preflight.add_argument("--claude-secure-storage-dir", required=True, type=Path)
     preflight.add_argument("--private-state", required=True, type=Path)
     preflight.add_argument("--public-manifest", required=True, type=Path)
     preflight.add_argument("--public-preflight", required=True, type=Path)
@@ -33,6 +35,7 @@ def main() -> None:
     )
     run = commands.add_parser("run")
     run.add_argument("--authentication-key", required=True, type=Path)
+    run.add_argument("--claude-secure-storage-dir", required=True, type=Path)
     run.add_argument("--private-state", required=True, type=Path)
     run.add_argument("--public-manifest", required=True, type=Path)
     run.add_argument("--public-results", required=True, type=Path)
@@ -46,6 +49,7 @@ def main() -> None:
             root=root,
             cohort_manifest_path=args.cohort_manifest,
             authentication_key_file=args.authentication_key,
+            claude_secure_storage_dir=args.claude_secure_storage_dir,
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             timeout_seconds=args.timeout,
@@ -55,6 +59,7 @@ def main() -> None:
         payload = run_environment_preflight(
             root=root,
             authentication_key_file=args.authentication_key,
+            claude_secure_storage_dir=args.claude_secure_storage_dir,
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             public_preflight_path=args.public_preflight,
@@ -66,6 +71,7 @@ def main() -> None:
         payload = run_panel(
             root=root,
             authentication_key_file=args.authentication_key,
+            claude_secure_storage_dir=args.claude_secure_storage_dir,
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             public_results_path=args.public_results,

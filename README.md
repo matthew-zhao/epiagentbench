@@ -216,8 +216,12 @@ routing failure from an episode result, but deliberately retains too little
 provider output to separate a bad credential from an unavailable alias or MCP
 startup failure. V2 is therefore
 [superseded](results/development-matched-50x6-v2.superseded.json), never reset or
-replayed. The replacement v3 comparison
-([manifest](results/development-matched-50x6-v3.manifest.json))
+replayed. The replacement
+[v3 precommitment](results/development-matched-50x6-v3.manifest.json) was then
+[superseded before any provider call](results/development-matched-50x6-v3.superseded.json):
+an isolation audit proved its disposable Claude credential namespace would
+require repeated interactive gateway authorization. The replacement v4
+comparison ([manifest](results/development-matched-50x6-v4.manifest.json))
 uses 50 newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and
 the same six full agent+model profiles on every episode:
 
@@ -238,7 +242,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed v3 assignment records an evaluator-owned, aggregate-only trace:
+Each completed v4 assignment records an evaluator-owned, aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
 trace excludes people, contact edges, target and evidence identifiers, model
@@ -271,8 +275,16 @@ across its 100 production calls); Codex and Cursor do not yet have a
 benchmark-enforced spend cap. The runner, runtime, hidden cohort, and public
 manifest are frozen before any provider preflight or production call. V2
 started five disposable preflight calls and zero production assignments before
-being retired; no v2 scores exist. V3 starts from a separate authentication key,
-cohort, schedule nonce, secrets, and packs.
+being retired; no v2 scores exist. V3 started no provider call and consumed no
+production episode. V4 starts from a separate authentication key, cohort,
+schedule nonce, secrets, and packs, and commits a panel-specific credential-only
+Claude secure-storage namespace while keeping every conversation/config root
+disposable. The runner checks only Keychain metadata—never credential values:
+the namespace must be absent at prepare, created by the first successful Claude
+preflight call, and present before and after the second call and every production
+Claude assignment. A private keyed commitment binds the canonical path and its
+filesystem identity without publishing either one, and plaintext fallback is a
+fail-closed infrastructure error.
 
 ### New-model capability pilot (2026-07-15)
 
