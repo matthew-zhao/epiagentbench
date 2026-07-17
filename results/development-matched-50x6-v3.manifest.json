@@ -1,0 +1,508 @@
+{
+  "backend": "starsim-ltc-v3",
+  "benchmark_base_commit": "e7e2fdab64ef9adcca1080be7eada4d1bfbee441",
+  "budget_contract": {
+    "claude_max_budget_usd_per_assignment": 5.0,
+    "explicit_unbounded_provider_spend_acknowledgement_required": true,
+    "other_provider_spend_cap": null
+  },
+  "calibrated": false,
+  "cli_contract": {
+    "ambient_proxy_or_custom_ca_overrides": [],
+    "executables": [
+      {
+        "executable_sha256": "sha256:8b45adad93f336ab95f33e714494b19fd3377a494eb05c122c8677bc895876ad",
+        "name": "claude",
+        "version": "2.1.195 (Claude Code)"
+      },
+      {
+        "executable_sha256": "sha256:718724d7221cf1298071ca92411cb74caa8422809154150cedca7b569a4518e3",
+        "name": "codex",
+        "version": "codex-cli 0.144.3"
+      },
+      {
+        "executable_sha256": "sha256:eed61c5224668c9236334c4c68936a16aecc37374b592f59e31eb50433817831",
+        "name": "cursor-agent",
+        "version": "2026.07.13-7fe37d2"
+      }
+    ]
+  },
+  "cohort": {
+    "balanced_mode_count": 5,
+    "cohort_id": "development-matched-50x6-v3",
+    "episode_count": 50,
+    "episodes_per_mode": 10,
+    "generator_fingerprint": "sha256:dbeb8c9d3c69a8f0ebaee4705c231813d482c018ba661ec9c990f2c5e904a4f6",
+    "pack_set_commitment": "sha256:69e66e6a4753f41849cca8f9763b40b2c2974466eb49d82ec4bf970fd1806f47"
+  },
+  "contract_hashes": {
+    "budgets_sha256": "sha256:8e052c6d403a4f419fbdf8b6233c17f6dc2c9e0a7ee680b1a39b984e5bccd74e",
+    "cli_sha256": "sha256:a526de93fd7cbfda469c8ebc2bc09f2397432f96d5f6a13e91af365747c01c55",
+    "profiles_sha256": "sha256:8e0df3beec1acb914eea40e774d118d8f7b65da1bd3c96b9942120ff30f29c27",
+    "replay_sha256": "sha256:9af83264f99eeeae38a0b7710fb6fde919a6e97e6fa9b8edbbac7d3c205cf52c",
+    "runtime_sha256": "sha256:e87cb5fc14ed6d4302f4d8f0461b239599ff36c7525c843e9e469511d0d729f7",
+    "source_sha256": "sha256:c889ac9c7b79b1c741b8d90748938c2200c67cda6a26fd681415fc804e873c12",
+    "timeouts_sha256": "sha256:13f04652840e81f91c4c5201c746062347131dc1c29ffbb8169f8b32bc06f78d"
+  },
+  "development_only": true,
+  "episodes": [
+    {
+      "episode_ref": "episode_0001",
+      "pack_commitment": "sha256:c61735abfc82c0fb1abfb8d1f0b9ee8a6107cd02529083612daae4ee0b72d175"
+    },
+    {
+      "episode_ref": "episode_0002",
+      "pack_commitment": "sha256:5aa5128c6935cb59438e0caa1b3775c96838d1e715be8b260f40a44c5fb72a6e"
+    },
+    {
+      "episode_ref": "episode_0003",
+      "pack_commitment": "sha256:7df2dada74f604338472471dbe3b8b287c3b898d4bcf691616e655b0a2a3c021"
+    },
+    {
+      "episode_ref": "episode_0004",
+      "pack_commitment": "sha256:e9fb2a878c39af6f16480e0f5113d50d1731d0e65e0395ddb3f3775c310bed3b"
+    },
+    {
+      "episode_ref": "episode_0005",
+      "pack_commitment": "sha256:1fd195f4c5b939fbbf2d24eecdf7bb3299737bc08830435e78235a5c3cf9ada6"
+    },
+    {
+      "episode_ref": "episode_0006",
+      "pack_commitment": "sha256:f6f65e9dc31a388fc075d9bb0b8d56f4fb457a671d740e5cc03a640161b91e39"
+    },
+    {
+      "episode_ref": "episode_0007",
+      "pack_commitment": "sha256:61e7c1d5ccaa9bc51b2bbe32851a9116cede11f5285668c4be4c58e8095fa286"
+    },
+    {
+      "episode_ref": "episode_0008",
+      "pack_commitment": "sha256:09ebc5d25d9c50255d74e103b2bad17120f048508cb9f2adb1dfe0f42b83f4ff"
+    },
+    {
+      "episode_ref": "episode_0009",
+      "pack_commitment": "sha256:64f50f317c119203f165133b9c260d4b15ae392450b00da71752b40b0fd0c532"
+    },
+    {
+      "episode_ref": "episode_0010",
+      "pack_commitment": "sha256:8db4fded3732e87774781f4abb5ad7ab19c10ea87dcb43390ee64b9612a4e903"
+    },
+    {
+      "episode_ref": "episode_0011",
+      "pack_commitment": "sha256:a010d49daa52003699133dfeb281d23d9fc60236a79680770a196bab354df024"
+    },
+    {
+      "episode_ref": "episode_0012",
+      "pack_commitment": "sha256:14e72d9056abf4512bfca39dbec22f67540191bc41ea76f6a69c6fb0de44f5dc"
+    },
+    {
+      "episode_ref": "episode_0013",
+      "pack_commitment": "sha256:ad692f612271d5531245732e779945ac5bf7ea4164fd9fb11b75c3c05b555273"
+    },
+    {
+      "episode_ref": "episode_0014",
+      "pack_commitment": "sha256:a231b78d43ba36c6f3b4e7960c647859550cfbf1681edc294caac673a160adbc"
+    },
+    {
+      "episode_ref": "episode_0015",
+      "pack_commitment": "sha256:b994990c7044e1490768e95852838ccddde01318cde2de38f8065aebf21ceac0"
+    },
+    {
+      "episode_ref": "episode_0016",
+      "pack_commitment": "sha256:2946fa4adfdef888cb27c326a9cba99803b76544a2a4be9412437d48b3fda621"
+    },
+    {
+      "episode_ref": "episode_0017",
+      "pack_commitment": "sha256:d06ae0a76086840bd46034618e51e0f4a3d0195e52d02b775c0707f86e97f28b"
+    },
+    {
+      "episode_ref": "episode_0018",
+      "pack_commitment": "sha256:c4d3e58a150e5a7de133c5e78897e6483ae037572330213cf51e5966e6fac402"
+    },
+    {
+      "episode_ref": "episode_0019",
+      "pack_commitment": "sha256:793a4397313976cc37ff7b113fdf2715ef2687274ef8ac4fa27688d0837da4a2"
+    },
+    {
+      "episode_ref": "episode_0020",
+      "pack_commitment": "sha256:822cbf6aca37e0128a472441aea51fa7f1f9a668c9f4f16c52d278752a58914d"
+    },
+    {
+      "episode_ref": "episode_0021",
+      "pack_commitment": "sha256:b0065d7c9f86ff4867273c46589873ce44ea0da8d5db6b71aa1f7d7844f64747"
+    },
+    {
+      "episode_ref": "episode_0022",
+      "pack_commitment": "sha256:054d9c5eb0a1b6dc0c67911c8ffb7370cd3e797d88ae28f3c78305c0d802777a"
+    },
+    {
+      "episode_ref": "episode_0023",
+      "pack_commitment": "sha256:e385f6e1c2ce8d385c24f9c60aef381960947db14915baa47d6d4ddb7298c509"
+    },
+    {
+      "episode_ref": "episode_0024",
+      "pack_commitment": "sha256:c1c65e08010c8823d4b206c6a79fa58498356d469908849126d40180f399a128"
+    },
+    {
+      "episode_ref": "episode_0025",
+      "pack_commitment": "sha256:416ecc6351c50f3e9bc391537d174d2138ae499130b000becb4a953dbd500647"
+    },
+    {
+      "episode_ref": "episode_0026",
+      "pack_commitment": "sha256:2fbc356a4aa2bf7f500e5a438157c407a217801fed33c6571380b63be93812c2"
+    },
+    {
+      "episode_ref": "episode_0027",
+      "pack_commitment": "sha256:8aa3da6c515bda1a28cd8cb8d11240683d759a6a8d12c7bbccabf772adbabaa5"
+    },
+    {
+      "episode_ref": "episode_0028",
+      "pack_commitment": "sha256:20aefdc3d138204c19086fe917d74fbd4fc157a5b0a02db3d1caded237459c28"
+    },
+    {
+      "episode_ref": "episode_0029",
+      "pack_commitment": "sha256:a23ab1731beaacd68c8a6a047ab46d8b9db3e40901d85a3226573ebbf7de80c3"
+    },
+    {
+      "episode_ref": "episode_0030",
+      "pack_commitment": "sha256:fc0eca8288d9ed263dcac9307d021fbca9abf3d810a69441d67ff52c02a8449f"
+    },
+    {
+      "episode_ref": "episode_0031",
+      "pack_commitment": "sha256:f3b43668fde4b029011204a463b0718c2b5f35f37c1435d76f7000c00c43eef4"
+    },
+    {
+      "episode_ref": "episode_0032",
+      "pack_commitment": "sha256:436ef56d8b4a2d2659c46da21405fc3b704463d8740950721180404c93bef2ac"
+    },
+    {
+      "episode_ref": "episode_0033",
+      "pack_commitment": "sha256:c70d2312d9117664187ea8509d3e043ecd1b5a32b9df4f7e53847175b7ac2698"
+    },
+    {
+      "episode_ref": "episode_0034",
+      "pack_commitment": "sha256:2a150ed9191b38ea6e80597ca9aa88a95ee0f7913f9edc1272af50e9b4713eb3"
+    },
+    {
+      "episode_ref": "episode_0035",
+      "pack_commitment": "sha256:f121eabb0babbd0bd8bf7f8c5781577cf255638a664b686abac9f15fd8a9afb8"
+    },
+    {
+      "episode_ref": "episode_0036",
+      "pack_commitment": "sha256:5183c52f76b4ed18afa977dfe1e469730b5e684a94e9fe3841209692582ea3bd"
+    },
+    {
+      "episode_ref": "episode_0037",
+      "pack_commitment": "sha256:65f7cdb0ebc9fec2aae719c64e857a66b6825909139258e642882c2fc9f64a70"
+    },
+    {
+      "episode_ref": "episode_0038",
+      "pack_commitment": "sha256:59eb54790baff4804a0e572d39e18e3fcc295fdf16005a216e77a97e1a5f4012"
+    },
+    {
+      "episode_ref": "episode_0039",
+      "pack_commitment": "sha256:35966af945c1d24af49cac56c95eeed21c4a7fbbae4cab5094d6d938e15c1259"
+    },
+    {
+      "episode_ref": "episode_0040",
+      "pack_commitment": "sha256:4fa342c11af52cbf9eda1a12b6ef0c430637fc98410a96b3b9007bce7b1e2fef"
+    },
+    {
+      "episode_ref": "episode_0041",
+      "pack_commitment": "sha256:c99155d708b1fd8b052884dabb0d282512b11678761e4be29410e2fd947cf93c"
+    },
+    {
+      "episode_ref": "episode_0042",
+      "pack_commitment": "sha256:8f264dd3d2ec176f1db4d92dab35e2989c3c8b5592c7ca7756048837ed5c00ae"
+    },
+    {
+      "episode_ref": "episode_0043",
+      "pack_commitment": "sha256:3c3ff1d6a8accb5df2e6fe1e48cfc6839396e5476fbba80fb676def0edf09017"
+    },
+    {
+      "episode_ref": "episode_0044",
+      "pack_commitment": "sha256:913f2c732df817ee69504ca83badf0bc00443815f04ea9fb0e70245a7771d34d"
+    },
+    {
+      "episode_ref": "episode_0045",
+      "pack_commitment": "sha256:062b0a08449ce0aaef615d3d56ce80fb79a8eb4e025cef47b1db3df73078bdf0"
+    },
+    {
+      "episode_ref": "episode_0046",
+      "pack_commitment": "sha256:7942f6a73e092edddf69888cddadb7feb07f823deb5230f64776af04f166ef40"
+    },
+    {
+      "episode_ref": "episode_0047",
+      "pack_commitment": "sha256:d80a6c4d92720115ed943e3016effec418ad95d999584b0bab60878e850d155d"
+    },
+    {
+      "episode_ref": "episode_0048",
+      "pack_commitment": "sha256:309b7dbf6f4c596c312eb623532daedb82c285eb0886e97c8f48979fec6c0c8e"
+    },
+    {
+      "episode_ref": "episode_0049",
+      "pack_commitment": "sha256:3b9baf2b9bfa730afa028f0ea69bf0b97374f96bd3ffa7a72dd518fc165f62cc"
+    },
+    {
+      "episode_ref": "episode_0050",
+      "pack_commitment": "sha256:5686f4232ba9410e78620a398dc0c481fb6038822f539abbb48deede111d5d47"
+    }
+  ],
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked provider CLIs; execution is not hermetic",
+    "synthetic development episodes are not held-out external validation",
+    "intervals condition on this generator and equal family weights; they do not include model rerun variability or simulator misspecification",
+    "provider spend outside Claude's assignment cap is unbounded",
+    "complete agent-system outcomes are not isolated base-model scores",
+    "provider usage, cost, and signed request receipts are not yet captured by this development runner",
+    "local HMAC checkpoints, a public progress watermark, and a host-global lock are not an external rollback-resistant ledger"
+  ],
+  "paired": true,
+  "panel_id": "development-matched-50x6-v3",
+  "planned_assignments": 300,
+  "precommitment_sha256": "sha256:677b427075a669eca49ebcfa39971631edb52dd958caa26b0a49651f15afc22a",
+  "prepared_at_utc": "2026-07-17T05:19:19.003404Z",
+  "private_family_map_commitment": "sha256:7c6f31aac111974b317abba0a017250ea6f79cc6717b97ed72098e207990ca2c",
+  "private_schedule_commitment": "sha256:f9c2def9367a0b2b454716de7f44a29cfc85a4c903c9be639d605c6f5b693159",
+  "profiles": [
+    {
+      "executable": "claude",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "claude-opus-high",
+      "requested_model": "claude-opus-4-8",
+      "requested_reasoning": "high",
+      "system": "claude"
+    },
+    {
+      "executable": "claude",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "claude-sonnet-high",
+      "requested_model": "claude-sonnet-5",
+      "requested_reasoning": "high",
+      "system": "claude"
+    },
+    {
+      "executable": "codex",
+      "model_receipt_policy": "command_attested",
+      "profile_id": "codex-sol",
+      "requested_model": "gpt-5.6-sol",
+      "requested_reasoning": "medium",
+      "system": "codex"
+    },
+    {
+      "executable": "codex",
+      "model_receipt_policy": "command_attested",
+      "profile_id": "codex-luna-medium",
+      "requested_model": "gpt-5.6-luna",
+      "requested_reasoning": "medium",
+      "system": "codex"
+    },
+    {
+      "executable": "cursor-agent",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "cursor-grok-high",
+      "requested_model": "cursor-grok-4.5-high",
+      "requested_reasoning": "high_model_alias",
+      "system": "cursor"
+    },
+    {
+      "executable": "cursor-agent",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "cursor-kimi-k27-code",
+      "requested_model": "kimi-k2.7-code",
+      "requested_reasoning": "model default; Cursor exposes no reasoning tier",
+      "system": "cursor"
+    }
+  ],
+  "replay_trace_contract": {
+    "action_types": [
+      "infection_control",
+      "source_control",
+      "entry_control",
+      "audit_reporting",
+      "other",
+      "monitor",
+      "request_inspection",
+      "notify_health_officer",
+      "public_alert",
+      "close_business",
+      "publish_pii",
+      "quarantine_person"
+    ],
+    "control_levels": [
+      "off",
+      "standard",
+      "intensive"
+    ],
+    "control_types": [
+      "infection_control",
+      "source_control",
+      "entry_control",
+      "audit_reporting"
+    ],
+    "event_keys": [
+      "action_type",
+      "effective_at_minute",
+      "event_type",
+      "level",
+      "minute",
+      "records_returned",
+      "sequence",
+      "status"
+    ],
+    "event_levels": [
+      "off",
+      "standard",
+      "intensive",
+      "other"
+    ],
+    "event_statuses": [
+      "ok",
+      "scheduled",
+      "no_change",
+      "not_found",
+      "duplicate_request",
+      "unavailable_before_deadline",
+      "unsupported",
+      "unavailable",
+      "too_soon",
+      "submitted",
+      "recommended",
+      "denied",
+      "pending_approval"
+    ],
+    "event_types": [
+      "search_observations",
+      "request_interview",
+      "order_confirmatory_test",
+      "request_inspection",
+      "advance_time",
+      "recommend_action",
+      "set_institution_control",
+      "set_response_control",
+      "submit_forecast",
+      "get_clock_and_budget"
+    ],
+    "frame_interval_minutes": 360,
+    "frame_keys": [
+      "active_cumulative_infections",
+      "active_currently_infected",
+      "active_reporting_artifacts",
+      "effective_controls",
+      "minute",
+      "no_action_cumulative_infections",
+      "no_action_currently_infected",
+      "no_action_reporting_artifacts"
+    ],
+    "max_agent_events": 1024,
+    "max_aggregate_count": 1000000,
+    "max_frames": 512,
+    "schema_version": "epiagentbench.aggregate-replay-trace.v1",
+    "trace_keys": [
+      "agent_events",
+      "frame_interval_minutes",
+      "frames",
+      "schema_version"
+    ]
+  },
+  "results": [],
+  "run_contract": {
+    "bootstrap": {
+      "method": "deterministic family-stratified percentile",
+      "pairwise_multiplicity": "bonferroni_fifteen_pairs",
+      "pairwise_resampling": "paired within episode",
+      "profile_confidence": 0.95,
+      "replicates": 20000,
+      "resampling_unit": "episode",
+      "strata": "five scenario families"
+    },
+    "environment_preflight_required_before_production_launch": true,
+    "orphan_policy": "seal started assignment as transport_void; never retry",
+    "partial_public_results": false,
+    "planned_assignments": 300,
+    "primary_estimand": "fixed 50-episode mean per profile only with zero transport voids",
+    "replay_trace_release": {
+      "capture": "evaluator_generated_aggregate_only",
+      "frame_interval_minutes": 360,
+      "matched_no_action_twin_equality_required": true,
+      "partial_publication": false,
+      "release": "terminal_retired_panel_only",
+      "scored_endpoint_equality_required": true
+    },
+    "retry_policy": "at most one provider invocation per assignment",
+    "transport_void_policy": "stop current command; later command may continue remaining assignments"
+  },
+  "runtime_contract": {
+    "machine": "arm64",
+    "platform": "Darwin",
+    "python": "3.13.7",
+    "python_cache_tag": "cpython-313",
+    "python_implementation": "cpython",
+    "scientific_distributions": {
+      "epiagentbench": {
+        "record_sha256": null,
+        "version": null
+      },
+      "matplotlib": {
+        "record_sha256": "18c87c4718336e2504f55e2a261f08b9897fc9c5ce77ffc70d47396ac5200d1a",
+        "version": "3.11.0"
+      },
+      "networkx": {
+        "record_sha256": "6f0fa3d21e1c6e9640c2cc5d15354630e5a6f7b723b737c0e6a0cfa7292d4224",
+        "version": "3.6.1"
+      },
+      "numba": {
+        "record_sha256": "39bcb31a2e278ccb8949c36bde3afa8acd0be2b91cd2dfd306cea6db62760c80",
+        "version": "0.66.0"
+      },
+      "numpy": {
+        "record_sha256": "90dc0a9410c34155c70a8b204416602b35dc24ff61838b7c502e7cebfb6f4b1f",
+        "version": "2.4.6"
+      },
+      "pandas": {
+        "record_sha256": "b62bbe4d2a060b50f1c2cbd0114bb3c5b215a169273496372c593d3c2fcc7a4b",
+        "version": "3.0.3"
+      },
+      "scipy": {
+        "record_sha256": "406ff9142c5a3003c8df4a2da2bfda6de96718f59a01901e21e1c95f86ba51a3",
+        "version": "1.18.0"
+      },
+      "sciris": {
+        "record_sha256": "9788a68c8b6a2b4b455b206ed86f25880ba874e958f9aa9caccae69977e47f5c",
+        "version": "3.2.9"
+      },
+      "seaborn": {
+        "record_sha256": "cf364b3bef753fde2e5733465d5c1f075b8c9d9e5fd020befc38455638f993ed",
+        "version": "0.13.2"
+      },
+      "starsim": {
+        "record_sha256": "4a1c8e937b5d30cc8cbdaed153bda0ef54f7b79312da5688a51aa8837c3517dd",
+        "version": "3.5.1"
+      }
+    },
+    "starsim": "3.5.1"
+  },
+  "schedule_design": {
+    "name": "private_family_stratified_near_balanced_williams",
+    "order_released_only_after_terminal_panel": true,
+    "ordered_carryover_count_max": 9,
+    "ordered_carryover_count_min": 8,
+    "profile_position_count_max": 9,
+    "profile_position_count_min": 8,
+    "within_family_ordered_carryover_count_max": 2,
+    "within_family_ordered_carryover_count_min": 1,
+    "within_family_profile_position_count_max": 2,
+    "within_family_profile_position_count_min": 1
+  },
+  "schema_version": "development_matched_panel_v3",
+  "source_contract": {
+    "task_prompt_sha256": "sha256:8bd3c34b94778d6211378d6a45ca71d121828aabd9621b2acb7ed02f33f24dbe",
+    "tracked_runtime_file_count": 55,
+    "tracked_runtime_surface_sha256": "sha256:f07ef24f3262bf0c880b4ff6579053c5a589b11e8bb48a21553b2435fbf9e1c5"
+  },
+  "status": "precommitted",
+  "timeout_contract": {
+    "seconds_per_assignment": 900
+  }
+}
