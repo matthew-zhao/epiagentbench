@@ -208,7 +208,16 @@ smoke results and remaining gates.
 
 ### Trace-enabled 50-episode, six-profile matched panel
 
-The [v2 precommitted comparison](results/development-matched-50x6-v2.manifest.json)
+The v2 precommitted comparison is preserved for audit, but its one-shot
+[environment preflight failed at the first Cursor profile](results/development-matched-50x6-v2.preflight.json)
+after four unscored Claude/Codex checks passed; no production episode was
+consumed. The frozen receipt distinguishes a Cursor startup/authentication/
+routing failure from an episode result, but deliberately retains too little
+provider output to separate a bad credential from an unavailable alias or MCP
+startup failure. V2 is therefore
+[superseded](results/development-matched-50x6-v2.superseded.json), never reset or
+replayed. The replacement v3 comparison
+([manifest](results/development-matched-50x6-v3.manifest.json))
 uses 50 newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and
 the same six full agent+model profiles on every episode:
 
@@ -223,13 +232,13 @@ The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
 or production assignment](results/development-matched-50x6-v1.superseded.json)
 when terminal replay traces changed the frozen evaluator and generator
-fingerprint. V2 therefore has new seeds, secrets, authentication key, schedule
+fingerprint. V2 therefore had new seeds, secrets, authentication key, schedule
 nonce, and packs—not a modified or replayed version of v1. The still earlier
 [50×4 precommitment](results/development-matched-50x4-v1.manifest.json) was
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed v2 assignment records an evaluator-owned, aggregate-only trace:
+Each completed v3 assignment records an evaluator-owned, aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
 trace excludes people, contact edges, target and evidence identifiers, model
@@ -260,9 +269,10 @@ base-model leaderboard, or a real-world superiority claim. The expected serial
 runtime is roughly 19–21 hours. Claude is capped at $5 per assignment ($500
 across its 100 production calls); Codex and Cursor do not yet have a
 benchmark-enforced spend cap. The runner, runtime, hidden cohort, and public
-manifest are frozen before any provider preflight or production call. At this
-precommit, zero provider preflight calls and zero production assignments have
-started, so no v2 scores are reported yet.
+manifest are frozen before any provider preflight or production call. V2
+started five disposable preflight calls and zero production assignments before
+being retired; no v2 scores exist. V3 starts from a separate authentication key,
+cohort, schedule nonce, secrets, and packs.
 
 ### New-model capability pilot (2026-07-15)
 

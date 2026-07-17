@@ -239,7 +239,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v2")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v3")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["replay_trace_release"]["release"],
@@ -985,6 +985,48 @@ class MatchedPanelTests(unittest.TestCase):
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_preflight_path=self.root / "results" / "preflight.json",
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+
+    def test_failed_disposable_preflight_is_one_shot(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight.json"
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=RuntimeError("credential exchange failed"),
+            ),
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["failure_stage"], "provider_launch")
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "one-shot required state"),
+        ):
+            run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluate.assert_not_called()

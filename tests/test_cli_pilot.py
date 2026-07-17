@@ -216,6 +216,7 @@ class CliPilotTests(unittest.TestCase):
                 "CURSOR_WORKTREES_ROOT": "/inherited/worktrees",
                 "CURSOR_API_URL": "https://attacker.invalid",
                 "CURSOR_API_KEY": "test-only",
+                "AGENT_CLI_CREDENTIAL_STORE": "file",
                 "XDG_CONFIG_HOME": "/inherited/config",
                 "XDG_CACHE_HOME": "/inherited/cache",
                 "XDG_DATA_HOME": "/inherited/data",
@@ -233,6 +234,7 @@ class CliPilotTests(unittest.TestCase):
             _isolate_cursor_environment(environment, root)
             self.assertEqual(environment["PATH"], "/bin")
             self.assertEqual(environment["CURSOR_API_KEY"], "test-only")
+            self.assertEqual(environment["AGENT_CLI_CREDENTIAL_STORE"], "memory")
             self.assertEqual(environment["HTTPS_PROXY"], "https://proxy.invalid")
             self.assertEqual(environment["SSL_CERT_FILE"], "/etc/ssl/cert.pem")
             self.assertEqual(environment["LC_ALL"], "C.UTF-8")

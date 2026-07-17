@@ -1,0 +1,16 @@
+{
+  "development_only": true,
+  "failed_preflight_canonical_sha256": "sha256:4a7dde36871e1d259bc9d52cd2a81c121766e06a51599fc9bd2fc35a48779c70",
+  "failed_preflight_file_sha256": "sha256:ebe86b5780e16fcb76fb0a1c2e7eb4f2078463bcc7954c25cd3256954593ffc2",
+  "failed_profile_id": "cursor-grok-high",
+  "original_panel_id": "development-matched-50x6-v2",
+  "original_precommitment_sha256": "sha256:e6e57a8103cd3e41da0de5ef1ba53134d9c91ae602d75406e12bb4b1e6cb5447",
+  "preflight_profiles_passed": 4,
+  "preflight_profiles_attempted": 5,
+  "production_assignments_started": 0,
+  "reason": "The one-shot disposable environment preflight failed during Cursor startup, authentication, routing, or MCP enablement at the first Cursor profile after all four Claude and Codex profiles passed. The frozen receipt deliberately cannot distinguish those infrastructure causes. It reported no scores and consumed no production episode. The failed state is preserved rather than reset; a fresh separately precommitted cohort is required.",
+  "replacement_panel_id": "development-matched-50x6-v3",
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_after_failed_preflight",
+  "superseded_at_utc": "2026-07-17T05:12:04Z"
+}

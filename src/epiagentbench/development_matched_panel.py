@@ -54,7 +54,7 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v2"
+PANEL_ID = "development-matched-50x6-v3"
 COHORT_ID = PANEL_ID
 SCHEMA_VERSION = "development_matched_panel_v3"
 BACKEND = "starsim-ltc-v3"
@@ -1345,6 +1345,7 @@ def run_environment_preflight(
             digest = hashlib.sha256(
                 f"{PANEL_ID}|disposable-preflight|{profile_id}".encode("ascii")
             ).digest()
+            failure_stage = "provider_launch"
             try:
                 result = evaluate_local_cli_agent(
                     str(profile["system"]),
@@ -1366,12 +1367,18 @@ def run_environment_preflight(
                     profile, result.observed_models
                 )
                 metrics = result.scorecard.get("metrics", {})
+                failure_stage = "trace_validation"
                 try:
                     validate_replay_trace(result.replay_trace)
                 except (TypeError, ValueError) as error:
                     raise RuntimeError(
                         "Disposable provider preflight replay contract failed"
                     ) from error
+                failure_stage = (
+                    "model_receipt"
+                    if receipt_required and not receipt_ok
+                    else "provider_contract"
+                )
                 if (
                     result.system != profile["system"]
                     or result.requested_model != profile["requested_model"]
@@ -1419,6 +1426,7 @@ def run_environment_preflight(
                         "status": "failed",
                         "finished_at_utc": _utc_now(),
                         "failure_class": type(error).__name__,
+                        "failure_stage": failure_stage,
                     }
                 )
                 failed = {
@@ -1431,6 +1439,7 @@ def run_environment_preflight(
                     "profiles_passed": public_attempts,
                     "failed_profile_id": profile_id,
                     "failure_class": type(error).__name__,
+                    "failure_stage": failure_stage,
                     "scores_reported": False,
                 }
                 private["environment_preflight"] = {

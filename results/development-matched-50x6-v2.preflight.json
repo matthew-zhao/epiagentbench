@@ -1,0 +1,67 @@
+{
+  "contract_hashes": {
+    "cli_sha256": "sha256:a526de93fd7cbfda469c8ebc2bc09f2397432f96d5f6a13e91af365747c01c55",
+    "profiles_sha256": "sha256:8e0df3beec1acb914eea40e774d118d8f7b65da1bd3c96b9942120ff30f29c27",
+    "replay_sha256": "sha256:9af83264f99eeeae38a0b7710fb6fde919a6e97e6fa9b8edbbac7d3c205cf52c",
+    "runtime_sha256": "sha256:e87cb5fc14ed6d4302f4d8f0461b239599ff36c7525c843e9e469511d0d729f7",
+    "source_sha256": "sha256:6986ec69904cad51c0ae455fd13b9fe9f38e39f34a47ff2ceb2c9bc6a8fffbc1"
+  },
+  "development_only": true,
+  "failed_profile_id": "cursor-grok-high",
+  "failure_class": "RuntimeError",
+  "panel_id": "development-matched-50x6-v2",
+  "production_episodes_consumed": 0,
+  "profiles_passed": [
+    {
+      "cli_version": "2.1.195 (Claude Code)",
+      "model_receipt_satisfied": true,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "profile_id": "claude-opus-high",
+      "raw_result_sha256": "sha256:7631133f2f0016c55c13f2ef6110092fe255ea9867131e018e035eb02b81f7a6",
+      "replay_trace_validated": true,
+      "requested_model": "claude-opus-4-8",
+      "scored": false,
+      "system": "claude"
+    },
+    {
+      "cli_version": "2.1.195 (Claude Code)",
+      "model_receipt_satisfied": true,
+      "observed_models": [
+        "claude-sonnet-5"
+      ],
+      "profile_id": "claude-sonnet-high",
+      "raw_result_sha256": "sha256:ca931104c4405ca3310f97e26d08e3787669ca9686271339516f56e944a8c8a6",
+      "replay_trace_validated": true,
+      "requested_model": "claude-sonnet-5",
+      "scored": false,
+      "system": "claude"
+    },
+    {
+      "cli_version": "codex-cli 0.144.3",
+      "model_receipt_satisfied": null,
+      "observed_models": [],
+      "profile_id": "codex-sol",
+      "raw_result_sha256": "sha256:156ecacfbad4ef888137bb19fc5b91000b5a6768b63dc05145f632536774cca3",
+      "replay_trace_validated": true,
+      "requested_model": "gpt-5.6-sol",
+      "scored": false,
+      "system": "codex"
+    },
+    {
+      "cli_version": "codex-cli 0.144.3",
+      "model_receipt_satisfied": null,
+      "observed_models": [],
+      "profile_id": "codex-luna-medium",
+      "raw_result_sha256": "sha256:5a29ba85c38e64780d088714e6fd52891f630c16cb36d4dfafdff85f30b189c4",
+      "replay_trace_validated": true,
+      "requested_model": "gpt-5.6-luna",
+      "scored": false,
+      "system": "codex"
+    }
+  ],
+  "schema_version": "development_matched_panel_v3",
+  "scores_reported": false,
+  "status": "failed"
+}

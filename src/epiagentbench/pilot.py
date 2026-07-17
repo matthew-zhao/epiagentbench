@@ -920,6 +920,7 @@ def _isolate_cursor_environment(
     }
     environment.clear()
     environment.update(preserved)
+    environment["AGENT_CLI_CREDENTIAL_STORE"] = "memory"
 
     isolated_paths = {
         "HOME": root / "cursor-home",
