@@ -24,7 +24,7 @@ def main() -> None:
     prepare.add_argument("--codex-secure-storage-dir", required=True, type=Path)
     prepare.add_argument("--private-state", required=True, type=Path)
     prepare.add_argument("--public-manifest", required=True, type=Path)
-    prepare.add_argument("--timeout", type=int, default=900)
+    prepare.add_argument("--timeout", type=int, default=1800)
     prepare.add_argument("--claude-max-budget-usd", type=float, default=5.0)
     authorize = commands.add_parser("authorize")
     authorize.add_argument("--authentication-key", required=True, type=Path)

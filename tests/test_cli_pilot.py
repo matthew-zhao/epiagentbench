@@ -21,6 +21,7 @@ from epiagentbench.pilot import (
     ProviderOutputOverflowError,
     ProviderProcessIsolationError,
     ProviderStateIsolationError,
+    _ProviderProgressTracker,
     _ProviderTemporaryDirectory,
     _CLAUDE_EXPECTED_TOOLS,
     _CLAUDE_MCP_TOOL_NAMES,
@@ -100,6 +101,7 @@ class CliPilotTests(unittest.TestCase):
         *,
         model: str | None = None,
         claude_effort: str | ClaudeEffort | None = None,
+        codex_reasoning_effort: str | None = None,
     ) -> list[str]:
         with tempfile.TemporaryDirectory() as temp:
             schema = (
@@ -123,6 +125,7 @@ class CliPilotTests(unittest.TestCase):
                 public_root=str(Path(temp) / "public"),
                 socket_path=str(Path(temp) / "episode.sock"),
                 claude_effort=claude_effort,
+                codex_reasoning_effort=codex_reasoning_effort,
             )
 
     def test_commands_pin_models_and_isolated_modes(self):
@@ -402,6 +405,44 @@ class CliPilotTests(unittest.TestCase):
         self.assertEqual(result.stdout, b"0o77")
         self.assertEqual(result.stderr, b"provider-stderr")
 
+    def test_progress_telemetry_uses_only_coarse_combined_buckets(self):
+        snapshots: list[dict] = []
+        provider_payload = (
+            b'{"type":"item.started","item":{"id":"opaque-call-id",'
+            b'"type":"mcp_tool_call","server":"epiagent",'
+            b'"tool":"get_manifest","arguments":{"payload":'
+            b'"provider-content-must-not-leak"}}}\n'
+        )
+        with patch(
+            "epiagentbench.pilot.time.monotonic",
+            side_effect=(100.0, 101.0),
+        ):
+            tracker = _ProviderProgressTracker(snapshots.append)
+            tracker.observe("stdout", provider_payload)
+        snapshot = tracker.snapshot(observed=221.0)
+
+        self.assertEqual(
+            snapshot,
+            {
+                "schema_version": "epiagentbench.provider_progress.v1",
+                "observed_elapsed_bucket": "120_299s",
+                "output_seen": True,
+                "first_output_elapsed_bucket": "lt_30s",
+                "last_output_elapsed_bucket": "lt_30s",
+                "combined_output_bytes_bucket": "1_4095",
+            },
+        )
+        encoded = json.dumps(snapshot, sort_keys=True)
+        for forbidden in (
+            "stdout",
+            "stderr",
+            "opaque-call-id",
+            "get_manifest",
+            "provider-content-must-not-leak",
+            str(len(provider_payload)),
+        ):
+            self.assertNotIn(forbidden, encoded)
+
     @unittest.skipUnless(
         os.name == "posix" and hasattr(os, "killpg"),
         "provider process groups require POSIX",
@@ -479,6 +520,7 @@ class CliPilotTests(unittest.TestCase):
     )
     def test_provider_process_group_detects_secret_after_capture_limit(self):
         secret = b"cursor-key-only-in-discarded-output"
+        progress: list[dict] = []
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(ProviderStateIsolationError) as caught:
                 _run_provider_process_group(
@@ -498,6 +540,7 @@ class CliPilotTests(unittest.TestCase):
                     timeout_seconds=5,
                     umask=0o077,
                     forbidden_exact_bytes=(secret,),
+                    progress_callback=progress.append,
                 )
 
         self.assertEqual(
@@ -505,6 +548,15 @@ class CliPilotTests(unittest.TestCase):
         )
         self.assertNotIn(secret.decode(), str(caught.exception))
         self.assertIsNone(caught.exception.__cause__)
+        self.assertTrue(progress)
+        self.assertEqual(
+            progress[-1],
+            {
+                "schema_version": "epiagentbench.provider_progress.v1",
+                "status": "suppressed_credential_output",
+            },
+        )
+        self.assertNotIn(secret.decode(), json.dumps(progress, sort_keys=True))
 
     @unittest.skipUnless(
         os.name == "posix" and hasattr(os, "killpg"),
@@ -1378,7 +1430,7 @@ class CliPilotTests(unittest.TestCase):
                         "valid": False,
                         "total": 0.0,
                         "dimensions": {},
-                        "metrics": {},
+                        "metrics": {"tool_calls": 0},
                         "violations": ["invalid_submission"],
                     },
                     "replay_trace": {},
@@ -2193,6 +2245,7 @@ class CliPilotTests(unittest.TestCase):
             ),
         ]
         session = Session()
+        progress: list[dict] = []
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": secret}, clear=True),
             patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
@@ -2216,6 +2269,7 @@ class CliPilotTests(unittest.TestCase):
                 seed=17,
                 family="reporting_artifact",
                 backend="starsim-ltc-v3",
+                progress_callback=progress.append,
             )
 
         run.assert_not_called()
@@ -2230,6 +2284,14 @@ class CliPilotTests(unittest.TestCase):
         self.assertNotIn("Authorization", str(caught.exception))
         self.assertIsNone(caught.exception.__cause__)
         self.assertTrue(session.closed)
+        self.assertEqual(
+            progress[-1],
+            {
+                "schema_version": "epiagentbench.provider_progress.v1",
+                "status": "suppressed_credential_output",
+            },
+        )
+        self.assertNotIn(secret, json.dumps(progress, sort_keys=True))
 
     def test_cursor_mcp_readiness_credential_echo_is_terminal(self):
         secret = "cursor-readiness-secret"
@@ -2638,6 +2700,37 @@ class CliPilotTests(unittest.TestCase):
         effort_index = command.index("--effort")
         self.assertEqual(command[effort_index : effort_index + 2], ["--effort", "high"])
         self.assertEqual(command.count("--effort"), 1)
+
+    def test_codex_reasoning_effort_is_emitted_per_call(self):
+        medium = self._command(
+            "codex",
+            model="gpt-5.6-sol",
+            codex_reasoning_effort="medium",
+        )
+        maximum = self._command(
+            "codex",
+            model="gpt-5.6-luna",
+            codex_reasoning_effort="max",
+        )
+
+        self.assertIn('model_reasoning_effort="medium"', medium)
+        self.assertNotIn('model_reasoning_effort="max"', medium)
+        self.assertIn('model_reasoning_effort="max"', maximum)
+        self.assertNotIn('model_reasoning_effort="medium"', maximum)
+        self.assertEqual(
+            sum(value.startswith("model_reasoning_effort=") for value in medium),
+            1,
+        )
+        self.assertEqual(
+            sum(value.startswith("model_reasoning_effort=") for value in maximum),
+            1,
+        )
+
+    def test_codex_reasoning_effort_is_validated_and_scoped(self):
+        with self.assertRaisesRegex(ValueError, "Invalid Codex reasoning effort"):
+            self._command("codex", codex_reasoning_effort="ultra")
+        with self.assertRaisesRegex(ValueError, "only valid for the Codex"):
+            self._command("claude", codex_reasoning_effort="max")
 
     def test_claude_effort_is_validated_and_scoped(self):
         with self.assertRaisesRegex(ValueError, "Invalid Claude effort"):

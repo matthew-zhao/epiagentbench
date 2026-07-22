@@ -280,8 +280,32 @@ Sol handshakes. Codex Luna then reached the frozen 900-second provider timeout
 and failed the provider contract. The two Cursor profiles were never invoked.
 The receipt conservatively counts four potentially chargeable provider calls,
 reports no scores, and records zero production episodes; no assignment in the
-300-run panel started. V7 is retained as a failed, non-retryable historical
-preflight rather than reset or resumed.
+300-run panel started. V7 is retained and
+[superseded](results/development-matched-50x6-v7.superseded.json) as a failed,
+non-retryable historical preflight rather than reset or resumed.
+
+The v8 replacement uses a fresh cohort, authentication key, private schedule,
+managed-Glean credential namespace, and Codex credential namespace. Its six
+profiles preserve the v7 order while making the requested Codex reasoning
+settings explicit:
+
+- Claude + Opus 4.8 (high)
+- Claude + Sonnet 5 (high)
+- Codex + GPT-5.6 Sol (medium)
+- Codex + GPT-5.6 Luna (max)
+- Cursor + Grok 4.5 High
+- Cursor + Kimi K2.7 Code
+
+V8 freezes one uniform 1,800-second limit for every preflight and production
+call. It records only bounded, content-free progress buckets and an
+evaluator-owned terminal tool-activity count; provider text and identifiers are
+never telemetry. A cleanly contained ordinary profile failure is retained and
+the unscored preflight continues to later independent profiles. A Codex timeout
+quarantines that panel's Codex credential namespace and skips any later Codex
+profile, but later independent Cursor or Claude checks may continue. Secret
+leakage, credential drift, evaluator drift, or failure to prove process and
+pipe cleanup still aborts globally. Production remains locked unless all six
+profiles pass.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
@@ -293,7 +317,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed v7 assignment will record an evaluator-owned, aggregate-only trace:
+Each completed v8 assignment will record an evaluator-owned, aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
 trace excludes people, contact edges, target and evidence identifiers, model
@@ -314,12 +338,12 @@ A Codex timeout is the one timeout exception: killing it during an in-place
 credential refresh could leave authentication ambiguous, so the assignment is
 a terminal transport void and the panel cannot complete.
 
-Before production, v7 first runs two no-model authentication bootstraps. The
+Before production, v8 first runs two no-model authentication bootstraps. The
 managed-Glean bootstrap discards token-bearing stdout. The Codex bootstrap runs
 the pinned CLI's browser OAuth flow with file-only credential storage in a new
 panel namespace; it may open a separate sign-in page, and both output streams
 are discarded. The active host Codex login is neither copied nor linked. Only
-after both bootstraps pass does v7 run a disposable six-call, unscored
+after both bootstraps pass does v8 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -333,35 +357,36 @@ state is not copied into assignments. The terminal analysis predeclares
 pairwise comparisons together.
 
 This remains development evidence—not held-out epidemiological calibration, a
-base-model leaderboard, or a real-world superiority claim. The expected serial
-runtime is roughly 19–21 hours. Claude has a $5 per-call runner ceiling. The v7
-authorization ceiling is $510: two Claude preflight calls plus 100 production
-calls. Prior failed panels contribute a conservative $15 ceiling: two v2 Claude
-preflight calls ($10) and the one ambiguous v5 attempt ($5); v3 and v4 started
-no provider call, and v6 failed before any model-bearing call. The cumulative
-Claude authorization ceiling is therefore
-$525, not a claim about measured billing. Codex and Cursor remain uncapped. V2
-started five total provider preflight calls and zero production assignments;
-v3 and v4 started none; v5 has the single conservatively chargeable Claude
-attempt; and v6 has zero model calls. None started a production assignment.
+base-model leaderboard, or a real-world superiority claim. Prior medium-effort
+runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
+on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
+150 hours; observed runtime should be reported rather than inferred. Claude has
+a $5 per-call runner ceiling. The v8 authorization ceiling is $510: two Claude
+preflight calls plus 100 production calls. Prior failed panels contribute a
+conservative $25 ceiling: two v2 Claude preflight calls ($10), the ambiguous v5
+attempt ($5), and v7's two returned Claude preflight calls ($10); v3, v4, and v6
+started no Claude model call. The cumulative Claude authorization ceiling is
+therefore $535, not a claim about measured billing. Codex and Cursor remain
+uncapped. No prior matched-panel version started a production assignment.
 
-A generic command-line acknowledgement is not sufficient to unlock v7. After
+A generic command-line acknowledgement is not sufficient to unlock v8. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v7 preflight and 300-assignment
+> I acknowledge the replacement six-call v8 preflight and 300-assignment
 > production run, including unbounded Codex/Cursor provider spend and up to
-> $525 total Claude spend across the failed v2 preflight, failed v5 preflight,
-> failed v6 authentication bootstrap, v7 preflight, and production.
+> $535 total Claude spend across the failed v2 preflight, failed v5 preflight,
+> failed v6 authentication bootstrap, failed v7 preflight, v8 preflight, and
+> production.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, v7 panel identifier, final public
-precommitment, budget-contract hash, cumulative $525 Claude ceiling, and
+private receipt bound to the exact text, v8 panel identifier, final public
+precommitment, budget-contract hash, cumulative $535 Claude ceiling, and
 unbounded Codex/Cursor spend. A missing receipt, a receipt copied from another
 manifest, or any altered field fails before either authentication bootstrap or
 model-bearing provider invocation. Credential-free, no-model CLI identity
@@ -369,7 +394,7 @@ probes are part of manifest preparation and contract validation, not authorized
 benchmark calls. The preflight and production commands still require
 `--acknowledge-unbounded-provider-spend` as an immediate execution guard.
 
-The v7 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The v8 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -418,7 +443,7 @@ an invalid zero in that profile's fixed denominator. An ordinary cleanly
 quiesced transport void only stops the current command; a later command may
 resume with the next assignment.
 
-V7 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V8 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. The installed
 helper behavior is supported by a manual source audit plus binary hash/version;
@@ -430,7 +455,7 @@ invalid model submission remain scored zeros so an agent cannot erase a hard
 episode by hanging. Output capture is bounded, but this macOS development
 runner has no aggregate provider RSS, filesystem-byte/file-count, process-count,
 or OS-job ceiling. macOS process groups do not contain a descendant that
-deliberately creates a new session and closes its inherited pipes; v7 detects
+deliberately creates a new session and closes its inherited pipes; v8 detects
 the pipe-retaining form of that escape, but original-process-group containment
 is not full job containment. These explicit limitations are another reason the
 host-networked panel remains development-only rather than leaderboard-ready.

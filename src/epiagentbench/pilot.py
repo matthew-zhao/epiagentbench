@@ -28,7 +28,7 @@ import sys
 import tempfile
 import time
 import unicodedata
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .trusted.service import launch_socket_episode
 
@@ -57,6 +57,19 @@ class ClaudeEffort(str, Enum):
 
 
 _MAX_CAPTURE_BYTES = 2_097_152
+_PROGRESS_CALLBACK_INTERVAL_SECONDS = 30.0
+_PROGRESS_ELAPSED_BUCKETS = (
+    "none",
+    "lt_30s",
+    "30_119s",
+    "120_299s",
+    "300_899s",
+    "900_1799s",
+    "ge_1800s",
+)
+_CODEX_REASONING_EFFORTS = frozenset(
+    {"none", "low", "medium", "high", "xhigh", "max"}
+)
 _SUBMISSION_KEYS = {
     "incident_assessment",
     "case_definition",
@@ -131,6 +144,8 @@ class PilotRunResult:
     captured_stderr_sha256: str = ""
     command_sha256: str = ""
     replay_trace: dict[str, Any] = field(default_factory=dict)
+    timed_out: bool = False
+    progress_telemetry: dict[str, Any] = field(default_factory=dict)
 
 
 def _task_prompt() -> str:
@@ -199,6 +214,17 @@ def _validate_claude_effort(
     except ValueError as error:
         choices = ", ".join(item.value for item in ClaudeEffort)
         raise ValueError(f"Invalid Claude effort; choose one of: {choices}") from error
+
+
+def _validate_codex_reasoning_effort(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in _CODEX_REASONING_EFFORTS:
+        choices = ", ".join(sorted(_CODEX_REASONING_EFFORTS))
+        raise ValueError(
+            f"Invalid Codex reasoning effort; choose one of: {choices}"
+        )
+    return value
 
 
 def _compact_json_schema(schema_path: str) -> str:
@@ -297,6 +323,7 @@ def build_agent_command(
     socket_path: str,
     claude_max_budget_usd: float = 1.0,
     claude_effort: str | ClaudeEffort | None = None,
+    codex_reasoning_effort: str | None = None,
 ) -> list[str]:
     """Build a shell-free invocation for one supported local agent CLI."""
 
@@ -307,8 +334,12 @@ def build_agent_command(
     effort = _validate_claude_effort(claude_effort)
     if effort is not None and system != "claude":
         raise ValueError("Claude effort is only valid for the Claude system")
+    codex_effort = _validate_codex_reasoning_effort(codex_reasoning_effort)
+    if codex_effort is not None and system != "codex":
+        raise ValueError("Codex reasoning effort is only valid for the Codex system")
     prompt = _task_prompt()
     if system == "codex":
+        effective_codex_effort = codex_effort or "medium"
         mcp = _mcp_definition(
             python=python, public_root=public_root, socket_path=socket_path
         )
@@ -316,7 +347,7 @@ def build_agent_command(
         env_toml = "{" + ",".join(
             f"{key}={_json_string(value)}" for key, value in mcp["env"].items()
         ) + "}"
-        return [
+        command = [
             executable,
             "exec",
             "--model",
@@ -342,8 +373,12 @@ def build_agent_command(
             'approval_policy="never"',
             "-c",
             'cli_auth_credentials_store="file"',
-            "-c",
-            'model_reasoning_effort="medium"',
+        ]
+        command.extend(
+            ("-c", f'model_reasoning_effort="{effective_codex_effort}"')
+        )
+        command.extend(
+            [
             "-c",
             f"mcp_servers.epiagent.command={_json_string(python)}",
             "-c",
@@ -355,7 +390,9 @@ def build_agent_command(
             "-c",
             'mcp_servers.epiagent.default_tools_approval_mode="approve"',
             prompt,
-        ]
+            ]
+        )
+        return command
     if system == "claude":
         if not math.isfinite(claude_max_budget_usd) or not (
             0 < claude_max_budget_usd <= 100
@@ -1107,6 +1144,119 @@ def _advance_exact_byte_match(
     return matched, window[-overlap:] if overlap else b""
 
 
+class _ProviderProgressTracker:
+    """Emit coarse content-free output progress without parsing provider data."""
+
+    def __init__(
+        self,
+        callback: Callable[[Mapping[str, Any]], None] | None,
+    ) -> None:
+        self._callback = callback
+        self._started = time.monotonic()
+        self._last_emit = self._started
+        self._first_output: float | None = None
+        self._last_output: float | None = None
+        self._combined_bytes_seen = 0
+        self._suppressed = False
+        self._last_snapshot: dict[str, Any] | None = None
+
+    @staticmethod
+    def _elapsed_bucket(started: float, observed: float | None) -> str:
+        if observed is None:
+            return "none"
+        elapsed = max(0.0, observed - started)
+        if elapsed < 30:
+            return "lt_30s"
+        if elapsed < 120:
+            return "30_119s"
+        if elapsed < 300:
+            return "120_299s"
+        if elapsed < 900:
+            return "300_899s"
+        if elapsed < 1800:
+            return "900_1799s"
+        return "ge_1800s"
+
+    @staticmethod
+    def _bytes_bucket(value: int) -> str:
+        if value == 0:
+            return "0"
+        if value < 4 * 1024:
+            return "1_4095"
+        if value < 64 * 1024:
+            return "4096_65535"
+        if value < 1024 * 1024:
+            return "65536_1048575"
+        return "ge_1048576"
+
+    def snapshot(self, *, observed: float | None = None) -> dict[str, Any]:
+        if self._suppressed:
+            return {
+                "schema_version": "epiagentbench.provider_progress.v1",
+                "status": "suppressed_credential_output",
+            }
+        now = time.monotonic() if observed is None else observed
+        return {
+            "schema_version": "epiagentbench.provider_progress.v1",
+            "observed_elapsed_bucket": self._elapsed_bucket(self._started, now),
+            "output_seen": self._first_output is not None,
+            "first_output_elapsed_bucket": self._elapsed_bucket(
+                self._started, self._first_output
+            ),
+            "last_output_elapsed_bucket": self._elapsed_bucket(
+                self._started, self._last_output
+            ),
+            "combined_output_bytes_bucket": self._bytes_bucket(
+                self._combined_bytes_seen
+            ),
+        }
+
+    def emit(self, *, force: bool = False, observed: float | None = None) -> None:
+        if self._callback is None:
+            return
+        now = time.monotonic() if observed is None else observed
+        if not force and now - self._last_emit < _PROGRESS_CALLBACK_INTERVAL_SECONDS:
+            return
+        snapshot = self.snapshot(observed=now)
+        if not force and snapshot == self._last_snapshot:
+            self._last_emit = now
+            return
+        try:
+            self._callback(snapshot)
+        except ProviderExecutionIsolationError:
+            raise
+        except Exception:
+            raise ProviderStateIsolationError(
+                "Provider progress checkpoint could not be persisted"
+            ) from None
+        self._last_snapshot = snapshot
+        self._last_emit = now
+
+    def observe(self, stream: str, chunk: bytes) -> None:
+        if stream not in {"stdout", "stderr"} or not chunk:
+            raise ValueError("Invalid provider progress observation")
+        now = time.monotonic()
+        self._combined_bytes_seen = min(
+            _MAX_CAPTURE_BYTES * 2 + 1,
+            self._combined_bytes_seen + len(chunk),
+        )
+        self._first_output = self._first_output or now
+        self._last_output = now
+        self.emit(observed=now)
+
+    def suppress(self) -> None:
+        self._first_output = None
+        self._last_output = None
+        self._combined_bytes_seen = 0
+        self._suppressed = True
+        self.emit(force=True)
+
+    def finish(self) -> dict[str, Any]:
+        now = time.monotonic()
+        self.emit(force=True, observed=now)
+        return self.snapshot(observed=now)
+
+
 def _quiesce_provider_process_group(
     process: subprocess.Popen[bytes], *, force: bool
 ) -> None:
@@ -1164,6 +1314,7 @@ def _run_provider_process_group(
     timeout_seconds: int,
     umask: int,
     forbidden_exact_bytes: Sequence[bytes] = (),
+    progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Run one provider CLI with bounded capture in a new POSIX session."""
 
@@ -1172,6 +1323,8 @@ def _run_provider_process_group(
         for secret in forbidden_exact_bytes
     ):
         raise ValueError("Forbidden provider output bytes must be nonempty")
+    if progress_callback is not None and not callable(progress_callback):
+        raise ValueError("Invalid provider progress callback")
     forbidden_exact_bytes = tuple(forbidden_exact_bytes)
     if os.name != "posix" or not hasattr(os, "killpg"):
         raise ProviderProcessIsolationError(
@@ -1184,6 +1337,11 @@ def _run_provider_process_group(
     overflowed = {"stdout": False, "stderr": False}
     match_tails = {"stdout": b"", "stderr": b""}
     forbidden_output_detected = False
+    progress = (
+        _ProviderProgressTracker(progress_callback)
+        if progress_callback is not None
+        else None
+    )
     try:
         try:
             process = subprocess.Popen(
@@ -1217,6 +1375,8 @@ def _run_provider_process_group(
                 raise ProviderProcessIsolationError(
                     "Provider output capture could not be initialized"
                 ) from None
+        if progress is not None:
+            progress.emit(force=True)
         deadline = time.monotonic() + timeout_seconds
         drain_deadline: float | None = None
         timed_out = False
@@ -1270,6 +1430,8 @@ def _run_provider_process_group(
                 raise ProviderProcessIsolationError(
                     "Provider output selector failed"
                 ) from None
+            if progress is not None:
+                progress.emit()
             for key, _ in ready:
                 name = str(key.data)
                 if name not in captures:
@@ -1299,6 +1461,8 @@ def _run_provider_process_group(
                 )
                 if matched and not forbidden_output_detected:
                     forbidden_output_detected = True
+                    if progress is not None:
+                        progress.suppress()
                     for captured in captures.values():
                         captured[:] = b"\x00" * len(captured)
                         captured.clear()
@@ -1308,6 +1472,8 @@ def _run_provider_process_group(
                         drain_deadline = time.monotonic() + 1.0
                 if forbidden_output_detected:
                     continue
+                if progress is not None:
+                    progress.observe(name, chunk)
                 remaining = _MAX_CAPTURE_BYTES - len(captures[name])
                 if remaining > 0:
                     captures[name].extend(chunk[:remaining])
@@ -1318,6 +1484,8 @@ def _run_provider_process_group(
             raise ProviderStateIsolationError(
                 "Provider credential isolation failed"
             ) from None
+        if progress is not None:
+            progress.finish()
         stdout = bytes(captures["stdout"])
         stderr = bytes(captures["stderr"])
         if timed_out:
@@ -2207,6 +2375,8 @@ def evaluate_local_cli_agent(
     timeout_seconds: int = 600,
     claude_max_budget_usd: float = 1.0,
     claude_effort: str | ClaudeEffort | None = None,
+    codex_reasoning_effort: str | None = None,
+    progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
     codex_auth_storage_dir: str | os.PathLike[str] | None = None,
     claude_secure_storage_dir: str | os.PathLike[str] | None = None,
     claude_glean_oauth_client_id: str | None = None,
@@ -2220,6 +2390,11 @@ def evaluate_local_cli_agent(
     effort = _validate_claude_effort(claude_effort)
     if effort is not None and system != "claude":
         raise ValueError("Claude effort is only valid for the Claude system")
+    codex_effort = _validate_codex_reasoning_effort(codex_reasoning_effort)
+    if codex_effort is not None and system != "codex":
+        raise ValueError("Codex reasoning effort is only valid for the Codex system")
+    if progress_callback is not None and not callable(progress_callback):
+        raise ValueError("Invalid provider progress callback")
     if codex_auth_storage_dir is not None and system != "codex":
         raise ValueError("Codex auth storage is only valid for the Codex system")
     if claude_secure_storage_dir is not None and system != "claude":
@@ -2299,6 +2474,7 @@ def evaluate_local_cli_agent(
             socket_path=socket_path,
             claude_max_budget_usd=claude_max_budget_usd,
             claude_effort=effort,
+            codex_reasoning_effort=codex_effort,
         )
         environment = os.environ.copy()
         environment.pop("EPIAGENT_SOCKET", None)
@@ -2471,6 +2647,35 @@ def evaluate_local_cli_agent(
                         glean_home_link, secure_storage_path
                     )
                 started = time.monotonic()
+                progress_telemetry: dict[str, Any] = {}
+
+                def publish_progress(snapshot: Mapping[str, Any]) -> None:
+                    if progress_callback is None:
+                        return
+                    try:
+                        progress_callback(dict(snapshot))
+                    except ProviderExecutionIsolationError:
+                        raise
+                    except Exception:
+                        raise ProviderStateIsolationError(
+                            "Provider progress checkpoint could not be persisted"
+                        ) from None
+
+                def capture_progress(snapshot: Mapping[str, Any]) -> None:
+                    nonlocal progress_telemetry
+                    progress_telemetry = dict(snapshot)
+                    publish_progress(progress_telemetry)
+
+                def suppress_progress() -> None:
+                    capture_progress(
+                        {
+                            "schema_version": (
+                                "epiagentbench.provider_progress.v1"
+                            ),
+                            "status": "suppressed_credential_output",
+                        }
+                    )
+
                 try:
                     forbidden_output = (
                         (cursor_api_key.encode("utf-8"),)
@@ -2484,19 +2689,23 @@ def evaluate_local_cli_agent(
                         timeout_seconds=timeout_seconds,
                         umask=0o077,
                         forbidden_exact_bytes=forbidden_output,
+                        progress_callback=capture_progress,
                     )
                     returncode = process.returncode
                     stdout = _bounded(process.stdout)
                     stderr = _bounded(process.stderr)
+                    timed_out = False
                 except subprocess.TimeoutExpired as exc:
                     returncode = 124
                     stdout = _bounded(exc.stdout or b"")
                     stderr = _bounded(exc.stderr or b"")
+                    timed_out = True
                     audit.append("agent_failure:timeout")
                 except ProviderOutputOverflowError as exc:
                     returncode = exc.returncode
                     stdout = exc.stdout
                     stderr = exc.stderr
+                    timed_out = False
                     audit.append("agent_failure:output_overflow")
                 if system == "codex" and returncode < 0:
                     raise CodexAuthenticationIncidentError(
@@ -2548,6 +2757,7 @@ def evaluate_local_cli_agent(
                 )
             )
             if credential_echo:
+                suppress_progress()
                 stdout = _redact_exact_secret_bytes(stdout, cursor_api_key)
                 stderr = _redact_exact_secret_bytes(stderr, cursor_api_key)
                 final_output = _redact_exact_secret_bytes(
@@ -2591,6 +2801,7 @@ def evaluate_local_cli_agent(
                 stderr, cursor_api_key
             )
             if credential_echo:
+                suppress_progress()
                 stdout = evidence_stdout
                 stderr = evidence_stderr
                 final_output = _redact_exact_secret_bytes(
@@ -2659,6 +2870,61 @@ def evaluate_local_cli_agent(
             )
             scorecard = terminal["scorecard"]
             replay_trace = terminal["replay_trace"]
+            metrics = scorecard.get("metrics")
+            permitted_mcp_calls = (
+                metrics.get("tool_calls") if isinstance(metrics, dict) else None
+            )
+            if (
+                type(permitted_mcp_calls) is not int
+                or not 0 <= permitted_mcp_calls <= 50
+            ):
+                raise ProviderStateIsolationError(
+                    "Trusted evaluator progress was invalid"
+                )
+            if progress_telemetry.get("status") != "suppressed_credential_output":
+                if not progress_telemetry:
+                    observed = time.monotonic()
+                    elapsed_bucket = _ProviderProgressTracker._elapsed_bucket(
+                        started, observed
+                    )
+                    output_seen = bool(stdout or stderr)
+                    progress_telemetry = {
+                        "schema_version": "epiagentbench.provider_progress.v1",
+                        "observed_elapsed_bucket": elapsed_bucket,
+                        "output_seen": output_seen,
+                        "first_output_elapsed_bucket": (
+                            elapsed_bucket if output_seen else "none"
+                        ),
+                        "last_output_elapsed_bucket": (
+                            elapsed_bucket if output_seen else "none"
+                        ),
+                        "combined_output_bytes_bucket": (
+                            _ProviderProgressTracker._bytes_bucket(
+                                len(stdout) + len(stderr)
+                            )
+                        ),
+                    }
+                first_output_bucket = progress_telemetry.get(
+                    "first_output_elapsed_bucket"
+                )
+                last_output_bucket = progress_telemetry.get(
+                    "last_output_elapsed_bucket"
+                )
+                if (
+                    first_output_bucket not in _PROGRESS_ELAPSED_BUCKETS
+                    or last_output_bucket not in _PROGRESS_ELAPSED_BUCKETS
+                ):
+                    raise ProviderStateIsolationError(
+                        "Provider progress checkpoint was invalid"
+                    )
+                progress_telemetry = {
+                    **progress_telemetry,
+                    "first_activity_elapsed_bucket": first_output_bucket,
+                    "last_activity_elapsed_bucket": last_output_bucket,
+                    "permitted_mcp_calls": permitted_mcp_calls,
+                    "activity_count_source": "trusted_terminal_scorecard",
+                }
+                publish_progress(progress_telemetry)
             return PilotRunResult(
                 system=system,
                 requested_model=requested_model,
@@ -2691,6 +2957,8 @@ def evaluate_local_cli_agent(
                     ).hexdigest()
                 ),
                 replay_trace=replay_trace,
+                timed_out=timed_out,
+                progress_telemetry=progress_telemetry,
             )
         except (
             CodexAuthenticationIncidentError,

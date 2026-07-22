@@ -14,6 +14,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from examples import run_development_matched_panel as matched_cli
 import epiagentbench.development_matched_panel as matched
 from epiagentbench.development_matched_panel import (
     ASSIGNMENT_COUNT,
@@ -293,7 +294,7 @@ class MatchedPanelTests(unittest.TestCase):
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                timeout_seconds=30,
+                timeout_seconds=1800,
                 claude_max_budget_usd=5.0,
             )
             if authorize:
@@ -362,6 +363,15 @@ class MatchedPanelTests(unittest.TestCase):
             stderr_bytes=0,
             diagnostic="",
             replay_trace=replay_trace,
+            timed_out=False,
+            progress_telemetry={
+                "schema_version": "epiagentbench.provider_progress.v1",
+                "observed_elapsed_bucket": "lt_30s",
+                "output_seen": True,
+                "first_output_elapsed_bucket": "lt_30s",
+                "last_output_elapsed_bucket": "lt_30s",
+                "combined_output_bytes_bucket": "1_4095",
+            },
         )
 
     def _prime_codex_auth(self) -> None:
@@ -439,12 +449,92 @@ class MatchedPanelTests(unittest.TestCase):
                 "dimensions": {
                     name: 0.0 for name in matched.DIMENSION_MAXIMA
                 },
-                "metrics": {},
+                "metrics": {"tool_calls": 2},
                 "violations": ["timeout"],
             },
             audit_events=("agent_failure:timeout",),
             diagnostic="redacted provider timeout",
+            timed_out=True,
+            progress_telemetry={
+                "schema_version": "epiagentbench.provider_progress.v1",
+                "observed_elapsed_bucket": "ge_1800s",
+                "output_seen": True,
+                "first_output_elapsed_bucket": "lt_30s",
+                "last_output_elapsed_bucket": "900_1799s",
+                "combined_output_bytes_bucket": "1_4095",
+            },
         )
+
+    def _assert_harness_startup_failure_terminal_aborts(
+        self,
+        *,
+        audit_events: tuple[str, ...],
+        diagnostic: str,
+        returncode: int,
+    ) -> None:
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-startup-failure.json"
+        invoked_models: list[str] = []
+
+        def evaluate(system: str, **kwargs):
+            model = kwargs["model"]
+            invoked_models.append(model)
+            if system == "claude":
+                self.keychain_present = True
+            return replace(
+                self._result(system, model, kwargs["executable"], 0.0),
+                returncode=returncode,
+                audit_events=audit_events,
+                diagnostic=diagnostic,
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(invoked_models, ["claude-opus-4-8"])
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["failure_reason"], "terminal_abort")
+        self.assertEqual(receipt["failure_stage"], "harness_startup_contract")
+        self.assertEqual(
+            [item["profile_id"] for item in receipt["profiles"]],
+            [profile["profile_id"] for profile in PROFILES],
+        )
+        self.assertEqual(
+            [item["outcome"] for item in receipt["profiles"]],
+            ["terminal_abort"]
+            + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
+        )
+        self.assertEqual(
+            [item["invocation_state"] for item in receipt["profiles"]],
+            ["finished"] + ["not_started"] * (len(PROFILES) - 1),
+        )
+        self.assertEqual(
+            [item["conservative_chargeable"] for item in receipt["profiles"]],
+            [True] + [False] * (len(PROFILES) - 1),
+        )
+        self.assertEqual(receipt["provider_calls_conservatively_chargeable"], 1)
+        self.assertFalse(receipt["scores_reported"])
 
     def _assert_non_codex_timeout_is_fixed_zero(self, system: str) -> None:
         self._prepare()
@@ -493,7 +583,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v7_authorization_breakdown"],
+            contract["claude_current_v8_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -503,7 +593,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v7_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v8_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -513,10 +603,11 @@ class MatchedPanelTests(unittest.TestCase):
                 "v4_usd": 0.0,
                 "v5_usd": 5.0,
                 "v6_usd": 0.0,
+                "v7_usd": 10.0,
             },
         )
         self.assertEqual(
-            contract["claude_cumulative_authorization_ceiling_usd"], 525.0
+            contract["claude_cumulative_authorization_ceiling_usd"], 535.0
         )
         self.assertEqual(
             set(contract["prior_public_audit_references"]),
@@ -527,10 +618,109 @@ class MatchedPanelTests(unittest.TestCase):
                 "v5_supersession",
                 "v6_preflight_receipt",
                 "v6_supersession",
+                "v7_preflight_receipt",
+                "v7_supersession",
             },
         )
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
+
+    def test_v8_preserves_profile_order_with_sol_medium_and_luna_max(self):
+        self.assertEqual(
+            [profile["profile_id"] for profile in PROFILES],
+            [
+                "claude-opus-high",
+                "claude-sonnet-high",
+                "codex-sol",
+                "codex-luna-max",
+                "cursor-grok-high",
+                "cursor-kimi-k27-code",
+            ],
+        )
+        sol = matched._PROFILE_BY_ID["codex-sol"]
+        luna = matched._PROFILE_BY_ID["codex-luna-max"]
+        self.assertEqual(sol["requested_model"], "gpt-5.6-sol")
+        self.assertEqual(sol["requested_reasoning"], "medium")
+        self.assertEqual(luna["requested_model"], "gpt-5.6-luna")
+        self.assertEqual(luna["requested_reasoning"], "max")
+
+    def test_prepare_defaults_to_and_freezes_1800_second_timeout(self):
+        manifest_path = self._cohort()
+        with self._contracts(), patch(
+            "epiagentbench.development_matched_panel.secrets.token_bytes",
+            return_value=b"s" * 32,
+        ):
+            public = prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                claude_max_budget_usd=5.0,
+            )
+
+        self.assertEqual(
+            public["timeout_contract"]["seconds_per_assignment"], 1800
+        )
+        self.assertEqual(matched._load_json(self.public_path), public)
+        self.assertEqual(
+            public["contract_hashes"]["timeouts_sha256"],
+            matched._component_hash(public["timeout_contract"]),
+        )
+
+    def test_prepare_rejects_any_non_1800_second_timeout(self):
+        manifest_path = self._cohort()
+        for timeout in (1, 900, 1799, 1801, 3600):
+            with (
+                self.subTest(timeout=timeout),
+                self._contracts(),
+                self.assertRaisesRegex(ValueError, "exact 1800"),
+            ):
+                prepare_panel(
+                    root=self.root,
+                    cohort_manifest_path=manifest_path,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=self.claude_secure_storage_dir,
+                    codex_secure_storage_dir=self.codex_secure_storage_dir,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    timeout_seconds=timeout,
+                    claude_max_budget_usd=5.0,
+                )
+        self.assertFalse(self.private_path.exists())
+        self.assertFalse(self.public_path.exists())
+
+    def test_prepare_cli_defaults_to_1800_second_timeout(self):
+        arguments = [
+            "run_development_matched_panel.py",
+            "prepare",
+            "--cohort-manifest",
+            "/private/cohort.manifest",
+            "--authentication-key",
+            "/private/authentication.key",
+            "--claude-secure-storage-dir",
+            "/private/claude-auth",
+            "--codex-secure-storage-dir",
+            "/private/codex-auth",
+            "--private-state",
+            "/private/state.json",
+            "--public-manifest",
+            "/public/manifest.json",
+        ]
+        with (
+            patch.object(sys, "argv", arguments),
+            patch.object(
+                matched_cli,
+                "prepare_panel",
+                return_value={"panel_id": "test", "status": "precommitted"},
+            ) as prepare,
+            patch("builtins.print"),
+        ):
+            matched_cli.main()
+
+        self.assertEqual(prepare.call_args.kwargs["timeout_seconds"], 1800)
 
     def test_prepare_rejects_any_non_five_dollar_claude_ceiling(self):
         manifest_path = self._cohort()
@@ -557,7 +747,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v7")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v8")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -581,7 +771,7 @@ class MatchedPanelTests(unittest.TestCase):
             private["spend_authorization"][
                 "claude_cumulative_authorization_ceiling_usd"
             ],
-            525.0,
+            535.0,
         )
         self.assertEqual(
             private["spend_authorization"]["unbounded_provider_spend"],
@@ -2570,12 +2760,12 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v7_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v8_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
-        stale_v5_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v7", "six-call v6"
-        ).replace("$525", "$520")
+        stale_v7_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
+            "six-call v8", "six-call v7"
+        ).replace("$535", "$525")
         with (
             patch(
                 "epiagentbench.development_matched_panel."
@@ -2589,7 +2779,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v7 \\$525"),
+            self.assertRaisesRegex(RuntimeError, "exact v8 \\$535"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -2598,7 +2788,7 @@ class MatchedPanelTests(unittest.TestCase):
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                acknowledgement_text=stale_v5_text,
+                acknowledgement_text=stale_v7_text,
             )
         glean_bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
@@ -2883,7 +3073,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v7"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v8"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -2930,7 +3120,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v7"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v8"),
         ):
             run_panel(
                 root=self.root,
@@ -3027,7 +3217,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         cohort_manifest_path = Path(private_before_run["cohort_manifest_path"])
         retirement_path = matched._cohort_retirement_path(cohort_manifest_path)
-        calls: list[tuple[str, str, str | None]] = []
+        calls: list[tuple[str, str, str | None, str | None]] = []
         auth_kwargs_seen: list[
             tuple[str, bool, Path | None, bool, Path | None]
         ] = []
@@ -3041,7 +3231,14 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertNotIn("replay_trace", json.dumps(running))
             self.assertNotIn("family", json.dumps(running))
             self.assertNotIn("profile_order", json.dumps(running))
-            calls.append((system, kwargs["model"], kwargs["claude_effort"]))
+            calls.append(
+                (
+                    system,
+                    kwargs["model"],
+                    kwargs["claude_effort"],
+                    kwargs["codex_reasoning_effort"],
+                )
+            )
             auth_kwargs_seen.append(
                 (
                     system,
@@ -3178,10 +3375,12 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             )
         cursor_models = {
-            model for system, model, _ in calls if system == "cursor"
+            model for system, model, _, _ in calls if system == "cursor"
         }
         self.assertEqual(cursor_models, {"cursor-grok-4.5-high", "kimi-k2.7-code"})
-        self.assertEqual(sum(system == "cursor" for system, _, _ in calls), 100)
+        self.assertEqual(
+            sum(system == "cursor" for system, _, _, _ in calls), 100
+        )
         self.assertTrue(
             all(
                 (
@@ -3207,9 +3406,17 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertTrue(
             all(
                 effort == "high"
-                for system, _, effort in calls
+                for system, _, effort, _ in calls
                 if system == "claude"
             )
+        )
+        self.assertEqual(
+            {
+                model: reasoning
+                for system, model, _, reasoning in calls
+                if system == "codex"
+            },
+            {"gpt-5.6-sol": "medium", "gpt-5.6-luna": "max"},
         )
         means = {
             key: value["mean_total"]
@@ -3221,7 +3428,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "claude-opus-high": 10.0,
                 "claude-sonnet-high": 10.0,
                 "codex-sol": 20.0,
-                "codex-luna-medium": 20.0,
+                "codex-luna-max": 20.0,
                 "cursor-grok-high": 30.0,
                 "cursor-kimi-k27-code": 40.0,
             },
@@ -3263,11 +3470,11 @@ class MatchedPanelTests(unittest.TestCase):
                 },
                 {
                     "episode_ref": "episode_0001",
-                    "profile_id": "codex-luna-medium",
+                    "profile_id": "codex-luna-max",
                     "status": "complete",
                     "public_result": {
                         "episode_ref": "episode_0001",
-                        "profile_id": "codex-luna-medium",
+                        "profile_id": "codex-luna-max",
                     },
                     "raw_result": second,
                 },
@@ -3438,7 +3645,7 @@ class MatchedPanelTests(unittest.TestCase):
             "claude-opus-high": 10.0,
             "claude-sonnet-high": 15.0,
             "codex-sol": 20.0,
-            "codex-luna-medium": 25.0,
+            "codex-luna-max": 25.0,
             "cursor-grok-high": 30.0,
             "cursor-kimi-k27-code": 40.0,
         }
@@ -4335,7 +4542,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "dimensions": {
                         name: 0.0 for name in matched.DIMENSION_MAXIMA
                     },
-                    "metrics": {},
+                    "metrics": {"tool_calls": 2},
                     "violations": ["invalid_submission"],
                 },
                 audit_events=("agent_failure:invalid_submission",),
@@ -4408,6 +4615,7 @@ class MatchedPanelTests(unittest.TestCase):
         self._prepare()
         preflight_path = self.root / "results" / "preflight.json"
         claude_efforts: list[str | None] = []
+        codex_reasoning_efforts: list[str | None] = []
         auth_kwargs_seen: list[
             tuple[str, bool, Path | None, bool, Path | None]
         ] = []
@@ -4436,6 +4644,10 @@ class MatchedPanelTests(unittest.TestCase):
             if system == "claude":
                 claude_efforts.append(kwargs["claude_effort"])
                 self.keychain_present = True
+            if system == "codex":
+                codex_reasoning_efforts.append(
+                    kwargs["codex_reasoning_effort"]
+                )
             return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), self._contracts(), patch(
@@ -4458,6 +4670,27 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(invoked.call_count, len(PROFILES))
         self.assertEqual(len(set(episode_inputs)), 1)
         self.assertEqual(claude_efforts, ["high", "high"])
+        self.assertEqual(codex_reasoning_efforts, ["medium", "max"])
+        public = matched._load_json(self.public_path)
+        self.assertEqual(
+            receipt["precommitment_sha256"],
+            public["precommitment_sha256"],
+        )
+        self.assertEqual(receipt["contract_hashes"], public["contract_hashes"])
+        self.assertEqual(
+            set(receipt["contract_hashes"]),
+            {
+                "source_sha256",
+                "cli_sha256",
+                "claude_auth_sha256",
+                "codex_auth_sha256",
+                "profiles_sha256",
+                "budgets_sha256",
+                "timeouts_sha256",
+                "runtime_sha256",
+                "replay_sha256",
+            },
+        )
         self.assertTrue(
             all(
                 (
@@ -4490,6 +4723,31 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIsNone(receipt["failed_provider_invocation_state"])
         self.assertEqual(
             receipt["provider_calls_conservatively_chargeable"], 6
+        )
+        self.assertEqual(len(receipt["profiles"]), len(PROFILES))
+        self.assertEqual(
+            [
+                (
+                    item["profile_id"],
+                    item["requested_reasoning"],
+                    item["invocation_state"],
+                    item["outcome"],
+                    item["timed_out"],
+                    item["conservative_chargeable"],
+                )
+                for item in receipt["profiles"]
+            ],
+            [
+                (
+                    profile["profile_id"],
+                    profile["requested_reasoning"],
+                    "finished",
+                    "passed",
+                    False,
+                    True,
+                )
+                for profile in PROFILES
+            ],
         )
         self.assertTrue(all(not item["scored"] for item in receipt["profiles"]))
         self.assertTrue(
@@ -4607,7 +4865,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "dimensions": {
                         name: 0.0 for name in matched.DIMENSION_MAXIMA
                     },
-                    "metrics": {},
+                    "metrics": {"tool_calls": 2},
                     "violations": ["invalid_submission"],
                 },
                 audit_events=("agent_failure:invalid_submission",),
@@ -4645,7 +4903,322 @@ class MatchedPanelTests(unittest.TestCase):
             )
         )
 
-    def test_environment_preflight_gate_validates_full_v7_receipt(self):
+    def test_contained_codex_timeout_quarantines_codex_and_continues_cursor(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-timeout.json"
+        invoked_models: list[str] = []
+
+        def evaluate(system: str, **kwargs):
+            model = kwargs["model"]
+            invoked_models.append(model)
+            if system == "claude":
+                self.keychain_present = True
+            if model == "gpt-5.6-sol":
+                return self._timeout_result(
+                    system, model, kwargs["executable"]
+                )
+            return self._result(system, model, kwargs["executable"], 0.0)
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(
+            invoked.call_count,
+            5,
+            json.dumps(receipt, sort_keys=True),
+        )
+        self.assertEqual(
+            invoked_models,
+            [
+                "claude-opus-4-8",
+                "claude-sonnet-5",
+                "gpt-5.6-sol",
+                "cursor-grok-4.5-high",
+                "kimi-k2.7-code",
+            ],
+        )
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(
+            [item["profile_id"] for item in receipt["profiles"]],
+            [profile["profile_id"] for profile in PROFILES],
+        )
+        outcomes = {
+            item["profile_id"]: item for item in receipt["profiles"]
+        }
+        self.assertEqual(
+            {
+                key: outcomes["codex-sol"][key]
+                for key in (
+                    "invocation_state",
+                    "outcome",
+                    "timed_out",
+                    "conservative_chargeable",
+                    "failure_reason",
+                )
+            },
+            {
+                "invocation_state": "finished",
+                "outcome": "failed_timeout",
+                "timed_out": True,
+                "conservative_chargeable": True,
+                "failure_reason": "timeout",
+            },
+        )
+        self.assertEqual(
+            {
+                key: outcomes["codex-luna-max"][key]
+                for key in (
+                    "invocation_state",
+                    "outcome",
+                    "timed_out",
+                    "conservative_chargeable",
+                )
+            },
+            {
+                "invocation_state": "not_started",
+                "outcome": "skipped_dependency",
+                "timed_out": False,
+                "conservative_chargeable": False,
+            },
+        )
+        self.assertEqual(
+            outcomes["cursor-grok-high"]["outcome"], "passed"
+        )
+        self.assertEqual(
+            outcomes["cursor-kimi-k27-code"]["outcome"], "passed"
+        )
+        self.assertEqual(
+            receipt["provider_calls_conservatively_chargeable"], 5
+        )
+        self.assertFalse(receipt["scores_reported"])
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as production,
+            self.assertRaisesRegex(RuntimeError, "must pass"),
+        ):
+            run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        production.assert_not_called()
+
+    def test_contained_non_codex_failure_continues_all_later_profiles(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-nonzero.json"
+        invoked_models: list[str] = []
+
+        def evaluate(system: str, **kwargs):
+            model = kwargs["model"]
+            invoked_models.append(model)
+            if system == "claude":
+                self.keychain_present = True
+            result = self._result(system, model, kwargs["executable"], 0.0)
+            if model == "claude-opus-4-8":
+                return replace(
+                    result,
+                    returncode=7,
+                    audit_events=("agent_failure:nonzero_exit",),
+                    diagnostic="redacted provider nonzero exit",
+                )
+            return result
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, len(PROFILES))
+        self.assertEqual(
+            invoked_models,
+            [profile["requested_model"] for profile in PROFILES],
+        )
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(
+            [item["outcome"] for item in receipt["profiles"]],
+            [
+                "failed_provider",
+                "passed",
+                "passed",
+                "passed",
+                "passed",
+                "passed",
+            ],
+        )
+        failure = receipt["profiles"][0]
+        self.assertEqual(failure["failure_reason"], "nonzero_exit")
+        self.assertEqual(failure["invocation_state"], "finished")
+        self.assertFalse(failure["timed_out"])
+        self.assertTrue(failure["conservative_chargeable"])
+        self.assertEqual(
+            receipt["provider_calls_conservatively_chargeable"], len(PROFILES)
+        )
+        self.assertEqual(receipt["failed_profile_ids"], ["claude-opus-high"])
+
+    def test_cli_startup_failure_aborts_all_remaining_preflight_profiles(self):
+        self._assert_harness_startup_failure_terminal_aborts(
+            audit_events=("agent_failure:nonzero_exit",),
+            diagnostic="stderr: unknown option --unsupported-harness-flag",
+            returncode=2,
+        )
+
+    def test_auth_failure_aborts_all_remaining_preflight_profiles(self):
+        self._assert_harness_startup_failure_terminal_aborts(
+            audit_events=("agent_failure:nonzero_exit",),
+            diagnostic="stderr: authentication required",
+            returncode=1,
+        )
+
+    def test_mcp_failure_aborts_all_remaining_preflight_profiles(self):
+        self._assert_harness_startup_failure_terminal_aborts(
+            audit_events=("agent_failure:mcp_unavailable",),
+            diagnostic="",
+            returncode=0,
+        )
+
+    def test_structured_output_failure_aborts_remaining_preflight_profiles(self):
+        self._assert_harness_startup_failure_terminal_aborts(
+            audit_events=("agent_failure:structured_output_unavailable",),
+            diagnostic="",
+            returncode=0,
+        )
+
+    def test_preflight_isolation_failure_aborts_all_remaining_profiles(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-isolation.json"
+        invoked_models: list[str] = []
+
+        def evaluate(system: str, **kwargs):
+            model = kwargs["model"]
+            invoked_models.append(model)
+            if system == "claude":
+                self.keychain_present = True
+            if model == "gpt-5.6-sol":
+                raise ProviderStateIsolationError(
+                    "provider-secret-must-not-leak"
+                )
+            return self._result(system, model, kwargs["executable"], 0.0)
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 3)
+        self.assertEqual(
+            invoked_models,
+            ["claude-opus-4-8", "claude-sonnet-5", "gpt-5.6-sol"],
+        )
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(
+            [item["profile_id"] for item in receipt["profiles"]],
+            [profile["profile_id"] for profile in PROFILES],
+        )
+        outcomes = receipt["profiles"]
+        self.assertEqual(
+            [item["outcome"] for item in outcomes],
+            [
+                "passed",
+                "passed",
+                "terminal_abort",
+                "not_started_terminal_abort",
+                "not_started_terminal_abort",
+                "not_started_terminal_abort",
+            ],
+        )
+        self.assertEqual(
+            [item["invocation_state"] for item in outcomes],
+            [
+                "finished",
+                "finished",
+                "started_not_finished",
+                "not_started",
+                "not_started",
+                "not_started",
+            ],
+        )
+        self.assertEqual(
+            [item["conservative_chargeable"] for item in outcomes],
+            [True, True, True, False, False, False],
+        )
+        self.assertEqual(
+            receipt["provider_calls_conservatively_chargeable"], 3
+        )
+        self.assertNotIn(
+            "provider-secret-must-not-leak",
+            json.dumps(receipt, sort_keys=True),
+        )
+
+    def test_environment_preflight_gate_validates_full_v8_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -4720,6 +5293,17 @@ class MatchedPanelTests(unittest.TestCase):
             "unexpected-model"
         ]
         candidates.append(wrong_model_receipt)
+        wrong_precommitment = copy.deepcopy(receipt)
+        wrong_precommitment["precommitment_sha256"] = "sha256:" + "f" * 64
+        candidates.append(wrong_precommitment)
+        missing_budget_binding = copy.deepcopy(receipt)
+        missing_budget_binding["contract_hashes"].pop("budgets_sha256")
+        candidates.append(missing_budget_binding)
+        wrong_timeout_binding = copy.deepcopy(receipt)
+        wrong_timeout_binding["contract_hashes"]["timeouts_sha256"] = (
+            "sha256:" + "e" * 64
+        )
+        candidates.append(wrong_timeout_binding)
 
         for index, candidate in enumerate(candidates):
             matched._atomic_json(preflight_path, candidate)
@@ -5454,7 +6038,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "failed")
         self.assertEqual(receipt["failure_stage"], "provider_launch")
         self.assertEqual(
-            receipt["failed_provider_invocation_state"], "finished"
+            receipt["failed_provider_invocation_state"],
+            "started_not_finished",
         )
         self.assertEqual(
             receipt["provider_calls_conservatively_chargeable"], 1

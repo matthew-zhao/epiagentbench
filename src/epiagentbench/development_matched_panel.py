@@ -77,23 +77,23 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v7"
+PANEL_ID = "development-matched-50x6-v8"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v7"
+SCHEMA_VERSION = "development_matched_panel_v8"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v7 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v8 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
-    "to $525 total Claude spend across the failed v2 preflight, failed v5 "
-    "preflight, failed v6 authentication bootstrap, v7 preflight, and "
-    "production."
+    "to $535 total Claude spend across the failed v2 preflight, failed v5 "
+    "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
+    "v8 preflight, and production."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
-_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 525.0
+_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 535.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
     "cursor": "unbounded",
@@ -131,10 +131,10 @@ PROFILES: tuple[Mapping[str, Any], ...] = (
         "model_receipt_policy": "command_attested",
     },
     {
-        "profile_id": "codex-luna-medium",
+        "profile_id": "codex-luna-max",
         "system": "codex",
         "requested_model": "gpt-5.6-luna",
-        "requested_reasoning": "medium",
+        "requested_reasoning": "max",
         "executable": "codex",
         "model_receipt_policy": "command_attested",
     },
@@ -2810,12 +2810,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
     )
-    prior_ceiling = 15.0
+    prior_ceiling = 25.0
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v7_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v7_authorization_breakdown": {
+        "claude_current_v8_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v8_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -2833,6 +2833,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v4_usd": 0.0,
             "v5_usd": 5.0,
             "v6_usd": 0.0,
+            "v7_usd": 10.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -2856,6 +2857,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v6_preflight_receipt": (
                 "results/development-matched-50x6-v6.preflight.json"
             ),
+            "v7_preflight_receipt": (
+                "results/development-matched-50x6-v7.preflight.json"
+            ),
+            "v7_supersession": (
+                "results/development-matched-50x6-v7.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -2875,7 +2882,7 @@ def prepare_panel(
     codex_secure_storage_dir: Path,
     private_state_path: Path,
     public_manifest_path: Path,
-    timeout_seconds: int = 900,
+    timeout_seconds: int = 1800,
     claude_max_budget_usd: float = 5.0,
 ) -> dict[str, Any]:
     """Bind a fresh authenticated cohort and write its public precommitment."""
@@ -2893,14 +2900,14 @@ def prepare_panel(
     _relative_to_root(public_manifest_path, root)
     if private_state_path.exists() or public_manifest_path.exists():
         raise FileExistsError("Refusing to replace a matched-panel artifact")
-    if type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 3600:
-        raise ValueError("Invalid assignment timeout")
+    if type(timeout_seconds) is not int or timeout_seconds != 1800:
+        raise ValueError("V8 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V7 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V8 requires an exact $5 Claude per-call ceiling")
 
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -2981,6 +2988,10 @@ def prepare_panel(
         ),
         "codex_timeout_policy": (
             "terminal_transport_void_due_to_credential_refresh_ambiguity"
+        ),
+        "preflight_codex_timeout_policy": (
+            "after_clean_quiescence_and_auth_attestation_quarantine_codex_"
+            "namespace_skip_later_codex_and_continue_independent_profiles"
         ),
     }
     runtime = _runtime_contract()
@@ -3109,6 +3120,19 @@ def prepare_panel(
             "environment_preflight_scope": (
                 "unscored_infrastructure_routing_handshake_not_capability_screen"
             ),
+            "environment_preflight_failure_policy": {
+                "ordinary_clean_provider_failure": (
+                    "record_finite_outcome_and_continue_in_frozen_sequence"
+                ),
+                "codex_clean_timeout": (
+                    "durably_quarantine_codex_skip_later_codex_continue_"
+                    "independent_profiles"
+                ),
+                "security_isolation_cleanup_or_contract_failure": (
+                    "terminal_abort_and_no_later_provider_call"
+                ),
+                "production_gate": "all_six_profiles_must_pass",
+            },
             "managed_glean_auth_bootstrap": {
                 "stage": "before_six_profile_calls",
                 "model_calls": 0,
@@ -3221,6 +3245,8 @@ def prepare_panel(
                     "codex_auth_sha256"
                 ],
                 "profiles_sha256": public["contract_hashes"]["profiles_sha256"],
+                "budgets_sha256": public["contract_hashes"]["budgets_sha256"],
+                "timeouts_sha256": public["contract_hashes"]["timeouts_sha256"],
                 "runtime_sha256": public["contract_hashes"]["runtime_sha256"],
                 "replay_sha256": public["contract_hashes"]["replay_sha256"],
             },
@@ -3466,7 +3492,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V7 spend authorization contract mismatch")
+        raise ValueError("V8 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -3494,7 +3520,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v7 spend authorization receipt is required "
+            "A manifest-bound exact v8 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -3516,7 +3542,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v7 $525 cumulative spend acknowledgement text is required"
+            "The exact v8 $535 cumulative spend acknowledgement text is required"
         )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -3611,6 +3637,8 @@ def _assert_environment_preflight(
             "claude_auth_sha256",
             "codex_auth_sha256",
             "profiles_sha256",
+            "budgets_sha256",
+            "timeouts_sha256",
             "runtime_sha256",
             "replay_sha256",
         )
@@ -3646,6 +3674,7 @@ def _assert_environment_preflight(
         or preflight.get("passed_contract_hashes") != expected
         or not passed_bootstrap(preflight.get("managed_glean_auth_bootstrap"))
         or not passed_bootstrap(preflight.get("codex_auth_bootstrap"))
+        or preflight.get("codex_auth_quarantine") != {"status": "clear"}
         or not isinstance(private_attempts, list)
         or len(private_attempts) != len(PROFILES)
         or tuple(
@@ -3705,11 +3734,34 @@ def _assert_environment_preflight(
             and item.get("system") == expected_profile["system"]
             and item.get("requested_model")
             == expected_profile["requested_model"]
+            and item.get("requested_reasoning")
+            == expected_profile["requested_reasoning"]
+            and item.get("invocation_state") == "finished"
+            and item.get("outcome") == "passed"
+            and item.get("timed_out") is False
+            and item.get("conservative_chargeable") is True
+            and item.get("failure_reason") is None
             and item.get("cli_version")
             == expected_cli_versions[str(expected_profile["executable"])]
             and item.get("scored") is False
             and item.get("replay_trace_validated") is True
             and item.get("infrastructure_handshake_passed") is True
+            and isinstance(item.get("progress_telemetry"), dict)
+            and set(item["progress_telemetry"])
+            == {
+                "schema_version",
+                "observed_elapsed_bucket",
+                "output_seen",
+                "first_output_elapsed_bucket",
+                "last_output_elapsed_bucket",
+                "combined_output_bytes_bucket",
+                "first_activity_elapsed_bucket",
+                "last_activity_elapsed_bucket",
+                "permitted_mcp_calls",
+                "activity_count_source",
+            }
+            and _safe_live_provider_progress(item["progress_telemetry"])
+            == item["progress_telemetry"]
             and (
                 expected_profile["system"] != "codex"
                 or (
@@ -3746,13 +3798,20 @@ def _assert_environment_preflight(
         or receipt.get("scores_reported") is not False
         or receipt.get("managed_glean_auth_bootstrap") != "passed"
         or receipt.get("codex_auth_bootstrap") != "passed"
+        or receipt.get("codex_auth_quarantine") != "clear"
         or receipt.get("preflight_purpose")
         != "unscored_infrastructure_routing_handshake"
         or receipt.get("failed_provider_invocation_state") is not None
+        or receipt.get("failed_profile_ids") != []
+        or receipt.get("failure_reason") is not None
+        or receipt.get("timed_out") is not False
         or receipt.get("provider_calls_conservatively_chargeable")
         != len(PROFILES)
         or not exact_profile_receipts
+        or receipt.get("profiles_passed") != profile_receipts
         or receipt.get("contract_hashes") != expected
+        or receipt.get("precommitment_sha256")
+        != public.get("precommitment_sha256")
         or preflight.get("public_receipt_sha256") != _component_hash(receipt)
     ):
         raise RuntimeError("The committed environment preflight receipt is invalid")
@@ -3781,6 +3840,232 @@ def _conservatively_chargeable_provider_calls(
         _durable_provider_invocation_state(attempt) != "not_started"
         for attempt in attempts
     )
+
+
+_PROGRESS_ELAPSED_BUCKETS = frozenset(
+    {
+        "none",
+        "lt_30s",
+        "30_119s",
+        "120_299s",
+        "300_899s",
+        "900_1799s",
+        "ge_1800s",
+    }
+)
+_PROGRESS_BYTE_BUCKETS = frozenset(
+    {"0", "1_4095", "4096_65535", "65536_1048575", "ge_1048576"}
+)
+
+
+def _elapsed_progress_bucket(seconds: float) -> str:
+    if seconds < 30:
+        return "lt_30s"
+    if seconds < 120:
+        return "30_119s"
+    if seconds < 300:
+        return "120_299s"
+    if seconds < 900:
+        return "300_899s"
+    if seconds < 1800:
+        return "900_1799s"
+    return "ge_1800s"
+
+
+def _output_progress_bucket(value: int) -> str:
+    if value == 0:
+        return "0"
+    if value < 4 * 1024:
+        return "1_4095"
+    if value < 64 * 1024:
+        return "4096_65535"
+    if value < 1024 * 1024:
+        return "65536_1048575"
+    return "ge_1048576"
+
+
+def _safe_provider_progress(result: PilotRunResult) -> dict[str, Any]:
+    """Return only finite, content-free provider progress telemetry."""
+
+    metrics = result.scorecard.get("metrics")
+    permitted_mcp_calls = (
+        metrics.get("tool_calls") if isinstance(metrics, Mapping) else None
+    )
+    if (
+        type(permitted_mcp_calls) is not int
+        or not 0 <= permitted_mcp_calls <= 50
+    ):
+        raise RuntimeError("Trusted provider progress count is invalid")
+    raw = result.progress_telemetry
+    base_keys = {
+        "schema_version",
+        "observed_elapsed_bucket",
+        "output_seen",
+        "first_output_elapsed_bucket",
+        "last_output_elapsed_bucket",
+        "combined_output_bytes_bucket",
+    }
+    terminal_keys = base_keys | {
+        "first_activity_elapsed_bucket",
+        "last_activity_elapsed_bucket",
+        "permitted_mcp_calls",
+        "activity_count_source",
+    }
+    if not raw:
+        elapsed = _elapsed_progress_bucket(max(0.0, result.elapsed_seconds))
+        output_seen = result.stdout_bytes + result.stderr_bytes > 0
+        raw = {
+            "schema_version": "epiagentbench.provider_progress.v1",
+            "observed_elapsed_bucket": elapsed,
+            "output_seen": output_seen,
+            "first_output_elapsed_bucket": elapsed if output_seen else "none",
+            "last_output_elapsed_bucket": elapsed if output_seen else "none",
+            "combined_output_bytes_bucket": _output_progress_bucket(
+                result.stdout_bytes + result.stderr_bytes
+            ),
+        }
+    if not isinstance(raw, Mapping) or (
+        set(raw) != base_keys and set(raw) != terminal_keys
+    ):
+        raise RuntimeError("Provider progress telemetry has an invalid schema")
+    progress = dict(raw)
+    if progress.get("schema_version") != "epiagentbench.provider_progress.v1":
+        raise RuntimeError("Provider progress telemetry has an invalid schema")
+    if type(progress.get("output_seen")) is not bool:
+        raise RuntimeError("Provider progress telemetry has an invalid value")
+    if any(
+        progress.get(name) not in _PROGRESS_ELAPSED_BUCKETS
+        for name in (
+            "observed_elapsed_bucket",
+            "first_output_elapsed_bucket",
+            "last_output_elapsed_bucket",
+        )
+    ) or progress.get("combined_output_bytes_bucket") not in _PROGRESS_BYTE_BUCKETS:
+        raise RuntimeError("Provider progress telemetry has an invalid value")
+    if progress["output_seen"] is False and (
+        progress["first_output_elapsed_bucket"] != "none"
+        or progress["last_output_elapsed_bucket"] != "none"
+    ):
+        raise RuntimeError("Provider progress telemetry is inconsistent")
+    if set(progress) == terminal_keys:
+        if (
+            progress.get("first_activity_elapsed_bucket")
+            not in _PROGRESS_ELAPSED_BUCKETS
+            or progress.get("last_activity_elapsed_bucket")
+            not in _PROGRESS_ELAPSED_BUCKETS
+            or progress.get("permitted_mcp_calls") != permitted_mcp_calls
+            or progress.get("activity_count_source")
+            != "trusted_terminal_scorecard"
+        ):
+            raise RuntimeError("Provider progress telemetry is inconsistent")
+        return progress
+    return {
+        **progress,
+        "first_activity_elapsed_bucket": progress[
+            "first_output_elapsed_bucket"
+        ],
+        "last_activity_elapsed_bucket": progress["last_output_elapsed_bucket"],
+        "permitted_mcp_calls": permitted_mcp_calls,
+        "activity_count_source": "trusted_terminal_scorecard",
+    }
+
+
+def _safe_live_provider_progress(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one coarse in-flight progress checkpoint."""
+
+    if not isinstance(value, Mapping):
+        raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
+    snapshot = dict(value)
+    if snapshot == {
+        "schema_version": "epiagentbench.provider_progress.v1",
+        "status": "suppressed_credential_output",
+    }:
+        return snapshot
+    base_keys = {
+        "schema_version",
+        "observed_elapsed_bucket",
+        "output_seen",
+        "first_output_elapsed_bucket",
+        "last_output_elapsed_bucket",
+        "combined_output_bytes_bucket",
+    }
+    terminal_keys = base_keys | {
+        "first_activity_elapsed_bucket",
+        "last_activity_elapsed_bucket",
+        "permitted_mcp_calls",
+        "activity_count_source",
+    }
+    if set(snapshot) not in (base_keys, terminal_keys):
+        raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
+    if (
+        snapshot.get("schema_version")
+        != "epiagentbench.provider_progress.v1"
+        or type(snapshot.get("output_seen")) is not bool
+        or snapshot.get("observed_elapsed_bucket")
+        not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("first_output_elapsed_bucket")
+        not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("last_output_elapsed_bucket")
+        not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("combined_output_bytes_bucket")
+        not in _PROGRESS_BYTE_BUCKETS
+    ):
+        raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
+    if set(snapshot) == terminal_keys and (
+        snapshot.get("first_activity_elapsed_bucket")
+        not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("last_activity_elapsed_bucket")
+        not in _PROGRESS_ELAPSED_BUCKETS
+        or type(snapshot.get("permitted_mcp_calls")) is not int
+        or not 0 <= snapshot["permitted_mcp_calls"] <= 50
+        or snapshot.get("activity_count_source")
+        != "trusted_terminal_scorecard"
+    ):
+        raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
+    return snapshot
+
+
+def _result_timed_out(result: PilotRunResult) -> bool:
+    return bool(
+        result.timed_out
+        or (
+            result.returncode == 124
+            and "agent_failure:timeout" in result.audit_events
+        )
+    )
+
+
+def _preflight_profile_outcome(
+    profile: Mapping[str, Any],
+    *,
+    invocation_state: str,
+    outcome: str,
+    timed_out: bool,
+) -> dict[str, Any]:
+    if invocation_state not in {"not_started", "started_not_finished", "finished"}:
+        raise RuntimeError("Invalid preflight invocation state")
+    if outcome not in {
+        "passed",
+        "failed_timeout",
+        "failed_provider",
+        "skipped_dependency",
+        "terminal_abort",
+        "not_started_terminal_abort",
+    }:
+        raise RuntimeError("Invalid preflight profile outcome")
+    if type(timed_out) is not bool:
+        raise RuntimeError("Invalid preflight timeout outcome")
+    chargeable = invocation_state != "not_started"
+    return {
+        "profile_id": profile["profile_id"],
+        "system": profile["system"],
+        "requested_model": profile["requested_model"],
+        "requested_reasoning": profile["requested_reasoning"],
+        "invocation_state": invocation_state,
+        "outcome": outcome,
+        "timed_out": timed_out,
+        "conservative_chargeable": chargeable,
+    }
 
 
 def run_environment_preflight(
@@ -3919,6 +4204,8 @@ def run_environment_preflight(
                 "claude_auth_sha256",
                 "codex_auth_sha256",
                 "profiles_sha256",
+                "budgets_sha256",
+                "timeouts_sha256",
                 "runtime_sha256",
                 "replay_sha256",
             )
@@ -3940,6 +4227,7 @@ def run_environment_preflight(
             "required_contract_hashes": contract_hashes,
             "managed_glean_auth_bootstrap": {"status": "not_started"},
             "codex_auth_bootstrap": {"status": "not_started"},
+            "codex_auth_quarantine": {"status": "clear"},
         }
         _write_private_state(private_state_path, private, authentication_key)
 
@@ -4149,6 +4437,29 @@ def run_environment_preflight(
                 "status": "failed",
                 "finished_at_utc": _utc_now(),
             }
+            terminal_profiles: list[dict[str, Any]] = []
+            for profile in PROFILES:
+                attempts.append(
+                    {
+                        "profile_id": profile["profile_id"],
+                        "status": "not_started_terminal_abort",
+                        "finished_at_utc": _utc_now(),
+                    }
+                )
+                outcome = _preflight_profile_outcome(
+                    profile,
+                    invocation_state="not_started",
+                    outcome="not_started_terminal_abort",
+                    timed_out=False,
+                )
+                outcome.update(
+                    {
+                        "failure_reason": "authentication_bootstrap_failure",
+                        "scored": False,
+                        "infrastructure_handshake_passed": False,
+                    }
+                )
+                terminal_profiles.append(outcome)
             _write_private_state(
                 private_state_path, private, authentication_key
             )
@@ -4159,20 +4470,25 @@ def run_environment_preflight(
                 "development_only": True,
                 "production_episodes_consumed": 0,
                 "contract_hashes": contract_hashes,
+                "precommitment_sha256": public["precommitment_sha256"],
                 "managed_glean_auth_bootstrap": private[
                     "environment_preflight"
                 ]["managed_glean_auth_bootstrap"]["status"],
                 "codex_auth_bootstrap": private[
                     "environment_preflight"
                 ]["codex_auth_bootstrap"]["status"],
+                "codex_auth_quarantine": "clear",
                 "preflight_purpose": (
                     "unscored_infrastructure_routing_handshake"
                 ),
+                "profiles": terminal_profiles,
                 "profiles_passed": [],
+                "failed_profile_ids": list(_PROFILE_IDS),
                 "failed_provider_invocation_state": None,
                 "provider_calls_conservatively_chargeable": 0,
-                "failure_class": type(error).__name__,
+                "failure_reason": "authentication_bootstrap_failure",
                 "failure_stage": failure_stage,
+                "timed_out": False,
                 "scores_reported": False,
             }
             _atomic_json(public_preflight_path, failed)
@@ -4192,6 +4508,37 @@ def run_environment_preflight(
         ).digest()
         for profile in PROFILES:
             profile_id = str(profile["profile_id"])
+            quarantine = private["environment_preflight"][
+                "codex_auth_quarantine"
+            ]
+            if (
+                profile["system"] == "codex"
+                and quarantine.get("status") == "quarantined"
+            ):
+                marker = {
+                    "profile_id": profile_id,
+                    "status": "skipped_dependency",
+                    "finished_at_utc": _utc_now(),
+                }
+                attempts.append(marker)
+                skipped = _preflight_profile_outcome(
+                    profile,
+                    invocation_state="not_started",
+                    outcome="skipped_dependency",
+                    timed_out=False,
+                )
+                skipped.update(
+                    {
+                        "failure_reason": "codex_auth_quarantined_after_timeout",
+                        "scored": False,
+                        "infrastructure_handshake_passed": False,
+                    }
+                )
+                public_attempts.append(skipped)
+                _write_private_state(
+                    private_state_path, private, authentication_key
+                )
+                continue
             marker: dict[str, Any] = {
                 "profile_id": profile_id,
                 "status": "started",
@@ -4200,6 +4547,7 @@ def run_environment_preflight(
             attempts.append(marker)
             _write_private_state(private_state_path, private, authentication_key)
             failure_stage = "provider_launch"
+            result: PilotRunResult | None = None
             try:
                 managed_glean_state_before: str | None = None
                 codex_credentials_state_before: str | None = None
@@ -4257,31 +4605,44 @@ def run_environment_preflight(
                 _write_private_state(
                     private_state_path, private, authentication_key
                 )
-                try:
-                    result = evaluate_local_cli_agent(
-                        str(profile["system"]),
-                        seed=int.from_bytes(shared_digest[:6], "big"),
-                        family="reporting_artifact",
-                        backend=BACKEND,
-                        episode_secret=shared_digest,
-                        model=str(profile["requested_model"]),
-                        executable=str(profile["executable"]),
-                        timeout_seconds=timeout,
-                        claude_max_budget_usd=budget,
-                        claude_effort=(
-                            "high" if profile["system"] == "claude" else None
-                        ),
-                        **provider_auth_kwargs,
+
+                def persist_progress(snapshot: Mapping[str, Any]) -> None:
+                    marker["progress_telemetry"] = (
+                        _safe_live_provider_progress(snapshot)
                     )
-                finally:
-                    marker["provider_invocation"] = {
-                        **marker["provider_invocation"],
-                        "status": "finished",
-                        "finished_at_utc": _utc_now(),
-                    }
                     _write_private_state(
                         private_state_path, private, authentication_key
                     )
+
+                result = evaluate_local_cli_agent(
+                    str(profile["system"]),
+                    seed=int.from_bytes(shared_digest[:6], "big"),
+                    family="reporting_artifact",
+                    backend=BACKEND,
+                    episode_secret=shared_digest,
+                    model=str(profile["requested_model"]),
+                    executable=str(profile["executable"]),
+                    timeout_seconds=timeout,
+                    claude_max_budget_usd=budget,
+                    claude_effort=(
+                        "high" if profile["system"] == "claude" else None
+                    ),
+                    codex_reasoning_effort=(
+                        str(profile["requested_reasoning"])
+                        if profile["system"] == "codex"
+                        else None
+                    ),
+                    progress_callback=persist_progress,
+                    **provider_auth_kwargs,
+                )
+                marker["provider_invocation"] = {
+                    **marker["provider_invocation"],
+                    "status": "finished",
+                    "finished_at_utc": _utc_now(),
+                }
+                _write_private_state(
+                    private_state_path, private, authentication_key
+                )
                 failure_stage = "execution_contract_after_harness"
                 _attest_execution_contracts(root=root, public=public)
                 if profile["system"] == "claude":
@@ -4304,9 +4665,20 @@ def run_environment_preflight(
                         resolved_codex_secure_storage_dir,
                         codex_auth_file_identity,
                     )
-                failure_stage = "provider_contract"
-                _raise_on_harness_startup_failure(result)
-                receipt_required = profile["model_receipt_policy"] == "provider_match_required"
+                failure_stage = "result_contract"
+                if (
+                    result.system != profile["system"]
+                    or result.requested_model != profile["requested_model"]
+                    or result.cli_version
+                    != cli_versions[str(profile["executable"])]
+                ):
+                    raise RuntimeError(
+                        "Disposable provider result contract drifted"
+                    )
+                receipt_required = (
+                    profile["model_receipt_policy"]
+                    == "provider_match_required"
+                )
                 receipt_ok = _exact_model_receipt_satisfied(
                     profile, result.observed_models
                 )
@@ -4317,41 +4689,70 @@ def run_environment_preflight(
                     raise RuntimeError(
                         "Disposable provider preflight replay contract failed"
                     ) from error
-                failure_stage = (
-                    "model_receipt"
-                    if receipt_required and not receipt_ok
-                    else "provider_contract"
-                )
-                if (
-                    result.system != profile["system"]
-                    or result.requested_model != profile["requested_model"]
-                    or result.cli_version != cli_versions[str(profile["executable"])]
-                    or result.returncode != 0
-                    or (receipt_required and not receipt_ok)
-                ):
-                    raise RuntimeError("Disposable provider preflight contract failed")
+                failure_stage = "progress_validation"
+                progress = _safe_provider_progress(result)
+                timed_out = _result_timed_out(result)
+                ordinary_failure_reason: str | None = None
+                failure_stage = "harness_startup_contract"
+                _raise_on_harness_startup_failure(result)
+                failure_stage = "provider_contract"
+                if timed_out:
+                    ordinary_failure_reason = "timeout"
+                elif result.returncode != 0 and ordinary_failure_reason is None:
+                    ordinary_failure_reason = "nonzero_exit"
+                elif receipt_required and not receipt_ok:
+                    ordinary_failure_reason = "model_receipt_failure"
                 raw_hash = _component_hash(asdict(result))
+                if timed_out and profile["system"] == "codex":
+                    private["environment_preflight"][
+                        "codex_auth_quarantine"
+                    ] = {
+                        "status": "quarantined",
+                        "reason": "cleanly_quiesced_timeout",
+                        "profile_id": profile_id,
+                        "quarantined_at_utc": _utc_now(),
+                    }
+                    _write_private_state(
+                        private_state_path, private, authentication_key
+                    )
+                passed = ordinary_failure_reason is None
                 marker.update(
                     {
-                        "status": "passed",
+                        "status": "passed" if passed else "failed",
                         "finished_at_utc": _utc_now(),
                         "raw_result_sha256": raw_hash,
+                        "timed_out": timed_out,
+                        "failure_reason": ordinary_failure_reason,
+                        "progress_telemetry": progress,
                     }
                 )
-                public_attempt: dict[str, Any] = {
-                    "profile_id": profile_id,
-                    "system": profile["system"],
-                    "requested_model": profile["requested_model"],
-                    "observed_models": list(result.observed_models),
-                    "cli_version": result.cli_version,
-                    "model_receipt_satisfied": (
-                        receipt_ok if receipt_required else None
+                public_attempt = _preflight_profile_outcome(
+                    profile,
+                    invocation_state="finished",
+                    outcome=(
+                        "passed"
+                        if passed
+                        else "failed_timeout"
+                        if timed_out
+                        else "failed_provider"
                     ),
-                    "raw_result_sha256": raw_hash,
-                    "replay_trace_validated": True,
-                    "scored": False,
-                    "infrastructure_handshake_passed": True,
-                }
+                    timed_out=timed_out,
+                )
+                public_attempt.update(
+                    {
+                        "observed_models": list(result.observed_models),
+                        "cli_version": result.cli_version,
+                        "model_receipt_satisfied": (
+                            receipt_ok if receipt_required else None
+                        ),
+                        "raw_result_sha256": raw_hash,
+                        "replay_trace_validated": True,
+                        "progress_telemetry": progress,
+                        "failure_reason": ordinary_failure_reason,
+                        "scored": False,
+                        "infrastructure_handshake_passed": passed,
+                    }
+                )
                 if profile["system"] == "claude":
                     public_attempt["managed_glean_credentials_state_before"] = (
                         managed_glean_state_before
@@ -4374,14 +4775,59 @@ def run_environment_preflight(
                 public_attempts.append(public_attempt)
                 _write_private_state(private_state_path, private, authentication_key)
             except Exception as error:
+                if isinstance(
+                    error,
+                    (CodexAuthenticationIncidentError, ProviderStateIsolationError),
+                ):
+                    marker.pop("progress_telemetry", None)
                 marker.update(
                     {
-                        "status": "failed",
+                        "status": "terminal_abort",
                         "finished_at_utc": _utc_now(),
                         "failure_class": type(error).__name__,
                         "failure_stage": failure_stage,
                     }
                 )
+                invocation_state = _durable_provider_invocation_state(marker)
+                timed_out = bool(
+                    result is not None and _result_timed_out(result)
+                )
+                terminal_outcome = _preflight_profile_outcome(
+                    profile,
+                    invocation_state=invocation_state,
+                    outcome="terminal_abort",
+                    timed_out=timed_out,
+                )
+                terminal_outcome.update(
+                    {
+                        "failure_reason": "terminal_abort",
+                        "failure_stage": failure_stage,
+                        "scored": False,
+                        "infrastructure_handshake_passed": False,
+                    }
+                )
+                public_attempts.append(terminal_outcome)
+                for remaining in PROFILES[len(public_attempts) :]:
+                    remaining_marker = {
+                        "profile_id": remaining["profile_id"],
+                        "status": "not_started_terminal_abort",
+                        "finished_at_utc": _utc_now(),
+                    }
+                    attempts.append(remaining_marker)
+                    unstarted = _preflight_profile_outcome(
+                        remaining,
+                        invocation_state="not_started",
+                        outcome="not_started_terminal_abort",
+                        timed_out=False,
+                    )
+                    unstarted.update(
+                        {
+                            "failure_reason": "terminal_abort",
+                            "scored": False,
+                            "infrastructure_handshake_passed": False,
+                        }
+                    )
+                    public_attempts.append(unstarted)
                 failed = {
                     "schema_version": SCHEMA_VERSION,
                     "panel_id": PANEL_ID,
@@ -4389,21 +4835,31 @@ def run_environment_preflight(
                     "development_only": True,
                     "production_episodes_consumed": 0,
                     "contract_hashes": contract_hashes,
+                    "precommitment_sha256": public["precommitment_sha256"],
                     "managed_glean_auth_bootstrap": "passed",
                     "codex_auth_bootstrap": "passed",
+                    "codex_auth_quarantine": private[
+                        "environment_preflight"
+                    ]["codex_auth_quarantine"]["status"],
                     "preflight_purpose": (
                         "unscored_infrastructure_routing_handshake"
                     ),
-                    "profiles_passed": public_attempts,
+                    "profiles": public_attempts,
+                    "profiles_passed": [
+                        item
+                        for item in public_attempts
+                        if item["outcome"] == "passed"
+                    ],
                     "failed_profile_id": profile_id,
                     "failed_provider_invocation_state": (
-                        _durable_provider_invocation_state(marker)
+                        invocation_state
                     ),
                     "provider_calls_conservatively_chargeable": (
                         _conservatively_chargeable_provider_calls(attempts)
                     ),
-                    "failure_class": type(error).__name__,
+                    "failure_reason": "terminal_abort",
                     "failure_stage": failure_stage,
+                    "timed_out": timed_out,
                     "scores_reported": False,
                 }
                 private["environment_preflight"] = {
@@ -4421,33 +4877,57 @@ def run_environment_preflight(
                 _write_private_state(private_state_path, private, authentication_key)
                 return failed
 
+        profile_failures = [
+            item for item in public_attempts if item["outcome"] != "passed"
+        ]
         receipt = {
             "schema_version": SCHEMA_VERSION,
             "panel_id": PANEL_ID,
-            "status": "passed",
+            "status": "failed" if profile_failures else "passed",
             "development_only": True,
             "production_episodes_consumed": 0,
             "contract_hashes": contract_hashes,
+            "precommitment_sha256": public["precommitment_sha256"],
             "managed_glean_auth_bootstrap": "passed",
             "codex_auth_bootstrap": "passed",
+            "codex_auth_quarantine": private["environment_preflight"][
+                "codex_auth_quarantine"
+            ]["status"],
             "preflight_purpose": "unscored_infrastructure_routing_handshake",
             "profiles": public_attempts,
-            "failed_provider_invocation_state": None,
+            "profiles_passed": [
+                item for item in public_attempts if item["outcome"] == "passed"
+            ],
+            "failed_profile_ids": [
+                item["profile_id"] for item in profile_failures
+            ],
+            "failed_provider_invocation_state": (
+                profile_failures[0]["invocation_state"]
+                if profile_failures
+                else None
+            ),
             "provider_calls_conservatively_chargeable": (
                 _conservatively_chargeable_provider_calls(attempts)
             ),
+            "failure_reason": (
+                "one_or_more_profile_failures" if profile_failures else None
+            ),
+            "timed_out": any(item["timed_out"] for item in profile_failures),
             "scores_reported": False,
             "completed_at_utc": _utc_now(),
         }
         _atomic_json(public_preflight_path, receipt)
         private["environment_preflight"] = {
             **private["environment_preflight"],
-            "status": "passed",
+            "status": receipt["status"],
             "finished_at_utc": receipt["completed_at_utc"],
-            "passed_contract_hashes": contract_hashes,
             "public_receipt_path": str(public_preflight_path.resolve()),
             "public_receipt_sha256": _component_hash(receipt),
         }
+        if not profile_failures:
+            private["environment_preflight"][
+                "passed_contract_hashes"
+            ] = contract_hashes
         _write_private_state(private_state_path, private, authentication_key)
         return receipt
 
@@ -4636,6 +5116,8 @@ def _sanitize_result(
     sanitized["profile_id"] = profile["profile_id"]
     sanitized["pack_commitment"] = episode["pack_commitment"]
     sanitized["requested_reasoning"] = profile["requested_reasoning"]
+    sanitized["timed_out"] = _result_timed_out(result)
+    sanitized["progress_telemetry"] = _safe_provider_progress(result)
     sanitized["evidence_hashes"] = {
         "captured_stdout_sha256": result.captured_stdout_sha256,
         "captured_stderr_sha256": result.captured_stderr_sha256,
@@ -5254,6 +5736,14 @@ def _run_panel_locked(
         _atomic_json(public_results_path, _public_running(public_manifest, private))
         codex_auth_ambiguous = False
         try:
+            def persist_progress(snapshot: Mapping[str, Any]) -> None:
+                marker["progress_telemetry"] = _safe_live_provider_progress(
+                    snapshot
+                )
+                _write_private_state(
+                    private_state_path, private, authentication_key
+                )
+
             provider_auth_kwargs = (
                 {
                     "claude_secure_storage_dir": (
@@ -5284,6 +5774,12 @@ def _run_panel_locked(
                 claude_effort=(
                     "high" if profile["system"] == "claude" else None
                 ),
+                codex_reasoning_effort=(
+                    str(profile["requested_reasoning"])
+                    if profile["system"] == "codex"
+                    else None
+                ),
+                progress_callback=persist_progress,
                 **provider_auth_kwargs,
             )
             _attest_execution_contracts(root=root, public=public_manifest)
@@ -5316,10 +5812,7 @@ def _run_panel_locked(
                     codex_auth_ambiguous = True
                     raise
             marker["raw_result"] = asdict(result)
-            fixed_denominator_timeout = (
-                result.returncode == 124
-                and "agent_failure:timeout" in result.audit_events
-            )
+            fixed_denominator_timeout = _result_timed_out(result)
             if profile["system"] == "codex" and fixed_denominator_timeout:
                 codex_auth_ambiguous = True
                 raise RuntimeError(
@@ -5350,6 +5843,11 @@ def _run_panel_locked(
                 finished_at=finished,
             )
         except Exception as error:
+            if isinstance(
+                error,
+                (CodexAuthenticationIncidentError, ProviderStateIsolationError),
+            ):
+                marker.pop("progress_telemetry", None)
             if isinstance(error, ProviderExecutionIsolationError):
                 private["execution_incident"] = {
                     "status": "terminal",
