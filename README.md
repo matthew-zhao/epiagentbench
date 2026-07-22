@@ -284,10 +284,11 @@ reports no scores, and records zero production episodes; no assignment in the
 [superseded](results/development-matched-50x6-v7.superseded.json) as a failed,
 non-retryable historical preflight rather than reset or resumed.
 
-The v8 replacement uses a fresh cohort, authentication key, private schedule,
-managed-Glean credential namespace, and Codex credential namespace. Its six
-profiles preserve the v7 order while making the requested Codex reasoning
-settings explicit:
+The [v8 public precommitment](results/development-matched-50x6-v8.manifest.json)
+uses a fresh cohort, authentication key, private schedule, managed-Glean
+credential namespace, and Codex credential namespace. Its six profiles
+preserve the v7 order while making the requested Codex reasoning settings
+explicit:
 
 - Claude + Opus 4.8 (high)
 - Claude + Sonnet 5 (high)
