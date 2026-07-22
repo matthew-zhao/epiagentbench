@@ -231,11 +231,11 @@ preserved for audit. The authenticated private audit confirms zero preflight
 provider calls, zero production assignments, and unchanged `prepared` /
 preflight-`required` state.
 
-The future v5 replacement will use a fresh cohort, authentication key, and
-private schedule rather than modifying or replaying v4. It will also pin the
-safe gateway wrapper entrypoint identity. The planned comparison retains 50
-newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and the same
-six full agent+model profiles on every episode:
+The [v5 replacement](results/development-matched-50x6-v5.manifest.json) uses a
+fresh cohort, authentication key, and private schedule rather than modifying or
+replaying v4. It also pins the safe gateway wrapper entrypoint identity. The
+comparison contains 50 newly frozen `starsim-ltc-v3` episodes—10 from each
+causal family—and the same six full agent+model profiles on every episode:
 
 - Codex + GPT-5.6 Sol (medium)
 - Codex + GPT-5.6 Luna (medium)
@@ -290,8 +290,8 @@ started five disposable preflight calls and zero production assignments before
 being retired; no v2 scores exist. V3 started no provider call and consumed no
 production episode. V4 also used a separate authentication key, cohort,
 schedule nonce, secrets, and packs, but its local preflight gate retired it
-before any provider call. V5 will start from fresh versions of those private
-artifacts and commit a panel-specific credential-only Claude secure-storage
+before any provider call. V5 starts from fresh versions of those private
+artifacts and commits a panel-specific credential-only Claude secure-storage
 namespace while keeping every conversation/config root disposable. The runner
 checks only Keychain metadata—never credential values:
 the namespace must be absent at prepare, created by the first successful Claude
