@@ -27,7 +27,7 @@ import statistics
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlsplit
 
 from .development_pilot import (
@@ -48,7 +48,6 @@ from .pilot import (
     ProviderProcessIsolationError,
     ProviderStateIsolationError,
     _ProviderTemporaryDirectory,
-    _attest_codex_auth_home_link,
     _attest_codex_auth_storage,
     _attest_claude_secure_storage_keychain,
     _attest_managed_glean_home_link,
@@ -78,19 +77,20 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v6"
+PANEL_ID = "development-matched-50x6-v7"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v6"
+SCHEMA_VERSION = "development_matched_panel_v7"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v6 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v7 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $525 total Claude spend across the failed v2 preflight, failed v5 "
-    "preflight, v6 preflight, and production."
+    "preflight, failed v6 authentication bootstrap, v7 preflight, and "
+    "production."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
 _CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 525.0
@@ -1134,59 +1134,301 @@ def _require_codex_auth_file_identity(
         raise RuntimeError("Codex credential file identity changed")
 
 
-def _attest_pending_codex_auth_link(link: Path, target: Path) -> None:
-    """Attest the bootstrap link before its credential target exists."""
+_CODEX_BOOTSTRAP_AUTH_BYTES_MAX = 1024 * 1024
+_CODEX_BOOTSTRAP_DIRECTORY_FIELDS = (
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_uid",
+)
+_CODEX_BOOTSTRAP_FILE_FIELDS = (
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_uid",
+    "st_nlink",
+    "st_size",
+    "st_mtime_ns",
+    "st_ctime_ns",
+)
+_CODEX_BOOTSTRAP_PROMOTED_FILE_FIELDS = (
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_uid",
+    "st_size",
+    "st_mtime_ns",
+)
+
+
+def _open_codex_bootstrap_directory(path: Path) -> int:
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+        metadata = os.fstat(descriptor)
+    except OSError:
+        raise ProviderStateIsolationError(
+            "Codex authentication bootstrap directory is unsafe"
+        ) from None
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        os.close(descriptor)
+        raise ProviderStateIsolationError(
+            "Codex authentication bootstrap directory is unsafe"
+        )
+    return descriptor
+
+
+def _same_codex_bootstrap_metadata(
+    left: os.stat_result,
+    right: os.stat_result,
+    fields: Sequence[str],
+) -> bool:
+    return all(getattr(left, name) == getattr(right, name) for name in fields)
+
+
+def _require_empty_codex_bootstrap_home(path: Path) -> None:
+    descriptor = _open_codex_bootstrap_directory(path)
+    try:
+        before = os.fstat(descriptor)
+        names = os.listdir(descriptor)
+        after = os.fstat(descriptor)
+    except OSError:
+        raise ProviderStateIsolationError(
+            "Codex authentication bootstrap directory changed"
+        ) from None
+    finally:
+        os.close(descriptor)
+    if names or not _same_codex_bootstrap_metadata(
+        before, after, _CODEX_BOOTSTRAP_DIRECTORY_FIELDS
+    ):
+        raise ProviderStateIsolationError(
+            "Codex authentication bootstrap directory changed"
+        )
+
+
+def _require_empty_codex_auth_target(
+    path: Path, expected_identity: Mapping[str, int]
+) -> None:
+    try:
+        identity = _codex_secure_storage_identity(path)
+        populated = _attest_codex_auth_storage(path, allow_empty=True)
+    except RuntimeError:
+        raise ProviderStateIsolationError(
+            "Codex authentication target state is unsafe"
+        ) from None
+    if identity != dict(expected_identity) or populated:
+        raise ProviderStateIsolationError(
+            "Codex authentication target changed"
+        )
+
+
+def _remove_promoted_codex_auth_if_owned(
+    target_directory_descriptor: int,
+    source_metadata: os.stat_result,
+) -> bool:
+    """Best-effort rollback without ever removing an unrelated target."""
 
     try:
-        parent_metadata = link.parent.lstat()
-        names = {entry.name for entry in os.scandir(link.parent)}
-        link_metadata = link.lstat()
-        link_text = os.readlink(link)
-        final_names = {entry.name for entry in os.scandir(link.parent)}
-        final_link_metadata = link.lstat()
-        final_parent_metadata = link.parent.lstat()
+        target_metadata = os.stat(
+            "auth.json",
+            dir_fd=target_directory_descriptor,
+            follow_symlinks=False,
+        )
     except OSError:
-        raise RuntimeError("Codex authentication bootstrap isolation failed") from None
-    stable_parent_fields = (
-        "st_dev",
-        "st_ino",
-        "st_mode",
-        "st_uid",
-        "st_mtime_ns",
-        "st_ctime_ns",
-    )
-    stable_link_fields = (
-        "st_dev",
-        "st_ino",
-        "st_mode",
-        "st_uid",
-        "st_size",
-        "st_mtime_ns",
-        "st_ctime_ns",
-    )
+        return False
     if (
-        not stat.S_ISDIR(parent_metadata.st_mode)
-        or stat.S_ISLNK(parent_metadata.st_mode)
-        or parent_metadata.st_uid != os.getuid()
-        or stat.S_IMODE(parent_metadata.st_mode) != 0o700
-        or names != {"auth.json"}
-        or final_names != names
-        or not stat.S_ISLNK(link_metadata.st_mode)
-        or link_text != str(target)
-        or target.exists()
-        or target.is_symlink()
-        or any(
-            getattr(final_parent_metadata, field)
-            != getattr(parent_metadata, field)
-            for field in stable_parent_fields
-        )
-        or any(
-            getattr(final_link_metadata, field)
-            != getattr(link_metadata, field)
-            for field in stable_link_fields
-        )
+        target_metadata.st_dev != source_metadata.st_dev
+        or target_metadata.st_ino != source_metadata.st_ino
     ):
-        raise RuntimeError("Codex authentication bootstrap isolation failed")
+        return False
+    try:
+        os.unlink("auth.json", dir_fd=target_directory_descriptor)
+        os.fsync(target_directory_descriptor)
+    except OSError:
+        return False
+    return True
+
+
+def _promote_staged_codex_auth(
+    source_directory: Path,
+    target_directory: Path,
+    *,
+    expected_target_identity: Mapping[str, int],
+) -> None:
+    """Publish opaque Codex auth with a same-filesystem no-clobber move."""
+
+    source_directory_descriptor = _open_codex_bootstrap_directory(
+        source_directory
+    )
+    target_directory_descriptor = _open_codex_bootstrap_directory(
+        target_directory
+    )
+    source_descriptor: int | None = None
+    source_metadata: os.stat_result | None = None
+    linked = False
+    try:
+        target_directory_metadata = os.fstat(target_directory_descriptor)
+        if (
+            target_directory_metadata.st_dev
+            != expected_target_identity.get("device")
+            or target_directory_metadata.st_ino
+            != expected_target_identity.get("inode")
+            or os.listdir(target_directory_descriptor)
+        ):
+            raise ProviderStateIsolationError(
+                "Codex authentication target changed before promotion"
+            )
+        source_directory_metadata = os.fstat(source_directory_descriptor)
+        if source_directory_metadata.st_dev != target_directory_metadata.st_dev:
+            raise ProviderStateIsolationError(
+                "Codex authentication staging filesystem changed"
+            )
+
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
+        try:
+            source_descriptor = os.open(
+                "auth.json",
+                flags,
+                dir_fd=source_directory_descriptor,
+            )
+        except FileNotFoundError:
+            raise RuntimeError("Codex authentication bootstrap failed") from None
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Codex authentication staged credential is unsafe"
+            ) from None
+        source_metadata = os.fstat(source_descriptor)
+        if (
+            not stat.S_ISREG(source_metadata.st_mode)
+            or source_metadata.st_uid != os.getuid()
+            or stat.S_IMODE(source_metadata.st_mode) != 0o600
+            or source_metadata.st_nlink != 1
+            or not 1
+            <= source_metadata.st_size
+            <= _CODEX_BOOTSTRAP_AUTH_BYTES_MAX
+            or source_metadata.st_dev != target_directory_metadata.st_dev
+        ):
+            raise ProviderStateIsolationError(
+                "Codex authentication staged credential is unsafe"
+            )
+        try:
+            path_metadata = os.stat(
+                "auth.json",
+                dir_fd=source_directory_descriptor,
+                follow_symlinks=False,
+            )
+            os.fsync(source_descriptor)
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Codex authentication staged credential changed"
+            ) from None
+        if not _same_codex_bootstrap_metadata(
+            source_metadata, path_metadata, _CODEX_BOOTSTRAP_FILE_FIELDS
+        ):
+            raise ProviderStateIsolationError(
+                "Codex authentication staged credential changed"
+            )
+
+        try:
+            os.link(
+                "auth.json",
+                "auth.json",
+                src_dir_fd=source_directory_descriptor,
+                dst_dir_fd=target_directory_descriptor,
+                follow_symlinks=False,
+            )
+            linked = True
+            os.fsync(target_directory_descriptor)
+            target_metadata = os.stat(
+                "auth.json",
+                dir_fd=target_directory_descriptor,
+                follow_symlinks=False,
+            )
+            source_after_link = os.fstat(source_descriptor)
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Codex authentication credential promotion failed"
+            ) from None
+        if (
+            target_metadata.st_dev != source_metadata.st_dev
+            or target_metadata.st_ino != source_metadata.st_ino
+            or target_metadata.st_nlink != 2
+            or source_after_link.st_nlink != 2
+        ):
+            raise ProviderStateIsolationError(
+                "Codex authentication credential promotion changed"
+            )
+
+        try:
+            os.unlink("auth.json", dir_fd=source_directory_descriptor)
+            os.fsync(source_directory_descriptor)
+            os.fsync(target_directory_descriptor)
+            final_target_metadata = os.stat(
+                "auth.json",
+                dir_fd=target_directory_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Codex authentication credential promotion failed"
+            ) from None
+        try:
+            os.stat(
+                "auth.json",
+                dir_fd=source_directory_descriptor,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            pass
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Codex authentication staging state is unavailable"
+            ) from None
+        else:
+            raise ProviderStateIsolationError(
+                "Codex authentication staging entry remained after promotion"
+            )
+        if (
+            final_target_metadata.st_dev != source_metadata.st_dev
+            or final_target_metadata.st_ino != source_metadata.st_ino
+            or final_target_metadata.st_nlink != 1
+            or not _same_codex_bootstrap_metadata(
+                source_metadata,
+                final_target_metadata,
+                _CODEX_BOOTSTRAP_PROMOTED_FILE_FIELDS,
+            )
+        ):
+            raise ProviderStateIsolationError(
+                "Codex authentication credential promotion changed"
+            )
+        linked = False
+    except BaseException as error:
+        rollback_failed = False
+        if linked and source_metadata is not None:
+            rollback_failed = not _remove_promoted_codex_auth_if_owned(
+                target_directory_descriptor,
+                source_metadata,
+            )
+        if rollback_failed:
+            raise ProviderStateIsolationError(
+                "Codex authentication credential promotion rollback failed"
+            ) from error
+        raise
+    finally:
+        if source_descriptor is not None:
+            os.close(source_descriptor)
+        os.close(target_directory_descriptor)
+        os.close(source_directory_descriptor)
 
 
 def _run_no_capture_process_group(
@@ -1198,6 +1440,10 @@ def _run_no_capture_process_group(
     stdout_target: int | None,
     stderr_target: int | None,
     umask: int,
+    invocation_launch_pending: Callable[[], None] | None = None,
+    invocation_started: Callable[[], None] | None = None,
+    invocation_start_failed: Callable[[], None] | None = None,
+    invocation_returned: Callable[[int], None] | None = None,
 ) -> subprocess.CompletedProcess[None]:
     """Run an authentication helper without capturing credential-bearing output."""
 
@@ -1214,6 +1460,8 @@ def _run_no_capture_process_group(
     process: subprocess.Popen[bytes] | None = None
     group_quiesced = False
     try:
+        if invocation_launch_pending is not None:
+            invocation_launch_pending()
         try:
             process = subprocess.Popen(
                 list(command),
@@ -1225,10 +1473,19 @@ def _run_no_capture_process_group(
                 start_new_session=True,
                 umask=umask,
             )
-        except (OSError, ValueError):
+        except (OSError, ValueError) as start_error:
+            if invocation_start_failed is not None:
+                try:
+                    invocation_start_failed()
+                except Exception:
+                    raise ProviderStateIsolationError(
+                        "Authentication process start-failure marker could not be persisted"
+                    ) from start_error
             raise ProviderProcessIsolationError(
                 "Authentication process could not be started in an isolated group"
             ) from None
+        if invocation_started is not None:
+            invocation_started()
         try:
             returncode = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
@@ -1244,6 +1501,8 @@ def _run_no_capture_process_group(
 
         _quiesce_provider_process_group(process, force=False)
         group_quiesced = True
+        if invocation_returned is not None:
+            invocation_returned(returncode)
         return subprocess.CompletedProcess(list(command), returncode)
     finally:
         active_error = sys.exception()
@@ -1264,23 +1523,65 @@ def _run_no_capture_process_group(
                     ) from None
         except ProviderProcessIsolationError as error:
             cleanup_error = error
-        if (
-            cleanup_error is not None
-            and not isinstance(active_error, ProviderExecutionIsolationError)
-        ):
+        if cleanup_error is not None:
+            if active_error is not None:
+                raise cleanup_error from active_error
             raise cleanup_error from None
 
 
 def _bootstrap_codex_credentials(
-    path: Path, *, executable: str, timeout_seconds: int
+    path: Path,
+    *,
+    executable: str,
+    timeout_seconds: int,
+    invocation_launch_pending: Callable[[], None] | None = None,
+    invocation_started: Callable[[], None] | None = None,
+    invocation_start_failed: Callable[[], None] | None = None,
+    invocation_returned: Callable[[int], None] | None = None,
 ) -> None:
     """Obtain independent file-backed Codex OAuth credentials without a model call."""
 
     resolved_executable = shutil.which(executable)
     if resolved_executable is None:
         raise RuntimeError("Codex authentication bootstrap executable is unavailable")
-    with _ProviderTemporaryDirectory() as temporary:
+    try:
+        resolved_path = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise ProviderStateIsolationError(
+            "Codex authentication target is unavailable"
+        ) from None
+    if resolved_path != path:
+        raise ProviderStateIsolationError(
+            "Codex authentication target is unsafe"
+        )
+    try:
+        target_identity = _codex_secure_storage_identity(path)
+    except RuntimeError:
+        raise ProviderStateIsolationError(
+            "Codex authentication target state is unsafe"
+        ) from None
+    _require_empty_codex_auth_target(path, target_identity)
+    with _ProviderTemporaryDirectory(directory=path.parent) as temporary:
         root = Path(temporary).resolve()
+        try:
+            root_metadata = root.lstat()
+            parent_metadata = path.parent.lstat()
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Codex authentication staging directory is unavailable"
+            ) from None
+        if (
+            root.parent != path.parent
+            or root_metadata.st_dev != target_identity["device"]
+            or root_metadata.st_dev != parent_metadata.st_dev
+            or not stat.S_ISDIR(root_metadata.st_mode)
+            or stat.S_ISLNK(root_metadata.st_mode)
+            or root_metadata.st_uid != os.getuid()
+            or stat.S_IMODE(root_metadata.st_mode) != 0o700
+        ):
+            raise ProviderStateIsolationError(
+                "Codex authentication staging directory is unsafe"
+            )
         environment = os.environ.copy()
         _retain_path_and_locale(environment)
         isolated = _install_disposable_storage_roots(
@@ -1290,14 +1591,12 @@ def _bootstrap_codex_credentials(
         try:
             codex_home.mkdir(mode=0o700)
             codex_home.chmod(0o700)
-            auth_target = path / "auth.json"
-            auth_link = codex_home / "auth.json"
-            auth_link.symlink_to(auth_target)
         except OSError:
-            raise RuntimeError(
+            raise ProviderStateIsolationError(
                 "Codex authentication bootstrap isolation failed"
             ) from None
-        _attest_pending_codex_auth_link(auth_link, auth_target)
+        _require_empty_codex_bootstrap_home(codex_home)
+        _require_empty_codex_auth_target(path, target_identity)
         environment["CODEX_HOME"] = str(codex_home)
         try:
             process = _run_no_capture_process_group(
@@ -1313,6 +1612,10 @@ def _bootstrap_codex_credentials(
                 stdout_target=subprocess.DEVNULL,
                 stderr_target=subprocess.DEVNULL,
                 umask=0o077,
+                invocation_launch_pending=invocation_launch_pending,
+                invocation_started=invocation_started,
+                invocation_start_failed=invocation_start_failed,
+                invocation_returned=invocation_returned,
             )
         except ProviderExecutionIsolationError:
             raise
@@ -1320,7 +1623,12 @@ def _bootstrap_codex_credentials(
             raise RuntimeError("Codex authentication bootstrap failed") from None
         if process.returncode != 0:
             raise RuntimeError("Codex authentication bootstrap failed")
-        _attest_codex_auth_home_link(auth_link, auth_target)
+        _require_empty_codex_auth_target(path, target_identity)
+        _promote_staged_codex_auth(
+            codex_home,
+            path,
+            expected_target_identity=target_identity,
+        )
         _attest_codex_auth_storage(path)
 
 
@@ -1458,7 +1766,14 @@ def _require_claude_credential_state(
 
 
 def _bootstrap_managed_glean_credentials(
-    path: Path, *, oauth_client_id: str, timeout_seconds: int
+    path: Path,
+    *,
+    oauth_client_id: str,
+    timeout_seconds: int,
+    invocation_launch_pending: Callable[[], None] | None = None,
+    invocation_started: Callable[[], None] | None = None,
+    invocation_start_failed: Callable[[], None] | None = None,
+    invocation_returned: Callable[[int], None] | None = None,
 ) -> None:
     """Run the pinned helper without capturing its token-bearing stdout."""
 
@@ -1480,6 +1795,10 @@ def _bootstrap_managed_glean_credentials(
                 stdout_target=subprocess.DEVNULL,
                 stderr_target=None,
                 umask=0o077,
+                invocation_launch_pending=invocation_launch_pending,
+                invocation_started=invocation_started,
+                invocation_start_failed=invocation_start_failed,
+                invocation_returned=invocation_returned,
             )
         except ProviderExecutionIsolationError:
             raise
@@ -2495,8 +2814,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v6_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v6_authorization_breakdown": {
+        "claude_current_v7_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v7_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -2513,6 +2832,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v3_usd": 0.0,
             "v4_usd": 0.0,
             "v5_usd": 5.0,
+            "v6_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -2529,6 +2849,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             ),
             "v5_preflight_receipt": (
                 "results/development-matched-50x6-v5.preflight.json"
+            ),
+            "v6_supersession": (
+                "results/development-matched-50x6-v6.superseded.json"
+            ),
+            "v6_preflight_receipt": (
+                "results/development-matched-50x6-v6.preflight.json"
             ),
         },
         "ceiling_interpretation": (
@@ -2574,7 +2900,7 @@ def prepare_panel(
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V6 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V7 requires an exact $5 Claude per-call ceiling")
 
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -3140,7 +3466,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V6 spend authorization contract mismatch")
+        raise ValueError("V7 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -3168,7 +3494,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v6 spend authorization receipt is required "
+            "A manifest-bound exact v7 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -3190,7 +3516,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v6 $525 cumulative spend acknowledgement text is required"
+            "The exact v7 $525 cumulative spend acknowledgement text is required"
         )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -3292,12 +3618,34 @@ def _assert_environment_preflight(
     private_attempts = (
         preflight.get("attempts") if isinstance(preflight, dict) else None
     )
+    expected_bootstrap_fields = {
+        "status",
+        "launch_pending_at_utc",
+        "started_at_utc",
+        "returned_at_utc",
+        "returncode",
+        "finished_at_utc",
+    }
+
+    def passed_bootstrap(value: Any) -> bool:
+        return (
+            isinstance(value, dict)
+            and set(value) == expected_bootstrap_fields
+            and value.get("status") == "passed"
+            and value.get("returncode") == 0
+            and all(
+                isinstance(value.get(name), str) and bool(value[name])
+                for name in expected_bootstrap_fields
+                - {"status", "returncode"}
+            )
+        )
+
     if (
         not isinstance(preflight, dict)
         or preflight.get("status") != "passed"
         or preflight.get("passed_contract_hashes") != expected
-        or preflight.get("managed_glean_auth_bootstrap") != {"status": "passed"}
-        or preflight.get("codex_auth_bootstrap") != {"status": "passed"}
+        or not passed_bootstrap(preflight.get("managed_glean_auth_bootstrap"))
+        or not passed_bootstrap(preflight.get("codex_auth_bootstrap"))
         or not isinstance(private_attempts, list)
         or len(private_attempts) != len(PROFILES)
         or tuple(
@@ -3590,13 +3938,85 @@ def run_environment_preflight(
             "started_at_utc": _utc_now(),
             "attempts": attempts,
             "required_contract_hashes": contract_hashes,
-            "managed_glean_auth_bootstrap": {"status": "started"},
-            "codex_auth_bootstrap": {"status": "started"},
+            "managed_glean_auth_bootstrap": {"status": "not_started"},
+            "codex_auth_bootstrap": {"status": "not_started"},
         }
         _write_private_state(private_state_path, private, authentication_key)
 
+        def persist_bootstrap_marker(
+            name: str,
+            *,
+            expected_status: str,
+            replacement: Mapping[str, Any],
+        ) -> None:
+            state = private["environment_preflight"][name]
+            if state.get("status") != expected_status:
+                raise ProviderStateIsolationError(
+                    "Authentication bootstrap invocation marker changed"
+                )
+            private["environment_preflight"][name] = dict(replacement)
+            try:
+                _write_private_state(
+                    private_state_path, private, authentication_key
+                )
+            except Exception:
+                private["environment_preflight"][name] = state
+                raise
+
+        def mark_bootstrap_launch_pending(name: str) -> None:
+            persist_bootstrap_marker(
+                name,
+                expected_status="not_started",
+                replacement={
+                    "status": "launch_pending",
+                    "launch_pending_at_utc": _utc_now(),
+                },
+            )
+
+        def mark_bootstrap_started(name: str) -> None:
+            state = private["environment_preflight"][name]
+            persist_bootstrap_marker(
+                name,
+                expected_status="launch_pending",
+                replacement={
+                    **state,
+                    "status": "started",
+                    "started_at_utc": _utc_now(),
+                },
+            )
+
+        def mark_bootstrap_start_failed(name: str) -> None:
+            state = private["environment_preflight"][name]
+            persist_bootstrap_marker(
+                name,
+                expected_status="launch_pending",
+                replacement={
+                    **state,
+                    "status": "start_failed",
+                    "start_failed_at_utc": _utc_now(),
+                },
+            )
+
+        def mark_bootstrap_returned(name: str, returncode: int) -> None:
+            state = private["environment_preflight"][name]
+            if type(returncode) is not int:
+                raise ProviderStateIsolationError(
+                    "Authentication bootstrap invocation marker changed"
+                )
+            persist_bootstrap_marker(
+                name,
+                expected_status="started",
+                replacement={
+                    **state,
+                    "status": "returned",
+                    "returned_at_utc": _utc_now(),
+                    "returncode": returncode,
+                },
+            )
+
         public_attempts: list[dict[str, Any]] = []
-        bootstrap_stage = "codex_auth_bootstrap"
+        failure_stage = "codex_auth_bootstrap"
+        active_bootstrap: str | None = None
         try:
             _attest_execution_contracts(root=root, public=public)
             _require_codex_credential_state(
@@ -3605,11 +4025,30 @@ def run_environment_preflight(
                 expected_identity=codex_secure_storage_identity,
                 credentials_present=False,
             )
+            active_bootstrap = "codex_auth_bootstrap"
             _bootstrap_codex_credentials(
                 resolved_codex_secure_storage_dir,
                 executable=str(_PROFILE_BY_ID["codex-sol"]["executable"]),
                 timeout_seconds=timeout,
+                invocation_launch_pending=lambda: mark_bootstrap_launch_pending(
+                    "codex_auth_bootstrap"
+                ),
+                invocation_started=lambda: mark_bootstrap_started(
+                    "codex_auth_bootstrap"
+                ),
+                invocation_start_failed=lambda: mark_bootstrap_start_failed(
+                    "codex_auth_bootstrap"
+                ),
+                invocation_returned=lambda returncode: mark_bootstrap_returned(
+                    "codex_auth_bootstrap", returncode
+                ),
             )
+            if private["environment_preflight"][active_bootstrap].get(
+                "status"
+            ) != "returned":
+                raise ProviderStateIsolationError(
+                    "Codex authentication bootstrap return was not recorded"
+                )
             _require_codex_credential_state(
                 resolved_codex_secure_storage_dir,
                 root=root,
@@ -3621,14 +4060,18 @@ def run_environment_preflight(
             )
             private["codex_auth_file_identity"] = codex_auth_file_identity
             private["environment_preflight"]["codex_auth_bootstrap"] = {
-                "status": "passed"
+                **private["environment_preflight"]["codex_auth_bootstrap"],
+                "status": "passed",
+                "finished_at_utc": _utc_now(),
             }
             _write_private_state(
                 private_state_path, private, authentication_key
             )
+            active_bootstrap = None
+            failure_stage = "post_codex_auth_contract_attestation"
             _attest_execution_contracts(root=root, public=public)
 
-            bootstrap_stage = "managed_glean_auth_bootstrap"
+            failure_stage = "managed_glean_auth_bootstrap"
             _attest_execution_contracts(root=root, public=public)
             _require_claude_credential_state(
                 resolved_claude_secure_storage_dir,
@@ -3636,11 +4079,30 @@ def run_environment_preflight(
                 expected_identity=claude_secure_storage_identity,
                 managed_glean_credentials_present=False,
             )
+            active_bootstrap = "managed_glean_auth_bootstrap"
             _bootstrap_managed_glean_credentials(
                 resolved_claude_secure_storage_dir,
                 oauth_client_id=claude_glean_oauth_client_id,
                 timeout_seconds=timeout,
+                invocation_launch_pending=lambda: mark_bootstrap_launch_pending(
+                    "managed_glean_auth_bootstrap"
+                ),
+                invocation_started=lambda: mark_bootstrap_started(
+                    "managed_glean_auth_bootstrap"
+                ),
+                invocation_start_failed=lambda: mark_bootstrap_start_failed(
+                    "managed_glean_auth_bootstrap"
+                ),
+                invocation_returned=lambda returncode: mark_bootstrap_returned(
+                    "managed_glean_auth_bootstrap", returncode
+                ),
             )
+            if private["environment_preflight"][active_bootstrap].get(
+                "status"
+            ) != "returned":
+                raise ProviderStateIsolationError(
+                    "Managed Glean authentication bootstrap return was not recorded"
+                )
             _require_claude_credential_state(
                 resolved_claude_secure_storage_dir,
                 root=root,
@@ -3660,11 +4122,36 @@ def run_environment_preflight(
             _attest_execution_contracts(root=root, public=public)
             private["environment_preflight"][
                 "managed_glean_auth_bootstrap"
-            ] = {"status": "passed"}
+            ] = {
+                **private["environment_preflight"][
+                    "managed_glean_auth_bootstrap"
+                ],
+                "status": "passed",
+                "finished_at_utc": _utc_now(),
+            }
             _write_private_state(
                 private_state_path, private, authentication_key
             )
+            active_bootstrap = None
         except Exception as error:
+            if active_bootstrap is not None:
+                bootstrap_state = private["environment_preflight"][
+                    active_bootstrap
+                ]
+                if bootstrap_state.get("status") in {"started", "returned"}:
+                    private["environment_preflight"][active_bootstrap] = {
+                        **bootstrap_state,
+                        "status": "failed",
+                        "finished_at_utc": _utc_now(),
+                    }
+            private["environment_preflight"] = {
+                **private["environment_preflight"],
+                "status": "failed",
+                "finished_at_utc": _utc_now(),
+            }
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
             failed = {
                 "schema_version": SCHEMA_VERSION,
                 "panel_id": PANEL_ID,
@@ -3685,18 +4172,9 @@ def run_environment_preflight(
                 "failed_provider_invocation_state": None,
                 "provider_calls_conservatively_chargeable": 0,
                 "failure_class": type(error).__name__,
-                "failure_stage": bootstrap_stage,
+                "failure_stage": failure_stage,
                 "scores_reported": False,
             }
-            private["environment_preflight"] = {
-                **private["environment_preflight"],
-                "status": "failed",
-                "finished_at_utc": _utc_now(),
-            }
-            private["environment_preflight"][bootstrap_stage] = {
-                "status": "failed"
-            }
-            failed[bootstrap_stage] = "failed"
             _atomic_json(public_preflight_path, failed)
             private["environment_preflight"]["public_receipt_path"] = str(
                 public_preflight_path.resolve()

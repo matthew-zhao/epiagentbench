@@ -243,11 +243,29 @@ reported, and no production assignment started. V5 is preserved and
 [superseded](results/development-matched-50x6-v5.superseded.json), not reset or
 retried.
 
-The v6 replacement uses another fresh cohort, authentication key, private
-schedule, managed-Glean credential namespace, and independent Codex credential
-namespace. Its comparison contains 50
-newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and the same
-six full agent+model profiles on every episode:
+The [v6 replacement](results/development-matched-50x6-v6.manifest.json) used
+another fresh cohort, authentication key, private schedule, managed-Glean
+credential namespace, and independent Codex credential namespace. Its one-shot
+[preflight](results/development-matched-50x6-v6.preflight.json) failed during
+the no-model Codex authentication bootstrap, before any model profile or
+production assignment. Codex 0.144.3 clears `$CODEX_HOME/auth.json` before
+browser OAuth. That removed v6's precreated evaluator symlink, so even a
+successful login could write only inside its disposable home; the committed
+external credential target remained empty. The retained receipt cannot
+distinguish an upstream OAuth error from post-login attestation, because both
+streams and the disposable login log were intentionally destroyed.
+The bootstrap therefore could not establish the required external credential
+postcondition. V6 is preserved and
+[superseded](results/development-matched-50x6-v6.superseded.json), not reset or
+retried. Its authenticated state and public receipt record zero model-bearing
+calls, zero chargeable calls, and zero production assignments. The receipt says
+the Glean bootstrap was `started` because both labels were eagerly initialized;
+control flow proves Glean was never invoked, and v7 records each bootstrap state
+only when that helper is actually launched.
+
+The v7 replacement uses another fresh set of those private artifacts. Its
+comparison contains 50 newly frozen `starsim-ltc-v3` episodes—10 from each
+causal family—and the same six full agent+model profiles on every episode:
 
 - Codex + GPT-5.6 Sol (medium)
 - Codex + GPT-5.6 Luna (medium)
@@ -266,7 +284,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed v6 assignment will record an evaluator-owned, aggregate-only trace:
+Each completed v7 assignment will record an evaluator-owned, aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
 trace excludes people, contact edges, target and evidence identifiers, model
@@ -287,12 +305,12 @@ A Codex timeout is the one timeout exception: killing it during an in-place
 credential refresh could leave authentication ambiguous, so the assignment is
 a terminal transport void and the panel cannot complete.
 
-Before production, v6 first runs two no-model authentication bootstraps. The
+Before production, v7 first runs two no-model authentication bootstraps. The
 managed-Glean bootstrap discards token-bearing stdout. The Codex bootstrap runs
 the pinned CLI's browser OAuth flow with file-only credential storage in a new
 panel namespace; it may open a separate sign-in page, and both output streams
 are discarded. The active host Codex login is neither copied nor linked. Only
-after both bootstraps pass does v6 run a disposable six-call, unscored
+after both bootstraps pass does v7 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -307,32 +325,33 @@ pairwise comparisons together.
 
 This remains development evidence—not held-out epidemiological calibration, a
 base-model leaderboard, or a real-world superiority claim. The expected serial
-runtime is roughly 19–21 hours. Claude has a $5 per-call runner ceiling. The v6
+runtime is roughly 19–21 hours. Claude has a $5 per-call runner ceiling. The v7
 authorization ceiling is $510: two Claude preflight calls plus 100 production
 calls. Prior failed panels contribute a conservative $15 ceiling: two v2 Claude
 preflight calls ($10) and the one ambiguous v5 attempt ($5); v3 and v4 started
-no provider call. The cumulative Claude authorization ceiling is therefore
+no provider call, and v6 failed before any model-bearing call. The cumulative
+Claude authorization ceiling is therefore
 $525, not a claim about measured billing. Codex and Cursor remain uncapped. V2
 started five total provider preflight calls and zero production assignments;
 v3 and v4 started none; v5 has the single conservatively chargeable Claude
-attempt and zero production assignments.
+attempt; and v6 has zero model calls. None started a production assignment.
 
-A generic command-line acknowledgement is not sufficient to unlock v6. After
+A generic command-line acknowledgement is not sufficient to unlock v7. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v6 preflight and 300-assignment
+> I acknowledge the replacement six-call v7 preflight and 300-assignment
 > production run, including unbounded Codex/Cursor provider spend and up to
 > $525 total Claude spend across the failed v2 preflight, failed v5 preflight,
-> v6 preflight, and production.
+> failed v6 authentication bootstrap, v7 preflight, and production.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, v6 panel identifier, final public
+private receipt bound to the exact text, v7 panel identifier, final public
 precommitment, budget-contract hash, cumulative $525 Claude ceiling, and
 unbounded Codex/Cursor spend. A missing receipt, a receipt copied from another
 manifest, or any altered field fails before either authentication bootstrap or
@@ -341,7 +360,7 @@ probes are part of manifest preparation and contract validation, not authorized
 benchmark calls. The preflight and production commands still require
 `--acknowledge-unbounded-provider-spend` as an immediate execution guard.
 
-The v6 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The v7 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -354,18 +373,24 @@ private keyed commitment binds the canonical directory and filesystem identity
 without publishing its path.
 
 Codex uses a separate empty-at-prepare, current-user `0700` directory whose only
-persistent entry may be one owner-only `auth.json`. Each invocation gets a fresh
-ordinary home, configuration, cache, session, and temporary tree; only an
-evaluator-owned `auth.json` link reaches the stable credential file, with
-`cli_auth_credentials_store="file"` forced inline. The pinned Codex 0.144.3
-credential writer refreshes this file in place, so refreshes survive across the
-serial preflight and production calls without sharing the desktop login. The
-evaluator checks the directory, file inode, and link before and after calls but
-never reads, parses, hashes, or publishes credential contents. After a durable
-assignment start, a Codex timeout or credential/link drift makes the panel
-non-resumable because a killed in-place refresh could leave authentication
-ambiguous. A cleanly returned, non-timeout Codex error is an ordinary transport
-void and does not by itself poison the credential namespace.
+persistent entry may be one owner-only `auth.json`. Browser OAuth runs in a
+same-filesystem disposable staging home with no precreated auth link, because
+the pinned Codex 0.144.3 login command deliberately clears that path before
+authentication. After a clean login return, the evaluator checks the staged
+file's type, owner, mode, link count, size, and stable identity, then promotes
+the opaque file without clobbering into the still-empty committed directory and
+removes all staging logs and state. It never reads, parses, hashes, copies, or
+logs the credential contents. Each later model invocation gets a fresh ordinary
+home, configuration, cache, session, and temporary tree; only then does an
+evaluator-owned `auth.json` link reach the stable credential file, with
+`cli_auth_credentials_store="file"` forced inline. Codex refreshes this file in
+place, so refreshes survive across the serial preflight and production calls
+without sharing the desktop login. The evaluator checks the directory, file
+inode, and link before and after calls. After a durable assignment start, a
+Codex timeout or credential/link drift makes the panel non-resumable because a
+killed in-place refresh could leave authentication ambiguous. A cleanly
+returned, non-timeout Codex error is an ordinary transport void and does not by
+itself poison the credential namespace.
 
 Every model-bearing provider command, plus Cursor's MCP readiness command, runs
 in a new POSIX session with bounded output capture. Before the evaluator moves
@@ -384,7 +409,7 @@ an invalid zero in that profile's fixed denominator. An ordinary cleanly
 quiesced transport void only stops the current command; a later command may
 resume with the next assignment.
 
-V6 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V7 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. The installed
 helper behavior is supported by a manual source audit plus binary hash/version;
@@ -396,7 +421,7 @@ invalid model submission remain scored zeros so an agent cannot erase a hard
 episode by hanging. Output capture is bounded, but this macOS development
 runner has no aggregate provider RSS, filesystem-byte/file-count, process-count,
 or OS-job ceiling. macOS process groups do not contain a descendant that
-deliberately creates a new session and closes its inherited pipes; v6 detects
+deliberately creates a new session and closes its inherited pipes; v7 detects
 the pipe-retaining form of that escape, but original-process-group containment
 is not full job containment. These explicit limitations are another reason the
 host-networked panel remains development-only rather than leaderboard-ready.

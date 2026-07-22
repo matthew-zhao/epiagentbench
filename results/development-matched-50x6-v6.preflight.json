@@ -1,0 +1,25 @@
+{
+  "codex_auth_bootstrap": "failed",
+  "contract_hashes": {
+    "claude_auth_sha256": "sha256:ec791a9a6b104dbf70aa794d5412597c1b7a9e264288ff648973f58d1d312ccd",
+    "cli_sha256": "sha256:40f6074b0a3d380b9eae1cd63723b61881ad11f9f83c2b65a2ee641b68a2ccb7",
+    "codex_auth_sha256": "sha256:f608bc3705ccdb6c2859cc4f16935333169fc5bdde3d385c6dbc73c281c82630",
+    "profiles_sha256": "sha256:8e0df3beec1acb914eea40e774d118d8f7b65da1bd3c96b9942120ff30f29c27",
+    "replay_sha256": "sha256:9af83264f99eeeae38a0b7710fb6fde919a6e97e6fa9b8edbbac7d3c205cf52c",
+    "runtime_sha256": "sha256:4723b39ccada0e90bea2f246dd42b6a676511d6b6af945d91e3b83b73caf3196",
+    "source_sha256": "sha256:629caa20e49d91eecef5cc411435e6ffa7e7ab4c60046a76a17d67811c8f68d6"
+  },
+  "development_only": true,
+  "failed_provider_invocation_state": null,
+  "failure_class": "RuntimeError",
+  "failure_stage": "codex_auth_bootstrap",
+  "managed_glean_auth_bootstrap": "started",
+  "panel_id": "development-matched-50x6-v6",
+  "preflight_purpose": "unscored_infrastructure_routing_handshake",
+  "production_episodes_consumed": 0,
+  "profiles_passed": [],
+  "provider_calls_conservatively_chargeable": 0,
+  "schema_version": "development_matched_panel_v6",
+  "scores_reported": false,
+  "status": "failed"
+}

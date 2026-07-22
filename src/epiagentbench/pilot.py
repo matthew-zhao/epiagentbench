@@ -886,9 +886,10 @@ class ProviderOutputOverflowError(RuntimeError):
 class _ProviderTemporaryDirectory:
     """Dispose provider state without downgrading terminal incidents."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, directory: Path | None = None) -> None:
         self._temporary = tempfile.TemporaryDirectory(
-            prefix="eabp-", dir="/tmp"
+            prefix="eabp-",
+            dir=os.fspath(directory) if directory is not None else "/tmp",
         )
 
     def __enter__(self) -> str:

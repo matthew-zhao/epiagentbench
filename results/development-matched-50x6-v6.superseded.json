@@ -1,0 +1,31 @@
+{
+  "codex_auth_bootstrap_status": "failed",
+  "development_only": true,
+  "failed_preflight_canonical_sha256": "sha256:ec36a5cca983cb011c220633d6b596296ef27834152eb0aee7fdc608c60ca004",
+  "failed_preflight_file_sha256": "sha256:d2664173cbe62775ef728de1fb04449638cf302416ad053d71b741a33b469811",
+  "failed_profile_id": null,
+  "failure_stage": "codex_auth_bootstrap",
+  "managed_glean_auth_bootstrap_actual_status": "not_started",
+  "managed_glean_auth_bootstrap_receipt_status": "started",
+  "original_panel_id": "development-matched-50x6-v6",
+  "original_precommitment_sha256": "sha256:882298a7e628fbf9e492ab0fe409c788f1586539c7c7e583aab448618b16a87e",
+  "preflight_profiles_attempted": 0,
+  "preflight_profiles_passed": 0,
+  "preflight_provider_calls_conservatively_chargeable": 0,
+  "production_assignments_started": 0,
+  "reason": "The one-shot v6 preflight failed during its no-model Codex authentication bootstrap before any profile attempt. Codex 0.144.3 clears $CODEX_HOME/auth.json before browser OAuth. That removed v6's precreated evaluator symlink, so even a successful login could write only inside the disposable home instead of the committed external credential target. The retained receipt cannot distinguish an upstream OAuth error from post-login attestation because both streams and the disposable login log were intentionally destroyed. The external Codex namespace remained empty and cleanup removed any disposable credential. The authenticated private state has zero profile attempts and zero production assignments, and the public receipt conservatively reports zero chargeable provider calls. Glean authentication was never invoked: its receipt status says started only because v6 eagerly initialized both bootstrap labels. V6 is preserved rather than reset or retried; v7 requires fresh private artifacts, opaque same-filesystem Codex credential relocation after login, and durable per-bootstrap invocation states.",
+  "replacement_panel_id": "development-matched-50x6-v7",
+  "replacement_requirements": [
+    "fresh_cohort",
+    "fresh_authentication_key",
+    "fresh_private_schedule",
+    "fresh_managed_glean_credential_namespace",
+    "fresh_codex_credential_namespace",
+    "codex_login_without_precreated_auth_symlink",
+    "metadata_only_same_filesystem_auth_relocation",
+    "durable_per_bootstrap_invocation_states"
+  ],
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_after_failed_authentication_bootstrap",
+  "superseded_at_utc": "2026-07-22T17:14:18Z"
+}

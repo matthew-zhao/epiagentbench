@@ -178,10 +178,31 @@ class MatchedPanelTests(unittest.TestCase):
         }
 
     @staticmethod
-    def _bootstrap_codex_fixture(path: Path, **_kwargs) -> None:
+    def _bootstrap_codex_fixture(path: Path, **kwargs) -> None:
+        launch_pending = kwargs.get("invocation_launch_pending")
+        started = kwargs.get("invocation_started")
+        returned = kwargs.get("invocation_returned")
+        if launch_pending is not None:
+            launch_pending()
+        if started is not None:
+            started()
         credential = path / "auth.json"
         credential.write_text('{"test":"opaque"}', encoding="utf-8")
         credential.chmod(0o600)
+        if returned is not None:
+            returned(0)
+
+    def _bootstrap_glean_fixture(self, *_args, **kwargs) -> None:
+        launch_pending = kwargs.get("invocation_launch_pending")
+        started = kwargs.get("invocation_started")
+        returned = kwargs.get("invocation_returned")
+        if launch_pending is not None:
+            launch_pending()
+        if started is not None:
+            started()
+        self.keychain_present = True
+        if returned is not None:
+            returned(0)
 
     @contextmanager
     def _contracts(self):
@@ -234,9 +255,7 @@ class MatchedPanelTests(unittest.TestCase):
                 patch(
                     "epiagentbench.development_matched_panel."
                     "_bootstrap_managed_glean_credentials",
-                    side_effect=lambda *_args, **_kwargs: setattr(
-                        self, "keychain_present", True
-                    ),
+                    side_effect=self._bootstrap_glean_fixture,
                 )
             )
             stack.enter_context(
@@ -474,7 +493,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v6_authorization_breakdown"],
+            contract["claude_current_v7_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -484,11 +503,17 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v6_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v7_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
-            {"v2_usd": 10.0, "v3_usd": 0.0, "v4_usd": 0.0, "v5_usd": 5.0},
+            {
+                "v2_usd": 10.0,
+                "v3_usd": 0.0,
+                "v4_usd": 0.0,
+                "v5_usd": 5.0,
+                "v6_usd": 0.0,
+            },
         )
         self.assertEqual(
             contract["claude_cumulative_authorization_ceiling_usd"], 525.0
@@ -500,6 +525,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "v2_supersession",
                 "v5_preflight_receipt",
                 "v5_supersession",
+                "v6_preflight_receipt",
+                "v6_supersession",
             },
         )
         self.assertIn("not measured", contract["ceiling_interpretation"])
@@ -530,7 +557,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v6")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v7")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -1025,6 +1052,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_no_capture_group_helper_quiesces_success_without_pipes(self):
         command = ["/trusted/login", "--authenticate"]
+        events: list[str] = []
         with (
             patch(
                 "epiagentbench.development_matched_panel.subprocess.Popen"
@@ -1036,6 +1064,9 @@ class MatchedPanelTests(unittest.TestCase):
         ):
             process = start.return_value
             process.wait.return_value = 0
+            quiesce.side_effect = lambda *_args, **_kwargs: events.append(
+                "quiesced"
+            )
             result = matched._run_no_capture_process_group(
                 command,
                 cwd=self.root,
@@ -1044,6 +1075,16 @@ class MatchedPanelTests(unittest.TestCase):
                 stdout_target=subprocess.DEVNULL,
                 stderr_target=None,
                 umask=0o077,
+                invocation_launch_pending=lambda: events.append(
+                    "launch_pending"
+                ),
+                invocation_started=lambda: events.append("started"),
+                invocation_start_failed=lambda: events.append(
+                    "start_failed"
+                ),
+                invocation_returned=lambda returncode: events.append(
+                    f"returned:{returncode}"
+                ),
             )
 
         self.assertEqual(result.returncode, 0)
@@ -1055,10 +1096,15 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertTrue(invocation["start_new_session"])
         self.assertEqual(process.wait.call_count, 2)
         quiesce.assert_called_once_with(process, force=False)
+        self.assertEqual(
+            events,
+            ["launch_pending", "started", "quiesced", "returned:0"],
+        )
 
     def test_no_capture_group_helper_forces_timeout_group_cleanup(self):
         command = ["/trusted/login", "--authenticate"]
         timeout = subprocess.TimeoutExpired(command, 2)
+        events: list[str] = []
         with (
             patch(
                 "epiagentbench.development_matched_panel.subprocess.Popen"
@@ -1079,12 +1125,24 @@ class MatchedPanelTests(unittest.TestCase):
                     stdout_target=subprocess.DEVNULL,
                     stderr_target=subprocess.DEVNULL,
                     umask=0o077,
+                    invocation_launch_pending=lambda: events.append(
+                        "launch_pending"
+                    ),
+                    invocation_started=lambda: events.append("started"),
+                    invocation_start_failed=lambda: events.append(
+                        "start_failed"
+                    ),
+                    invocation_returned=lambda returncode: events.append(
+                        f"returned:{returncode}"
+                    ),
                 )
 
         quiesce.assert_called_once_with(process, force=True)
         self.assertEqual(process.wait.call_count, 2)
+        self.assertEqual(events, ["launch_pending", "started"])
 
     def test_no_capture_group_helper_has_typed_start_and_wait_failures(self):
+        events: list[str] = []
         kwargs = {
             "cwd": self.root,
             "environment": {"PATH": "/bin"},
@@ -1092,6 +1150,16 @@ class MatchedPanelTests(unittest.TestCase):
             "stdout_target": subprocess.DEVNULL,
             "stderr_target": subprocess.DEVNULL,
             "umask": 0o077,
+            "invocation_launch_pending": lambda: events.append(
+                "launch_pending"
+            ),
+            "invocation_started": lambda: events.append("started"),
+            "invocation_start_failed": lambda: events.append(
+                "start_failed"
+            ),
+            "invocation_returned": lambda returncode: events.append(
+                f"returned:{returncode}"
+            ),
         }
         with (
             patch(
@@ -1101,6 +1169,8 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertRaises(ProviderProcessIsolationError),
         ):
             matched._run_no_capture_process_group(["/trusted/login"], **kwargs)
+        self.assertEqual(events, ["launch_pending", "start_failed"])
+        events.clear()
 
         with (
             patch(
@@ -1116,6 +1186,44 @@ class MatchedPanelTests(unittest.TestCase):
             process.wait.side_effect = [OSError("wait fault"), 0]
             matched._run_no_capture_process_group(["/trusted/login"], **kwargs)
         quiesce.assert_called_once_with(process, force=True)
+        self.assertEqual(events, ["launch_pending", "started"])
+
+    def test_no_capture_cleanup_failure_dominates_active_state_error(self):
+        active = ProviderStateIsolationError("test durable-marker failure")
+        cleanup = ProviderProcessIsolationError("test process cleanup failure")
+        events: list[str] = []
+
+        def fail_started_marker() -> None:
+            raise active
+
+        with (
+            patch(
+                "epiagentbench.development_matched_panel.subprocess.Popen"
+            ) as start,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_quiesce_provider_process_group",
+                side_effect=cleanup,
+            ),
+            self.assertRaises(ProviderProcessIsolationError) as raised,
+        ):
+            matched._run_no_capture_process_group(
+                ["/trusted/login"],
+                cwd=self.root,
+                environment={"PATH": "/bin"},
+                timeout_seconds=2,
+                stdout_target=subprocess.DEVNULL,
+                stderr_target=subprocess.DEVNULL,
+                umask=0o077,
+                invocation_launch_pending=lambda: events.append(
+                    "launch_pending"
+                ),
+                invocation_started=fail_started_marker,
+            )
+        self.assertIs(raised.exception, cleanup)
+        self.assertIs(raised.exception.__cause__, active)
+        self.assertEqual(events, ["launch_pending"])
+        self.assertEqual(start.call_count, 1)
 
     def test_identity_probes_use_bounded_credential_free_process_groups(self):
         executable = self.root / "identity-cli"
@@ -1268,7 +1376,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertIs(raised.exception, incident)
 
-    def test_codex_bootstrap_uses_independent_disposable_file_store(self):
+    def test_codex_bootstrap_relocates_independent_disposable_file_store(self):
         captured_codex_home: Path | None = None
 
         def login(command, **kwargs):
@@ -1289,15 +1397,19 @@ class MatchedPanelTests(unittest.TestCase):
             environment = kwargs["environment"]
             self.assertEqual(set(environment) & {"OPENAI_API_KEY", "CURSOR_API_KEY"}, set())
             captured_codex_home = Path(environment["CODEX_HOME"])
-            auth_link = captured_codex_home / "auth.json"
-            self.assertTrue(auth_link.is_symlink())
+            staged_auth = captured_codex_home / "auth.json"
+            self.assertFalse(staged_auth.exists())
+            self.assertFalse(staged_auth.is_symlink())
             self.assertEqual(
-                os.readlink(auth_link),
-                str(self.codex_secure_storage_dir / "auth.json"),
+                captured_codex_home.parent.parent.parent,
+                self.codex_secure_storage_dir.parent,
             )
             self.assertFalse((self.codex_secure_storage_dir / "auth.json").exists())
-            auth_link.write_bytes(b"independent-panel-oauth")
-            auth_link.chmod(0o600)
+            # Codex 0.144.3 logs out before OAuth: it removes this path even
+            # when absent, then writes a new regular file after the callback.
+            staged_auth.unlink(missing_ok=True)
+            staged_auth.write_bytes(b"independent-panel-oauth")
+            staged_auth.chmod(0o600)
             side_state = captured_codex_home / "tmp" / "arg0"
             side_state.mkdir(parents=True)
             (side_state / "lock").write_text("disposable", encoding="utf-8")
@@ -1342,6 +1454,327 @@ class MatchedPanelTests(unittest.TestCase):
             {entry.name for entry in os.scandir(self.codex_secure_storage_dir)},
             {"auth.json"},
         )
+
+    def test_codex_bootstrap_nonzero_or_missing_auth_never_publishes(self):
+        captured_homes: list[Path] = []
+
+        for returncode in (1, 0):
+            def login(command, **kwargs):
+                home = Path(kwargs["environment"]["CODEX_HOME"])
+                captured_homes.append(home)
+                (home / "auth.json").unlink(missing_ok=True)
+                return subprocess.CompletedProcess(command, returncode)
+
+            with (
+                self.subTest(returncode=returncode),
+                patch(
+                    "epiagentbench.development_matched_panel.shutil.which",
+                    return_value="/trusted/codex",
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_run_no_capture_process_group",
+                    side_effect=login,
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError, "Codex authentication bootstrap failed"
+                ),
+            ):
+                matched._bootstrap_codex_credentials(
+                    self.codex_secure_storage_dir,
+                    executable="codex",
+                    timeout_seconds=30,
+                )
+            self.assertEqual(
+                list(os.scandir(self.codex_secure_storage_dir)), []
+            )
+
+        self.assertTrue(all(not path.exists() for path in captured_homes))
+
+    def test_codex_bootstrap_rejects_unsafe_staged_auth_metadata(self):
+        def symlink(path: Path) -> None:
+            target = path.with_name("staged-target")
+            target.write_bytes(b"credential")
+            target.chmod(0o600)
+            path.symlink_to(target.name)
+
+        def hardlink(path: Path) -> None:
+            path.write_bytes(b"credential")
+            path.chmod(0o600)
+            os.link(path, path.with_name("second-link"))
+
+        def fifo(path: Path) -> None:
+            os.mkfifo(path, mode=0o600)
+
+        def directory(path: Path) -> None:
+            path.mkdir(mode=0o700)
+
+        def wrong_mode(path: Path) -> None:
+            path.write_bytes(b"credential")
+            path.chmod(0o644)
+
+        def empty(path: Path) -> None:
+            path.write_bytes(b"")
+            path.chmod(0o600)
+
+        def oversized(path: Path) -> None:
+            path.touch(mode=0o600)
+            path.chmod(0o600)
+            with path.open("r+b") as stream:
+                stream.truncate(
+                    matched._CODEX_BOOTSTRAP_AUTH_BYTES_MAX + 1
+                )
+
+        for label, create in (
+            ("symlink", symlink),
+            ("hardlink", hardlink),
+            ("fifo", fifo),
+            ("directory", directory),
+            ("wrong_mode", wrong_mode),
+            ("empty", empty),
+            ("oversized", oversized),
+        ):
+            captured_home: Path | None = None
+
+            def login(command, **kwargs):
+                nonlocal captured_home
+                captured_home = Path(kwargs["environment"]["CODEX_HOME"])
+                staged_auth = captured_home / "auth.json"
+                staged_auth.unlink(missing_ok=True)
+                create(staged_auth)
+                return subprocess.CompletedProcess(command, 0)
+
+            with (
+                self.subTest(label=label),
+                patch(
+                    "epiagentbench.development_matched_panel.shutil.which",
+                    return_value="/trusted/codex",
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_run_no_capture_process_group",
+                    side_effect=login,
+                ),
+                self.assertRaises(ProviderStateIsolationError),
+            ):
+                matched._bootstrap_codex_credentials(
+                    self.codex_secure_storage_dir,
+                    executable="codex",
+                    timeout_seconds=30,
+                )
+            assert captured_home is not None
+            self.assertFalse(captured_home.exists())
+            self.assertEqual(
+                list(os.scandir(self.codex_secure_storage_dir)), []
+            )
+
+    def test_codex_bootstrap_target_race_is_no_clobber(self):
+        stable_auth = self.codex_secure_storage_dir / "auth.json"
+        original_link = os.link
+
+        def login(command, **kwargs):
+            staged_auth = Path(kwargs["environment"]["CODEX_HOME"]) / "auth.json"
+            staged_auth.unlink(missing_ok=True)
+            staged_auth.write_bytes(b"new-credential")
+            staged_auth.chmod(0o600)
+            return subprocess.CompletedProcess(command, 0)
+
+        def race_link(*args, **kwargs):
+            stable_auth.write_bytes(b"racing-credential")
+            stable_auth.chmod(0o600)
+            return original_link(*args, **kwargs)
+
+        with (
+            patch(
+                "epiagentbench.development_matched_panel.shutil.which",
+                return_value="/trusted/codex",
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_run_no_capture_process_group",
+                side_effect=login,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.os.link",
+                side_effect=race_link,
+            ),
+            self.assertRaises(ProviderStateIsolationError),
+        ):
+            matched._bootstrap_codex_credentials(
+                self.codex_secure_storage_dir,
+                executable="codex",
+                timeout_seconds=30,
+            )
+        self.assertEqual(stable_auth.read_bytes(), b"racing-credential")
+
+    def test_codex_bootstrap_promotion_failure_leaves_target_empty(self):
+        def login(command, **kwargs):
+            staged_auth = Path(kwargs["environment"]["CODEX_HOME"]) / "auth.json"
+            staged_auth.unlink(missing_ok=True)
+            staged_auth.write_bytes(b"credential")
+            staged_auth.chmod(0o600)
+            return subprocess.CompletedProcess(command, 0)
+
+        with (
+            patch(
+                "epiagentbench.development_matched_panel.shutil.which",
+                return_value="/trusted/codex",
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_run_no_capture_process_group",
+                side_effect=login,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.os.link",
+                side_effect=OSError("test relocation failure"),
+            ),
+            self.assertRaisesRegex(
+                ProviderStateIsolationError, "promotion failed"
+            ),
+        ):
+            matched._bootstrap_codex_credentials(
+                self.codex_secure_storage_dir,
+                executable="codex",
+                timeout_seconds=30,
+            )
+        self.assertEqual(list(os.scandir(self.codex_secure_storage_dir)), [])
+
+    def test_codex_promotion_fsyncs_target_before_source_unlink(self):
+        events: list[str] = []
+        target_metadata = self.codex_secure_storage_dir.stat()
+        real_link = os.link
+        real_fsync = os.fsync
+        real_unlink = os.unlink
+
+        with TemporaryDirectory(
+            prefix="eabp-staging-",
+            dir=self.codex_secure_storage_dir.parent,
+        ) as temporary:
+            staging = Path(temporary)
+            staging.chmod(0o700)
+            staged_auth = staging / "auth.json"
+            staged_auth.write_bytes(b"opaque-credential")
+            staged_auth.chmod(0o600)
+            staging_metadata = staging.stat()
+
+            def tracked_link(*args, **kwargs):
+                events.append("link")
+                return real_link(*args, **kwargs)
+
+            def tracked_fsync(descriptor: int):
+                metadata = os.fstat(descriptor)
+                if (
+                    metadata.st_dev == target_metadata.st_dev
+                    and metadata.st_ino == target_metadata.st_ino
+                ):
+                    events.append("target_fsync")
+                return real_fsync(descriptor)
+
+            def tracked_unlink(*args, **kwargs):
+                directory_descriptor = kwargs.get("dir_fd")
+                if directory_descriptor is not None:
+                    metadata = os.fstat(directory_descriptor)
+                    if (
+                        metadata.st_dev == staging_metadata.st_dev
+                        and metadata.st_ino == staging_metadata.st_ino
+                    ):
+                        events.append("source_unlink")
+                return real_unlink(*args, **kwargs)
+
+            with (
+                patch(
+                    "epiagentbench.development_matched_panel.os.link",
+                    side_effect=tracked_link,
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel.os.fsync",
+                    side_effect=tracked_fsync,
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel.os.unlink",
+                    side_effect=tracked_unlink,
+                ),
+            ):
+                matched._promote_staged_codex_auth(
+                    staging,
+                    self.codex_secure_storage_dir,
+                    expected_target_identity=(
+                        matched._codex_secure_storage_identity(
+                            self.codex_secure_storage_dir
+                        )
+                    ),
+                )
+
+        self.assertLess(events.index("link"), events.index("target_fsync"))
+        self.assertLess(
+            events.index("target_fsync"), events.index("source_unlink")
+        )
+        self.assertTrue(
+            matched._attest_codex_auth_storage(
+                self.codex_secure_storage_dir
+            )
+        )
+
+    def test_codex_bootstrap_cleanup_failure_remains_terminal(self):
+        temporaries: list[TemporaryDirectory] = []
+
+        class FailingCleanupTemporaryDirectory:
+            def __init__(self, *, directory: Path):
+                self.temporary = TemporaryDirectory(
+                    prefix="eabp-test-", dir=directory
+                )
+                temporaries.append(self.temporary)
+
+            def __enter__(self) -> str:
+                return self.temporary.name
+
+            def __exit__(self, *_args) -> bool:
+                raise ProviderStateIsolationError(
+                    "Disposable provider state could not be removed"
+                )
+
+        def login(command, **kwargs):
+            staged_auth = Path(kwargs["environment"]["CODEX_HOME"]) / "auth.json"
+            staged_auth.unlink(missing_ok=True)
+            staged_auth.write_bytes(b"credential")
+            staged_auth.chmod(0o600)
+            return subprocess.CompletedProcess(command, 0)
+
+        try:
+            with (
+                patch(
+                    "epiagentbench.development_matched_panel.shutil.which",
+                    return_value="/trusted/codex",
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_run_no_capture_process_group",
+                    side_effect=login,
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_ProviderTemporaryDirectory",
+                    FailingCleanupTemporaryDirectory,
+                ),
+                self.assertRaisesRegex(
+                    ProviderStateIsolationError,
+                    "Disposable provider state could not be removed",
+                ),
+            ):
+                matched._bootstrap_codex_credentials(
+                    self.codex_secure_storage_dir,
+                    executable="codex",
+                    timeout_seconds=30,
+                )
+            self.assertTrue(
+                matched._attest_codex_auth_storage(
+                    self.codex_secure_storage_dir
+                )
+            )
+        finally:
+            for temporary in temporaries:
+                temporary.cleanup()
 
     def test_cli_contract_pins_claude_auth_dependency_files(self):
         def identity(executable: str) -> dict[str, str]:
@@ -2137,11 +2570,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v6_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v7_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v5_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v6", "six-call v5"
+            "six-call v7", "six-call v6"
         ).replace("$525", "$520")
         with (
             patch(
@@ -2156,7 +2589,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v6 \\$525"),
+            self.assertRaisesRegex(RuntimeError, "exact v7 \\$525"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -2450,7 +2883,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v6"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v7"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -2497,7 +2930,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v6"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v7"),
         ):
             run_panel(
                 root=self.root,
@@ -4110,14 +4543,30 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, AUTHENTICATION_KEY
         )
         self.assertEqual(private["environment_preflight"]["status"], "passed")
-        self.assertEqual(
-            private["environment_preflight"]["managed_glean_auth_bootstrap"],
-            {"status": "passed"},
-        )
-        self.assertEqual(
-            private["environment_preflight"]["codex_auth_bootstrap"],
-            {"status": "passed"},
-        )
+        for bootstrap_name in (
+            "managed_glean_auth_bootstrap",
+            "codex_auth_bootstrap",
+        ):
+            bootstrap = private["environment_preflight"][bootstrap_name]
+            self.assertEqual(bootstrap["status"], "passed")
+            self.assertEqual(
+                set(bootstrap),
+                {
+                    "status",
+                    "launch_pending_at_utc",
+                    "started_at_utc",
+                    "returned_at_utc",
+                    "returncode",
+                    "finished_at_utc",
+                },
+            )
+            self.assertEqual(bootstrap["returncode"], 0)
+            self.assertTrue(
+                all(
+                    isinstance(bootstrap[name], str) and bootstrap[name]
+                    for name in set(bootstrap) - {"status", "returncode"}
+                )
+            )
         self.assertEqual(
             private["codex_auth_file_identity"],
             matched._codex_auth_file_identity(self.codex_secure_storage_dir),
@@ -4196,7 +4645,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         )
 
-    def test_environment_preflight_gate_validates_full_v6_receipt(self):
+    def test_environment_preflight_gate_validates_full_v7_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -4294,13 +4743,16 @@ class MatchedPanelTests(unittest.TestCase):
         def attest(**_kwargs):
             events.append("attest")
 
-        def bootstrap(*_args, **_kwargs):
+        def bootstrap(*_args, **kwargs):
             events.append("glean_bootstrap")
+            kwargs["invocation_launch_pending"]()
+            kwargs["invocation_started"]()
             self.keychain_present = True
+            kwargs["invocation_returned"](0)
 
-        def codex_bootstrap(path: Path, **_kwargs):
+        def codex_bootstrap(path: Path, **kwargs):
             events.append("codex_bootstrap")
-            self._bootstrap_codex_fixture(path)
+            self._bootstrap_codex_fixture(path, **kwargs)
 
         def evaluate(system: str, **kwargs):
             events.append(f"provider:{kwargs['model']}")
@@ -4442,6 +4894,12 @@ class MatchedPanelTests(unittest.TestCase):
     def test_disposable_preflight_bootstrap_failure_spends_no_model_call(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-bootstrap.json"
+
+        def fail_after_start(*_args, **kwargs):
+            kwargs["invocation_launch_pending"]()
+            kwargs["invocation_started"]()
+            raise RuntimeError("redacted bootstrap failure")
+
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
@@ -4451,7 +4909,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials",
-                side_effect=RuntimeError("redacted bootstrap failure"),
+                side_effect=fail_after_start,
             ),
             patch(
                 "epiagentbench.development_matched_panel."
@@ -4479,6 +4937,392 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(
             receipt["provider_calls_conservatively_chargeable"], 0
         )
+
+    def test_failed_codex_setup_leaves_both_bootstraps_not_started(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-codex-failure.json"
+        observed_started_state: dict | None = None
+
+        def fail_codex(*_args, **_kwargs):
+            nonlocal observed_started_state
+            observed_started_state = matched._load_private_state(
+                self.private_path, AUTHENTICATION_KEY
+            )["environment_preflight"]
+            raise RuntimeError("redacted Codex bootstrap failure")
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=fail_codex,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        assert observed_started_state is not None
+        self.assertEqual(
+            observed_started_state["codex_auth_bootstrap"]["status"],
+            "not_started",
+        )
+        self.assertEqual(
+            observed_started_state["managed_glean_auth_bootstrap"],
+            {"status": "not_started"},
+        )
+        glean_bootstrap.assert_not_called()
+        evaluate.assert_not_called()
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["failure_stage"], "codex_auth_bootstrap")
+        self.assertEqual(receipt["codex_auth_bootstrap"], "not_started")
+        self.assertEqual(
+            receipt["managed_glean_auth_bootstrap"], "not_started"
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["environment_preflight"]["codex_auth_bootstrap"][
+                "status"
+            ],
+            "not_started",
+        )
+        self.assertEqual(
+            private["environment_preflight"]["managed_glean_auth_bootstrap"],
+            {"status": "not_started"},
+        )
+
+    def test_codex_pre_started_failure_preserves_launch_pending(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-launch-pending.json"
+
+        def fail_after_spawn(*_args, **kwargs):
+            kwargs["invocation_launch_pending"]()
+            raise ProviderStateIsolationError(
+                "redacted pre-start marker failure"
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=fail_after_spawn,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        glean_bootstrap.assert_not_called()
+        evaluate.assert_not_called()
+        self.assertEqual(receipt["codex_auth_bootstrap"], "launch_pending")
+        self.assertEqual(
+            receipt["managed_glean_auth_bootstrap"], "not_started"
+        )
+        marker = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )["environment_preflight"]["codex_auth_bootstrap"]
+        self.assertEqual(marker["status"], "launch_pending")
+        self.assertEqual(
+            set(marker), {"status", "launch_pending_at_utc"}
+        )
+
+    def test_codex_popen_failure_records_start_failed(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-start-failed.json"
+
+        def fail_to_start(*_args, **kwargs):
+            kwargs["invocation_launch_pending"]()
+            kwargs["invocation_start_failed"]()
+            raise ProviderProcessIsolationError(
+                "redacted process start failure"
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=fail_to_start,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        glean_bootstrap.assert_not_called()
+        evaluate.assert_not_called()
+        self.assertEqual(receipt["codex_auth_bootstrap"], "start_failed")
+        self.assertEqual(
+            receipt["managed_glean_auth_bootstrap"], "not_started"
+        )
+        marker = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )["environment_preflight"]["codex_auth_bootstrap"]
+        self.assertEqual(marker["status"], "start_failed")
+        self.assertEqual(
+            set(marker),
+            {
+                "status",
+                "launch_pending_at_utc",
+                "start_failed_at_utc",
+            },
+        )
+
+    def test_codex_post_return_failure_retains_durable_return_marker(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-codex-returned.json"
+
+        def fail_after_return(*_args, **kwargs):
+            kwargs["invocation_launch_pending"]()
+            kwargs["invocation_started"]()
+            kwargs["invocation_returned"](0)
+            raise ProviderStateIsolationError(
+                "redacted post-return promotion failure"
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=fail_after_return,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        glean_bootstrap.assert_not_called()
+        evaluate.assert_not_called()
+        self.assertEqual(receipt["codex_auth_bootstrap"], "failed")
+        self.assertEqual(
+            receipt["managed_glean_auth_bootstrap"], "not_started"
+        )
+        marker = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )["environment_preflight"]["codex_auth_bootstrap"]
+        self.assertEqual(marker["status"], "failed")
+        self.assertEqual(marker["returncode"], 0)
+        self.assertIn("started_at_utc", marker)
+        self.assertIn("returned_at_utc", marker)
+        self.assertIn("finished_at_utc", marker)
+
+    def test_successful_bootstraps_have_durable_invocation_markers(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-markers.json"
+        observed: list[tuple[str, dict, dict]] = []
+
+        def bootstrap_codex(path: Path, **kwargs):
+            kwargs["invocation_launch_pending"]()
+            kwargs["invocation_started"]()
+            state = matched._load_private_state(
+                self.private_path, AUTHENTICATION_KEY
+            )["environment_preflight"]
+            observed.append(
+                (
+                    "codex",
+                    copy.deepcopy(state["codex_auth_bootstrap"]),
+                    copy.deepcopy(state["managed_glean_auth_bootstrap"]),
+                )
+            )
+            self._bootstrap_codex_fixture(path)
+            kwargs["invocation_returned"](0)
+            returned_state = matched._load_private_state(
+                self.private_path, AUTHENTICATION_KEY
+            )["environment_preflight"]
+            observed.append(
+                (
+                    "codex_returned",
+                    copy.deepcopy(
+                        returned_state["codex_auth_bootstrap"]
+                    ),
+                    copy.deepcopy(
+                        returned_state["managed_glean_auth_bootstrap"]
+                    ),
+                )
+            )
+
+        def bootstrap_glean(*_args, **kwargs):
+            kwargs["invocation_launch_pending"]()
+            kwargs["invocation_started"]()
+            state = matched._load_private_state(
+                self.private_path, AUTHENTICATION_KEY
+            )["environment_preflight"]
+            observed.append(
+                (
+                    "glean",
+                    copy.deepcopy(state["codex_auth_bootstrap"]),
+                    copy.deepcopy(state["managed_glean_auth_bootstrap"]),
+                )
+            )
+            self.keychain_present = True
+            kwargs["invocation_returned"](0)
+            returned_state = matched._load_private_state(
+                self.private_path, AUTHENTICATION_KEY
+            )["environment_preflight"]
+            observed.append(
+                (
+                    "glean_returned",
+                    copy.deepcopy(
+                        returned_state["codex_auth_bootstrap"]
+                    ),
+                    copy.deepcopy(
+                        returned_state["managed_glean_auth_bootstrap"]
+                    ),
+                )
+            )
+
+        def evaluate(system: str, **kwargs):
+            if system == "claude":
+                self.keychain_present = True
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 0.0
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=bootstrap_codex,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials",
+                side_effect=bootstrap_glean,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ),
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(receipt["status"], "passed")
+        self.assertEqual(
+            [item[0] for item in observed],
+            ["codex", "codex_returned", "glean", "glean_returned"],
+        )
+        self.assertEqual(observed[0][1]["status"], "started")
+        self.assertEqual(observed[0][2], {"status": "not_started"})
+        self.assertEqual(observed[1][1]["status"], "returned")
+        self.assertEqual(observed[2][1]["status"], "passed")
+        self.assertEqual(observed[2][2]["status"], "started")
+        self.assertEqual(observed[3][2]["status"], "returned")
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        for name in (
+            "codex_auth_bootstrap",
+            "managed_glean_auth_bootstrap",
+        ):
+            marker = private["environment_preflight"][name]
+            self.assertEqual(marker["status"], "passed")
+            self.assertEqual(
+                set(marker),
+                {
+                    "status",
+                    "launch_pending_at_utc",
+                    "started_at_utc",
+                    "returned_at_utc",
+                    "returncode",
+                    "finished_at_utc",
+                },
+            )
+            self.assertEqual(marker["returncode"], 0)
 
     def test_disposable_preflight_after_call_drift_fails_closed(self):
         self._prepare()
