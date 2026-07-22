@@ -274,6 +274,15 @@ causal family—and the same six full agent+model profiles on every episode:
 - Cursor + Grok 4.5 High
 - Cursor + Kimi K2.7 Code
 
+V7's one-shot [preflight](results/development-matched-50x6-v7.preflight.json)
+passed both no-model authentication bootstraps and the Opus, Sonnet, and Codex
+Sol handshakes. Codex Luna then reached the frozen 900-second provider timeout
+and failed the provider contract. The two Cursor profiles were never invoked.
+The receipt conservatively counts four potentially chargeable provider calls,
+reports no scores, and records zero production episodes; no assignment in the
+300-run panel started. V7 is retained as a failed, non-retryable historical
+preflight rather than reset or resumed.
+
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
 or production assignment](results/development-matched-50x6-v1.superseded.json)
