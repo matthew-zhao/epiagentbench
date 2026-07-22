@@ -1,0 +1,76 @@
+{
+  "codex_auth_bootstrap": "passed",
+  "contract_hashes": {
+    "claude_auth_sha256": "sha256:ce48d0f5b5b8a6bbda436e10ad3498d3a38394b21441c2004cdba22c43f404c1",
+    "cli_sha256": "sha256:40f6074b0a3d380b9eae1cd63723b61881ad11f9f83c2b65a2ee641b68a2ccb7",
+    "codex_auth_sha256": "sha256:2a1a4f53d8311ab157ded8f20d37fa22a3d3a326c2decc03f394ebd5a5deab8b",
+    "profiles_sha256": "sha256:8e0df3beec1acb914eea40e774d118d8f7b65da1bd3c96b9942120ff30f29c27",
+    "replay_sha256": "sha256:9af83264f99eeeae38a0b7710fb6fde919a6e97e6fa9b8edbbac7d3c205cf52c",
+    "runtime_sha256": "sha256:4723b39ccada0e90bea2f246dd42b6a676511d6b6af945d91e3b83b73caf3196",
+    "source_sha256": "sha256:d41f166b68cc7afe1d64a0b9c31f3f213721a8b0c6b54d790dd05c5fe5c611da"
+  },
+  "development_only": true,
+  "failed_profile_id": "codex-luna-medium",
+  "failed_provider_invocation_state": "finished",
+  "failure_class": "RuntimeError",
+  "failure_stage": "provider_contract",
+  "managed_glean_auth_bootstrap": "passed",
+  "panel_id": "development-matched-50x6-v7",
+  "preflight_purpose": "unscored_infrastructure_routing_handshake",
+  "production_episodes_consumed": 0,
+  "profiles_passed": [
+    {
+      "cli_version": "2.1.195 (Claude Code)",
+      "infrastructure_handshake_passed": true,
+      "managed_glean_credentials_state_after": "present",
+      "managed_glean_credentials_state_before": "present",
+      "model_receipt_satisfied": true,
+      "observed_models": [
+        "claude-opus-4-8"
+      ],
+      "profile_id": "claude-opus-high",
+      "raw_result_sha256": "sha256:74219b96f140adfb1bfd827fa25bab36bdd6fcaa96a5d3990a1ed09910f89d5b",
+      "replay_trace_validated": true,
+      "requested_model": "claude-opus-4-8",
+      "scored": false,
+      "system": "claude"
+    },
+    {
+      "cli_version": "2.1.195 (Claude Code)",
+      "infrastructure_handshake_passed": true,
+      "managed_glean_credentials_state_after": "present",
+      "managed_glean_credentials_state_before": "present",
+      "model_receipt_satisfied": true,
+      "observed_models": [
+        "claude-sonnet-5"
+      ],
+      "profile_id": "claude-sonnet-high",
+      "raw_result_sha256": "sha256:2d21d65cd561f0238f2bce92d14aaba143e8aa80b56ff5094e3590bb4e147ad2",
+      "replay_trace_validated": true,
+      "requested_model": "claude-sonnet-5",
+      "scored": false,
+      "system": "claude"
+    },
+    {
+      "cli_version": "codex-cli 0.144.3",
+      "codex_auth_link_after": "bound",
+      "codex_auth_link_before": "bound",
+      "codex_credentials_state_after": "present",
+      "codex_credentials_state_before": "present",
+      "infrastructure_handshake_passed": true,
+      "model_receipt_satisfied": null,
+      "observed_models": [],
+      "profile_id": "codex-sol",
+      "raw_result_sha256": "sha256:b5cdbefcba868d3ce88a289504883c103dff99f3f88e4c63fa24121120715d8a",
+      "refresh_persistence_attested": true,
+      "replay_trace_validated": true,
+      "requested_model": "gpt-5.6-sol",
+      "scored": false,
+      "system": "codex"
+    }
+  ],
+  "provider_calls_conservatively_chargeable": 4,
+  "schema_version": "development_matched_panel_v7",
+  "scores_reported": false,
+  "status": "failed"
+}
