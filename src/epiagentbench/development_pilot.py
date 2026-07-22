@@ -386,6 +386,8 @@ def _sanitize_result(
 def _raise_on_harness_startup_failure(result: PilotRunResult) -> None:
     """Keep CLI/configuration failures out of model score denominators."""
 
+    if "infrastructure_failure:provider_credential_echo" in result.audit_events:
+        raise RuntimeError("Provider output echoed evaluator credentials")
     if "agent_failure:mcp_enable" in result.audit_events:
         raise RuntimeError("Cursor MCP enablement failed before the agent ran")
     if "agent_failure:mcp_unavailable" in result.audit_events:

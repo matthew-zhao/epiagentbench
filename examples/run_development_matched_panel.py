@@ -1,4 +1,4 @@
-"""Prepare or run the precommitted 50-episode, six-profile development panel."""
+"""Prepare, authorize, or run the 50-episode development panel."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from epiagentbench.development_matched_panel import (
+    authorize_panel_spend,
     prepare_panel,
     run_environment_preflight,
     run_panel,
@@ -20,13 +21,22 @@ def main() -> None:
     prepare.add_argument("--cohort-manifest", required=True, type=Path)
     prepare.add_argument("--authentication-key", required=True, type=Path)
     prepare.add_argument("--claude-secure-storage-dir", required=True, type=Path)
+    prepare.add_argument("--codex-secure-storage-dir", required=True, type=Path)
     prepare.add_argument("--private-state", required=True, type=Path)
     prepare.add_argument("--public-manifest", required=True, type=Path)
     prepare.add_argument("--timeout", type=int, default=900)
     prepare.add_argument("--claude-max-budget-usd", type=float, default=5.0)
+    authorize = commands.add_parser("authorize")
+    authorize.add_argument("--authentication-key", required=True, type=Path)
+    authorize.add_argument("--claude-secure-storage-dir", required=True, type=Path)
+    authorize.add_argument("--codex-secure-storage-dir", required=True, type=Path)
+    authorize.add_argument("--private-state", required=True, type=Path)
+    authorize.add_argument("--public-manifest", required=True, type=Path)
+    authorize.add_argument("--acknowledgement-text", required=True)
     preflight = commands.add_parser("preflight")
     preflight.add_argument("--authentication-key", required=True, type=Path)
     preflight.add_argument("--claude-secure-storage-dir", required=True, type=Path)
+    preflight.add_argument("--codex-secure-storage-dir", required=True, type=Path)
     preflight.add_argument("--private-state", required=True, type=Path)
     preflight.add_argument("--public-manifest", required=True, type=Path)
     preflight.add_argument("--public-preflight", required=True, type=Path)
@@ -36,6 +46,7 @@ def main() -> None:
     run = commands.add_parser("run")
     run.add_argument("--authentication-key", required=True, type=Path)
     run.add_argument("--claude-secure-storage-dir", required=True, type=Path)
+    run.add_argument("--codex-secure-storage-dir", required=True, type=Path)
     run.add_argument("--private-state", required=True, type=Path)
     run.add_argument("--public-manifest", required=True, type=Path)
     run.add_argument("--public-results", required=True, type=Path)
@@ -50,16 +61,28 @@ def main() -> None:
             cohort_manifest_path=args.cohort_manifest,
             authentication_key_file=args.authentication_key,
             claude_secure_storage_dir=args.claude_secure_storage_dir,
+            codex_secure_storage_dir=args.codex_secure_storage_dir,
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             timeout_seconds=args.timeout,
             claude_max_budget_usd=args.claude_max_budget_usd,
+        )
+    elif args.command == "authorize":
+        payload = authorize_panel_spend(
+            root=root,
+            authentication_key_file=args.authentication_key,
+            claude_secure_storage_dir=args.claude_secure_storage_dir,
+            codex_secure_storage_dir=args.codex_secure_storage_dir,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+            acknowledgement_text=args.acknowledgement_text,
         )
     elif args.command == "preflight":
         payload = run_environment_preflight(
             root=root,
             authentication_key_file=args.authentication_key,
             claude_secure_storage_dir=args.claude_secure_storage_dir,
+            codex_secure_storage_dir=args.codex_secure_storage_dir,
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             public_preflight_path=args.public_preflight,
@@ -72,6 +95,7 @@ def main() -> None:
             root=root,
             authentication_key_file=args.authentication_key,
             claude_secure_storage_dir=args.claude_secure_storage_dir,
+            codex_secure_storage_dir=args.codex_secure_storage_dir,
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             public_results_path=args.public_results,

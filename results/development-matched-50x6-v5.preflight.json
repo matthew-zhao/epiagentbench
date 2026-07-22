@@ -1,0 +1,20 @@
+{
+  "contract_hashes": {
+    "claude_auth_sha256": "sha256:8033b6d97eea75b6d27b40ab16574561ea5cf06097e421ff1cbec1b2057f5b87",
+    "cli_sha256": "sha256:966fd38b9ee6ed07c4b0e0fba1a1f465d3fca2c5b09af872be90e483986c0daa",
+    "profiles_sha256": "sha256:8e0df3beec1acb914eea40e774d118d8f7b65da1bd3c96b9942120ff30f29c27",
+    "replay_sha256": "sha256:9af83264f99eeeae38a0b7710fb6fde919a6e97e6fa9b8edbbac7d3c205cf52c",
+    "runtime_sha256": "sha256:4723b39ccada0e90bea2f246dd42b6a676511d6b6af945d91e3b83b73caf3196",
+    "source_sha256": "sha256:3c7d484aac5eb6bf0abf5172e9d3254f52013e716d6d42d7526accc40afe5f2f"
+  },
+  "development_only": true,
+  "failed_profile_id": "claude-opus-high",
+  "failure_class": "RuntimeError",
+  "failure_stage": "credential_attestation",
+  "panel_id": "development-matched-50x6-v5",
+  "production_episodes_consumed": 0,
+  "profiles_passed": [],
+  "schema_version": "development_matched_panel_v5",
+  "scores_reported": false,
+  "status": "failed"
+}

@@ -231,11 +231,23 @@ preserved for audit. The authenticated private audit confirms zero preflight
 provider calls, zero production assignments, and unchanged `prepared` /
 preflight-`required` state.
 
-The [v5 replacement](results/development-matched-50x6-v5.manifest.json) uses a
-fresh cohort, authentication key, and private schedule rather than modifying or
-replaying v4. It also pins the safe gateway wrapper entrypoint identity. The
-comparison contains 50 newly frozen `starsim-ltc-v3` episodes—10 from each
-causal family—and the same six full agent+model profiles on every episode:
+The [v5 replacement](results/development-matched-50x6-v5.manifest.json) used a
+fresh cohort, authentication key, private schedule, and pinned gateway wrapper.
+Its one-shot [preflight](results/development-matched-50x6-v5.preflight.json)
+recorded one attempt at the first Claude profile and failed credential
+attestation after about 179 seconds. V5 did not yet have a durable
+provider-invocation submarker, so the receipt cannot prove that a model call
+returned; the control flow and elapsed time are consistent with one call and it
+is conservatively treated as chargeable. No profile passed, no score was
+reported, and no production assignment started. V5 is preserved and
+[superseded](results/development-matched-50x6-v5.superseded.json), not reset or
+retried.
+
+The v6 replacement uses another fresh cohort, authentication key, private
+schedule, managed-Glean credential namespace, and independent Codex credential
+namespace. Its comparison contains 50
+newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and the same
+six full agent+model profiles on every episode:
 
 - Codex + GPT-5.6 Sol (medium)
 - Codex + GPT-5.6 Luna (medium)
@@ -254,7 +266,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed v5 assignment will record an evaluator-owned, aggregate-only trace:
+Each completed v6 assignment will record an evaluator-owned, aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
 trace excludes people, contact edges, target and evidence identifiers, model
@@ -268,41 +280,132 @@ different no-action futures for the same episode.
 The runner predeclares a hidden six-condition Williams schedule with 300 assignments. Every
 profile occupies each execution position 8 or 9 times overall and 1 or 2 times
 within every family. Model-attributable failures—including invalid reports,
-timeouts, and receipt mismatches—remain in each profile's fixed 50-episode
-denominator as zero. Harness or transport failures are sealed as non-retryable
-transport voids instead of being silently dropped.
+receipt mismatches, and cleanly contained non-Codex timeouts—remain in each
+profile's fixed 50-episode denominator as zero. Harness or transport failures
+are sealed as non-retryable transport voids instead of being silently dropped.
+A Codex timeout is the one timeout exception: killing it during an in-place
+credential refresh could leave authentication ambiguous, so the assignment is
+a terminal transport void and the panel cannot complete.
 
-Before production, a disposable six-call preflight must verify authentication,
-exact model routing where receipts exist, MCP connectivity, source/runtime
-pins, and Cursor isolation. It reports no scores and consumes no production
-episodes. Cursor requires an explicit `CURSOR_API_KEY`; host login state is not
-copied into assignments. The terminal analysis predeclares 20,000-draw
-family-stratified bootstrap intervals and adjusts all 15 exploratory pairwise
-comparisons together.
+Before production, v6 first runs two no-model authentication bootstraps. The
+managed-Glean bootstrap discards token-bearing stdout. The Codex bootstrap runs
+the pinned CLI's browser OAuth flow with file-only credential storage in a new
+panel namespace; it may open a separate sign-in page, and both output streams
+are discarded. The active host Codex login is neither copied nor linked. Only
+after both bootstraps pass does v6 run a disposable six-call, unscored
+infrastructure/routing handshake on one shared synthetic episode. The handshake
+checks the frozen runtime and routing surfaces, exact model identity where
+receipts exist, evaluator replay plumbing, and the public tool boundary where
+the provider exposes it. It deliberately does not require a valid final report,
+a minimum tool count, or a passing score: those are model capabilities measured
+in the fixed production denominator. The receipt reports finite durable call
+states and a conservative chargeable-call count, but no scores and no production
+episode is consumed. Cursor requires an explicit `CURSOR_API_KEY`; host login
+state is not copied into assignments. The terminal analysis predeclares
+20,000-draw family-stratified bootstrap intervals and adjusts all 15 exploratory
+pairwise comparisons together.
 
 This remains development evidence—not held-out epidemiological calibration, a
 base-model leaderboard, or a real-world superiority claim. The expected serial
-runtime is roughly 19–21 hours. Claude is capped at $5 per assignment ($500
-across its 100 production calls); Codex and Cursor do not yet have a
-benchmark-enforced spend cap. The runner, runtime, hidden cohort, and public
-manifest are frozen before any provider preflight or production call. V2
-started five disposable preflight calls and zero production assignments before
-being retired; no v2 scores exist. V3 started no provider call and consumed no
-production episode. V4 also used a separate authentication key, cohort,
-schedule nonce, secrets, and packs, but its local preflight gate retired it
-before any provider call. V5 starts from fresh versions of those private
-artifacts and commits a panel-specific credential-only Claude secure-storage
-namespace while keeping every conversation/config root disposable. The runner
-checks only Keychain metadata—never credential values:
-the namespace must be absent at prepare, created by the first successful Claude
-preflight call, and present before and after the second call and every production
-Claude assignment. A private keyed commitment binds the canonical path and its
-filesystem identity without publishing either one, and plaintext fallback is a
-fail-closed infrastructure error. V5 additionally re-attests the frozen source,
-provider CLI/auth-helper, runtime, replay-schema, and profile surfaces directly
-around every top-level provider-harness invocation. Pre-existing drift consumes
-no production assignment; drift during an invocation stops the run with that
-assignment sealed as a transport void.
+runtime is roughly 19–21 hours. Claude has a $5 per-call runner ceiling. The v6
+authorization ceiling is $510: two Claude preflight calls plus 100 production
+calls. Prior failed panels contribute a conservative $15 ceiling: two v2 Claude
+preflight calls ($10) and the one ambiguous v5 attempt ($5); v3 and v4 started
+no provider call. The cumulative Claude authorization ceiling is therefore
+$525, not a claim about measured billing. Codex and Cursor remain uncapped. V2
+started five total provider preflight calls and zero production assignments;
+v3 and v4 started none; v5 has the single conservatively chargeable Claude
+attempt and zero production assignments.
+
+A generic command-line acknowledgement is not sufficient to unlock v6. After
+the final public manifest has been prepared and committed in an otherwise clean
+worktree, the operator must run the `authorize` subcommand with this exact
+sentence:
+
+> I acknowledge the replacement six-call v6 preflight and 300-assignment
+> production run, including unbounded Codex/Cursor provider spend and up to
+> $525 total Claude spend across the failed v2 preflight, failed v5 preflight,
+> v6 preflight, and production.
+
+Pass that sentence as `--acknowledgement-text` to
+`examples/run_development_matched_panel.py authorize`, together with the same
+authentication key, private state, public manifest, and Claude/Codex secure
+storage paths used for `prepare`. The private state must remain untracked and
+an exact current-user `0600` regular file. The command writes an authenticated
+private receipt bound to the exact text, v6 panel identifier, final public
+precommitment, budget-contract hash, cumulative $525 Claude ceiling, and
+unbounded Codex/Cursor spend. A missing receipt, a receipt copied from another
+manifest, or any altered field fails before either authentication bootstrap or
+model-bearing provider invocation. Credential-free, no-model CLI identity
+probes are part of manifest preparation and contract validation, not authorized
+benchmark calls. The preflight and production commands still require
+`--acknowledge-unbounded-provider-spend` as an immediate execution guard.
+
+The v6 runner, runtime, hidden cohort, credential namespaces, and public manifest
+are frozen before any model-bearing provider call. Its Claude contract keeps
+conversation, configuration, session, and ordinary home storage disposable,
+while an evaluator-created link exposes exactly one panel-specific managed
+Glean credential directory to the trusted helper. That directory must be empty
+at prepare and may contain only one current-user, owner-only
+`credentials.json` afterward. The evaluator checks file metadata only—never
+credential contents or a credential hash—and requires the obsolete Claude
+Keychain namespace and Claude's own plaintext fallback to remain absent. A
+private keyed commitment binds the canonical directory and filesystem identity
+without publishing its path.
+
+Codex uses a separate empty-at-prepare, current-user `0700` directory whose only
+persistent entry may be one owner-only `auth.json`. Each invocation gets a fresh
+ordinary home, configuration, cache, session, and temporary tree; only an
+evaluator-owned `auth.json` link reaches the stable credential file, with
+`cli_auth_credentials_store="file"` forced inline. The pinned Codex 0.144.3
+credential writer refreshes this file in place, so refreshes survive across the
+serial preflight and production calls without sharing the desktop login. The
+evaluator checks the directory, file inode, and link before and after calls but
+never reads, parses, hashes, or publishes credential contents. After a durable
+assignment start, a Codex timeout or credential/link drift makes the panel
+non-resumable because a killed in-place refresh could leave authentication
+ambiguous. A cleanly returned, non-timeout Codex error is an ordinary transport
+void and does not by itself poison the credential namespace.
+
+Every model-bearing provider command, plus Cursor's MCP readiness command, runs
+in a new POSIX session with bounded output capture. Before the evaluator moves
+on, it terminates and verifies the command's original process group and requires
+its captured pipes to close. A crash after a durable assignment start, failure
+to prove process-group or output-pipe quiescence, failure of the provider
+state-persistence guard, or evaluator episode-service cleanup failure creates a
+terminal execution incident. When any of those failures affects a Codex
+assignment, the runner also records a terminal Codex authentication incident
+because credential state may be ambiguous. A Codex timeout or post-launch
+credential/link drift is independently a terminal Codex authentication
+incident. Every terminal incident seals the assignment without retry, blocks
+every later provider call and cohort retirement, and keeps private traces
+private. By contrast, a cleanly quiesced Claude or Cursor timeout is retained as
+an invalid zero in that profile's fixed denominator. An ordinary cleanly
+quiesced transport void only stops the current command; a later command may
+resume with the next assignment.
+
+V6 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+projection, redacted managed-settings semantics, provider CLIs, telemetry
+helper, scientific runtime, replay schema, and profile surface. The installed
+helper behavior is supported by a manual source audit plus binary hash/version;
+there is not yet cryptographic source-to-binary provenance. Pre-existing drift
+consumes no production assignment. Mid-call drift or a non-timeout nonzero
+provider exit seals that assignment as a non-retryable transport void. Except
+for the Codex credential-safety case above, a benchmark timeout and a zero-exit
+invalid model submission remain scored zeros so an agent cannot erase a hard
+episode by hanging. Output capture is bounded, but this macOS development
+runner has no aggregate provider RSS, filesystem-byte/file-count, process-count,
+or OS-job ceiling. macOS process groups do not contain a descendant that
+deliberately creates a new session and closes its inherited pipes; v6 detects
+the pipe-retaining form of that escape, but original-process-group containment
+is not full job containment. These explicit limitations are another reason the
+host-networked panel remains development-only rather than leaderboard-ready.
+“Private until terminal” means
+absent from public benchmark artifacts: the selected providers, managed gateway,
+and configured telemetry recipient necessarily observe their normal execution
+traffic. Metadata-only credential checks also cannot detect replacement by
+another same-user process, which is one reason the panel remains explicitly
+non-hermetic and development-only.
 
 ### New-model capability pilot (2026-07-15)
 

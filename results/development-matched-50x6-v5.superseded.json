@@ -1,0 +1,26 @@
+{
+  "development_only": true,
+  "failed_preflight_canonical_sha256": "sha256:21a98e004acf3af9f27a6953754b019a4d8e7af1b429a7425c3d8b05f84388ae",
+  "failed_preflight_file_sha256": "sha256:eb2294f0a30ac5106ffa251a3abc8c1c0d8502b85f7264060c7d8061743a7cbd",
+  "failed_profile_id": "claude-opus-high",
+  "failure_stage": "credential_attestation",
+  "original_panel_id": "development-matched-50x6-v5",
+  "original_precommitment_sha256": "sha256:52439ba96cf6c5a10d7f6c6cb6e51220a823adbc38c907477868929383ba04f1",
+  "preflight_profiles_attempted": 1,
+  "preflight_profiles_passed": 0,
+  "preflight_provider_calls_conservatively_chargeable": 1,
+  "production_assignments_started": 0,
+  "reason": "The one-shot v5 preflight recorded its sole attempt at the first Claude profile and failed at credential_attestation after about 179 seconds. V5 did not yet record a durable provider-invocation submarker, so the receipt alone cannot prove whether that subprocess returned; the control flow and elapsed time are consistent with a provider call, and the attempt is conservatively treated as one chargeable Claude call. The managed Glean API-key helper stores OAuth credentials at $HOME/.glean-llm-gateway/credentials.json, while v5 made HOME disposable and incorrectly required a Claude Keychain record. The failed receipt reports no score and the authenticated private state contains zero production assignments. V5 is preserved rather than reset or replayed; v6 requires a fresh cohort, authentication key, private schedule, and credential namespace plus a corrected managed-Glean credential-file contract and a separate no-model authentication bootstrap.",
+  "replacement_panel_id": "development-matched-50x6-v6",
+  "replacement_requirements": [
+    "fresh_cohort",
+    "fresh_authentication_key",
+    "fresh_private_schedule",
+    "fresh_managed_glean_credential_namespace",
+    "separate_no_model_authentication_bootstrap",
+    "managed_glean_credential_file_metadata_attestation"
+  ],
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_after_failed_preflight",
+  "superseded_at_utc": "2026-07-22T04:48:14Z"
+}
