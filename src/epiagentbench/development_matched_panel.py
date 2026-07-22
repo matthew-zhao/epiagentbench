@@ -60,9 +60,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v4"
+PANEL_ID = "development-matched-50x6-v5"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v4"
+SCHEMA_VERSION = "development_matched_panel_v5"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
@@ -955,6 +955,125 @@ def _fixed_file_sha256(path: Path, *, label: str) -> str:
     return "sha256:" + digest.hexdigest()
 
 
+def _safe_entrypoint_identity(path: Path, *, label: str) -> dict[str, Any]:
+    """Pin a regular entrypoint or one direct symlink to a regular file."""
+
+    if not path.is_absolute():
+        raise RuntimeError(f"Required {label} path must be absolute")
+    try:
+        entry_metadata = path.lstat()
+    except OSError:
+        raise RuntimeError(f"Required {label} is unavailable") from None
+
+    link_text: str | None = None
+    if stat.S_ISREG(entry_metadata.st_mode):
+        entrypoint_kind = "regular_file"
+        direct_target = path
+        target_metadata = entry_metadata
+    elif stat.S_ISLNK(entry_metadata.st_mode):
+        entrypoint_kind = "symlink"
+        try:
+            link_text = os.readlink(path)
+        except OSError:
+            raise RuntimeError(f"Unable to read required {label} symlink") from None
+        direct_target = Path(link_text)
+        if not direct_target.is_absolute():
+            direct_target = path.parent / direct_target
+        try:
+            target_metadata = direct_target.lstat()
+        except OSError:
+            raise RuntimeError(
+                f"Required {label} symlink target is unavailable"
+            ) from None
+        if not stat.S_ISREG(target_metadata.st_mode):
+            raise RuntimeError(
+                f"Required {label} symlink must point directly to a regular file"
+            )
+    else:
+        raise RuntimeError(
+            f"Required {label} must be a regular file or direct symlink to one"
+        )
+
+    try:
+        resolved_target = direct_target.resolve(strict=True)
+        resolved_metadata = resolved_target.lstat()
+    except (OSError, RuntimeError):
+        raise RuntimeError(f"Unable to resolve required {label}") from None
+    if (
+        not stat.S_ISREG(resolved_metadata.st_mode)
+        or (resolved_metadata.st_dev, resolved_metadata.st_ino)
+        != (target_metadata.st_dev, target_metadata.st_ino)
+    ):
+        raise RuntimeError(f"Required {label} does not resolve to its pinned file")
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(resolved_target, flags)
+    except OSError:
+        raise RuntimeError(f"Unable to open required {label}") from None
+    try:
+        opened_metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened_metadata.st_mode)
+            or (opened_metadata.st_dev, opened_metadata.st_ino)
+            != (resolved_metadata.st_dev, resolved_metadata.st_ino)
+        ):
+            raise RuntimeError(f"Required {label} changed before hashing")
+        digest = hashlib.sha256()
+        for chunk in iter(lambda: os.read(descriptor, 1024 * 1024), b""):
+            digest.update(chunk)
+        final_opened_metadata = os.fstat(descriptor)
+        stable_fields = (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        )
+        if any(
+            getattr(opened_metadata, field) != getattr(final_opened_metadata, field)
+            for field in stable_fields
+        ):
+            raise RuntimeError(f"Required {label} changed while hashing")
+    except OSError:
+        raise RuntimeError(f"Unable to hash required {label}") from None
+    finally:
+        os.close(descriptor)
+
+    try:
+        final_entry_metadata = path.lstat()
+        final_resolved_target = path.resolve(strict=True)
+        final_target_metadata = final_resolved_target.lstat()
+        final_link_text = os.readlink(path) if link_text is not None else None
+    except (OSError, RuntimeError):
+        raise RuntimeError(f"Required {label} changed while hashing") from None
+    if (
+        (final_entry_metadata.st_dev, final_entry_metadata.st_ino)
+        != (entry_metadata.st_dev, entry_metadata.st_ino)
+        or final_entry_metadata.st_mode != entry_metadata.st_mode
+        or final_link_text != link_text
+        or final_resolved_target != resolved_target
+        or not stat.S_ISREG(final_target_metadata.st_mode)
+        or any(
+            getattr(final_target_metadata, field)
+            != getattr(final_opened_metadata, field)
+            for field in stable_fields
+        )
+    ):
+        raise RuntimeError(f"Required {label} changed while hashing")
+
+    return {
+        "path": str(path),
+        "entrypoint_kind": entrypoint_kind,
+        "link_text": link_text,
+        "resolved_path": str(resolved_target),
+        "target_sha256": "sha256:" + digest.hexdigest(),
+    }
+
+
 def _glean_helper_identity() -> dict[str, str]:
     digest = _fixed_file_sha256(_GLEAN_HELPER_PATH, label="Glean helper")
     try:
@@ -1004,13 +1123,10 @@ def _cli_contract() -> dict[str, Any]:
                 ),
             },
             "glean_helper": _glean_helper_identity(),
-            "glean_llm_gateway_token_wrapper": {
-                "path": str(_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
-                "sha256": _fixed_file_sha256(
-                    _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
-                    label="Glean LLM gateway token wrapper",
-                ),
-            },
+            "glean_llm_gateway_token_wrapper": _safe_entrypoint_identity(
+                _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
+                label="Glean LLM gateway token wrapper",
+            ),
             "managed_settings": {
                 "path": str(_CLAUDE_MANAGED_SETTINGS_PATH),
                 "sha256": _fixed_file_sha256(
@@ -1046,6 +1162,42 @@ def _runtime_contract() -> dict[str, Any]:
             for name in _RUNTIME_DISTRIBUTIONS
         },
     }
+
+
+def _attest_execution_contracts(
+    *, root: Path, public: Mapping[str, Any]
+) -> None:
+    """Revalidate only the public execution surfaces around a provider call."""
+
+    try:
+        fresh = {
+            "source_contract": _source_contract(root),
+            "cli_contract": _cli_contract(),
+            "runtime_contract": _runtime_contract(),
+            "replay_trace_contract": replay_trace_contract(),
+            "profiles": _profile_contract(),
+        }
+    except Exception as error:
+        raise RuntimeError(
+            "Unable to attest per-call execution contracts"
+        ) from error
+    hashes = public.get("contract_hashes")
+    hash_names = {
+        "source_contract": "source_sha256",
+        "cli_contract": "cli_sha256",
+        "runtime_contract": "runtime_sha256",
+        "replay_trace_contract": "replay_sha256",
+        "profiles": "profiles_sha256",
+    }
+    for surface, current in fresh.items():
+        if (
+            not isinstance(hashes, dict)
+            or public.get(surface) != current
+            or hashes.get(hash_names[surface]) != _component_hash(current)
+        ):
+            raise RuntimeError(
+                f"Per-call execution contract drifted: {surface}"
+            )
 
 
 def _keyed(nonce: bytes, *parts: str) -> bytes:
@@ -1336,6 +1488,29 @@ def prepare_panel(
             ),
             "partial_public_results": False,
             "environment_preflight_required_before_production_launch": True,
+            "per_provider_call_execution_attestation": {
+                "surfaces": [
+                    "source_contract",
+                    "cli_contract",
+                    "runtime_contract",
+                    "replay_trace_contract",
+                    "profiles",
+                ],
+                "preflight": {
+                    "before": "before_top_level_provider_harness_invocation",
+                    "after": "after_top_level_provider_harness_return",
+                    "drift_policy": "fail_preflight_closed",
+                },
+                "production": {
+                    "before": "before_durable_assignment_start",
+                    "after": (
+                        "after_top_level_provider_harness_return_inside_transport_guard"
+                    ),
+                    "preexisting_drift_consumes_assignment": False,
+                    "mid_call_drift": "transport_void",
+                },
+                "private_secrets_or_episode_packs_read_per_check": False,
+            },
             "replay_trace_release": {
                 "capture": "evaluator_generated_aggregate_only",
                 "partial_publication": False,
@@ -1769,6 +1944,9 @@ def run_environment_preflight(
                     if profile["system"] == "claude"
                     else {}
                 )
+                failure_stage = "execution_contract_before_harness"
+                _attest_execution_contracts(root=root, public=public)
+                failure_stage = "provider_launch"
                 result = evaluate_local_cli_agent(
                     str(profile["system"]),
                     seed=int.from_bytes(digest[:6], "big"),
@@ -1784,6 +1962,8 @@ def run_environment_preflight(
                     ),
                     **claude_auth_kwargs,
                 )
+                failure_stage = "execution_contract_after_harness"
+                _attest_execution_contracts(root=root, public=public)
                 if profile["system"] == "claude":
                     failure_stage = "credential_attestation"
                     _require_claude_credential_state(
@@ -2541,6 +2721,7 @@ def _run_panel_locked(
                 expected_identity=claude_secure_storage_identity,
                 keychain_record_present=True,
             )
+        _attest_execution_contracts(root=root, public=public_manifest)
         started = _utc_now()
         marker: dict[str, Any] = {
             "episode_ref": ref,
@@ -2573,6 +2754,7 @@ def _run_panel_locked(
                 ),
                 **claude_auth_kwargs,
             )
+            _attest_execution_contracts(root=root, public=public_manifest)
             if profile["system"] == "claude":
                 _require_claude_credential_state(
                     resolved_claude_secure_storage_dir,

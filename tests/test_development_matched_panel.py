@@ -256,11 +256,37 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v4")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v5")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["replay_trace_release"]["release"],
             "terminal_retired_panel_only",
+        )
+        self.assertEqual(
+            public["run_contract"]["per_provider_call_execution_attestation"],
+            {
+                "surfaces": [
+                    "source_contract",
+                    "cli_contract",
+                    "runtime_contract",
+                    "replay_trace_contract",
+                    "profiles",
+                ],
+                "preflight": {
+                    "before": "before_top_level_provider_harness_invocation",
+                    "after": "after_top_level_provider_harness_return",
+                    "drift_policy": "fail_preflight_closed",
+                },
+                "production": {
+                    "before": "before_durable_assignment_start",
+                    "after": (
+                        "after_top_level_provider_harness_return_inside_transport_guard"
+                    ),
+                    "preexisting_drift_consumes_assignment": False,
+                    "mid_call_drift": "transport_void",
+                },
+                "private_secrets_or_episode_packs_read_per_check": False,
+            },
         )
         self.assertIn("replay_sha256", public["contract_hashes"])
         self.assertIn("claude_auth_sha256", public["contract_hashes"])
@@ -488,6 +514,16 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel._fixed_file_sha256",
                 return_value="sha256:" + "3" * 64,
             ) as fixed_hash,
+            patch(
+                "epiagentbench.development_matched_panel._safe_entrypoint_identity",
+                return_value={
+                    "path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
+                    "entrypoint_kind": "symlink",
+                    "link_text": "/usr/local/bin/glean-helper",
+                    "resolved_path": "/usr/local/bin/glean-helper",
+                    "target_sha256": "sha256:" + "4" * 64,
+                },
+            ) as entrypoint_identity,
         ):
             contract = matched._cli_contract()
 
@@ -501,6 +537,16 @@ class MatchedPanelTests(unittest.TestCase):
             "/usr/local/bin/glean-llm-gateway-token",
         )
         self.assertEqual(
+            dependencies["glean_llm_gateway_token_wrapper"],
+            {
+                "path": "/usr/local/bin/glean-llm-gateway-token",
+                "entrypoint_kind": "symlink",
+                "link_text": "/usr/local/bin/glean-helper",
+                "resolved_path": "/usr/local/bin/glean-helper",
+                "target_sha256": "sha256:" + "4" * 64,
+            },
+        )
+        self.assertEqual(
             dependencies["managed_settings"]["path"],
             "/Library/Application Support/ClaudeCode/managed-settings.json",
         )
@@ -509,10 +555,151 @@ class MatchedPanelTests(unittest.TestCase):
             hashed_paths,
             {
                 matched._MACOS_SECURITY_PATH,
-                matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
                 matched._CLAUDE_MANAGED_SETTINGS_PATH,
             },
         )
+        entrypoint_identity.assert_called_once_with(
+            matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
+            label="Glean LLM gateway token wrapper",
+        )
+
+    def test_safe_entrypoint_identity_pins_regular_file(self):
+        target = self.root / "gateway-token"
+        target.write_bytes(b"gateway-token\n")
+
+        identity = matched._safe_entrypoint_identity(target, label="gateway")
+
+        self.assertEqual(
+            identity,
+            {
+                "path": str(target),
+                "entrypoint_kind": "regular_file",
+                "link_text": None,
+                "resolved_path": str(target.resolve()),
+                "target_sha256": "sha256:"
+                + hashlib.sha256(b"gateway-token\n").hexdigest(),
+            },
+        )
+
+    def test_safe_entrypoint_identity_pins_direct_symlink(self):
+        target = self.root / "gateway-target"
+        target.write_bytes(b"gateway-target\n")
+        entrypoint = self.root / "gateway-token"
+        link_text = "gateway-target"
+        entrypoint.symlink_to(link_text)
+
+        identity = matched._safe_entrypoint_identity(
+            entrypoint, label="gateway"
+        )
+
+        self.assertEqual(
+            identity,
+            {
+                "path": str(entrypoint),
+                "entrypoint_kind": "symlink",
+                "link_text": link_text,
+                "resolved_path": str(target.resolve()),
+                "target_sha256": "sha256:"
+                + hashlib.sha256(b"gateway-target\n").hexdigest(),
+            },
+        )
+
+    def test_safe_entrypoint_identity_rejects_unsafe_entrypoints(self):
+        directory = self.root / "directory"
+        directory.mkdir()
+        directory_link = self.root / "directory-link"
+        directory_link.symlink_to(directory)
+        fifo = self.root / "fifo"
+        os.mkfifo(fifo)
+        dangling = self.root / "dangling"
+        dangling.symlink_to("missing")
+        target = self.root / "target"
+        target.write_bytes(b"target\n")
+        intermediate = self.root / "intermediate"
+        intermediate.symlink_to(target)
+        multihop = self.root / "multihop"
+        multihop.symlink_to(intermediate)
+
+        unsafe = (
+            (directory, "regular file or direct symlink"),
+            (directory_link, "point directly to a regular file"),
+            (fifo, "regular file or direct symlink"),
+            (dangling, "target is unavailable"),
+            (multihop, "point directly to a regular file"),
+            (Path("relative-entrypoint"), "path must be absolute"),
+        )
+        for path, message in unsafe:
+            with self.subTest(path=path), self.assertRaisesRegex(
+                RuntimeError, message
+            ):
+                matched._safe_entrypoint_identity(path, label="gateway")
+
+    def test_safe_entrypoint_identity_rejects_target_replacement(self):
+        target = self.root / "gateway-target"
+        target.write_bytes(b"original target\n")
+        replacement = self.root / "replacement"
+        replacement.write_bytes(b"replacement target\n")
+        entrypoint = self.root / "gateway-token"
+        entrypoint.symlink_to(target)
+        real_read = os.read
+        replaced = False
+
+        def replace_after_read(descriptor: int, size: int) -> bytes:
+            nonlocal replaced
+            chunk = real_read(descriptor, size)
+            if chunk and not replaced:
+                replaced = True
+                os.replace(replacement, target)
+            return chunk
+
+        with patch(
+            "epiagentbench.development_matched_panel.os.read",
+            side_effect=replace_after_read,
+        ), self.assertRaisesRegex(RuntimeError, "changed while hashing"):
+            matched._safe_entrypoint_identity(entrypoint, label="gateway")
+
+    def test_execution_contract_attestation_checks_public_surfaces_only(self):
+        public = self._prepare()
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._read_authentication_key"
+            ) as read_key,
+            patch.object(PrivateEpisodePack, "read") as read_pack,
+        ):
+            matched._attest_execution_contracts(root=self.root, public=public)
+        read_key.assert_not_called()
+        read_pack.assert_not_called()
+
+        drift_cases = (
+            (
+                "source_contract",
+                "epiagentbench.development_matched_panel._source_contract",
+            ),
+            (
+                "cli_contract",
+                "epiagentbench.development_matched_panel._cli_contract",
+            ),
+            (
+                "runtime_contract",
+                "epiagentbench.development_matched_panel._runtime_contract",
+            ),
+            (
+                "replay_trace_contract",
+                "epiagentbench.development_matched_panel.replay_trace_contract",
+            ),
+            (
+                "profiles",
+                "epiagentbench.development_matched_panel._profile_contract",
+            ),
+        )
+        for surface, target in drift_cases:
+            with self.subTest(surface=surface), self._contracts(), patch(
+                target, return_value={"drifted": surface}
+            ), self.assertRaisesRegex(RuntimeError, surface):
+                matched._attest_execution_contracts(
+                    root=self.root, public=public
+                )
 
     def test_prepare_rejects_secure_storage_nested_in_frozen_cohort(self):
         with TemporaryDirectory(
@@ -1291,6 +1478,102 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["assignments"], [])
         self.assertFalse(self.results_path.exists())
 
+    def test_production_before_call_drift_does_not_consume_assignment(self):
+        self._prepare()
+        self.keychain_present = True
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_execution_contracts",
+                side_effect=RuntimeError("preexisting execution drift"),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "preexisting execution drift"),
+        ):
+            run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["assignments"], [])
+
+    def test_production_after_call_drift_becomes_transport_void(self):
+        self._prepare()
+        self.keychain_present = True
+        events: list[str] = []
+
+        def attest(**_kwargs):
+            events.append("attest")
+            if events.count("attest") == 2:
+                raise RuntimeError("mid-call execution drift")
+
+        def evaluate(system: str, **kwargs):
+            events.append("provider")
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 50.0
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_execution_contracts",
+                side_effect=attest,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            result = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(events, ["attest", "provider", "attest"])
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(result["status"], "stopped_transport_void")
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(len(private["assignments"]), 1)
+        self.assertEqual(private["assignments"][0]["status"], "transport_void")
+        self.assertEqual(private["assignments"][0]["void_reason"], "RuntimeError")
+
     def test_terminal_crash_recovery_finalizes_without_provider_credentials(self):
         self._prepare()
         private = matched._load_private_state(
@@ -1420,6 +1703,140 @@ class MatchedPanelTests(unittest.TestCase):
             private["environment_preflight"]["passed_contract_hashes"],
         )
         self.assertEqual(private["assignments"], [])
+
+    def test_disposable_preflight_attests_immediately_around_each_call(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight.json"
+        events: list[str] = []
+
+        def attest(**_kwargs):
+            events.append("attest")
+
+        def evaluate(system: str, **kwargs):
+            events.append(f"provider:{kwargs['model']}")
+            if system == "claude":
+                self.keychain_present = True
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 50.0
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_execution_contracts",
+                side_effect=attest,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ),
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        expected_events = [
+            event
+            for profile in PROFILES
+            for event in (
+                "attest",
+                f"provider:{profile['requested_model']}",
+                "attest",
+            )
+        ]
+        self.assertEqual(receipt["status"], "passed")
+        self.assertEqual(events, expected_events)
+
+    def test_disposable_preflight_before_call_drift_fails_closed(self):
+        self._prepare()
+        before_path = self.root / "results" / "preflight-before.json"
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_execution_contracts",
+                side_effect=RuntimeError("before-call drift"),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            before_receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=before_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+        self.assertEqual(before_receipt["status"], "failed")
+        self.assertEqual(
+            before_receipt["failure_stage"],
+            "execution_contract_before_harness",
+        )
+
+    def test_disposable_preflight_after_call_drift_fails_closed(self):
+        self._prepare()
+        after_path = self.root / "results" / "preflight-after.json"
+
+        def evaluate_once(system: str, **kwargs):
+            if system == "claude":
+                self.keychain_present = True
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 50.0
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_execution_contracts",
+                side_effect=(None, RuntimeError("mid-call drift")),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate_once,
+            ) as evaluate,
+        ):
+            after_receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=after_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(evaluate.call_count, 1)
+        self.assertEqual(after_receipt["status"], "failed")
+        self.assertEqual(
+            after_receipt["failure_stage"],
+            "execution_contract_after_harness",
+        )
 
     def test_disposable_preflight_requires_cursor_key_before_any_call(self):
         self._prepare()

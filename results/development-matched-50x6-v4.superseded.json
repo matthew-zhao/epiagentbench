@@ -1,0 +1,41 @@
+{
+  "contract_validation_failure": {
+    "phase": "before_provider_loop",
+    "frozen_dependency_drift": {
+      "glean_helper": {
+        "observed_version": "0.0.31",
+        "precommitted_version": "0.0.30"
+      },
+      "glean_llm_gateway_token_wrapper": {
+        "observed_entrypoint_type": "symbolic_link",
+        "precommitted_entrypoint_type": "regular_file"
+      },
+      "managed_settings": {
+        "observed_change": "sha256_changed_after_precommit"
+      }
+    }
+  },
+  "development_only": true,
+  "original_panel_id": "development-matched-50x6-v4",
+  "original_precommitment_sha256": "sha256:0e1510135f4a79e8b66dddce17469a2ae9f85d98053948580657b0d36872ea3c",
+  "preflight_invocations_started": 1,
+  "preflight_profiles_attempted": 0,
+  "preflight_provider_calls_started": 0,
+  "private_audit_after_abort": {
+    "assignment_count": 0,
+    "environment_preflight_status": "required",
+    "state_status": "prepared"
+  },
+  "production_assignments_started": 0,
+  "reason": "The v4 invocation aborted during local contract validation before entering the provider loop because frozen Glean authentication dependencies had drifted after precommit: the helper changed from 0.0.30 to 0.0.31, the gateway-token wrapper changed from a regular file to a symbolic link, and the managed-settings hash changed. The private audit confirms that no preflight provider call or production assignment started and that private state remained prepared with preflight required. V4 is preserved rather than modified or replayed; V5 requires a fresh cohort, authentication key, and private schedule and will pin the safe wrapper entrypoint identity.",
+  "replacement_panel_id": "development-matched-50x6-v5",
+  "replacement_requirements": [
+    "fresh_cohort",
+    "fresh_authentication_key",
+    "fresh_private_schedule",
+    "pin_safe_wrapper_entrypoint_identity"
+  ],
+  "schema_version": "epiagentbench.panel_supersession.v1",
+  "status": "abandoned_after_local_contract_validation_failure",
+  "superseded_at_utc": "2026-07-22T00:02:13Z"
+}

@@ -220,10 +220,22 @@ replayed. The replacement
 [v3 precommitment](results/development-matched-50x6-v3.manifest.json) was then
 [superseded before any provider call](results/development-matched-50x6-v3.superseded.json):
 an isolation audit proved its disposable Claude credential namespace would
-require repeated interactive gateway authorization. The replacement v4
-comparison ([manifest](results/development-matched-50x6-v4.manifest.json))
-uses 50 newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and
-the same six full agent+model profiles on every episode:
+require repeated interactive gateway authorization. A v4 preflight invocation
+then aborted during local contract validation, before the provider loop, because
+three frozen Glean authentication dependencies had drifted after precommit: the
+helper changed from 0.0.30 to 0.0.31, the gateway-token wrapper changed from a
+regular file to a symbolic link, and the managed-settings hash changed. The
+[v4 manifest](results/development-matched-50x6-v4.manifest.json) and
+[supersession record](results/development-matched-50x6-v4.superseded.json) are
+preserved for audit. The authenticated private audit confirms zero preflight
+provider calls, zero production assignments, and unchanged `prepared` /
+preflight-`required` state.
+
+The future v5 replacement will use a fresh cohort, authentication key, and
+private schedule rather than modifying or replaying v4. It will also pin the
+safe gateway wrapper entrypoint identity. The planned comparison retains 50
+newly frozen `starsim-ltc-v3` episodes—10 from each causal family—and the same
+six full agent+model profiles on every episode:
 
 - Codex + GPT-5.6 Sol (medium)
 - Codex + GPT-5.6 Luna (medium)
@@ -242,7 +254,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed v4 assignment records an evaluator-owned, aggregate-only trace:
+Each completed v5 assignment will record an evaluator-owned, aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
 trace excludes people, contact edges, target and evidence identifiers, model
@@ -276,15 +288,21 @@ benchmark-enforced spend cap. The runner, runtime, hidden cohort, and public
 manifest are frozen before any provider preflight or production call. V2
 started five disposable preflight calls and zero production assignments before
 being retired; no v2 scores exist. V3 started no provider call and consumed no
-production episode. V4 starts from a separate authentication key, cohort,
-schedule nonce, secrets, and packs, and commits a panel-specific credential-only
-Claude secure-storage namespace while keeping every conversation/config root
-disposable. The runner checks only Keychain metadata—never credential values:
+production episode. V4 also used a separate authentication key, cohort,
+schedule nonce, secrets, and packs, but its local preflight gate retired it
+before any provider call. V5 will start from fresh versions of those private
+artifacts and commit a panel-specific credential-only Claude secure-storage
+namespace while keeping every conversation/config root disposable. The runner
+checks only Keychain metadata—never credential values:
 the namespace must be absent at prepare, created by the first successful Claude
 preflight call, and present before and after the second call and every production
 Claude assignment. A private keyed commitment binds the canonical path and its
 filesystem identity without publishing either one, and plaintext fallback is a
-fail-closed infrastructure error.
+fail-closed infrastructure error. V5 additionally re-attests the frozen source,
+provider CLI/auth-helper, runtime, replay-schema, and profile surfaces directly
+around every top-level provider-harness invocation. Pre-existing drift consumes
+no production assignment; drift during an invocation stops the run with that
+assignment sealed as a transport void.
 
 ### New-model capability pilot (2026-07-15)
 
