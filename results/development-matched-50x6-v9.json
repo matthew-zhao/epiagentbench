@@ -1,0 +1,18 @@
+{
+  "completed_assignments": 6,
+  "development_only": true,
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "panel_id": "development-matched-50x6-v9",
+  "planned_assignments": 300,
+  "precommitment_sha256": "sha256:9b8d57b3160c816fb7ba62fccd2a6a5c8bdd4a6b2c643401a92a6ccf5df6597b",
+  "results": [],
+  "schema_version": "development_matched_panel_v9",
+  "started_at_utc": "2026-07-23T21:39:14.887642Z",
+  "status": "stopped_supervisor_incident",
+  "summary": {
+    "primary_estimand": "pending"
+  },
+  "terminal_assignments": 7,
+  "transport_voids": 1
+}

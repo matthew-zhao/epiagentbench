@@ -336,7 +336,23 @@ complete result is published only after the exact create-once supervisor has
 an authenticated completed status, matching lease, and terminal event-chain
 record. A local-only `finalize` recovery can reconcile a crash after that
 completion proof, but cannot restart a worker, authentication flow, or provider.
-No v9 provider call is authorized by these implementation tests.
+Those implementation tests themselves authorize no provider call.
+
+The separately authorized live V9
+[preflight](results/development-matched-50x6-v9.preflight.json) passed all six
+profiles. Production then stopped fail-closed after seven terminal assignments:
+six completed and one Codex Luna Max assignment became an ordinary transport
+void. At the clean boundary before assignment eight (Codex Sol), the evaluator
+could not re-attest the exact live supervisor and recorded a terminal
+`ProviderExecutionIsolationError`; no eighth provider call was launched and no
+Codex-authentication incident was recorded. The authenticated outer supervisor
+then sealed a `runner_nonzero_exit` incident. Its trace-free
+[stopped watermark](results/development-matched-50x6-v9.json) contains only
+aggregate counts and releases no result, score, trace, schedule, family, or
+episode identity. V9 is non-resumable and contributes no benchmark estimate.
+The normalized failure boundary intentionally preserves no arbitrary exception
+text, so this evidence identifies the failed live-attestation gate but does not
+support a more specific post-hoc predicate diagnosis.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
