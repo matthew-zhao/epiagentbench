@@ -67,6 +67,50 @@ CLI_VERSIONS = {
     item["name"]: item["version"] for item in CLI_CONTRACT["executables"]
 }
 
+# Production entry points always require authenticated supervision and expose
+# no evaluator injection.  This test module routes legacy offline cases
+# through private test-only seams; the delegate refuses to call the real
+# evaluator if a test forgot to replace it with a fake.  Tests of the live
+# supervised path explicitly opt into the unwrapped public API here.
+_RUN_PANEL_API = run_panel
+_RUN_PREFLIGHT_API = run_environment_preflight
+_REAL_EVALUATOR = matched.evaluate_local_cli_agent
+
+
+def _offline_test_evaluator(*args, **kwargs):
+    evaluator = matched.evaluate_local_cli_agent
+    if evaluator is _REAL_EVALUATOR:
+        raise AssertionError("offline test attempted to invoke the real evaluator")
+    return evaluator(*args, **kwargs)
+
+
+def run_panel(**kwargs):
+    supervised = kwargs.pop("require_persistent_supervisor", False)
+    evaluator = kwargs.pop("offline_test_evaluator", _offline_test_evaluator)
+    if supervised:
+        if evaluator is not None and evaluator is not _offline_test_evaluator:
+            raise AssertionError("supervised test cannot inject an evaluator")
+        return _RUN_PANEL_API(**kwargs)
+    kwargs.pop("supervisor_runtime_dir", None)
+    return matched._run_panel_for_offline_test(
+        **kwargs,
+        offline_test_evaluator=evaluator,
+    )
+
+
+def run_environment_preflight(**kwargs):
+    supervised = kwargs.pop("require_persistent_supervisor", False)
+    evaluator = kwargs.pop("offline_test_evaluator", _offline_test_evaluator)
+    if supervised:
+        if evaluator is not None and evaluator is not _offline_test_evaluator:
+            raise AssertionError("supervised test cannot inject an evaluator")
+        return _RUN_PREFLIGHT_API(**kwargs)
+    kwargs.pop("supervisor_runtime_dir", None)
+    return matched._run_environment_preflight_for_offline_test(
+        **kwargs,
+        offline_test_evaluator=evaluator,
+    )
+
 
 class MatchedPanelTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -374,6 +418,29 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
 
+    @staticmethod
+    def _supervisor_attestation(
+        operation: str,
+        precommitment_sha256: str,
+        *,
+        label: str = "org.epiagentbench.panel.test.runtime",
+        lifecycle: str = "running",
+        context_character: str = "7",
+        config_character: str = "8",
+    ) -> dict:
+        return {
+            "attested": True,
+            "lifecycle": lifecycle,
+            "operation": operation,
+            "panel_id": matched.PANEL_ID,
+            "precommitment_sha256": precommitment_sha256,
+            "label": label,
+            "execution_context_sha256": (
+                "sha256:" + context_character * 64
+            ),
+            "config_file_sha256": "sha256:" + config_character * 64,
+        }
+
     def _prime_codex_auth(self) -> None:
         if not (self.codex_secure_storage_dir / "auth.json").exists():
             self._bootstrap_codex_fixture(self.codex_secure_storage_dir)
@@ -406,9 +473,79 @@ class MatchedPanelTests(unittest.TestCase):
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
+                require_persistent_supervisor=False,
+                offline_test_evaluator=evaluate,
                 acknowledge_unbounded_provider_spend=True,
             )
         return payload, evaluate
+
+    def test_supervisor_loss_after_provider_is_terminal_before_next_call(self):
+        public = self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+
+        def evaluate(system, **kwargs):
+            return self._result(
+                system,
+                kwargs["model"],
+                kwargs["executable"],
+                1.0,
+            )
+
+        runtime = self.root / "supervisor-runtime"
+        attested = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                side_effect=(
+                    attested,
+                    attested,
+                    attested,
+                    ValueError("stale private supervisor path"),
+                ),
+            ) as attestation,
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            payload = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                require_persistent_supervisor=True,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(payload["status"], "stopped_supervisor_incident")
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(attestation.call_count, 4)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["execution_incident"]["status"], "terminal")
+        self.assertEqual(
+            private["execution_incident"]["failure_class"],
+            "ProviderExecutionIsolationError",
+        )
+        self.assertEqual(
+            private["execution_incident"]["boundary"],
+            "clean_before_assignment",
+        )
+        self.assertNotIn("stale private", self.results_path.read_text())
 
     def _set_terminal_assignment_prefix(
         self, count: int
@@ -434,6 +571,654 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, private, AUTHENTICATION_KEY
         )
         return keys
+
+    def _stage_pending_production(
+        self,
+        *,
+        lose_final_attestation: bool = False,
+    ) -> tuple[dict, Path, dict, dict]:
+        public = self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+        keys = self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
+        final_profile = matched._PROFILE_BY_ID[keys[-1][1]]
+        runtime = self.root / "supervisor-runtime"
+        live = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        side_effects = [live, live, live]
+        side_effects.append(
+            ValueError("lost before outer completion")
+            if lose_final_attestation
+            else live
+        )
+
+        def evaluate(system: str, **kwargs):
+            return self._result(
+                system,
+                kwargs["model"],
+                kwargs["executable"],
+                25.0,
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                side_effect=side_effects,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            payload = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                require_persistent_supervisor=True,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(final_profile["system"], invoked.call_args.args[0])
+        return public, runtime, payload, live
+
+    def test_execution_is_supervised_by_default_and_offline_fake_is_explicit(self):
+        fake = lambda *_args, **_kwargs: self.fail("fake must not run")
+        self.assertIs(
+            matched._execution_evaluator(
+                require_persistent_supervisor=False,
+                offline_test_evaluator=fake,
+            ),
+            fake,
+        )
+        with self.assertRaisesRegex(
+            RuntimeError, "explicitly injected offline test evaluator"
+        ):
+            matched._execution_evaluator(
+                require_persistent_supervisor=False,
+                offline_test_evaluator=None,
+            )
+        self.assertIs(
+            matched._execution_evaluator(
+                require_persistent_supervisor=True,
+                offline_test_evaluator=None,
+            ),
+            matched.evaluate_local_cli_agent,
+        )
+
+    def test_public_run_entrypoints_refuse_unsupervised_defaults_zero_call(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "default-preflight.json"
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluator,
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "live persistent supervisor"
+            ):
+                matched.run_panel(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=self.claude_secure_storage_dir,
+                    codex_secure_storage_dir=self.codex_secure_storage_dir,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    public_results_path=self.results_path,
+                    acknowledge_unbounded_provider_spend=True,
+                )
+            with self.assertRaisesRegex(
+                RuntimeError, "live persistent supervisor"
+            ):
+                matched.run_environment_preflight(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=self.claude_secure_storage_dir,
+                    codex_secure_storage_dir=self.codex_secure_storage_dir,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    public_preflight_path=preflight_path,
+                    acknowledge_unbounded_provider_spend=True,
+                )
+        evaluator.assert_not_called()
+
+    def test_public_run_entrypoints_reject_all_test_hooks_zero_call(self):
+        common = {
+            "root": self.root,
+            "authentication_key_file": self.key_path,
+            "claude_secure_storage_dir": self.claude_secure_storage_dir,
+            "codex_secure_storage_dir": self.codex_secure_storage_dir,
+            "private_state_path": self.private_path,
+            "public_manifest_path": self.public_path,
+            "supervisor_runtime_dir": self.root / "supervisor-runtime",
+            "acknowledge_unbounded_provider_spend": True,
+        }
+        entrypoints = (
+            (
+                matched.run_environment_preflight,
+                {
+                    **common,
+                    "public_preflight_path": (
+                        self.root / "results" / "injection-preflight.json"
+                    ),
+                },
+            ),
+            (
+                matched.run_panel,
+                {
+                    **common,
+                    "public_results_path": self.results_path,
+                },
+            ),
+        )
+        with patch(
+            "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+        ) as direct_evaluator:
+            def wrapped_evaluator(*args, **kwargs):
+                return direct_evaluator(*args, **kwargs)
+
+            injections = (
+                {"require_persistent_supervisor": False},
+                {"offline_test_evaluator": direct_evaluator},
+                {"offline_test_evaluator": wrapped_evaluator},
+            )
+            for entrypoint, arguments in entrypoints:
+                for injection in injections:
+                    with (
+                        self.subTest(
+                            entrypoint=entrypoint.__name__,
+                            injection=next(iter(injection)),
+                            wrapped=(
+                                injection.get("offline_test_evaluator")
+                                is wrapped_evaluator
+                            ),
+                        ),
+                        self.assertRaisesRegex(
+                            TypeError, "unexpected keyword argument"
+                        ),
+                    ):
+                        entrypoint(**arguments, **injection)
+        direct_evaluator.assert_not_called()
+
+    def test_create_once_supervisor_binding_refuses_replacement(self):
+        precommitment = "sha256:" + "9" * 64
+        first = matched._normalized_supervisor_binding(
+            self._supervisor_attestation("production", precommitment),
+            operation="production",
+            public_manifest={
+                "panel_id": matched.PANEL_ID,
+                "precommitment_sha256": precommitment,
+            },
+        )
+        private: dict = {}
+        self.assertTrue(
+            matched._claim_persistent_execution_binding(
+                private,
+                operation="production",
+                binding=first,
+            )
+        )
+        self.assertFalse(
+            matched._claim_persistent_execution_binding(
+                private,
+                operation="production",
+                binding=first,
+            )
+        )
+        replacement = {
+            **first,
+            "label": "org.epiagentbench.panel.test.replacement",
+            "config_file_sha256": "sha256:" + "a" * 64,
+        }
+        with self.assertRaisesRegex(RuntimeError, "replacement was refused"):
+            matched._claim_persistent_execution_binding(
+                private,
+                operation="production",
+                binding=replacement,
+            )
+
+    def test_supervised_production_stages_trace_free_pending_then_finalizes(self):
+        public, runtime, pending, live = self._stage_pending_production()
+        self.assertEqual(
+            pending["status"], matched._PENDING_PRODUCTION_STATUS
+        )
+        self.assertEqual(pending["results"], [])
+        self.assertEqual(pending["summary"], {"primary_estimand": "pending"})
+        self.assertNotIn("replay_trace", json.dumps(pending))
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["status"], matched._PENDING_PRODUCTION_STATUS
+        )
+        retirement = matched._cohort_retirement_path(
+            Path(private["cohort_manifest_path"])
+        )
+        self.assertFalse(retirement.exists())
+
+        completed = {**live, "lifecycle": "completed"}
+
+        with self._contracts(), patch(
+            "epiagentbench.launchd_agent.attest_completed_launch_agent",
+            return_value=completed,
+        ):
+            artifact = matched.finalize_supervised_release(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_output_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                operation="production",
+            )
+        self.assertEqual(artifact["status"], "complete_with_transport_voids")
+        self.assertEqual(json.loads(self.results_path.read_text()), artifact)
+        self.assertTrue(retirement.exists())
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["status"], "complete")
+        self.assertEqual(private["public_release"]["status"], "released")
+        self.assertEqual(
+            private["persistent_execution_bindings"]["production"]["label"],
+            completed["label"],
+        )
+
+    def test_supervised_finalizer_is_pure_local_publication(self):
+        _, runtime, _, live = self._stage_pending_production()
+        completed = {**live, "lifecycle": "completed"}
+        forbidden = AssertionError("release finalizer invoked a live boundary")
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.launchd_agent.attest_completed_launch_agent",
+                return_value=completed,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._cli_contract",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._source_contract",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_identity_version_probe",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_run_provider_process_group",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_claude_secure_storage_keychain",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.subprocess.run",
+                side_effect=forbidden,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.subprocess.Popen",
+                side_effect=forbidden,
+            ),
+        ):
+            artifact = matched.finalize_supervised_release(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_output_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                operation="production",
+            )
+
+        self.assertTrue(artifact["status"].startswith("complete"))
+
+    def test_supervised_production_continues_after_ordinary_void_in_same_child(self):
+        public = self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+        keys = self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 2)
+        runtime = self.root / "supervisor-runtime"
+        live = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        calls = 0
+
+        def evaluate(system: str, **kwargs):
+            nonlocal calls
+            calls += 1
+            result = self._result(
+                system,
+                kwargs["model"],
+                kwargs["executable"],
+                25.0,
+            )
+            return replace(result, returncode=7) if calls == 1 else result
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                return_value=live,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            pending = matched.run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 2)
+        self.assertEqual(calls, 2)
+        self.assertEqual(
+            pending["status"], matched._PENDING_PRODUCTION_STATUS
+        )
+        self.assertEqual(pending["terminal_assignments"], ASSIGNMENT_COUNT)
+        self.assertEqual(pending["transport_voids"], ASSIGNMENT_COUNT - 1)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            [item["status"] for item in private["assignments"][-2:]],
+            ["transport_void", "complete"],
+        )
+        self.assertEqual(
+            [
+                (item["episode_ref"], item["profile_id"])
+                for item in private["assignments"][-2:]
+            ],
+            keys[-2:],
+        )
+        self.assertIsNone(private.get("execution_incident"))
+        self.assertIsNone(private.get("codex_auth_incident"))
+
+    def test_supervised_preflight_stages_trace_free_pending_then_finalizes(self):
+        public = self._prepare()
+        runtime = self.root / "preflight-supervisor-runtime"
+        preflight_path = self.root / "results" / "preflight-pending.json"
+        live = self._supervisor_attestation(
+            "preflight", public["precommitment_sha256"]
+        )
+
+        def evaluate(system: str, **kwargs):
+            return self._result(
+                system,
+                kwargs["model"],
+                kwargs["executable"],
+                0.0,
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                return_value=live,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            pending = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                supervisor_runtime_dir=runtime,
+                require_persistent_supervisor=True,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(invoked.call_count, len(PROFILES))
+        self.assertEqual(pending["status"], matched._PENDING_PREFLIGHT_STATUS)
+        self.assertNotIn("profiles", pending)
+        serialized_pending = json.dumps(pending)
+        for forbidden in (
+            "observed_models",
+            "raw_result",
+            "replay_trace",
+            "progress_telemetry",
+        ):
+            self.assertNotIn(forbidden, serialized_pending)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["environment_preflight"]["status"],
+            matched._PENDING_PREFLIGHT_STATUS,
+        )
+        completed = {**live, "lifecycle": "completed"}
+        with self._contracts(), patch(
+            "epiagentbench.launchd_agent.attest_completed_launch_agent",
+            return_value=completed,
+        ):
+            receipt = matched.finalize_supervised_release(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_output_path=preflight_path,
+                supervisor_runtime_dir=runtime,
+                operation="preflight",
+            )
+        self.assertEqual(receipt["status"], "passed")
+        self.assertEqual(json.loads(preflight_path.read_text()), receipt)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["environment_preflight"]["status"], "passed")
+        self.assertEqual(
+            private["environment_preflight"]["public_release"]["status"],
+            "released",
+        )
+
+    def test_finalizer_requires_completed_supervisor(self):
+        _, runtime, pending, live = self._stage_pending_production()
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.launchd_agent.attest_completed_launch_agent",
+                return_value=live,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError, "requires authenticated supervisor completion"
+            ),
+        ):
+            matched.finalize_supervised_release(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_output_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                operation="production",
+            )
+        self.assertEqual(json.loads(self.results_path.read_text()), pending)
+        self.assertFalse(
+            matched._cohort_retirement_path(
+                Path(
+                    matched._load_private_state(
+                        self.private_path, AUTHENTICATION_KEY
+                    )["cohort_manifest_path"]
+                )
+            ).exists()
+        )
+
+    def test_finalizer_public_last_write_is_crash_idempotent(self):
+        _, runtime, pending, live = self._stage_pending_production()
+        completed = {**live, "lifecycle": "completed"}
+        original_atomic_json = matched._atomic_json
+        injected = False
+
+        def fail_public_final(path, value, **kwargs):
+            nonlocal injected
+            if (
+                not injected
+                and Path(path) == self.results_path
+                and isinstance(value, dict)
+                and str(value.get("status", "")).startswith("complete")
+            ):
+                injected = True
+                raise OSError("injected final publication crash")
+            return original_atomic_json(path, value, **kwargs)
+
+        arguments = {
+            "root": self.root,
+            "authentication_key_file": self.key_path,
+            "claude_secure_storage_dir": self.claude_secure_storage_dir,
+            "codex_secure_storage_dir": self.codex_secure_storage_dir,
+            "private_state_path": self.private_path,
+            "public_manifest_path": self.public_path,
+            "public_output_path": self.results_path,
+            "supervisor_runtime_dir": runtime,
+            "operation": "production",
+        }
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.launchd_agent.attest_completed_launch_agent",
+                return_value=completed,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._atomic_json",
+                side_effect=fail_public_final,
+            ),
+            self.assertRaisesRegex(OSError, "injected final publication crash"),
+        ):
+            matched.finalize_supervised_release(**arguments)
+        self.assertTrue(injected)
+        self.assertEqual(json.loads(self.results_path.read_text()), pending)
+        private_after_crash = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private_after_crash["status"], "complete")
+        self.assertEqual(
+            private_after_crash["public_release"]["status"], "released"
+        )
+        with self._contracts(), patch(
+            "epiagentbench.launchd_agent.attest_completed_launch_agent",
+            return_value=completed,
+        ):
+            artifact = matched.finalize_supervised_release(**arguments)
+        self.assertEqual(json.loads(self.results_path.read_text()), artifact)
+        with self._contracts(), patch(
+            "epiagentbench.launchd_agent.attest_completed_launch_agent",
+            return_value=completed,
+        ):
+            repeated = matched.finalize_supervised_release(**arguments)
+        self.assertEqual(repeated, artifact)
+
+    def test_final_boundary_supervisor_loss_blocks_trace_release(self):
+        _, _, stopped, _ = self._stage_pending_production(
+            lose_final_attestation=True
+        )
+        self.assertEqual(stopped["status"], "stopped_supervisor_incident")
+        self.assertEqual(stopped["results"], [])
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["execution_incident"]["boundary"], "final_completion"
+        )
+        self.assertNotEqual(private["status"], "complete")
+        self.assertFalse(
+            matched._cohort_retirement_path(
+                Path(private["cohort_manifest_path"])
+            ).exists()
+        )
+        running = {**stopped, "status": "running"}
+        matched._atomic_json(self.results_path, running)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluator,
+        ):
+            for _ in range(2):
+                with self.assertRaisesRegex(RuntimeError, "non-resumable"):
+                    # A terminal incident is reconciled before any requirement
+                    # for a new/live runtime.  It can never resume providers.
+                    matched.run_panel(
+                        root=self.root,
+                        authentication_key_file=self.key_path,
+                        claude_secure_storage_dir=self.claude_secure_storage_dir,
+                        codex_secure_storage_dir=self.codex_secure_storage_dir,
+                        private_state_path=self.private_path,
+                        public_manifest_path=self.public_path,
+                        public_results_path=self.results_path,
+                        acknowledge_unbounded_provider_spend=True,
+                    )
+                reconciled = json.loads(self.results_path.read_text())
+                self.assertEqual(
+                    reconciled["status"], "stopped_supervisor_incident"
+                )
+                self.assertEqual(reconciled["results"], [])
+                self.assertEqual(
+                    reconciled["summary"], {"primary_estimand": "pending"}
+                )
+        evaluator.assert_not_called()
 
     @staticmethod
     def _timeout_result(
@@ -583,7 +1368,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v8_authorization_breakdown"],
+            contract["claude_current_v9_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -593,7 +1378,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v8_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v9_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -604,10 +1389,11 @@ class MatchedPanelTests(unittest.TestCase):
                 "v5_usd": 5.0,
                 "v6_usd": 0.0,
                 "v7_usd": 10.0,
+                "v8_usd": 15.0,
             },
         )
         self.assertEqual(
-            contract["claude_cumulative_authorization_ceiling_usd"], 535.0
+            contract["claude_cumulative_authorization_ceiling_usd"], 550.0
         )
         self.assertEqual(
             set(contract["prior_public_audit_references"]),
@@ -620,12 +1406,72 @@ class MatchedPanelTests(unittest.TestCase):
                 "v6_supersession",
                 "v7_preflight_receipt",
                 "v7_supersession",
+                "v8_preflight_receipt",
+                "v8_stopped_watermark",
+                "v8_supersession",
             },
         )
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
-    def test_v8_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_live_cli_execution_requires_manifest_bound_supervisor(self):
+        public = {
+            "panel_id": matched.PANEL_ID,
+            "precommitment_sha256": "sha256:" + "9" * 64,
+            "persistent_supervisor_contract": (
+                matched._persistent_supervisor_contract()
+            ),
+        }
+        with self.assertRaisesRegex(RuntimeError, "live persistent supervisor"):
+            matched._attest_required_persistent_execution(
+                required=True,
+                supervisor_runtime_dir=None,
+                authentication_key_file=self.key_path,
+                operation="production",
+                public_manifest=public,
+            )
+        runtime = self.root / "supervisor-runtime"
+        live_attestation = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        with patch(
+            "epiagentbench.launchd_agent.attest_live_launch_agent",
+            return_value=live_attestation,
+        ) as attest:
+            observed = matched._attest_required_persistent_execution(
+                required=True,
+                supervisor_runtime_dir=runtime,
+                authentication_key_file=self.key_path,
+                operation="production",
+                public_manifest=public,
+            )
+        self.assertEqual(observed["label"], live_attestation["label"])
+        attest.assert_called_once_with(
+            runtime,
+            authentication_key_file=self.key_path,
+            expected_operation="production",
+            expected_panel_id=matched.PANEL_ID,
+            expected_precommitment_sha256=public["precommitment_sha256"],
+        )
+        with (
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                side_effect=ValueError("private path must not escape"),
+            ),
+            self.assertRaisesRegex(
+                RuntimeError, "Live persistent-supervisor attestation failed"
+            ) as raised,
+        ):
+            matched._attest_required_persistent_execution(
+                required=True,
+                supervisor_runtime_dir=runtime,
+                authentication_key_file=self.key_path,
+                operation="production",
+                public_manifest=public,
+            )
+        self.assertNotIn("private path", str(raised.exception))
+
+    def test_v9_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -747,7 +1593,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v8")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v9")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -771,7 +1617,7 @@ class MatchedPanelTests(unittest.TestCase):
             private["spend_authorization"][
                 "claude_cumulative_authorization_ceiling_usd"
             ],
-            535.0,
+            550.0,
         )
         self.assertEqual(
             private["spend_authorization"]["unbounded_provider_spend"],
@@ -781,10 +1627,16 @@ class MatchedPanelTests(unittest.TestCase):
             private["spend_authorization"]["acknowledgement_text"],
             REQUIRED_SPEND_ACKNOWLEDGEMENT,
         )
-        self.assertIn(
-            "crash-orphan, provider process or state isolation, episode-service "
-            "cleanup, and Codex authentication incidents are terminal",
+        self.assertEqual(
             public["run_contract"]["transport_void_policy"],
+            (
+                "ordinary cleanly quiesced void ends only that provider "
+                "assignment and the same still-running supervised evaluator "
+                "continues with the next assignment without a second outer "
+                "launch; crash-orphan, provider process or state isolation, "
+                "episode-service cleanup, and Codex authentication incidents "
+                "are terminal and non-resumable"
+            ),
         )
         self.assertEqual(
             public["run_contract"]["terminal_incident_policy"],
@@ -895,6 +1747,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertIn("replay_sha256", public["contract_hashes"])
+        self.assertIn("supervisor_sha256", public["contract_hashes"])
         self.assertIn("claude_auth_sha256", public["contract_hashes"])
         self.assertIn("codex_auth_sha256", public["contract_hashes"])
         self.assertEqual(
@@ -2760,12 +3613,12 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v8_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v9_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v7_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v8", "six-call v7"
-        ).replace("$535", "$525")
+            "six-call v9", "six-call v8"
+        ).replace("$550", "$535")
         with (
             patch(
                 "epiagentbench.development_matched_panel."
@@ -2779,7 +3632,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v8 \\$535"),
+            self.assertRaisesRegex(RuntimeError, "exact v9 \\$550"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -3073,7 +3926,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v8"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v9"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -3120,7 +3973,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v8"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v9"),
         ):
             run_panel(
                 root=self.root,
@@ -4689,6 +5542,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "timeouts_sha256",
                 "runtime_sha256",
                 "replay_sha256",
+                "supervisor_sha256",
             },
         )
         self.assertTrue(
@@ -5218,7 +6072,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v8_receipt(self):
+    def test_environment_preflight_gate_validates_full_v9_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 

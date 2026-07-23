@@ -14,7 +14,7 @@ from epiagentbench.development_matched_panel import (
 )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare")
@@ -40,6 +40,7 @@ def main() -> None:
     preflight.add_argument("--private-state", required=True, type=Path)
     preflight.add_argument("--public-manifest", required=True, type=Path)
     preflight.add_argument("--public-preflight", required=True, type=Path)
+    preflight.add_argument("--supervisor-runtime", required=True, type=Path)
     preflight.add_argument(
         "--acknowledge-unbounded-provider-spend", action="store_true", required=True
     )
@@ -50,6 +51,7 @@ def main() -> None:
     run.add_argument("--private-state", required=True, type=Path)
     run.add_argument("--public-manifest", required=True, type=Path)
     run.add_argument("--public-results", required=True, type=Path)
+    run.add_argument("--supervisor-runtime", required=True, type=Path)
     run.add_argument(
         "--acknowledge-unbounded-provider-spend", action="store_true", required=True
     )
@@ -86,6 +88,7 @@ def main() -> None:
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             public_preflight_path=args.public_preflight,
+            supervisor_runtime_dir=args.supervisor_runtime,
             acknowledge_unbounded_provider_spend=(
                 args.acknowledge_unbounded_provider_spend
             ),
@@ -99,6 +102,7 @@ def main() -> None:
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
             public_results_path=args.public_results,
+            supervisor_runtime_dir=args.supervisor_runtime,
             acknowledge_unbounded_provider_spend=(
                 args.acknowledge_unbounded_provider_spend
             ),
@@ -116,7 +120,22 @@ def main() -> None:
             sort_keys=True,
         )
     )
+    if args.command == "preflight":
+        return (
+            0
+            if payload["status"]
+            == "passed_pending_supervisor_completion"
+            else 1
+        )
+    if args.command == "run":
+        return (
+            0
+            if payload["status"]
+            == "complete_pending_supervisor_completion"
+            else 1
+        )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

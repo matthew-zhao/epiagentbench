@@ -77,23 +77,23 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v8"
+PANEL_ID = "development-matched-50x6-v9"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v8"
+SCHEMA_VERSION = "development_matched_panel_v9"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v8 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v9 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
-    "to $535 total Claude spend across the failed v2 preflight, failed v5 "
+    "to $550 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
-    "v8 preflight, and production."
+    "failed v8 production run, v9 preflight, and production."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
-_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 535.0
+_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 550.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
     "cursor": "unbounded",
@@ -194,6 +194,20 @@ _COHORT_RETIREMENT_KEYS = frozenset(
     }
 )
 _MAX_PANEL_JSON_BYTES = 64 * 1024 * 1024
+_PENDING_PREFLIGHT_STATUS = "passed_pending_supervisor_completion"
+_PENDING_PRODUCTION_STATUS = "complete_pending_supervisor_completion"
+_PERSISTENT_EXECUTION_BINDINGS_KEY = "persistent_execution_bindings"
+_PUBLIC_RELEASE_KEY = "public_release"
+_SUPERVISOR_BINDING_FIELDS = frozenset(
+    {
+        "operation",
+        "label",
+        "execution_context_sha256",
+        "config_file_sha256",
+        "panel_id",
+        "precommitment_sha256",
+    }
+)
 _EXPECTED_RECEIPT_IDENTITIES = {
     "claude-opus-high": "claudeopus48",
     "claude-sonnet-high": "claudesonnet5",
@@ -1862,6 +1876,7 @@ def _source_contract(root: Path) -> dict[str, Any]:
         "ls-files",
         "--",
         "examples/run_development_matched_panel.py",
+        "examples/run_persistent_panel_supervisor.py",
         "src/epiagentbench",
         "src/epiagentbench_client",
         "schemas",
@@ -1870,7 +1885,10 @@ def _source_contract(root: Path) -> dict[str, Any]:
     paths = sorted({line for line in output.splitlines() if line})
     required = {
         "examples/run_development_matched_panel.py",
+        "examples/run_persistent_panel_supervisor.py",
         "src/epiagentbench/development_matched_panel.py",
+        "src/epiagentbench/launchd_agent.py",
+        "src/epiagentbench/persistent_supervisor.py",
         "pyproject.toml",
     }
     if not required.issubset(paths) or not any(
@@ -2616,6 +2634,50 @@ def _runtime_contract() -> dict[str, Any]:
     }
 
 
+def _persistent_supervisor_contract() -> dict[str, Any]:
+    """Return the public, path-free contract for v9 process ownership."""
+
+    return {
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v2",
+        "platform": "macos_user_launchagent",
+        "sleep_inhibitor": "caffeinate_-dimsu",
+        "job_policy": "finite_one_shot_no_unconditional_keepalive",
+        "adapter_scope": "one_complete_evaluator_command",
+        "provider_assignment_authority": (
+            "authenticated_inner_evaluator_checkpoint_and_panel_lock"
+        ),
+        "automatic_outer_crash_recovery": False,
+        "stdout_stderr": "discarded",
+        "cursor_key_source": "macos_keychain_in_memory_only",
+        "private_config": "owner_only_hmac_authenticated_closed_schema",
+        "status": "owner_only_hmac_authenticated_closed_schema",
+        "frozen_privileged_sources": [
+            "launchd_agent",
+            "persistent_supervisor",
+            "development_matched_panel",
+        ],
+        "liveness": {
+            "heartbeat_interval_seconds": 15,
+            "provider_activity_is_liveness": False,
+            "requires_boot_pid_and_process_birth_match": True,
+        },
+        "execution_binding": [
+            "launchd_label",
+            "operation",
+            "panel_id",
+            "public_precommitment_sha256",
+            "sealed_config_file_sha256",
+        ],
+        "execution_binding_policy": "create_once_per_operation_never_replace",
+        "operator_stop_policy": "never_stop_or_bootout_an_active_job",
+        "release_gate": (
+            "two_phase_private_candidate_then_authenticated_supervisor_"
+            "completed_status_lease_and_event_chain_before_public_success"
+        ),
+        "manual_finalize_scope": "local_idempotent_publication_only_no_provider",
+    }
+
+
 def _attest_execution_contracts(
     *, root: Path, public: Mapping[str, Any]
 ) -> None:
@@ -2627,6 +2689,7 @@ def _attest_execution_contracts(
             "cli_contract": _cli_contract(),
             "runtime_contract": _runtime_contract(),
             "replay_trace_contract": replay_trace_contract(),
+            "persistent_supervisor_contract": _persistent_supervisor_contract(),
             "profiles": _profile_contract(),
         }
     except Exception as error:
@@ -2639,6 +2702,7 @@ def _attest_execution_contracts(
         "cli_contract": "cli_sha256",
         "runtime_contract": "runtime_sha256",
         "replay_trace_contract": "replay_sha256",
+        "persistent_supervisor_contract": "supervisor_sha256",
         "profiles": "profiles_sha256",
     }
     for surface, current in fresh.items():
@@ -2810,12 +2874,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
     )
-    prior_ceiling = 25.0
+    prior_ceiling = 40.0
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v8_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v8_authorization_breakdown": {
+        "claude_current_v9_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v9_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -2834,6 +2898,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v5_usd": 5.0,
             "v6_usd": 0.0,
             "v7_usd": 10.0,
+            "v8_usd": 15.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -2862,6 +2927,15 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             ),
             "v7_supersession": (
                 "results/development-matched-50x6-v7.superseded.json"
+            ),
+            "v8_preflight_receipt": (
+                "results/development-matched-50x6-v8.preflight.json"
+            ),
+            "v8_stopped_watermark": (
+                "results/development-matched-50x6-v8.json"
+            ),
+            "v8_supersession": (
+                "results/development-matched-50x6-v8.superseded.json"
             ),
         },
         "ceiling_interpretation": (
@@ -2901,13 +2975,13 @@ def prepare_panel(
     if private_state_path.exists() or public_manifest_path.exists():
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V8 requires an exact 1800-second assignment timeout")
+        raise ValueError("V9 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V8 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V9 requires an exact $5 Claude per-call ceiling")
 
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -2996,6 +3070,7 @@ def prepare_panel(
     }
     runtime = _runtime_contract()
     replay = replay_trace_contract()
+    supervisor = _persistent_supervisor_contract()
     _require_claude_credential_state(
         resolved_claude_secure_storage_dir,
         root=root,
@@ -3042,6 +3117,7 @@ def prepare_panel(
         "source_contract": source,
         "runtime_contract": runtime,
         "replay_trace_contract": replay,
+        "persistent_supervisor_contract": supervisor,
         "budget_contract": budgets,
         "timeout_contract": timeouts,
         "contract_hashes": {
@@ -3054,6 +3130,7 @@ def prepare_panel(
             "timeouts_sha256": _component_hash(timeouts),
             "runtime_sha256": _component_hash(runtime),
             "replay_sha256": _component_hash(replay),
+            "supervisor_sha256": _component_hash(supervisor),
         },
         "private_schedule_commitment": _schedule_commitment(schedule, nonce),
         "private_family_map_commitment": _family_map_commitment(episodes, nonce),
@@ -3071,6 +3148,14 @@ def prepare_panel(
         },
         "run_contract": {
             "planned_assignments": ASSIGNMENT_COUNT,
+            "persistent_execution": {
+                "required_for_preflight_and_production": True,
+                "contract": "persistent_supervisor_contract",
+                "outer_command_scope": "one_complete_evaluator_command",
+                "provider_assignment_checkpoint_owner": "inner_evaluator",
+                "monitor_may_relaunch": False,
+                "active_job_may_be_booted_out": False,
+            },
             "spend_authorization": _spend_authorization_contract(),
             "retry_policy": "at most one provider invocation per assignment",
             "orphan_policy": (
@@ -3078,10 +3163,12 @@ def prepare_panel(
                 "block cohort completion and every later provider call"
             ),
             "transport_void_policy": (
-                "ordinary cleanly quiesced void stops current command and a "
-                "later command may continue; crash-orphan, provider process or "
-                "state isolation, episode-service cleanup, and Codex "
-                "authentication incidents are terminal and non-resumable"
+                "ordinary cleanly quiesced void ends only that provider "
+                "assignment and the same still-running supervised evaluator "
+                "continues with the next assignment without a second outer "
+                "launch; crash-orphan, provider process or state isolation, "
+                "episode-service cleanup, and Codex authentication incidents "
+                "are terminal and non-resumable"
             ),
             "terminal_incident_policy": {
                 "crash_after_durable_start": {
@@ -3249,6 +3336,9 @@ def prepare_panel(
                 "timeouts_sha256": public["contract_hashes"]["timeouts_sha256"],
                 "runtime_sha256": public["contract_hashes"]["runtime_sha256"],
                 "replay_sha256": public["contract_hashes"]["replay_sha256"],
+                "supervisor_sha256": public["contract_hashes"][
+                    "supervisor_sha256"
+                ],
             },
         },
         "assignments": [],
@@ -3273,6 +3363,7 @@ def _validate_contracts(
     authentication_key: bytes,
     claude_secure_storage_dir: Path,
     codex_secure_storage_dir: Path,
+    revalidate_live_identity_contracts: bool = True,
 ) -> tuple[
     PrivateEpisodeCohortManifest,
     dict[str, PrivateEpisodePack],
@@ -3306,12 +3397,24 @@ def _validate_contracts(
         public=public,
     )
     expected_contracts = {
-        "source_contract": _source_contract(root),
-        "cli_contract": _cli_contract(),
         "runtime_contract": _runtime_contract(),
         "replay_trace_contract": replay_trace_contract(),
+        "persistent_supervisor_contract": _persistent_supervisor_contract(),
         "profiles": _profile_contract(),
     }
+    if revalidate_live_identity_contracts:
+        # Live prepare/preflight/production boundaries must prove that the
+        # checked-out source and installed provider executables still match
+        # the frozen manifest.  The post-supervisor release path deliberately
+        # skips these executable probes: its authenticated pending candidate
+        # was created only after the live child performed these checks, and
+        # finalization must not launch anything after outer completion.
+        expected_contracts.update(
+            {
+                "source_contract": _source_contract(root),
+                "cli_contract": _cli_contract(),
+            }
+        )
     for name, expected in expected_contracts.items():
         if public.get(name) != expected:
             raise ValueError(f"Pinned matched-panel contract drifted: {name}")
@@ -3328,6 +3431,10 @@ def _validate_contracts(
             ("timeouts_sha256", public["timeout_contract"]),
             ("runtime_sha256", public["runtime_contract"]),
             ("replay_sha256", public["replay_trace_contract"]),
+            (
+                "supervisor_sha256",
+                public["persistent_supervisor_contract"],
+            ),
         )
     ):
         raise ValueError("Matched-panel component commitment mismatch")
@@ -3352,7 +3459,10 @@ def _validate_contracts(
         manifest_path, authentication_key
     )
     if retirement is not None:
-        if private.get("status") != "complete":
+        if private.get("status") not in {
+            "complete",
+            _PENDING_PRODUCTION_STATUS,
+        }:
             raise ValueError("Frozen cohort was retired before this panel completed")
         _assert_retirement_matches_panel(
             retirement,
@@ -3425,27 +3535,57 @@ def _validate_contracts(
             raise ValueError("Private assignments do not follow the committed order")
         if assignment.get("status") == "started" and index != len(assignments) - 1:
             raise ValueError("Only the final checkpoint may remain started")
-    if private.get("status") == "complete" and (
+    if private.get("status") in {"complete", _PENDING_PRODUCTION_STATUS} and (
         len(assignments) != ASSIGNMENT_COUNT
         or any(item.get("status") not in {"complete", "transport_void"} for item in assignments)
     ):
         raise ValueError("Completed private state is not fully terminal")
+    bindings = private.get(_PERSISTENT_EXECUTION_BINDINGS_KEY)
+    if bindings is not None:
+        if not isinstance(bindings, dict) or any(
+            operation not in {"preflight", "production"}
+            or not isinstance(binding, dict)
+            or set(binding) != _SUPERVISOR_BINDING_FIELDS
+            or binding.get("operation") != operation
+            or binding.get("panel_id") != PANEL_ID
+            or binding.get("precommitment_sha256")
+            != public.get("precommitment_sha256")
+            for operation, binding in bindings.items()
+        ):
+            raise ValueError("Private persistent-supervisor binding is invalid")
     for incident_name in ("execution_incident", "codex_auth_incident"):
         incident = private.get(incident_name)
         if incident is None:
             continue
+        ordinary_void = (
+            isinstance(incident, dict)
+            and type(incident.get("assignment_index")) is int
+            and 0 <= incident["assignment_index"] < len(assignments)
+            and assignments[incident["assignment_index"]].get("status")
+            == "transport_void"
+            and "boundary" not in incident
+        )
+        supervisor_boundary = (
+            incident_name == "execution_incident"
+            and isinstance(incident, dict)
+            and type(incident.get("assignment_index")) is int
+            and incident["assignment_index"] == len(assignments)
+            and incident.get("boundary")
+            in {"clean_before_assignment", "final_completion"}
+            and (
+                incident.get("boundary") == "final_completion"
+                or isinstance(incident.get("profile_id"), str)
+            )
+        )
         if (
             not isinstance(incident, dict)
             or incident.get("status") != "terminal"
-            or type(incident.get("assignment_index")) is not int
-            or not 0 <= incident["assignment_index"] < len(assignments)
             or not isinstance(incident.get("failure_class"), str)
             or not incident["failure_class"]
-            or assignments[incident["assignment_index"]].get("status")
-            != "transport_void"
+            or not (ordinary_void or supervisor_boundary)
         ):
             raise ValueError("Private terminal incident state is invalid")
-    if private.get("status") == "complete" and any(
+    if private.get("status") in {"complete", _PENDING_PRODUCTION_STATUS} and any(
         private.get(name) is not None
         for name in ("execution_incident", "codex_auth_incident")
     ):
@@ -3492,7 +3632,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V8 spend authorization contract mismatch")
+        raise ValueError("V9 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -3520,7 +3660,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v8 spend authorization receipt is required "
+            "A manifest-bound exact v9 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -3542,7 +3682,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v8 $535 cumulative spend acknowledgement text is required"
+            "The exact v9 $550 cumulative spend acknowledgement text is required"
         )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -3641,6 +3781,7 @@ def _assert_environment_preflight(
             "timeouts_sha256",
             "runtime_sha256",
             "replay_sha256",
+            "supervisor_sha256",
         )
     }
     private_attempts = (
@@ -4068,7 +4209,204 @@ def _preflight_profile_outcome(
     }
 
 
-def run_environment_preflight(
+def _attest_required_persistent_execution(
+    *,
+    required: bool,
+    supervisor_runtime_dir: Path | None,
+    authentication_key_file: Path,
+    operation: str,
+    public_manifest: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Require a live, manifest-bound supervisor before a live CLI run."""
+
+    if type(required) is not bool:
+        raise ValueError("Persistent-supervisor requirement must be boolean")
+    if not required:
+        if supervisor_runtime_dir is not None:
+            raise ValueError(
+                "A supervisor runtime may be supplied only when attestation is required"
+            )
+        return None
+    if supervisor_runtime_dir is None or operation not in {"preflight", "production"}:
+        raise ProviderExecutionIsolationError(
+            "A live persistent supervisor is required"
+        )
+    if public_manifest.get("persistent_supervisor_contract") != (
+        _persistent_supervisor_contract()
+    ):
+        raise ProviderExecutionIsolationError(
+            "Persistent supervisor contract mismatch"
+        )
+    panel_id = public_manifest.get("panel_id")
+    precommitment = public_manifest.get("precommitment_sha256")
+    if panel_id != PANEL_ID or not isinstance(precommitment, str):
+        raise ProviderExecutionIsolationError(
+            "Persistent supervisor public binding is invalid"
+        )
+    try:
+        from .launchd_agent import attest_live_launch_agent
+
+        attestation = attest_live_launch_agent(
+            supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            expected_operation=operation,
+            expected_panel_id=PANEL_ID,
+            expected_precommitment_sha256=precommitment,
+        )
+    except Exception:
+        raise ProviderExecutionIsolationError(
+            "Live persistent-supervisor attestation failed"
+        ) from None
+    return _normalized_supervisor_binding(
+        attestation,
+        operation=operation,
+        public_manifest=public_manifest,
+    )
+
+
+def _normalized_supervisor_binding(
+    attestation: Mapping[str, Any],
+    *,
+    operation: str,
+    public_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project one live/terminal attestation onto an immutable private key."""
+
+    panel_id = public_manifest.get("panel_id")
+    precommitment = public_manifest.get("precommitment_sha256")
+    label = attestation.get("label") if isinstance(attestation, Mapping) else None
+    context = (
+        attestation.get("execution_context_sha256")
+        if isinstance(attestation, Mapping)
+        else None
+    )
+    config_file_sha256 = (
+        attestation.get("config_file_sha256")
+        if isinstance(attestation, Mapping)
+        else None
+    )
+    if (
+        operation not in {"preflight", "production"}
+        or panel_id != PANEL_ID
+        or not isinstance(precommitment, str)
+        or not precommitment.startswith("sha256:")
+        or len(precommitment) != 71
+        or not isinstance(label, str)
+        or not label
+        or len(label) > 255
+        or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.@+-" for character in label)
+        or not isinstance(context, str)
+        or not context.startswith("sha256:")
+        or len(context) != 71
+        or not isinstance(config_file_sha256, str)
+        or not config_file_sha256.startswith("sha256:")
+        or len(config_file_sha256) != 71
+    ):
+        raise ProviderExecutionIsolationError(
+            "Persistent-supervisor attestation binding is invalid"
+        )
+    binding = {
+        "operation": operation,
+        "label": label,
+        "execution_context_sha256": context,
+        "config_file_sha256": config_file_sha256,
+        "panel_id": PANEL_ID,
+        "precommitment_sha256": precommitment,
+    }
+    if set(binding) != _SUPERVISOR_BINDING_FIELDS:
+        raise AssertionError("Persistent-supervisor binding schema drifted")
+    return binding
+
+
+def _claim_persistent_execution_binding(
+    private: dict[str, Any],
+    *,
+    operation: str,
+    binding: Mapping[str, Any] | None,
+) -> bool:
+    """Create one immutable operation binding; return whether it was created."""
+
+    if binding is None:
+        return False
+    normalized = dict(binding)
+    if set(normalized) != _SUPERVISOR_BINDING_FIELDS:
+        raise ProviderExecutionIsolationError(
+            "Persistent-supervisor binding schema changed"
+        )
+    bindings = private.get(_PERSISTENT_EXECUTION_BINDINGS_KEY)
+    if bindings is None:
+        bindings = {}
+        private[_PERSISTENT_EXECUTION_BINDINGS_KEY] = bindings
+    if not isinstance(bindings, dict) or any(
+        name not in {"preflight", "production"} for name in bindings
+    ):
+        raise ProviderExecutionIsolationError(
+            "Persistent-supervisor private binding state is invalid"
+        )
+    existing = bindings.get(operation)
+    if existing is None:
+        bindings[operation] = normalized
+        return True
+    if not isinstance(existing, Mapping) or not hmac.compare_digest(
+        _canonical_bytes(dict(existing)), _canonical_bytes(normalized)
+    ):
+        raise ProviderExecutionIsolationError(
+            "Persistent-supervisor runtime replacement was refused"
+        )
+    return False
+
+
+def _attest_and_match_persistent_execution(
+    *,
+    required: bool,
+    supervisor_runtime_dir: Path | None,
+    authentication_key_file: Path,
+    operation: str,
+    public_manifest: Mapping[str, Any],
+    private: dict[str, Any],
+) -> tuple[dict[str, Any] | None, bool]:
+    binding = _attest_required_persistent_execution(
+        required=required,
+        supervisor_runtime_dir=supervisor_runtime_dir,
+        authentication_key_file=authentication_key_file,
+        operation=operation,
+        public_manifest=public_manifest,
+    )
+    created = _claim_persistent_execution_binding(
+        private,
+        operation=operation,
+        binding=binding,
+    )
+    return binding, created
+
+
+def _execution_evaluator(
+    *,
+    require_persistent_supervisor: bool,
+    offline_test_evaluator: Callable[..., PilotRunResult] | None,
+) -> Callable[..., PilotRunResult]:
+    """Select the live evaluator only under supervision.
+
+    Unsupervised execution is intentionally available only to private
+    deterministic test seams that explicitly inject an offline fake.
+    """
+
+    if type(require_persistent_supervisor) is not bool:
+        raise ValueError("Persistent-supervisor requirement must be boolean")
+    if require_persistent_supervisor:
+        if offline_test_evaluator is not None:
+            raise ValueError(
+                "An offline test evaluator cannot be used by a live supervised run"
+            )
+        return evaluate_local_cli_agent
+    if offline_test_evaluator is None or not callable(offline_test_evaluator):
+        raise ProviderExecutionIsolationError(
+            "Unsupervised execution requires an explicitly injected offline test evaluator"
+        )
+    return offline_test_evaluator
+
+
+def _run_environment_preflight_core(
     *,
     root: Path,
     authentication_key_file: Path,
@@ -4077,6 +4415,9 @@ def run_environment_preflight(
     private_state_path: Path,
     public_manifest_path: Path,
     public_preflight_path: Path,
+    supervisor_runtime_dir: Path | None = None,
+    require_persistent_supervisor: bool = True,
+    offline_test_evaluator: Callable[..., PilotRunResult] | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
     """Exercise every provider profile on one disposable, unscored episode."""
@@ -4085,6 +4426,10 @@ def run_environment_preflight(
         raise RuntimeError(
             "Explicit acknowledgement of unbounded preflight provider spend is required"
         )
+    evaluator = _execution_evaluator(
+        require_persistent_supervisor=require_persistent_supervisor,
+        offline_test_evaluator=offline_test_evaluator,
+    )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
     )
@@ -4109,6 +4454,28 @@ def run_environment_preflight(
         private = _load_private_state(private_state_path, authentication_key)
         public = _load_json(public_manifest_path)
         _validate_public_hash(public)
+        _, binding_created = _attest_and_match_persistent_execution(
+            required=require_persistent_supervisor,
+            supervisor_runtime_dir=supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            operation="preflight",
+            public_manifest=public,
+            private=private,
+        )
+        if binding_created:
+            # The exact label/context is burned before any authentication
+            # bootstrap or model-bearing call.  It is never replaceable.
+            _write_private_state(private_state_path, private, authentication_key)
+
+        def attest_current_supervisor() -> None:
+            _attest_and_match_persistent_execution(
+                required=require_persistent_supervisor,
+                supervisor_runtime_dir=supervisor_runtime_dir,
+                authentication_key_file=authentication_key_file,
+                operation="preflight",
+                public_manifest=public,
+                private=private,
+            )
         _assert_spend_authorization(private, public)
         _validate_claude_auth_binding(
             root=root,
@@ -4208,6 +4575,7 @@ def run_environment_preflight(
                 "timeouts_sha256",
                 "runtime_sha256",
                 "replay_sha256",
+                "supervisor_sha256",
             )
         }
         cli_versions = {
@@ -4306,6 +4674,7 @@ def run_environment_preflight(
         failure_stage = "codex_auth_bootstrap"
         active_bootstrap: str | None = None
         try:
+            attest_current_supervisor()
             _attest_execution_contracts(root=root, public=public)
             _require_codex_credential_state(
                 resolved_codex_secure_storage_dir,
@@ -4357,9 +4726,11 @@ def run_environment_preflight(
             )
             active_bootstrap = None
             failure_stage = "post_codex_auth_contract_attestation"
+            attest_current_supervisor()
             _attest_execution_contracts(root=root, public=public)
 
             failure_stage = "managed_glean_auth_bootstrap"
+            attest_current_supervisor()
             _attest_execution_contracts(root=root, public=public)
             _require_claude_credential_state(
                 resolved_claude_secure_storage_dir,
@@ -4407,6 +4778,7 @@ def run_environment_preflight(
                 resolved_codex_secure_storage_dir,
                 codex_auth_file_identity,
             )
+            attest_current_supervisor()
             _attest_execution_contracts(root=root, public=public)
             private["environment_preflight"][
                 "managed_glean_auth_bootstrap"
@@ -4596,6 +4968,7 @@ def run_environment_preflight(
                     )
                 )
                 failure_stage = "execution_contract_before_harness"
+                attest_current_supervisor()
                 _attest_execution_contracts(root=root, public=public)
                 failure_stage = "provider_launch"
                 marker["provider_invocation"] = {
@@ -4614,7 +4987,7 @@ def run_environment_preflight(
                         private_state_path, private, authentication_key
                     )
 
-                result = evaluate_local_cli_agent(
+                result = evaluator(
                     str(profile["system"]),
                     seed=int.from_bytes(shared_digest[:6], "big"),
                     family="reporting_artifact",
@@ -4644,6 +5017,7 @@ def run_environment_preflight(
                     private_state_path, private, authentication_key
                 )
                 failure_stage = "execution_contract_after_harness"
+                attest_current_supervisor()
                 _attest_execution_contracts(root=root, public=public)
                 if profile["system"] == "claude":
                     failure_stage = "credential_attestation"
@@ -4916,6 +5290,59 @@ def run_environment_preflight(
             "scores_reported": False,
             "completed_at_utc": _utc_now(),
         }
+        if not profile_failures:
+            try:
+                attest_current_supervisor()
+            except ProviderExecutionIsolationError as error:
+                stopped = {
+                    "schema_version": SCHEMA_VERSION,
+                    "panel_id": PANEL_ID,
+                    "status": "stopped_supervisor_incident",
+                    "development_only": True,
+                    "production_episodes_consumed": 0,
+                    "precommitment_sha256": public["precommitment_sha256"],
+                    "profiles_terminal": len(public_attempts),
+                    "provider_calls_conservatively_chargeable": (
+                        _conservatively_chargeable_provider_calls(attempts)
+                    ),
+                    "scores_reported": False,
+                }
+                private["environment_preflight"] = {
+                    **private["environment_preflight"],
+                    "status": "failed",
+                    "finished_at_utc": receipt["completed_at_utc"],
+                    "supervisor_incident": {
+                        "status": "terminal",
+                        "failure_class": type(error).__name__,
+                        "boundary": "final_completion",
+                    },
+                }
+                _write_private_state(
+                    private_state_path, private, authentication_key
+                )
+                _atomic_json(public_preflight_path, stopped)
+                return stopped
+        if not profile_failures and require_persistent_supervisor:
+            pending = _public_preflight_pending(public, receipt)
+            private["environment_preflight"] = {
+                **private["environment_preflight"],
+                "status": _PENDING_PREFLIGHT_STATUS,
+                "finished_at_utc": receipt["completed_at_utc"],
+                "pending_public_receipt": receipt,
+                "pending_public_receipt_sha256": _component_hash(receipt),
+                _PUBLIC_RELEASE_KEY: {
+                    "status": "pending_supervisor_completion",
+                    "operation": "preflight",
+                },
+            }
+            private["environment_preflight"][
+                "passed_contract_hashes"
+            ] = contract_hashes
+            # The sealed candidate must be durable before even the trace-free
+            # public watermark appears.
+            _write_private_state(private_state_path, private, authentication_key)
+            _atomic_json(public_preflight_path, pending)
+            return pending
         _atomic_json(public_preflight_path, receipt)
         private["environment_preflight"] = {
             **private["environment_preflight"],
@@ -4930,6 +5357,73 @@ def run_environment_preflight(
             ] = contract_hashes
         _write_private_state(private_state_path, private, authentication_key)
         return receipt
+
+
+def run_environment_preflight(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_preflight_path: Path,
+    supervisor_runtime_dir: Path | None = None,
+    acknowledge_unbounded_provider_spend: bool = False,
+) -> dict[str, Any]:
+    """Exercise every provider profile under authenticated supervision.
+
+    The public entry point deliberately exposes neither a supervision switch
+    nor an evaluator callback.  Offline fault-injection belongs in the
+    private test-only helper below.
+    """
+
+    return _run_environment_preflight_core(
+        root=root,
+        authentication_key_file=authentication_key_file,
+        claude_secure_storage_dir=claude_secure_storage_dir,
+        codex_secure_storage_dir=codex_secure_storage_dir,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+        public_preflight_path=public_preflight_path,
+        supervisor_runtime_dir=supervisor_runtime_dir,
+        require_persistent_supervisor=True,
+        offline_test_evaluator=None,
+        acknowledge_unbounded_provider_spend=(
+            acknowledge_unbounded_provider_spend
+        ),
+    )
+
+
+def _run_environment_preflight_for_offline_test(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_preflight_path: Path,
+    offline_test_evaluator: Callable[..., PilotRunResult],
+    acknowledge_unbounded_provider_spend: bool = False,
+) -> dict[str, Any]:
+    """Private deterministic seam for unit tests; never a live run path."""
+
+    return _run_environment_preflight_core(
+        root=root,
+        authentication_key_file=authentication_key_file,
+        claude_secure_storage_dir=claude_secure_storage_dir,
+        codex_secure_storage_dir=codex_secure_storage_dir,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+        public_preflight_path=public_preflight_path,
+        supervisor_runtime_dir=None,
+        require_persistent_supervisor=False,
+        offline_test_evaluator=offline_test_evaluator,
+        acknowledge_unbounded_provider_spend=(
+            acknowledge_unbounded_provider_spend
+        ),
+    )
 
 
 def _preflight_execution(
@@ -5005,6 +5499,30 @@ def _public_running(
     }
 
 
+def _public_preflight_pending(
+    public_manifest: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+) -> dict[str, Any]:
+    profiles = receipt.get("profiles")
+    if not isinstance(profiles, list):
+        raise ValueError("Pending preflight candidate has no profile matrix")
+    chargeable = receipt.get("provider_calls_conservatively_chargeable")
+    if type(chargeable) is not int or chargeable < 0:
+        raise ValueError("Pending preflight candidate has invalid call count")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "panel_id": PANEL_ID,
+        "status": _PENDING_PREFLIGHT_STATUS,
+        "development_only": True,
+        "production_episodes_consumed": 0,
+        "precommitment_sha256": public_manifest["precommitment_sha256"],
+        "profiles_terminal": len(profiles),
+        "provider_calls_conservatively_chargeable": chargeable,
+        "scores_reported": False,
+        "release_gate": "authenticated_outer_supervisor_completion_required",
+    }
+
+
 def _reconcile_terminal_incident_public_progress(
     *,
     root: Path,
@@ -5014,8 +5532,19 @@ def _reconcile_terminal_incident_public_progress(
 ) -> dict[str, Any]:
     """Repair only a trace-free public watermark after a durable incident."""
 
+    execution_incident = private.get("execution_incident")
+    supervisor_boundary = (
+        isinstance(execution_incident, Mapping)
+        and execution_incident.get("boundary")
+        in {"clean_before_assignment", "final_completion"}
+    )
+    expected_status = (
+        "stopped_supervisor_incident"
+        if supervisor_boundary
+        else "stopped_transport_void"
+    )
     expected = _public_running(
-        public_manifest, private, status="stopped_transport_void"
+        public_manifest, private, status=expected_status
     )
     relative = _relative_to_root(public_results_path, root)
     if _git_output(root, "ls-files", relative):
@@ -5044,10 +5573,7 @@ def _reconcile_terminal_incident_public_progress(
             raise ValueError(
                 "Terminal-incident public progress differs from its panel"
             )
-        if existing["status"] not in {
-            "running",
-            "stopped_transport_void",
-        }:
+        if existing["status"] not in {"running", expected_status}:
             raise ValueError(
                 "Terminal-incident public progress has an unsafe status"
             )
@@ -5476,6 +6002,239 @@ def _complete_artifact(
     return artifact
 
 
+def _completed_supervisor_binding(
+    *,
+    supervisor_runtime_dir: Path,
+    authentication_key_file: Path,
+    operation: str,
+    public_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    # Resolve the trusted implementation here rather than accepting a caller-
+    # supplied callback.  Public release must not be reachable through an
+    # otherwise-valid fake attestation supplied to this API.
+    from .launchd_agent import attest_completed_launch_agent
+
+    try:
+        attestation = attest_completed_launch_agent(
+            supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            expected_operation=operation,
+            expected_panel_id=PANEL_ID,
+            expected_precommitment_sha256=public_manifest[
+                "precommitment_sha256"
+            ],
+        )
+    except Exception:
+        raise ProviderExecutionIsolationError(
+            "Completed persistent-supervisor attestation failed"
+        ) from None
+    if (
+        not isinstance(attestation, Mapping)
+        or attestation.get("attested") is not True
+        or attestation.get("lifecycle") != "completed"
+    ):
+        raise ProviderExecutionIsolationError(
+            "Public release requires authenticated supervisor completion"
+        )
+    return _normalized_supervisor_binding(
+        attestation,
+        operation=operation,
+        public_manifest=public_manifest,
+    )
+
+
+def _require_existing_persistent_execution_binding(
+    private: Mapping[str, Any],
+    *,
+    operation: str,
+    completed_binding: Mapping[str, Any],
+) -> None:
+    bindings = private.get(_PERSISTENT_EXECUTION_BINDINGS_KEY)
+    existing = bindings.get(operation) if isinstance(bindings, Mapping) else None
+    if (
+        not isinstance(existing, Mapping)
+        or set(existing) != _SUPERVISOR_BINDING_FIELDS
+        or not hmac.compare_digest(
+            _canonical_bytes(dict(existing)),
+            _canonical_bytes(dict(completed_binding)),
+        )
+    ):
+        raise ProviderExecutionIsolationError(
+            "Completed supervisor differs from the create-once runtime binding"
+        )
+
+
+def finalize_supervised_release(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_output_path: Path,
+    supervisor_runtime_dir: Path,
+    operation: str,
+) -> dict[str, Any]:
+    """Publish one staged success after authenticated outer completion.
+
+    This function is deliberately local-only: it never invokes an evaluator,
+    authentication bootstrap, provider CLI, Keychain lookup, or network probe.
+    The launchd worker calls it after the one supervised child command reaches
+    its authenticated terminal-completed state.  Re-entry is safe only for
+    reconciling an exact artifact written before a crash.
+    """
+
+    if operation not in {"preflight", "production"}:
+        raise ValueError("Supervised release operation is invalid")
+    _assert_distinct_paths(
+        authentication_key_file,
+        private_state_path,
+        public_manifest_path,
+        public_output_path,
+    )
+    with _exclusive_run_lock(private_state_path):
+        authentication_key = _read_authentication_key(
+            _existing_path_without_final_symlink(authentication_key_file)
+        )
+        private = _load_private_state(private_state_path, authentication_key)
+        public = _load_json(public_manifest_path)
+        _validate_public_hash(public)
+        completed_binding = _completed_supervisor_binding(
+            supervisor_runtime_dir=supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            operation=operation,
+            public_manifest=public,
+        )
+        _require_existing_persistent_execution_binding(
+            private,
+            operation=operation,
+            completed_binding=completed_binding,
+        )
+        if any(
+            private.get(name) is not None
+            for name in ("execution_incident", "codex_auth_incident")
+        ):
+            raise ProviderExecutionIsolationError(
+                "A terminal execution incident blocks public release"
+            )
+        resolved_claude_storage = _validate_claude_secure_storage_dir(
+            claude_secure_storage_dir, root=root
+        )
+        resolved_codex_storage = _validate_codex_secure_storage_dir(
+            codex_secure_storage_dir, root=root
+        )
+        manifest, _, _ = _validate_contracts(
+            root=root,
+            private=private,
+            public=public,
+            authentication_key=authentication_key,
+            claude_secure_storage_dir=resolved_claude_storage,
+            codex_secure_storage_dir=resolved_codex_storage,
+            revalidate_live_identity_contracts=False,
+        )
+
+        if operation == "preflight":
+            preflight = private.get("environment_preflight")
+            if not isinstance(preflight, dict) or preflight.get("status") not in {
+                _PENDING_PREFLIGHT_STATUS,
+                "passed",
+            }:
+                raise ProviderExecutionIsolationError(
+                    "No passed preflight candidate is pending release"
+                )
+            candidate = preflight.get("pending_public_receipt")
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("status") != "passed"
+                or candidate.get("panel_id") != PANEL_ID
+                or candidate.get("precommitment_sha256")
+                != public.get("precommitment_sha256")
+                or preflight.get("pending_public_receipt_sha256")
+                != _component_hash(candidate)
+            ):
+                raise ProviderExecutionIsolationError(
+                    "Pending preflight release candidate is invalid"
+                )
+            expected_pending = _public_preflight_pending(public, candidate)
+            existing = _load_json(public_output_path)
+            if existing != expected_pending and existing != candidate:
+                raise ProviderExecutionIsolationError(
+                    "Public preflight path differs from its staged candidate"
+                )
+            preflight.update(
+                {
+                    "status": "passed",
+                    "public_receipt_path": str(public_output_path.resolve()),
+                    "public_receipt_sha256": _component_hash(candidate),
+                    _PUBLIC_RELEASE_KEY: {
+                        "status": "released",
+                        "operation": "preflight",
+                    },
+                }
+            )
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
+            # Public success is deliberately the final evaluator-side durable
+            # write.  A crash before it leaves only the trace-free pending
+            # watermark; a retry can verify the already-committed private
+            # release marker and publish the exact same candidate.
+            if existing == expected_pending:
+                _atomic_json(public_output_path, candidate)
+            return candidate
+
+        if private.get("status") not in {
+            _PENDING_PRODUCTION_STATUS,
+            "complete",
+        }:
+            raise ProviderExecutionIsolationError(
+                "No complete production candidate is pending release"
+            )
+        artifact = _complete_artifact(public, private)
+        release = private.get(_PUBLIC_RELEASE_KEY)
+        if (
+            not isinstance(release, Mapping)
+            or release.get("operation") != "production"
+            or release.get("status")
+            not in {"pending_supervisor_completion", "released"}
+            or release.get("candidate_results_sha256")
+            != artifact.get("results_sha256")
+        ):
+            raise ProviderExecutionIsolationError(
+                "Pending production release candidate is invalid"
+            )
+        expected_pending = _public_running(
+            public,
+            private,
+            status=_PENDING_PRODUCTION_STATUS,
+        )
+        existing = _load_json(public_output_path)
+        if existing != expected_pending and existing != artifact:
+            raise ProviderExecutionIsolationError(
+                "Public results path differs from its staged candidate"
+            )
+        cohort_manifest_path = _existing_path_without_final_symlink(
+            str(private["cohort_manifest_path"])
+        )
+        _ensure_terminal_cohort_retirement(
+            cohort_manifest_path=cohort_manifest_path,
+            manifest=manifest,
+            public_manifest=public,
+            artifact=artifact,
+            authentication_key=authentication_key,
+        )
+        private["status"] = "complete"
+        private[_PUBLIC_RELEASE_KEY] = {
+            **dict(release),
+            "status": "released",
+        }
+        _write_private_state(private_state_path, private, authentication_key)
+        if existing == expected_pending:
+            _atomic_json(public_output_path, artifact)
+        return artifact
+
+
 def _run_panel_locked(
     *,
     root: Path,
@@ -5485,12 +6244,19 @@ def _run_panel_locked(
     private_state_path: Path,
     public_manifest_path: Path,
     public_results_path: Path,
+    supervisor_runtime_dir: Path | None = None,
+    require_persistent_supervisor: bool = True,
+    offline_test_evaluator: Callable[..., PilotRunResult] | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
     """Run or resume the 300 assignments, never retrying a durable start."""
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError("Explicit acknowledgement of unbounded provider spend is required")
+    evaluator = _execution_evaluator(
+        require_persistent_supervisor=require_persistent_supervisor,
+        offline_test_evaluator=offline_test_evaluator,
+    )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
     )
@@ -5514,6 +6280,45 @@ def _run_panel_locked(
     private = _load_private_state(private_state_path, authentication_key)
     public_manifest = _load_json(public_manifest_path)
     _validate_public_hash(public_manifest)
+    if (
+        private.get("execution_incident") is not None
+        or private.get("codex_auth_incident") is not None
+    ):
+        _reconcile_terminal_incident_public_progress(
+            root=root,
+            public_manifest=public_manifest,
+            private=private,
+            public_results_path=public_results_path,
+        )
+        if private.get("execution_incident") is not None:
+            raise RuntimeError(
+                "A terminal provider execution incident makes this panel "
+                "non-resumable"
+            )
+        raise RuntimeError(
+            "A terminal Codex authentication incident makes this panel "
+            "non-resumable"
+        )
+    _, binding_created = _attest_and_match_persistent_execution(
+        required=require_persistent_supervisor,
+        supervisor_runtime_dir=supervisor_runtime_dir,
+        authentication_key_file=authentication_key_file,
+        operation="production",
+        public_manifest=public_manifest,
+        private=private,
+    )
+    if binding_created:
+        _write_private_state(private_state_path, private, authentication_key)
+
+    def attest_current_supervisor() -> None:
+        _attest_and_match_persistent_execution(
+            required=require_persistent_supervisor,
+            supervisor_runtime_dir=supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            operation="production",
+            public_manifest=public_manifest,
+            private=private,
+        )
     _assert_spend_authorization(private, public_manifest)
     manifest, packs, schedule = _validate_contracts(
         root=root,
@@ -5544,25 +6349,6 @@ def _run_panel_locked(
         public_manifest_path=public_manifest_path,
         additional_artifact_paths=(public_results_path,),
     )
-    if (
-        private.get("execution_incident") is not None
-        or private.get("codex_auth_incident") is not None
-    ):
-        _reconcile_terminal_incident_public_progress(
-            root=root,
-            public_manifest=public_manifest,
-            private=private,
-            public_results_path=public_results_path,
-        )
-        if private.get("execution_incident") is not None:
-            raise RuntimeError(
-                "A terminal provider execution incident makes this panel "
-                "non-resumable"
-            )
-        raise RuntimeError(
-            "A terminal Codex authentication incident makes this panel "
-            "non-resumable"
-        )
     _assert_environment_preflight(root, private, public_manifest)
     _preflight_execution(
         root=root,
@@ -5723,6 +6509,27 @@ def _run_panel_locked(
                 resolved_codex_secure_storage_dir,
                 codex_auth_file_identity,
             )
+        try:
+            attest_current_supervisor()
+        except ProviderExecutionIsolationError as error:
+            private["execution_incident"] = {
+                "status": "terminal",
+                "assignment_index": len(assignments),
+                "failure_class": type(error).__name__,
+                "boundary": "clean_before_assignment",
+                "profile_id": profile_id,
+            }
+            private["status"] = "running"
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
+            stopped = _public_running(
+                public_manifest,
+                private,
+                status="stopped_supervisor_incident",
+            )
+            _atomic_json(public_results_path, stopped)
+            return stopped
         _attest_execution_contracts(root=root, public=public_manifest)
         started = _utc_now()
         marker: dict[str, Any] = {
@@ -5764,7 +6571,7 @@ def _run_panel_locked(
                     else {}
                 )
             )
-            result = evaluate_local_cli_agent(
+            result = evaluator(
                 str(profile["system"]),
                 **launch_kwargs,
                 model=str(profile["requested_model"]),
@@ -5782,6 +6589,7 @@ def _run_panel_locked(
                 progress_callback=persist_progress,
                 **provider_auth_kwargs,
             )
+            attest_current_supervisor()
             _attest_execution_contracts(root=root, public=public_manifest)
             if profile["system"] == "claude":
                 try:
@@ -5869,6 +6677,20 @@ def _run_panel_locked(
             marker["void_reason"] = type(error).__name__
             private["status"] = "running"
             _write_private_state(private_state_path, private, authentication_key)
+            terminal_incident = any(
+                private.get(name) is not None
+                for name in ("execution_incident", "codex_auth_incident")
+            )
+            if require_persistent_supervisor and not terminal_incident:
+                # The persistent supervisor owns one complete 300-assignment
+                # evaluator process.  A safely returned, nonterminal provider
+                # failure is a fixed-denominator void, not a reason to exit
+                # that process and request a forbidden second launch.
+                _atomic_json(
+                    public_results_path,
+                    _public_running(public_manifest, private),
+                )
+                continue
             stopped = _public_running(
                 public_manifest, private, status="stopped_transport_void"
             )
@@ -5887,10 +6709,46 @@ def _run_panel_locked(
         raise RuntimeError(
             f"Matched panel did not reach {ASSIGNMENT_COUNT} terminal assignments"
         )
-    private["status"] = "complete"
+    try:
+        attest_current_supervisor()
+    except ProviderExecutionIsolationError as error:
+        private["execution_incident"] = {
+            "status": "terminal",
+            "assignment_index": len(assignments),
+            "failure_class": type(error).__name__,
+            "boundary": "final_completion",
+        }
+        private["status"] = "running"
+        _write_private_state(private_state_path, private, authentication_key)
+        stopped = _public_running(
+            public_manifest,
+            private,
+            status="stopped_supervisor_incident",
+        )
+        _atomic_json(public_results_path, stopped)
+        return stopped
+    private["status"] = (
+        _PENDING_PRODUCTION_STATUS
+        if require_persistent_supervisor
+        else "complete"
+    )
     private["panel_completed_at_utc"] = _utc_now()
-    _write_private_state(private_state_path, private, authentication_key)
     artifact = _complete_artifact(public_manifest, private)
+    if require_persistent_supervisor:
+        private[_PUBLIC_RELEASE_KEY] = {
+            "status": "pending_supervisor_completion",
+            "operation": "production",
+            "candidate_results_sha256": artifact["results_sha256"],
+        }
+        _write_private_state(private_state_path, private, authentication_key)
+        pending = _public_running(
+            public_manifest,
+            private,
+            status=_PENDING_PRODUCTION_STATUS,
+        )
+        _atomic_json(public_results_path, pending)
+        return pending
+    _write_private_state(private_state_path, private, authentication_key)
     _ensure_terminal_cohort_retirement(
         cohort_manifest_path=cohort_manifest_path,
         manifest=manifest,
@@ -5911,9 +6769,10 @@ def run_panel(
     private_state_path: Path,
     public_manifest_path: Path,
     public_results_path: Path,
+    supervisor_runtime_dir: Path | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
-    """Run or resume the panel under one exclusive at-most-once lease."""
+    """Run or resume the panel under authenticated persistent supervision."""
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError(
@@ -5928,5 +6787,42 @@ def run_panel(
             private_state_path=private_state_path,
             public_manifest_path=public_manifest_path,
             public_results_path=public_results_path,
+            supervisor_runtime_dir=supervisor_runtime_dir,
+            require_persistent_supervisor=True,
+            offline_test_evaluator=None,
+            acknowledge_unbounded_provider_spend=True,
+        )
+
+
+def _run_panel_for_offline_test(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_results_path: Path,
+    offline_test_evaluator: Callable[..., PilotRunResult],
+    acknowledge_unbounded_provider_spend: bool = False,
+) -> dict[str, Any]:
+    """Private deterministic seam for unit tests; never a live run path."""
+
+    if acknowledge_unbounded_provider_spend is not True:
+        raise RuntimeError(
+            "Explicit acknowledgement of unbounded provider spend is required"
+        )
+    with _exclusive_run_lock(private_state_path):
+        return _run_panel_locked(
+            root=root,
+            authentication_key_file=authentication_key_file,
+            claude_secure_storage_dir=claude_secure_storage_dir,
+            codex_secure_storage_dir=codex_secure_storage_dir,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+            public_results_path=public_results_path,
+            supervisor_runtime_dir=None,
+            require_persistent_supervisor=False,
+            offline_test_evaluator=offline_test_evaluator,
             acknowledge_unbounded_provider_spend=True,
         )

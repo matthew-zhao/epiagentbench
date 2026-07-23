@@ -1,0 +1,18 @@
+{
+  "completed_assignments": 2,
+  "development_only": true,
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "panel_id": "development-matched-50x6-v8",
+  "planned_assignments": 300,
+  "precommitment_sha256": "sha256:3038160003650b51d1bdc82b00210e05a3cebcd8f59d1935a85678ed8c4e6661",
+  "results": [],
+  "schema_version": "development_matched_panel_v8",
+  "started_at_utc": "2026-07-22T20:52:43.684142Z",
+  "status": "stopped_transport_void",
+  "summary": {
+    "primary_estimand": "pending"
+  },
+  "terminal_assignments": 3,
+  "transport_voids": 1
+}
