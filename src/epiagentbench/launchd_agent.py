@@ -6,9 +6,9 @@ environment variables, panel arguments, or log paths.  The worker resolves the
 Cursor credential from Keychain after launch and passes it to the supervised
 child in memory.
 
-This module does not automatically install or start anything.  The explicit
-``install_launch_agent`` and ``start_launch_agent`` functions are the only
-entry points which call ``launchctl``.
+This module never changes launchd state automatically. Explicit install,
+start, and uninstall controls are the only mutating ``launchctl`` entry points;
+status performs only a read-only ``launchctl print``.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from typing import Any, Callable, Mapping, Sequence
 from functools import wraps
 
 
-_SCHEMA = "epiagentbench.launchd_agent.v4"
+_SCHEMA = "epiagentbench.launchd_agent.v5"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v3"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -44,17 +44,18 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v4\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v5\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v3\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
 _MAX_CONFIG_BYTES = 64 * 1024
 _MAX_STATUS_BYTES = 16 * 1024
+_MAX_PYTHON_EXECUTABLE_BYTES = 256 * 1024 * 1024
 _MAX_AUTHENTICATION_KEY_BYTES = 4096
+_MAX_PYTHON_SYMLINK_HOPS = 8
 _KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
-_ATTESTATION_STARTUP_TIMEOUT_SECONDS = 5.0
-_PROTOCOL_VERSION = "persistent-supervisor-v1"
+_PROTOCOL_VERSION = "persistent-supervisor-v2"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -86,6 +87,40 @@ class LaunchAgentError(ValueError):
     """A deliberately non-sensitive launch-agent validation/control error."""
 
 
+class LiveAttestationFailureCode(StrEnum):
+    """Finite, non-sensitive reasons a live supervisor was refused."""
+
+    INVALID_EXPECTATION = "invalid_expectation"
+    CONFIG_INTEGRITY = "config_integrity"
+    BINDING_MISMATCH = "binding_mismatch"
+    START_COMMITMENT_MISSING = "start_commitment_missing"
+    START_COMMITMENT_INVALID = "start_commitment_invalid"
+    STATUS_SNAPSHOT_UNSTABLE = "status_snapshot_unstable"
+    WORKER_STATUS_INVALID = "worker_status_invalid"
+    WORKER_NOT_RUNNING = "worker_not_running"
+    CORE_INTEGRITY = "core_integrity"
+    CORE_NOT_STARTED = "core_not_started"
+    CORE_NOT_RUNNING = "core_not_running"
+    CORE_PHASE_INVALID = "core_phase_invalid"
+    CORE_UNHEALTHY = "core_unhealthy"
+    PROCESS_IDENTITY_MISMATCH = "process_identity_mismatch"
+    HEARTBEAT_STALE = "heartbeat_stale"
+
+
+class LiveAttestationError(LaunchAgentError):
+    """A live-attestation refusal carrying only a finite safe code."""
+
+    def __init__(self, failure_code: LiveAttestationFailureCode):
+        if not isinstance(failure_code, LiveAttestationFailureCode):
+            raise TypeError("failure_code must be a LiveAttestationFailureCode")
+        self.failure_code = failure_code
+        super().__init__("LaunchAgent live attestation was safely refused")
+
+
+class _TransientAtomicReadError(ValueError):
+    """A file changed between lstat and opening its stable descriptor."""
+
+
 class _TransientCoreStatusError(RuntimeError):
     """An authenticated status/lease pair is between atomic replacements."""
 
@@ -103,6 +138,8 @@ def _public_errors(function: Callable[..., Any]) -> Callable[..., Any]:
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         try:
             return function(*args, **kwargs)
+        except LiveAttestationError as error:
+            raise LiveAttestationError(error.failure_code) from None
         except LaunchAgentError:
             raise LaunchAgentError("LaunchAgent operation was safely refused") from None
         except Exception:
@@ -287,20 +324,28 @@ def _read_bounded_json(path: Path, *, maximum_bytes: int, label: str) -> object:
                 or opened.st_size != metadata.st_size
                 or opened.st_nlink != 1
             ):
-                raise ValueError(f"{label} changed while opening")
+                raise _TransientAtomicReadError(
+                    f"{label} changed while opening"
+                )
             raw = stream.read(maximum_bytes + 1)
     except OSError:
         raise ValueError(f"{label} is unavailable") from None
     if len(raw) != metadata.st_size:
-        raise ValueError(f"{label} changed while reading")
+        raise _TransientAtomicReadError(f"{label} changed while reading")
     try:
         return json.loads(raw)
     except (UnicodeError, json.JSONDecodeError):
         raise ValueError(f"{label} is invalid") from None
 
 
-def _file_sha256(path: Path, *, maximum_bytes: int, label: str) -> str:
-    _require_regular(path, label=label)
+def _file_sha256(
+    path: Path,
+    *,
+    maximum_bytes: int,
+    label: str,
+    allowed_owners: frozenset[int] | None = None,
+) -> str:
+    _require_regular(path, label=label, allowed_owners=allowed_owners)
     metadata = path.lstat()
     if not 0 < metadata.st_size <= maximum_bytes:
         raise ValueError(f"{label} has an invalid size")
@@ -332,6 +377,115 @@ def _file_sha256(path: Path, *, maximum_bytes: int, label: str) -> str:
     if total != metadata.st_size:
         raise ValueError(f"{label} changed while reading")
     return "sha256:" + digest.hexdigest()
+
+
+def _python_entrypoint_binding(path: Path) -> dict[str, Any]:
+    """Bind one venv-preserving Python entrypoint without resolving its argv path."""
+
+    launch_path = _absolute(path, label="Python executable")
+    if os.path.normpath(str(launch_path)) != str(launch_path):
+        raise ValueError("Python executable path must be normalized")
+    allowed_owners = frozenset({0, os.getuid()})
+    candidate = launch_path
+    seen: set[str] = set()
+    hops: list[dict[str, Any]] = []
+    for _ in range(_MAX_PYTHON_SYMLINK_HOPS + 1):
+        candidate_text = str(candidate)
+        if candidate_text in seen:
+            raise ValueError("Python executable symlink chain is cyclic")
+        seen.add(candidate_text)
+        _require_directory(
+            candidate.parent,
+            label="Python executable parent",
+            require_current_owner=False,
+        )
+        metadata = candidate.lstat()
+        if stat.S_ISLNK(metadata.st_mode):
+            if len(hops) >= _MAX_PYTHON_SYMLINK_HOPS:
+                raise ValueError("Python executable symlink chain is too deep")
+            if metadata.st_uid not in allowed_owners:
+                raise ValueError("Python executable symlink has unsafe ownership")
+            link_text = os.readlink(candidate)
+            if not link_text or len(link_text) > 4096 or "\x00" in link_text:
+                raise ValueError("Python executable symlink target is invalid")
+            hops.append(
+                {
+                    "path": candidate_text,
+                    "link_text": link_text,
+                    "device": metadata.st_dev,
+                    "inode": metadata.st_ino,
+                }
+            )
+            target = Path(link_text)
+            if not target.is_absolute():
+                target = candidate.parent / target
+            candidate = Path(os.path.normpath(str(target)))
+            if not candidate.is_absolute():
+                raise ValueError("Python executable symlink target is invalid")
+            continue
+        _require_regular(
+            candidate,
+            label="Python executable",
+            allowed_owners=allowed_owners,
+            executable=True,
+        )
+        before = candidate.lstat()
+        digest = _file_sha256(
+            candidate,
+            maximum_bytes=_MAX_PYTHON_EXECUTABLE_BYTES,
+            label="Python executable",
+            allowed_owners=allowed_owners,
+        )
+        after = candidate.lstat()
+        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_mode", "st_nlink")
+        if any(getattr(before, name) != getattr(after, name) for name in stable_fields):
+            raise ValueError("Python executable changed while binding")
+        for hop in hops:
+            hop_path = Path(hop["path"])
+            observed = hop_path.lstat()
+            if (
+                not stat.S_ISLNK(observed.st_mode)
+                or observed.st_uid not in allowed_owners
+                or observed.st_dev != hop["device"]
+                or observed.st_ino != hop["inode"]
+                or os.readlink(hop_path) != hop["link_text"]
+            ):
+                raise ValueError("Python executable symlink changed while binding")
+        return {
+            "schema_version": "epiagentbench.python_entrypoint_binding.v1",
+            "launch_path": str(launch_path),
+            "symlink_hops": hops,
+            "target": {
+                "path": str(candidate),
+                "device": before.st_dev,
+                "inode": before.st_ino,
+                "size_bytes": before.st_size,
+                "sha256": digest,
+            },
+        }
+    raise ValueError("Python executable symlink chain is too deep")
+
+
+def _validate_python_entrypoint_binding(config: Mapping[str, Any]) -> None:
+    binding = config.get("python_executable_binding")
+    if (
+        not isinstance(binding, dict)
+        or set(binding)
+        != {"schema_version", "launch_path", "symlink_hops", "target"}
+        or binding.get("schema_version")
+        != "epiagentbench.python_entrypoint_binding.v1"
+        or binding.get("launch_path") != config.get("python_executable")
+        or not isinstance(binding.get("symlink_hops"), list)
+        or not isinstance(binding.get("target"), dict)
+        or set(binding["target"])
+        != {"path", "device", "inode", "size_bytes", "sha256"}
+        or binding["target"].get("sha256")
+        != config.get("python_executable_sha256")
+    ):
+        raise ValueError("Invalid Python executable binding")
+    observed = _python_entrypoint_binding(Path(str(config["python_executable"])))
+    if not hmac.compare_digest(_canonical_bytes(observed), _canonical_bytes(binding)):
+        raise ValueError("Python executable binding changed")
 
 
 def _runtime_module_sources(repository_root: Path) -> tuple[Path, Path, Path]:
@@ -396,7 +550,7 @@ def _verify_frozen_runtime_sources(
     return launchd_source, supervisor_source, benchmark_source
 
 
-def _manifest_binding(path: Path) -> tuple[str, str]:
+def _manifest_binding(path: Path) -> tuple[str, str, str, str]:
     manifest = _read_bounded_json(
         path,
         maximum_bytes=64 * 1024 * 1024,
@@ -406,14 +560,33 @@ def _manifest_binding(path: Path) -> tuple[str, str]:
         raise ValueError("Public manifest has an invalid schema")
     panel_id = manifest.get("panel_id")
     precommitment = manifest.get("precommitment_sha256")
+    runtime_contract = manifest.get("runtime_contract")
+    python_executable_sha256 = (
+        runtime_contract.get("python_executable_sha256")
+        if isinstance(runtime_contract, dict)
+        else None
+    )
+    python_entrypoint_kind = (
+        runtime_contract.get("python_entrypoint_kind")
+        if isinstance(runtime_contract, dict)
+        else None
+    )
     if (
         not isinstance(panel_id, str)
         or not _SAFE_NAME.fullmatch(panel_id)
         or not isinstance(precommitment, str)
         or not _SHA256.fullmatch(precommitment)
+        or not isinstance(python_executable_sha256, str)
+        or not _SHA256.fullmatch(python_executable_sha256)
+        or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
     ):
         raise ValueError("Public manifest lacks a valid panel binding")
-    return panel_id, precommitment
+    return (
+        panel_id,
+        precommitment,
+        python_executable_sha256,
+        str(python_entrypoint_kind),
+    )
 
 
 def _require_output_path(path: Path, *, label: str) -> None:
@@ -565,11 +738,9 @@ def generate_launch_agent(
         raise ValueError("production requires only public_results_path")
 
     _require_directory(root, label="repository root")
-    _require_regular(
-        python,
-        label="Python executable",
-        allowed_owners=frozenset({0, os.getuid()}),
-        executable=True,
+    python_executable_binding = _python_entrypoint_binding(python)
+    python_executable_sha256 = str(
+        python_executable_binding["target"]["sha256"]
     )
     worker_script = root / "examples" / "run_persistent_panel_supervisor.py"
     runner_script = root / "examples" / "run_development_matched_panel.py"
@@ -581,7 +752,22 @@ def generate_launch_agent(
     _require_regular(private_state, label="private state", exact_mode=0o600)
     _require_regular(public_manifest, label="public manifest")
     authentication_key = _read_authentication_key(auth_key)
-    panel_id, precommitment_sha256 = _manifest_binding(public_manifest)
+    (
+        panel_id,
+        precommitment_sha256,
+        manifest_python_executable_sha256,
+        manifest_python_entrypoint_kind,
+    ) = _manifest_binding(public_manifest)
+    python_entrypoint_kind = (
+        "symlink_chain"
+        if python_executable_binding["symlink_hops"]
+        else "regular_file"
+    )
+    if (
+        manifest_python_executable_sha256 != python_executable_sha256
+        or manifest_python_entrypoint_kind != python_entrypoint_kind
+    ):
+        raise ValueError("Python executable differs from the public manifest")
     public_manifest_file_sha256 = _file_sha256(
         public_manifest,
         maximum_bytes=64 * 1024 * 1024,
@@ -632,6 +818,7 @@ def generate_launch_agent(
         panel_id=panel_id,
         protocol_version=_PROTOCOL_VERSION,
         public_manifest_sha256=public_manifest_file_sha256,
+        python_executable_sha256=python_executable_sha256,
         runner_source_sha256=runner_source_sha256,
         launchd_agent_source_sha256=launchd_agent_source_sha256,
         persistent_supervisor_source_sha256=(
@@ -671,6 +858,7 @@ def generate_launch_agent(
         "precommitment_sha256": precommitment_sha256,
         "protocol_version": _PROTOCOL_VERSION,
         "public_manifest_file_sha256": public_manifest_file_sha256,
+        "python_executable_sha256": python_executable_sha256,
         "runner_source_sha256": runner_source_sha256,
         "worker_source_sha256": worker_source_sha256,
         "launchd_agent_source_sha256": launchd_agent_source_sha256,
@@ -685,6 +873,7 @@ def generate_launch_agent(
         "config_path": str(config_path),
         "repository_root": str(root),
         "python_executable": str(python),
+        "python_executable_binding": python_executable_binding,
         "worker_script": str(worker_script),
         "runner_script": str(runner_script),
         "authentication_key_file": str(auth_key),
@@ -756,6 +945,7 @@ def _load_and_validate(
         "precommitment_sha256",
         "protocol_version",
         "public_manifest_file_sha256",
+        "python_executable_sha256",
         "runner_source_sha256",
         "worker_source_sha256",
         "launchd_agent_source_sha256",
@@ -766,6 +956,7 @@ def _load_and_validate(
         "config_path",
         "repository_root",
         "python_executable",
+        "python_executable_binding",
         "worker_script",
         "runner_script",
         "authentication_key_file",
@@ -807,6 +998,7 @@ def _load_and_validate(
             not isinstance(config[name], str) or not _SHA256.fullmatch(config[name])
             for name in (
                 "public_manifest_file_sha256",
+                "python_executable_sha256",
                 "runner_source_sha256",
                 "worker_source_sha256",
                 "launchd_agent_source_sha256",
@@ -855,12 +1047,7 @@ def _load_and_validate(
     if any(not isinstance(config[name], str) or not Path(config[name]).is_absolute() for name in path_fields):
         raise ValueError("Launch-agent config contains a non-absolute path")
     _require_directory(Path(config["repository_root"]), label="repository root")
-    _require_regular(
-        Path(config["python_executable"]),
-        label="Python executable",
-        allowed_owners=frozenset({0, os.getuid()}),
-        executable=True,
-    )
+    _validate_python_entrypoint_binding(config)
     _require_regular(Path(config["worker_script"]), label="persistent worker script")
     _require_regular(Path(config["runner_script"]), label="frozen panel runner")
     repository_root = Path(config["repository_root"])
@@ -876,12 +1063,23 @@ def _load_and_validate(
     _require_directory(Path(config["codex_secure_storage_dir"]), label="Codex secure-storage directory", exact_mode=0o700)
     _require_regular(Path(config["private_state_path"]), label="private state", exact_mode=0o600)
     _require_regular(Path(config["public_manifest_path"]), label="public manifest")
-    observed_panel_id, observed_precommitment = _manifest_binding(
-        Path(config["public_manifest_path"])
-    )
+    (
+        observed_panel_id,
+        observed_precommitment,
+        observed_python_executable_sha256,
+        observed_python_entrypoint_kind,
+    ) = _manifest_binding(Path(config["public_manifest_path"]))
     if (
         observed_panel_id != config["panel_id"]
         or observed_precommitment != config["precommitment_sha256"]
+        or observed_python_executable_sha256
+        != config["python_executable_sha256"]
+        or observed_python_entrypoint_kind
+        != (
+            "symlink_chain"
+            if config["python_executable_binding"]["symlink_hops"]
+            else "regular_file"
+        )
     ):
         raise ValueError("Launch-agent manifest binding mismatch")
     if (
@@ -919,6 +1117,7 @@ def _load_and_validate(
         panel_id=config["panel_id"],
         protocol_version=config["protocol_version"],
         public_manifest_sha256=config["public_manifest_file_sha256"],
+        python_executable_sha256=config["python_executable_sha256"],
         runner_source_sha256=config["runner_source_sha256"],
         launchd_agent_source_sha256=config["launchd_agent_source_sha256"],
         persistent_supervisor_source_sha256=(
@@ -1123,6 +1322,7 @@ def _run_core_supervisor(
 ) -> int:
     """Narrow adapter to the durable supervisor implementation."""
 
+    _validate_python_entrypoint_binding(config)
     _, persistent_supervisor_source, _ = _verify_frozen_runtime_sources(config)
     import epiagentbench.persistent_supervisor as persistent_supervisor
 
@@ -1185,6 +1385,7 @@ def run_launch_agent_worker(
         # Re-hash the enforcement modules immediately before any provider
         # credential is retrieved.  This closes the validation-to-Keychain
         # window and fails without invoking ``security`` on mismatch.
+        _validate_python_entrypoint_binding(config)
         _verify_frozen_runtime_sources(config)
         try:
             cursor_key = _read_cursor_key(config, command_runner=keychain_runner)
@@ -1339,9 +1540,18 @@ def _launchd_state(
         return "not_loaded"
     if outcome is _LaunchctlOutcome.FAILED:
         raise RuntimeError("Unable to query the owner-scoped LaunchAgent")
-    match = re.search(rb"(?m)^\s*state\s*=\s*([A-Za-z_-]+)\s*$", result.stdout)
-    observed = match.group(1).decode("ascii", "ignore") if match else "unknown"
-    return observed if observed in {"running", "waiting", "exited"} else "unknown"
+    matches = re.findall(
+        rb"(?m)^[ \t]*state[ \t]*=[ \t]*([^\r\n]*?)[ \t]*\r?$",
+        result.stdout,
+    )
+    if len(matches) != 1:
+        return "unknown"
+    return {
+        b"running": "running",
+        b"waiting": "waiting",
+        b"exited": "exited",
+        b"not running": "not_running",
+    }.get(matches[0], "unknown")
 
 
 @_public_errors
@@ -1681,59 +1891,110 @@ def attest_live_launch_agent(
         or not isinstance(expected_precommitment_sha256, str)
         or not _SHA256.fullmatch(expected_precommitment_sha256)
     ):
-        raise ValueError("Invalid expected launch-agent attestation binding")
-    config, _, authentication_key = _load_and_validate(
-        runtime_dir,
-        authentication_key_file=authentication_key_file,
-    )
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.INVALID_EXPECTATION
+        )
+    try:
+        config, _, authentication_key = _load_and_validate(
+            runtime_dir,
+            authentication_key_file=authentication_key_file,
+        )
+    except Exception:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CONFIG_INTEGRITY
+        ) from None
     if (
         config["operation"] != expected_operation
         or config["panel_id"] != expected_panel_id
         or config["precommitment_sha256"] != expected_precommitment_sha256
     ):
-        raise ValueError("Launch-agent attestation binding mismatch")
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.BINDING_MISMATCH
+        )
     runtime = Path(config["runtime_dir"])
-    if (
-        _read_start_marker(
+    try:
+        start_marker = _read_start_marker(
             runtime,
             config=config,
             authentication_key=authentication_key,
         )
-        is None
-    ):
-        raise ValueError("Launch-agent attestation lacks a start commitment")
-    worker = _worker_status(
-        runtime,
-        config=config,
-        authentication_key=authentication_key,
-    )
-    deadline = time.monotonic() + _ATTESTATION_STARTUP_TIMEOUT_SECONDS
-    while True:
-        try:
-            core = _core_status(
-                runtime,
-                authentication_key=authentication_key,
-                expected_execution_context_sha256=config["execution_context_sha256"],
-            )
-        except _TransientCoreStatusError:
-            if time.monotonic() >= deadline:
-                raise ValueError("Supervisor startup attestation timed out") from None
-            time.sleep(0.05)
-            continue
-        if core.get("state") != "not_started" or time.monotonic() >= deadline:
-            break
-        time.sleep(0.05)
+    except Exception:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.START_COMMITMENT_INVALID
+        ) from None
+    if start_marker is None:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.START_COMMITMENT_MISSING
+        )
+    try:
+        worker = _worker_status(
+            runtime,
+            config=config,
+            authentication_key=authentication_key,
+        )
+    except _TransientAtomicReadError:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
+        ) from None
+    except Exception:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.WORKER_STATUS_INVALID
+        ) from None
+    if worker is None or worker.get("state") != "supervisor_running":
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.WORKER_NOT_RUNNING
+        )
+    try:
+        core = _core_status(
+            runtime,
+            authentication_key=authentication_key,
+            expected_execution_context_sha256=config["execution_context_sha256"],
+        )
+    except _TransientCoreStatusError:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
+        ) from None
+    except Exception:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CORE_INTEGRITY
+        ) from None
+    if core.get("state") == "not_started":
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CORE_NOT_STARTED
+        )
     if (
-        worker is None
-        or worker.get("state") != "supervisor_running"
-        or core.get("state") != "authenticated"
+        core.get("state") != "authenticated"
         or core.get("lifecycle") != "running"
-        or core.get("assignment_phase") not in {"launch_committed", "running"}
-        or core.get("health") != "healthy"
-        or core.get("process_diagnostic") != "match"
-        or core.get("heartbeat_age_bucket") != "fresh"
     ):
-        raise ValueError("Launch-agent supervisor is not live and attested")
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CORE_NOT_RUNNING
+        )
+    if core.get("assignment_phase") not in {"launch_committed", "running"}:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CORE_PHASE_INVALID
+        )
+    if core.get("health") != "healthy":
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CORE_UNHEALTHY
+        )
+    if core.get("process_diagnostic") != "match":
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.PROCESS_IDENTITY_MISMATCH
+        )
+    if core.get("heartbeat_age_bucket") != "fresh":
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.HEARTBEAT_STALE
+        )
+    try:
+        config_file_sha256 = _file_sha256(
+            Path(config["config_path"]),
+            maximum_bytes=_MAX_CONFIG_BYTES,
+            label="launch-agent config",
+        )
+    except Exception:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CONFIG_INTEGRITY
+        ) from None
     return {
         "attested": True,
         "label": config["label"],
@@ -1741,11 +2002,7 @@ def attest_live_launch_agent(
         "panel_id": config["panel_id"],
         "precommitment_sha256": config["precommitment_sha256"],
         "execution_context_sha256": config["execution_context_sha256"],
-        "config_file_sha256": _file_sha256(
-            Path(config["config_path"]),
-            maximum_bytes=_MAX_CONFIG_BYTES,
-            label="launch-agent config",
-        ),
+        "config_file_sha256": config_file_sha256,
         "supervisor_health": core["health"],
         "supervisor_process": core["process_diagnostic"],
         "assignment_phase": core["assignment_phase"],
@@ -2026,7 +2283,7 @@ def uninstall_launch_agent(
         )
         if status["launchd_state"] == "not_loaded":
             return {"label": config["label"], "state": "already_uninstalled"}
-        if status["launchd_state"] not in {"waiting", "exited"}:
+        if status["launchd_state"] not in {"waiting", "exited", "not_running"}:
             raise RuntimeError("Refusing to uninstall an active or unknown LaunchAgent")
         if not _authenticated_terminal(status):
             raise RuntimeError("Refusing to uninstall without authenticated terminal state")
@@ -2039,6 +2296,8 @@ def uninstall_launch_agent(
 
 __all__ = [
     "LaunchAgentError",
+    "LiveAttestationError",
+    "LiveAttestationFailureCode",
     "attest_completed_launch_agent",
     "attest_live_launch_agent",
     "finalize_launch_agent",

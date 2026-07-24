@@ -354,6 +354,25 @@ The normalized failure boundary intentionally preserves no arbitrary exception
 text, so this evidence identifies the failed live-attestation gate but does not
 support a more specific post-hoc predicate diagnosis.
 
+The next-run supervisor contract now closes that diagnostic gap without
+weakening the at-most-once boundary. Live attestation emits only a finite safe
+failure code. The sole retryable code, `status_snapshot_unstable`, covers an
+atomic worker-status replacement or an authenticated torn read of the core
+status/lease pair. At a clean pre-assignment boundary it may be retried twice
+(after 50 ms and 100 ms), provided the durable assignment count is unchanged.
+The check uses the lock-owned assignment list at its last durable count. No
+semantic, heartbeat, process-identity, binding, authentication, or integrity
+failure is retried, and initial, post-provider, and final-completion
+attestations remain single-shot. The exact Python launch entrypoint is also
+bound by target content plus private symlink/inode topology, preserving normal
+virtual-environment launch semantics while detecting byte, inode, or symlink
+drift before credential access and child launch. Finally, `launchctl`'s literal
+`state = not running` is parsed as loaded-but-inactive for authenticated
+terminal cleanup; that parser was not on V9's live-attestation path and did not
+cause the V9 stop. These changes invalidate V9's frozen source contract and
+will require a fresh V10 cohort, manifest, preflight, and spend authorization;
+none has been created or invoked by this hardening work.
+
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
 or production assignment](results/development-matched-50x6-v1.superseded.json)

@@ -1,7 +1,7 @@
 # Persistent matched-panel runner protocol
 
-Status: proposed v9 execution contract. This document does not authorize a
-provider call.
+Status: hardened next-run execution contract after terminal V9. This document
+does not authorize a provider call.
 
 ## Purpose
 
@@ -79,6 +79,38 @@ configuration-file digest for that operation. A newly generated runtime cannot
 replace it, even at a clean assignment boundary. Any loss of that bound
 supervisor after execution begins is a terminal panel incident.
 
+The execution-context digest also binds the exact Python target bytes. The
+private authenticated configuration retains the original launch path and a
+closed record of each venv-style symlink hop plus the final target's inode,
+size, and digest. The original path, rather than a resolved base-interpreter
+path, remains in the plist and child command so ordinary virtual-environment
+semantics are preserved. The worker revalidates this binding at load, before
+Keychain access, and immediately before the core can launch the evaluator.
+Byte changes, same-byte inode replacement, or symlink recreation/retargeting
+fail closed. This is drift attestation within the owner-scoped boundary, not a
+root-anchored pre-exec verifier: launchd necessarily starts Python before
+Python can perform its own validation.
+
+## Live-attestation failures and clean-boundary retry
+
+Live attestation preserves no arbitrary exception text. It emits one finite
+safe failure code covering configuration/binding integrity, the durable start
+commitment, worker state, authenticated core state, lifecycle, assignment
+phase, health, process identity, heartbeat freshness, or an unstable
+authenticated status snapshot.
+
+Only `status_snapshot_unstable` is retryable. It means either the worker status
+changed during its atomic replacement or the authenticated core status/lease
+pair remained torn after its internal read loop. Immediately before a new
+assignment, the evaluator may make at most three total attestation attempts,
+with 50 ms and 100 ms delays and a 250 ms retry deadline, while proving that
+the lock-owned assignment list remains at its last durable count. The
+assignment's durable `started` marker and provider process creation both occur
+only after success. Initial binding, post-provider, and final-completion
+attestations are never retried. Semantic state, stale heartbeat, process
+mismatch, authentication, source, Python, manifest, config, and create-once
+binding failures are never retried.
+
 ## Two-phase success and public release
 
 The evaluator child cannot publish a successful preflight receipt or completed
@@ -146,6 +178,15 @@ The job is a one-shot supervised run, not an unconditional `KeepAlive` loop.
 After an in-flight crash, an automatic restart must not create another paid
 call. Recovery requires the same authenticated state audit as a manual launch.
 
+Read-only status uses `launchctl print` and exposes only the finite states
+`running`, `waiting`, `exited`, `not_running`, `not_loaded`, and `unknown`.
+Literal `state = not running` maps to loaded-but-inactive `not_running`; it is
+never treated as absent `not_loaded`. Missing, duplicate, malformed, or
+unrecognized state lines map to `unknown`. Uninstall requires both an exact
+inactive state (`waiting`, `exited`, or `not_running`) and authenticated
+terminal worker/core state. Active, unknown, query-failure, or unauthenticated
+states never reach `bootout`.
+
 ## Pause, sleep, network, and shutdown
 
 `pause_after_current` is available to the generic multi-command supervisor and
@@ -192,14 +233,24 @@ supervisor path intended for production:
 - candidate-publication crash tests proving that no passed receipt, score,
   trace, schedule, or family label is released before authenticated supervisor
   completion, plus idempotent post-completion finalization;
+- finite-code live-attestation tests proving that only an unstable authenticated
+  snapshot retries at a clean boundary, that two transient reads followed by
+  success launch exactly one provider, and that exhaustion or any semantic
+  failure launches none;
+- Python-entrypoint byte, inode, and venv-symlink drift tests proving failure
+  before Keychain access or child launch;
+- exact and adversarial `launchctl` state-parser tests proving that
+  `not_running` still requires authenticated terminal state and that unknown or
+  duplicate state lines never reach `bootout`;
 - the existing cohort-retirement, no-partial-release, evaluator-tampering,
   metadata-leakage, and prompt-injection suites.
 
 ## Versioning consequence
 
-The persistent supervisor changes the source, runtime, timeout, and operational
-contracts. V8 therefore cannot be resumed or relabeled. A live v9 requires a
-fresh hidden cohort and schedule, authentication key, credential namespaces,
-public precommitment, supervised six-profile preflight, and exact spend
-authorization. The v8 completed records and transport void are audit evidence
-only and are never mixed into the v9 estimand.
+The hardened supervisor changes the source, Python binding, live-attestation,
+and operational contracts. Terminal V9 therefore cannot be resumed or
+relabeled. A live V10 requires a fresh hidden cohort and schedule,
+authentication key, credential namespaces, public precommitment, supervised
+six-profile preflight, and exact spend authorization. V8/V9 completed records
+and transport voids are audit evidence only and are never mixed into the new
+estimand.

@@ -50,7 +50,7 @@ _EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v1\x00"
 _EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v1\x00"
 _IDENTITY_DOMAIN = b"epiagentbench:persistent-supervisor:identity:v1\x00"
 _EXECUTION_CONTEXT_DOMAIN = (
-    b"epiagentbench:persistent-supervisor:execution-context:v1\x00"
+    b"epiagentbench:persistent-supervisor:execution-context:v2\x00"
 )
 _ZERO_EVENT_HASH = "sha256:" + "0" * 64
 
@@ -197,6 +197,7 @@ def compute_execution_context_sha256(
     panel_id: str,
     protocol_version: str,
     public_manifest_sha256: str,
+    python_executable_sha256: str,
     runner_source_sha256: str,
     launchd_agent_source_sha256: str,
     persistent_supervisor_source_sha256: str,
@@ -222,6 +223,7 @@ def compute_execution_context_sha256(
         raise ValueError("Execution context contains an invalid public identifier")
     source_digests = (
         public_manifest_sha256,
+        python_executable_sha256,
         runner_source_sha256,
         launchd_agent_source_sha256,
         persistent_supervisor_source_sha256,
@@ -235,6 +237,7 @@ def compute_execution_context_sha256(
         "panel_id": panel_id,
         "protocol_version": protocol_version,
         "public_manifest_sha256": public_manifest_sha256,
+        "python_executable_sha256": python_executable_sha256,
         "runner_source_sha256": runner_source_sha256,
         "launchd_agent_source_sha256": launchd_agent_source_sha256,
         "persistent_supervisor_source_sha256": (

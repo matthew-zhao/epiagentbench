@@ -32,6 +32,7 @@ from epiagentbench.development_matched_panel import (
 from epiagentbench.pilot import (
     CodexAuthenticationIncidentError,
     PilotRunResult,
+    ProviderExecutionIsolationError,
     ProviderOutputOverflowError,
     ProviderProcessIsolationError,
     ProviderStateIsolationError,
@@ -59,6 +60,8 @@ CLI_CONTRACT = {
 }
 RUNTIME_CONTRACT = {
     "python": "test-python",
+    "python_entrypoint_kind": "regular_file",
+    "python_executable_sha256": "sha256:" + "d" * 64,
     "starsim": "3.5.1",
     "platform": "test-platform",
     "machine": "test-machine",
@@ -480,6 +483,11 @@ class MatchedPanelTests(unittest.TestCase):
         return payload, evaluate
 
     def test_supervisor_loss_after_provider_is_terminal_before_next_call(self):
+        from epiagentbench.launchd_agent import (
+            LiveAttestationError,
+            LiveAttestationFailureCode,
+        )
+
         public = self._prepare()
         self._prime_codex_auth()
         self.keychain_present = True
@@ -510,13 +518,16 @@ class MatchedPanelTests(unittest.TestCase):
                     attested,
                     attested,
                     attested,
-                    ValueError("stale private supervisor path"),
+                    LiveAttestationError(
+                        LiveAttestationFailureCode.HEARTBEAT_STALE
+                    ),
                 ),
             ) as attestation,
             patch(
                 "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
+            patch("epiagentbench.development_matched_panel.time.sleep") as sleep,
         ):
             payload = run_panel(
                 root=self.root,
@@ -533,6 +544,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(payload["status"], "stopped_supervisor_incident")
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(attestation.call_count, 4)
+        sleep.assert_not_called()
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
@@ -545,7 +557,144 @@ class MatchedPanelTests(unittest.TestCase):
             private["execution_incident"]["boundary"],
             "clean_before_assignment",
         )
+        self.assertEqual(
+            private["execution_incident"]["attestation_failure_code"],
+            "heartbeat_stale",
+        )
         self.assertNotIn("stale private", self.results_path.read_text())
+
+    def test_clean_boundary_retries_only_transient_attestation_reads(self):
+        from epiagentbench.launchd_agent import (
+            LiveAttestationError,
+            LiveAttestationFailureCode,
+        )
+
+        public = self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+        self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
+        runtime = self.root / "supervisor-runtime"
+        live = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        transient = lambda: LiveAttestationError(
+            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
+        )
+
+        def evaluate(system, **kwargs):
+            return self._result(
+                system,
+                kwargs["model"],
+                kwargs["executable"],
+                1.0,
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                side_effect=(
+                    live,
+                    transient(),
+                    transient(),
+                    live,
+                    live,
+                    live,
+                ),
+            ) as attestation,
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+            patch("epiagentbench.development_matched_panel.time.sleep") as sleep,
+        ):
+            payload = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                require_persistent_supervisor=True,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(payload["status"], matched._PENDING_PRODUCTION_STATUS)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(attestation.call_count, 6)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.05, 0.10])
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT)
+        self.assertIsNone(private.get("execution_incident"))
+
+    def test_clean_boundary_transient_exhaustion_stops_before_provider(self):
+        from epiagentbench.launchd_agent import (
+            LiveAttestationError,
+            LiveAttestationFailureCode,
+        )
+
+        public = self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+        self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
+        runtime = self.root / "supervisor-runtime"
+        live = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        transient = lambda: LiveAttestationError(
+            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
+        )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                side_effect=(live, transient(), transient(), transient()),
+            ) as attestation,
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as invoked,
+            patch("epiagentbench.development_matched_panel.time.sleep") as sleep,
+        ):
+            payload = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                supervisor_runtime_dir=runtime,
+                require_persistent_supervisor=True,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(payload["status"], "stopped_supervisor_incident")
+        invoked.assert_not_called()
+        self.assertEqual(attestation.call_count, 4)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.05, 0.10])
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT - 1)
+        self.assertEqual(
+            private["execution_incident"]["attestation_failure_code"],
+            "status_snapshot_unstable",
+        )
 
     def _set_terminal_assignment_prefix(
         self, count: int
@@ -1470,6 +1619,35 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest=public,
             )
         self.assertNotIn("private path", str(raised.exception))
+        self.assertEqual(
+            raised.exception.attestation_failure_code,
+            "attestation_internal",
+        )
+        from epiagentbench.launchd_agent import (
+            LiveAttestationError,
+            LiveAttestationFailureCode,
+        )
+
+        with (
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                side_effect=LiveAttestationError(
+                    LiveAttestationFailureCode.HEARTBEAT_STALE
+                ),
+            ),
+            self.assertRaises(ProviderExecutionIsolationError) as finite,
+        ):
+            matched._attest_required_persistent_execution(
+                required=True,
+                supervisor_runtime_dir=runtime,
+                authentication_key_file=self.key_path,
+                operation="production",
+                public_manifest=public,
+            )
+        self.assertEqual(
+            finite.exception.attestation_failure_code,
+            "heartbeat_stale",
+        )
 
     def test_v9_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(

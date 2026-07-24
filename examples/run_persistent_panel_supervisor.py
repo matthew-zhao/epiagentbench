@@ -42,7 +42,7 @@ def _parser() -> argparse.ArgumentParser:
     generate.add_argument("--runtime-dir", required=True, type=Path)
     generate.add_argument("--repository-root", required=True, type=Path)
     generate.add_argument(
-        "--python-executable", type=Path, default=Path(sys.executable).resolve()
+        "--python-executable", type=Path, default=Path(sys.executable)
     )
     generate.add_argument("--authentication-key", required=True, type=Path)
     generate.add_argument("--claude-secure-storage-dir", required=True, type=Path)

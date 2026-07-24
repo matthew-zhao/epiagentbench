@@ -26,6 +26,7 @@ import stat
 import statistics
 import subprocess
 import sys
+import time
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlsplit
@@ -208,6 +209,33 @@ _SUPERVISOR_BINDING_FIELDS = frozenset(
         "precommitment_sha256",
     }
 )
+_PERSISTENT_ATTESTATION_FAILURE_CODES = frozenset(
+    {
+        "supervisor_required",
+        "public_contract_mismatch",
+        "public_binding_invalid",
+        "invalid_expectation",
+        "config_integrity",
+        "binding_mismatch",
+        "start_commitment_missing",
+        "start_commitment_invalid",
+        "status_snapshot_unstable",
+        "worker_status_invalid",
+        "worker_not_running",
+        "core_integrity",
+        "core_not_started",
+        "core_not_running",
+        "core_phase_invalid",
+        "core_unhealthy",
+        "process_identity_mismatch",
+        "heartbeat_stale",
+        "binding_projection_invalid",
+        "private_binding_invalid",
+        "runtime_replacement",
+        "attestation_internal",
+    }
+)
+_CLEAN_BOUNDARY_ATTESTATION_DEADLINE_SECONDS = 0.25
 _EXPECTED_RECEIPT_IDENTITIES = {
     "claude-opus-high": "claudeopus48",
     "claude-sonnet-high": "claudesonnet5",
@@ -2620,10 +2648,19 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version in {"", "unknown", "unavailable"}:
         raise RuntimeError("Unable to pin the required Starsim runtime")
+    from .launchd_agent import _python_entrypoint_binding
+
+    python_binding = _python_entrypoint_binding(Path(sys.executable))
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
         "python_cache_tag": sys.implementation.cache_tag,
+        "python_entrypoint_kind": (
+            "symlink_chain"
+            if python_binding["symlink_hops"]
+            else "regular_file"
+        ),
+        "python_executable_sha256": python_binding["target"]["sha256"],
         "starsim": starsim_version,
         "platform": platform.system(),
         "machine": platform.machine(),
@@ -2635,10 +2672,10 @@ def _runtime_contract() -> dict[str, Any]:
 
 
 def _persistent_supervisor_contract() -> dict[str, Any]:
-    """Return the public, path-free contract for v9 process ownership."""
+    """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v2",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v3",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -2656,16 +2693,31 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "persistent_supervisor",
             "development_matched_panel",
         ],
+        "python_entrypoint": (
+            "content_digest_plus_private_symlink_inode_topology"
+        ),
         "liveness": {
             "heartbeat_interval_seconds": 15,
             "provider_activity_is_liveness": False,
             "requires_boot_pid_and_process_birth_match": True,
+        },
+        "live_attestation": {
+            "failure_codes": sorted(_PERSISTENT_ATTESTATION_FAILURE_CODES),
+            "clean_boundary_attempts": 3,
+            "clean_boundary_deadline_milliseconds": 250,
+            "clean_boundary_retry_delays_milliseconds": [50, 100],
+            "retryable_reads": [
+                "authenticated_worker_atomic_replacement",
+                "authenticated_core_status_lease_torn_pair",
+            ],
+            "retry_boundary": "before_durable_provider_launch_commitment",
         },
         "execution_binding": [
             "launchd_label",
             "operation",
             "panel_id",
             "public_precommitment_sha256",
+            "python_executable_sha256",
             "sealed_config_file_sha256",
         ],
         "execution_binding_policy": "create_once_per_operation_never_replace",
@@ -3557,6 +3609,11 @@ def _validate_contracts(
         incident = private.get(incident_name)
         if incident is None:
             continue
+        attestation_failure_code = (
+            incident.get("attestation_failure_code")
+            if isinstance(incident, dict)
+            else None
+        )
         ordinary_void = (
             isinstance(incident, dict)
             and type(incident.get("assignment_index")) is int
@@ -3582,6 +3639,11 @@ def _validate_contracts(
             or incident.get("status") != "terminal"
             or not isinstance(incident.get("failure_class"), str)
             or not incident["failure_class"]
+            or (
+                attestation_failure_code is not None
+                and attestation_failure_code
+                not in _PERSISTENT_ATTESTATION_FAILURE_CODES
+            )
             or not (ordinary_void or supervisor_boundary)
         ):
             raise ValueError("Private terminal incident state is invalid")
@@ -4209,6 +4271,31 @@ def _preflight_profile_outcome(
     }
 
 
+def _persistent_attestation_error(
+    failure_code: str,
+) -> ProviderExecutionIsolationError:
+    if failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES:
+        failure_code = "attestation_internal"
+    message = {
+        "supervisor_required": "A live persistent supervisor is required",
+        "runtime_replacement": (
+            "Persistent-supervisor runtime replacement was refused"
+        ),
+    }.get(failure_code, "Live persistent-supervisor attestation failed")
+    error = ProviderExecutionIsolationError(
+        message
+    )
+    error.attestation_failure_code = failure_code
+    return error
+
+
+def _attestation_incident_fields(error: BaseException) -> dict[str, str]:
+    failure_code = getattr(error, "attestation_failure_code", None)
+    if failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES:
+        return {}
+    return {"attestation_failure_code": str(failure_code)}
+
+
 def _attest_required_persistent_execution(
     *,
     required: bool,
@@ -4228,24 +4315,23 @@ def _attest_required_persistent_execution(
             )
         return None
     if supervisor_runtime_dir is None or operation not in {"preflight", "production"}:
-        raise ProviderExecutionIsolationError(
-            "A live persistent supervisor is required"
-        )
+        raise _persistent_attestation_error("supervisor_required")
     if public_manifest.get("persistent_supervisor_contract") != (
         _persistent_supervisor_contract()
     ):
-        raise ProviderExecutionIsolationError(
-            "Persistent supervisor contract mismatch"
-        )
+        raise _persistent_attestation_error("public_contract_mismatch")
     panel_id = public_manifest.get("panel_id")
     precommitment = public_manifest.get("precommitment_sha256")
     if panel_id != PANEL_ID or not isinstance(precommitment, str):
-        raise ProviderExecutionIsolationError(
-            "Persistent supervisor public binding is invalid"
-        )
+        raise _persistent_attestation_error("public_binding_invalid")
     try:
-        from .launchd_agent import attest_live_launch_agent
-
+        from .launchd_agent import (
+            LiveAttestationError,
+            attest_live_launch_agent,
+        )
+    except Exception:
+        raise _persistent_attestation_error("attestation_internal") from None
+    try:
         attestation = attest_live_launch_agent(
             supervisor_runtime_dir,
             authentication_key_file=authentication_key_file,
@@ -4253,10 +4339,12 @@ def _attest_required_persistent_execution(
             expected_panel_id=PANEL_ID,
             expected_precommitment_sha256=precommitment,
         )
-    except Exception:
-        raise ProviderExecutionIsolationError(
-            "Live persistent-supervisor attestation failed"
+    except LiveAttestationError as error:
+        raise _persistent_attestation_error(
+            str(error.failure_code)
         ) from None
+    except Exception:
+        raise _persistent_attestation_error("attestation_internal") from None
     return _normalized_supervisor_binding(
         attestation,
         operation=operation,
@@ -4302,9 +4390,7 @@ def _normalized_supervisor_binding(
         or not config_file_sha256.startswith("sha256:")
         or len(config_file_sha256) != 71
     ):
-        raise ProviderExecutionIsolationError(
-            "Persistent-supervisor attestation binding is invalid"
-        )
+        raise _persistent_attestation_error("binding_projection_invalid")
     binding = {
         "operation": operation,
         "label": label,
@@ -4330,9 +4416,7 @@ def _claim_persistent_execution_binding(
         return False
     normalized = dict(binding)
     if set(normalized) != _SUPERVISOR_BINDING_FIELDS:
-        raise ProviderExecutionIsolationError(
-            "Persistent-supervisor binding schema changed"
-        )
+        raise _persistent_attestation_error("private_binding_invalid")
     bindings = private.get(_PERSISTENT_EXECUTION_BINDINGS_KEY)
     if bindings is None:
         bindings = {}
@@ -4340,9 +4424,7 @@ def _claim_persistent_execution_binding(
     if not isinstance(bindings, dict) or any(
         name not in {"preflight", "production"} for name in bindings
     ):
-        raise ProviderExecutionIsolationError(
-            "Persistent-supervisor private binding state is invalid"
-        )
+        raise _persistent_attestation_error("private_binding_invalid")
     existing = bindings.get(operation)
     if existing is None:
         bindings[operation] = normalized
@@ -4350,9 +4432,7 @@ def _claim_persistent_execution_binding(
     if not isinstance(existing, Mapping) or not hmac.compare_digest(
         _canonical_bytes(dict(existing)), _canonical_bytes(normalized)
     ):
-        raise ProviderExecutionIsolationError(
-            "Persistent-supervisor runtime replacement was refused"
-        )
+        raise _persistent_attestation_error("runtime_replacement")
     return False
 
 
@@ -5160,6 +5240,7 @@ def _run_environment_preflight_core(
                         "finished_at_utc": _utc_now(),
                         "failure_class": type(error).__name__,
                         "failure_stage": failure_stage,
+                        **_attestation_incident_fields(error),
                     }
                 )
                 invocation_state = _durable_provider_invocation_state(marker)
@@ -5315,6 +5396,7 @@ def _run_environment_preflight_core(
                         "status": "terminal",
                         "failure_class": type(error).__name__,
                         "boundary": "final_completion",
+                        **_attestation_incident_fields(error),
                     },
                 }
                 _write_private_state(
@@ -6404,6 +6486,35 @@ def _run_panel_locked(
         return expected
 
     assignments = private["assignments"]
+
+    def attest_clean_provider_boundary() -> None:
+        expected_assignment_count = len(assignments)
+        retry_delays = (0.05, 0.10)
+        deadline = (
+            time.monotonic()
+            + _CLEAN_BOUNDARY_ATTESTATION_DEADLINE_SECONDS
+        )
+        for attempt in range(len(retry_delays) + 1):
+            if len(assignments) != expected_assignment_count:
+                raise _persistent_attestation_error(
+                    "private_binding_invalid"
+                )
+            try:
+                attest_current_supervisor()
+                return
+            except ProviderExecutionIsolationError as error:
+                if (
+                    getattr(error, "attestation_failure_code", None)
+                    != "status_snapshot_unstable"
+                    or attempt == len(retry_delays)
+                ):
+                    raise
+                delay = retry_delays[attempt]
+                if time.monotonic() + delay > deadline:
+                    raise
+                time.sleep(delay)
+        raise AssertionError("Clean-boundary attestation retry loop escaped")
+
     if assignments and assignments[-1]["status"] == "started":
         interrupted_profile_id = str(assignments[-1]["profile_id"])
         private["execution_incident"] = {
@@ -6510,7 +6621,7 @@ def _run_panel_locked(
                 codex_auth_file_identity,
             )
         try:
-            attest_current_supervisor()
+            attest_clean_provider_boundary()
         except ProviderExecutionIsolationError as error:
             private["execution_incident"] = {
                 "status": "terminal",
@@ -6518,6 +6629,7 @@ def _run_panel_locked(
                 "failure_class": type(error).__name__,
                 "boundary": "clean_before_assignment",
                 "profile_id": profile_id,
+                **_attestation_incident_fields(error),
             }
             private["status"] = "running"
             _write_private_state(
@@ -6661,6 +6773,7 @@ def _run_panel_locked(
                     "status": "terminal",
                     "assignment_index": len(assignments) - 1,
                     "failure_class": type(error).__name__,
+                    **_attestation_incident_fields(error),
                 }
                 if profile["system"] == "codex":
                     codex_auth_ambiguous = True
@@ -6717,6 +6830,7 @@ def _run_panel_locked(
             "assignment_index": len(assignments),
             "failure_class": type(error).__name__,
             "boundary": "final_completion",
+            **_attestation_incident_fields(error),
         }
         private["status"] = "running"
         _write_private_state(private_state_path, private, authentication_key)

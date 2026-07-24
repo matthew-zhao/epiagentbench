@@ -47,8 +47,9 @@ EXECUTION_CONTEXT_DIGEST = compute_execution_context_sha256(
     launchd_label="org.epiagentbench.panel.offline-test",
     operation="offline-soak",
     panel_id="epiagentbench-v9-test",
-    protocol_version="persistent-supervisor-v1",
+    protocol_version="persistent-supervisor-v2",
     public_manifest_sha256="sha256:" + "3" * 64,
+    python_executable_sha256="sha256:" + "8" * 64,
     runner_source_sha256="sha256:" + "4" * 64,
     launchd_agent_source_sha256="sha256:" + "5" * 64,
     persistent_supervisor_source_sha256="sha256:" + "6" * 64,
@@ -253,8 +254,9 @@ class PersistentSupervisorTests(unittest.TestCase):
             "launchd_label": "org.epiagentbench.panel.offline-test",
             "operation": "offline-soak",
             "panel_id": "epiagentbench-v9-test",
-            "protocol_version": "persistent-supervisor-v1",
+            "protocol_version": "persistent-supervisor-v2",
             "public_manifest_sha256": "sha256:" + "3" * 64,
+            "python_executable_sha256": "sha256:" + "8" * 64,
             "runner_source_sha256": "sha256:" + "4" * 64,
             "launchd_agent_source_sha256": "sha256:" + "5" * 64,
             "persistent_supervisor_source_sha256": "sha256:" + "6" * 64,
@@ -262,6 +264,7 @@ class PersistentSupervisorTests(unittest.TestCase):
         }
         baseline = compute_execution_context_sha256(**arguments)
         for field, replacement in (
+            ("python_executable_sha256", "sha256:" + "b" * 64),
             ("launchd_agent_source_sha256", "sha256:" + "8" * 64),
             ("persistent_supervisor_source_sha256", "sha256:" + "9" * 64),
             (

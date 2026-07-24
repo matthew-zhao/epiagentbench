@@ -17,6 +17,8 @@ import epiagentbench.persistent_supervisor as persistent_supervisor
 from epiagentbench.persistent_supervisor import ProcessDiagnostic, run_supervised_panel
 from epiagentbench.launchd_agent import (
     LaunchAgentError,
+    LiveAttestationError,
+    LiveAttestationFailureCode,
     attest_completed_launch_agent,
     attest_live_launch_agent,
     finalize_launch_agent,
@@ -98,6 +100,14 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 {
                     "panel_id": "development-matched-50x6-v9-test",
                     "precommitment_sha256": "sha256:" + "b" * 64,
+                    "runtime_contract": {
+                        "python_entrypoint_kind": "regular_file",
+                        "python_executable_sha256": (
+                            launchd_agent._python_entrypoint_binding(
+                                Path(sys.executable).resolve()
+                            )["target"]["sha256"]
+                        )
+                    },
                 }
             ),
             encoding="utf-8",
@@ -458,6 +468,113 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 second_runtime,
                 authentication_key_file=self.authentication_key,
             )
+
+    def test_python_entrypoint_binding_preserves_symlink_launch_path(self) -> None:
+        target = self.root / "python-target"
+        shutil.copy2(Path(sys.executable).resolve(), target)
+        os.chmod(target, target.stat().st_mode | 0o100)
+        second_hop = self.root / "python3"
+        second_hop.symlink_to(target.name)
+        entrypoint = self.root / "python"
+        entrypoint.symlink_to(second_hop.name)
+        manifest = json.loads(self.public_manifest.read_text(encoding="utf-8"))
+        manifest["runtime_contract"]["python_entrypoint_kind"] = "symlink_chain"
+        self.public_manifest.write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+
+        generated = self._generate(python_executable=entrypoint)
+        config, _ = self._config_and_key()
+        binding = config["python_executable_binding"]
+        self.assertEqual(config["python_executable"], str(entrypoint))
+        self.assertEqual(binding["launch_path"], str(entrypoint))
+        self.assertEqual(len(binding["symlink_hops"]), 2)
+        self.assertEqual(
+            binding["target"]["sha256"],
+            config["python_executable_sha256"],
+        )
+        plist = plistlib.loads(Path(generated["plist_path"]).read_bytes())
+        self.assertEqual(plist["ProgramArguments"][2], str(entrypoint))
+        self.assertEqual(launchd_agent._runner_command(config)[0], str(entrypoint))
+
+        second_hop.unlink()
+        alternate = self.root / "python-alternate"
+        shutil.copy2(target, alternate)
+        os.chmod(alternate, alternate.stat().st_mode | 0o100)
+        second_hop.symlink_to(alternate.name)
+        with self.assertRaises(LaunchAgentError):
+            inspect_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+    def test_python_entrypoint_must_match_public_runtime_digest(self) -> None:
+        manifest = json.loads(self.public_manifest.read_text(encoding="utf-8"))
+        manifest["runtime_contract"]["python_executable_sha256"] = (
+            "sha256:" + "f" * 64
+        )
+        self.public_manifest.write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+        with self.assertRaises(LaunchAgentError):
+            self._generate()
+        self.assertFalse(self.runtime.exists())
+
+    def test_python_entrypoint_binding_rejects_byte_and_inode_drift(self) -> None:
+        for suffix, mutate in (
+            (
+                "bytes",
+                lambda path: path.write_bytes(path.read_bytes() + b"drift"),
+            ),
+            (
+                "inode",
+                lambda path: os.replace(
+                    shutil.copy2(path, path.with_suffix(".replacement")),
+                    path,
+                ),
+            ),
+        ):
+            with self.subTest(drift=suffix):
+                target = self.root / f"python-{suffix}"
+                shutil.copy2(Path(sys.executable).resolve(), target)
+                os.chmod(target, target.stat().st_mode | 0o100)
+                runtime = self.root / f"python-{suffix}-runtime"
+                self._generate(
+                    python_executable=target,
+                    runtime_dir=runtime,
+                    instance_token=f"python-{suffix}",
+                )
+                mutate(target)
+                with self.assertRaises(LaunchAgentError):
+                    inspect_launch_agent(
+                        runtime,
+                        authentication_key_file=self.authentication_key,
+                    )
+
+    def test_worker_rechecks_python_binding_before_keychain_access(self) -> None:
+        target = self.root / "python-worker"
+        shutil.copy2(Path(sys.executable).resolve(), target)
+        os.chmod(target, target.stat().st_mode | 0o100)
+        generated = self._generate(python_executable=target)
+        self._commit_start()
+        target.write_bytes(target.read_bytes() + b"drift")
+        keychain_calls = 0
+
+        def forbidden_keychain(arguments, **kwargs):
+            nonlocal keychain_calls
+            keychain_calls += 1
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"must-not-be-read\n", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            run_launch_agent_worker(
+                Path(generated["config_path"]),
+                keychain_runner=forbidden_keychain,
+            )
+        self.assertEqual(keychain_calls, 0)
 
     def test_runtime_module_tampering_is_rejected_before_keychain_access(self) -> None:
         for index, relative_source in enumerate(
@@ -823,12 +940,12 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self._commit_start()
         calls: list[list[str]] = []
 
-        def waiting(arguments, **kwargs):
+        def inactive(arguments, **kwargs):
             calls.append(list(arguments))
             return subprocess.CompletedProcess(
                 arguments,
                 0,
-                stdout=b"state = waiting\n",
+                stdout=b"state = not running\n",
                 stderr=b"",
             )
 
@@ -836,7 +953,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             uninstall_launch_agent(
                 self.runtime,
                 authentication_key_file=self.authentication_key,
-                command_runner=waiting,
+                command_runner=inactive,
             )
         self.assertTrue(all("bootout" not in call for call in calls))
 
@@ -854,7 +971,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             calls.append(list(arguments))
             if arguments[1] == "print":
                 return subprocess.CompletedProcess(
-                    arguments, 0, stdout=b"state = waiting\n", stderr=b""
+                    arguments, 0, stdout=b"state = not running\n", stderr=b""
                 )
             return subprocess.CompletedProcess(arguments, 0, stdout=b"", stderr=b"")
 
@@ -865,6 +982,46 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.assertEqual(response["state"], "uninstalled")
         self.assertEqual([call[1] for call in calls], ["print", "bootout"])
+
+    def test_launchd_state_parser_is_exact_and_fail_closed(self) -> None:
+        config = {"label": "org.epiagentbench.panel.offline"}
+        valid = {
+            b"state = running\n": "running",
+            b"\tstate\t=\twaiting\r\n": "waiting",
+            b"state = exited\n": "exited",
+            b"  state = not running  \n": "not_running",
+        }
+        invalid = (
+            b"",
+            b"state = not-running\n",
+            b"state = not  running\n",
+            b"state = RUNNING\n",
+            b"state = running\xff\n",
+            b"state = waiting\nstate = running\n",
+        )
+
+        for stdout, expected in valid.items():
+            with self.subTest(stdout=stdout):
+                observed = launchd_agent._launchd_state(
+                    config,
+                    command_runner=lambda arguments, **kwargs: (
+                        subprocess.CompletedProcess(
+                            arguments, 0, stdout=stdout, stderr=b""
+                        )
+                    ),
+                )
+                self.assertEqual(observed, expected)
+        for stdout in invalid:
+            with self.subTest(stdout=stdout):
+                observed = launchd_agent._launchd_state(
+                    config,
+                    command_runner=lambda arguments, **kwargs: (
+                        subprocess.CompletedProcess(
+                            arguments, 0, stdout=stdout, stderr=b""
+                        )
+                    ),
+                )
+                self.assertEqual(observed, "unknown")
 
     def test_failed_kickstart_leaves_durable_no_retry_marker(self) -> None:
         self._generate()
@@ -948,30 +1105,12 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         thread = threading.Thread(target=supervise, daemon=True)
         thread.start()
         self.assertTrue(started.wait(timeout=3))
-        real_core_status = launchd_agent._core_status
-        startup_reads = 0
-
-        def transient_startup(*args, **kwargs):
-            nonlocal startup_reads
-            startup_reads += 1
-            if startup_reads == 1:
-                return {
-                    "state": "not_started",
-                    "status_authenticated": False,
-                    "lease_authenticated": False,
-                    "health": "not_started",
-                }
-            return real_core_status(*args, **kwargs)
-
         with patch(
             "epiagentbench.launchd_agent._launchctl",
             side_effect=AssertionError("attestation must not call launchctl"),
         ), patch(
             "epiagentbench.persistent_supervisor.diagnose_supervisor_process",
             return_value=ProcessDiagnostic.MATCH,
-        ), patch(
-            "epiagentbench.launchd_agent._core_status",
-            side_effect=transient_startup,
         ):
             attestation = attest_live_launch_agent(
                 self.runtime,
@@ -983,8 +1122,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertIs(attestation["attested"], True)
         self.assertEqual(attestation["supervisor_health"], "healthy")
         self.assertEqual(attestation["supervisor_process"], "match")
-        self.assertGreaterEqual(startup_reads, 2)
-        with self.assertRaises(LaunchAgentError):
+        with self.assertRaises(LiveAttestationError) as raised:
             attest_live_launch_agent(
                 self.runtime,
                 authentication_key_file=self.authentication_key,
@@ -992,10 +1130,134 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 expected_panel_id="wrong-panel-v9",
                 expected_precommitment_sha256=config["precommitment_sha256"],
             )
+        self.assertIs(
+            raised.exception.failure_code,
+            LiveAttestationFailureCode.BINDING_MISMATCH,
+        )
         release.set()
         thread.join(timeout=3)
         self.assertFalse(thread.is_alive())
         self.assertEqual(failure, [])
+
+    def test_live_attestation_reports_transient_core_reads_without_retry(self) -> None:
+        self._generate()
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        with (
+            patch(
+                "epiagentbench.launchd_agent._core_status",
+                side_effect=launchd_agent._TransientCoreStatusError(
+                    "offline torn-read injection"
+                ),
+            ) as core_status,
+            patch("epiagentbench.launchd_agent.time.sleep") as sleep,
+            self.assertRaises(LiveAttestationError) as transient,
+        ):
+            attest_live_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                expected_operation="production",
+                expected_panel_id=config["panel_id"],
+                expected_precommitment_sha256=config["precommitment_sha256"],
+            )
+        self.assertIs(
+            transient.exception.failure_code,
+            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE,
+        )
+        self.assertEqual(core_status.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_live_attestation_semantic_failures_have_finite_codes(self) -> None:
+        self._generate()
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        healthy = {
+            "state": "authenticated",
+            "lifecycle": "running",
+            "assignment_phase": "running",
+            "health": "healthy",
+            "process_diagnostic": "match",
+            "heartbeat_age_bucket": "fresh",
+        }
+        cases = (
+            (
+                {"lifecycle": "failed_closed"},
+                LiveAttestationFailureCode.CORE_NOT_RUNNING,
+            ),
+            (
+                {"assignment_phase": "prepared"},
+                LiveAttestationFailureCode.CORE_PHASE_INVALID,
+            ),
+            (
+                {"health": "stale"},
+                LiveAttestationFailureCode.CORE_UNHEALTHY,
+            ),
+            (
+                {"process_diagnostic": "absent"},
+                LiveAttestationFailureCode.PROCESS_IDENTITY_MISMATCH,
+            ),
+            (
+                {"heartbeat_age_bucket": "under_2m"},
+                LiveAttestationFailureCode.HEARTBEAT_STALE,
+            ),
+        )
+        for changes, expected in cases:
+            with self.subTest(failure_code=expected):
+                core = {**healthy, **changes}
+                with (
+                    patch(
+                        "epiagentbench.launchd_agent._core_status",
+                        return_value=core,
+                    ),
+                    self.assertRaises(LiveAttestationError) as raised,
+                ):
+                    attest_live_launch_agent(
+                        self.runtime,
+                        authentication_key_file=self.authentication_key,
+                        expected_operation="production",
+                        expected_panel_id=config["panel_id"],
+                        expected_precommitment_sha256=(
+                            config["precommitment_sha256"]
+                        ),
+                    )
+                self.assertIs(raised.exception.failure_code, expected)
+
+        with (
+            patch(
+                "epiagentbench.launchd_agent._core_status",
+                return_value={
+                    "state": "not_started",
+                    "status_authenticated": False,
+                    "lease_authenticated": False,
+                    "health": "not_started",
+                },
+            ) as core_status,
+            patch("epiagentbench.launchd_agent.time.sleep") as sleep,
+            self.assertRaises(LiveAttestationError) as semantic,
+        ):
+            attest_live_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                expected_operation="production",
+                expected_panel_id=config["panel_id"],
+                expected_precommitment_sha256=config["precommitment_sha256"],
+            )
+        self.assertIs(
+            semantic.exception.failure_code,
+            LiveAttestationFailureCode.CORE_NOT_STARTED,
+        )
+        self.assertEqual(core_status.call_count, 1)
+        sleep.assert_not_called()
 
     def test_worker_script_self_bootstraps_without_pythonpath(self) -> None:
         script = self.repository / "examples" / "run_persistent_panel_supervisor.py"
