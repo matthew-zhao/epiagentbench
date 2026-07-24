@@ -257,6 +257,12 @@ class MatchedPanelTests(unittest.TestCase):
         with ExitStack() as stack:
             stack.enter_context(
                 patch(
+                    "epiagentbench.development_matched_panel."
+                    "assert_durable_live_execution_paths"
+                )
+            )
+            stack.enter_context(
+                patch(
                     "epiagentbench.development_matched_panel._git_output",
                     side_effect=self._git_output,
                 )
@@ -1517,7 +1523,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v10_authorization_breakdown"],
+            contract["claude_current_v11_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -1527,7 +1533,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v10_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v11_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -1540,6 +1546,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v7_usd": 10.0,
                 "v8_usd": 15.0,
                 "v9_usd": 20.0,
+                "v10_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -1565,6 +1572,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "v8_supersession",
                 "v9_preflight_receipt",
                 "v9_stopped_watermark",
+                "v10_manifest",
+                "v10_supersession",
             },
         )
         self.assertIn("not measured", contract["ceiling_interpretation"])
@@ -1656,7 +1665,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v10_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v11_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -1747,6 +1756,9 @@ class MatchedPanelTests(unittest.TestCase):
                 "prepare_panel",
                 return_value={"panel_id": "test", "status": "precommitted"},
             ) as prepare,
+            patch.object(
+                matched_cli, "assert_durable_live_execution_paths"
+            ),
             patch("builtins.print"),
         ):
             matched_cli.main()
@@ -1778,7 +1790,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v10")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v11")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -2178,6 +2190,111 @@ class MatchedPanelTests(unittest.TestCase):
         alias.symlink_to(target, target_is_directory=True)
         with self.assertRaisesRegex(ValueError, "symlink"):
             matched._validate_claude_secure_storage_dir(alias, root=self.root)
+
+    def test_live_execution_requires_external_durable_private_state(self):
+        self.assertTrue(
+            matched._is_temporary_storage_path(
+                Path("/var/tmp/epiagentbench-disposable")
+            )
+        )
+        with (
+            TemporaryDirectory(
+                prefix="epiagentbench-live-root-", dir=Path.home()
+            ) as durable_root_text,
+            TemporaryDirectory(
+                prefix="epiagentbench-private-state-", dir=Path.home()
+            ) as state_root_text,
+        ):
+            durable_root = Path(durable_root_text)
+            state_root = Path(state_root_text)
+            os.chmod(durable_root, 0o700)
+            os.chmod(state_root, 0o700)
+            state_path = state_root / "private.json"
+            matched.assert_durable_live_execution_paths(
+                root=durable_root,
+                private_state_path=state_path,
+            )
+            binding = matched._private_state_storage_binding(
+                state_path,
+                root=durable_root,
+            )
+            self.assertEqual(binding["storage_class"], "durable_external")
+
+            repository_state = durable_root / "private.json"
+            with self.assertRaisesRegex(ValueError, "outside the repository"):
+                matched.assert_durable_live_execution_paths(
+                    root=durable_root,
+                    private_state_path=repository_state,
+                )
+
+            os.chmod(state_root, 0o755)
+            try:
+                with self.assertRaisesRegex(ValueError, "current-user 0700"):
+                    matched.assert_durable_live_execution_paths(
+                        root=durable_root,
+                        private_state_path=state_path,
+                    )
+            finally:
+                os.chmod(state_root, 0o700)
+
+        with self.assertRaisesRegex(RuntimeError, "outside OS temporary"):
+            matched.assert_durable_live_execution_paths(
+                root=self.root,
+                private_state_path=self.private_path,
+            )
+
+    def test_private_state_storage_binding_rejects_relocation_and_hard_links(self):
+        with (
+            TemporaryDirectory(
+                prefix="epiagentbench-live-root-", dir=Path.home()
+            ) as durable_root_text,
+            TemporaryDirectory(
+                prefix="epiagentbench-private-state-", dir=Path.home()
+            ) as first_state_root_text,
+            TemporaryDirectory(
+                prefix="epiagentbench-private-state-copy-", dir=Path.home()
+            ) as second_state_root_text,
+        ):
+            durable_root = Path(durable_root_text)
+            first_state_root = Path(first_state_root_text)
+            second_state_root = Path(second_state_root_text)
+            for directory in (
+                durable_root,
+                first_state_root,
+                second_state_root,
+            ):
+                os.chmod(directory, 0o700)
+            state_path = first_state_root / "private.json"
+            private = {
+                "private_state_storage": matched._private_state_storage_binding(
+                    state_path,
+                    root=durable_root,
+                ),
+                "status": "test",
+            }
+            matched._write_private_state(
+                state_path, private, AUTHENTICATION_KEY
+            )
+            self.assertEqual(
+                matched._load_private_state(state_path, AUTHENTICATION_KEY),
+                private,
+            )
+
+            relocated = second_state_root / "private.json"
+            relocated.write_bytes(state_path.read_bytes())
+            os.chmod(relocated, 0o600)
+            with self.assertRaisesRegex(ValueError, "storage binding"):
+                matched._load_private_state(relocated, AUTHENTICATION_KEY)
+
+            hard_link = first_state_root / "private-hard-link.json"
+            os.link(state_path, hard_link)
+            try:
+                with self.assertRaisesRegex(ValueError, "Unsafe matched-panel"):
+                    matched._load_private_state(
+                        state_path, AUTHENTICATION_KEY
+                    )
+            finally:
+                hard_link.unlink()
 
     def test_managed_glean_credential_attestation_is_metadata_only(self):
         self.assertFalse(
@@ -3798,12 +3915,12 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v10_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v11_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
-        stale_v9_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v10", "six-call v9"
-        ).replace("$570", "$550")
+        stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
+            "six-call v11", "six-call v10"
+        )
         with (
             patch(
                 "epiagentbench.development_matched_panel."
@@ -3817,7 +3934,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v10 \\$570"),
+            self.assertRaisesRegex(RuntimeError, "exact v11 \\$570"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -3826,7 +3943,7 @@ class MatchedPanelTests(unittest.TestCase):
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                acknowledgement_text=stale_v9_text,
+                acknowledgement_text=stale_v10_text,
             )
         glean_bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
@@ -3898,6 +4015,10 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "assert_durable_live_execution_paths"
+                ),
                 self.assertRaisesRegex(RuntimeError, expected_error),
             ):
                 authorize_panel_spend(
@@ -4111,7 +4232,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v10"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v11"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -4158,7 +4279,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v10"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v11"),
         ):
             run_panel(
                 root=self.root,
@@ -5414,8 +5535,8 @@ class MatchedPanelTests(unittest.TestCase):
             index
             for index, (_ref, profile_id) in enumerate(keys)
             if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
+            and index < ASSIGNMENT_COUNT - 1
         )
-        self.assertLess(codex_index, ASSIGNMENT_COUNT - 1)
         self._set_terminal_assignment_prefix(codex_index)
 
         result, invoked = self._run_with(
@@ -6286,7 +6407,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v10_receipt(self):
+    def test_environment_preflight_gate_validates_full_v11_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from epiagentbench.development_matched_panel import (
+    assert_durable_live_execution_paths,
     authorize_panel_spend,
     prepare_panel,
     run_environment_preflight,
@@ -57,6 +58,10 @@ def main() -> int:
     )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    assert_durable_live_execution_paths(
+        root=root,
+        private_state_path=args.private_state,
+    )
     if args.command == "prepare":
         payload = prepare_panel(
             root=root,

@@ -27,7 +27,7 @@ import statistics
 import subprocess
 import sys
 import time
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, gettempdir
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlsplit
 
@@ -78,23 +78,25 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v10"
+PANEL_ID = "development-matched-50x6-v11"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v10"
+SCHEMA_VERSION = "development_matched_panel_v11"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v10 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v11 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $570 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
-    "failed v8 production run, v9 preflight and failed production run, and "
-    "the v10 preflight and production run."
+    "failed v8 production run, v9 preflight and failed production run, the "
+    "abandoned zero-model-call v10 precommitment, and the v11 preflight and "
+    "production run."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
+_PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v1"
 _CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 570.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
@@ -380,6 +382,8 @@ def _load_json(path: Path, *, private: bool = False) -> dict[str, Any]:
     if (
         not stat.S_ISREG(metadata.st_mode)
         or (private and metadata.st_mode & 0o077)
+        or (private and metadata.st_uid != os.getuid())
+        or (private and metadata.st_nlink != 1)
         or not 0 < metadata.st_size <= _MAX_PANEL_JSON_BYTES
     ):
         raise ValueError(f"Unsafe matched-panel artifact: {path.name}")
@@ -396,6 +400,8 @@ def _load_json(path: Path, *, private: bool = False) -> dict[str, Any]:
                 or opened.st_ino != metadata.st_ino
                 or opened.st_size != metadata.st_size
                 or (private and opened.st_mode & 0o077)
+                or (private and opened.st_uid != os.getuid())
+                or (private and opened.st_nlink != 1)
             ):
                 raise ValueError(f"Matched-panel artifact changed while opening: {path.name}")
             payload = stream.read(_MAX_PANEL_JSON_BYTES + 1)
@@ -479,6 +485,7 @@ def _private_state_tag(value: Mapping[str, Any], key: bytes) -> str:
 
 
 def _write_private_state(path: Path, value: Mapping[str, Any], key: bytes) -> None:
+    _validate_bound_private_state_storage(path, value)
     unsigned = dict(value)
     unsigned.pop("state_authentication", None)
     sealed = {
@@ -489,6 +496,7 @@ def _write_private_state(path: Path, value: Mapping[str, Any], key: bytes) -> No
         },
     }
     _atomic_json(path, sealed, private=True)
+    _validate_bound_private_state_storage(path, value)
 
 
 def _load_private_state(path: Path, key: bytes) -> dict[str, Any]:
@@ -503,6 +511,7 @@ def _load_private_state(path: Path, key: bytes) -> dict[str, Any]:
         or not hmac.compare_digest(supplied, expected)
     ):
         raise ValueError("Private matched-panel state authentication failed")
+    _validate_bound_private_state_storage(path, sealed)
     return sealed
 
 
@@ -724,7 +733,10 @@ def _assert_authorization_worktree(
             "Matched-panel repository HEAD changed during spend authorization"
         )
     public_relative = _relative_to_root(public_manifest_path, root)
-    private_relative = _relative_to_root(private_state_path, root)
+    try:
+        private_relative = _relative_to_root(private_state_path, root)
+    except ValueError:
+        private_relative = None
     if (
         _git_output(root, "ls-files", "--error-unmatch", public_relative)
         != public_relative
@@ -733,7 +745,9 @@ def _assert_authorization_worktree(
             "Public matched-panel precommitment must be committed before spend "
             "authorization"
         )
-    if _git_output(root, "ls-files", private_relative):
+    if private_relative is not None and _git_output(
+        root, "ls-files", private_relative
+    ):
         raise RuntimeError("Private matched-panel state must never be tracked")
     metadata = private_state_path.lstat()
     if (
@@ -804,6 +818,178 @@ def _path_is_within(path: Path, parent: Path) -> bool:
 
 def _paths_overlap(first: Path, second: Path) -> bool:
     return _path_is_within(first, second) or _path_is_within(second, first)
+
+
+def _temporary_storage_roots() -> tuple[Path, ...]:
+    roots: list[Path] = []
+    for candidate in (
+        Path("/tmp"),
+        Path("/private/tmp"),
+        Path("/var/tmp"),
+        Path(gettempdir()),
+    ):
+        try:
+            resolved = candidate.resolve(strict=True)
+        except OSError:
+            resolved = candidate.resolve(strict=False)
+        if resolved not in roots:
+            roots.append(resolved)
+    return tuple(roots)
+
+
+def _is_temporary_storage_path(path: Path) -> bool:
+    resolved = path.expanduser().resolve(strict=False)
+    return any(
+        _path_is_within(resolved, temporary_root)
+        for temporary_root in _temporary_storage_roots()
+    )
+
+
+def _private_state_storage_binding(
+    path: Path,
+    *,
+    root: Path,
+    create_temporary_test_parent: bool = False,
+) -> dict[str, Any]:
+    """Bind one canonical private state path to its durable parent directory."""
+
+    candidate = path.expanduser()
+    if not candidate.is_absolute():
+        raise ValueError("Private matched-panel state path must be absolute")
+    resolved_root = root.resolve(strict=True)
+    temporary_test_root = _is_temporary_storage_path(resolved_root)
+    if (
+        temporary_test_root
+        and create_temporary_test_parent
+        and not candidate.parent.exists()
+    ):
+        candidate.parent.mkdir(parents=True, mode=0o700)
+        os.chmod(candidate.parent, 0o700)
+    try:
+        resolved_parent = candidate.parent.resolve(strict=True)
+        parent_metadata = candidate.parent.lstat()
+    except (OSError, RuntimeError):
+        raise ValueError(
+            "Private matched-panel state parent must already exist"
+        ) from None
+    canonical_path = resolved_parent / candidate.name
+    if not temporary_test_root and candidate.parent != resolved_parent:
+        raise ValueError(
+            "Private matched-panel state parent must not contain symlinks"
+        )
+    if (
+        not stat.S_ISDIR(parent_metadata.st_mode)
+        or stat.S_ISLNK(parent_metadata.st_mode)
+        or parent_metadata.st_uid != os.getuid()
+    ):
+        raise ValueError(
+            "Private matched-panel state parent must be a current-user real directory"
+        )
+    storage_class = (
+        "temporary_offline_test"
+        if temporary_test_root
+        else "durable_external"
+    )
+    if storage_class == "durable_external":
+        if (
+            stat.S_IMODE(parent_metadata.st_mode) != 0o700
+            or _path_is_within(resolved_parent, resolved_root)
+            or _is_temporary_storage_path(resolved_parent)
+        ):
+            raise ValueError(
+                "Live private matched-panel state must use a pre-existing "
+                "current-user 0700 directory outside the repository and OS "
+                "temporary storage"
+            )
+    else:
+        try:
+            _relative_to_root(canonical_path, resolved_root)
+        except ValueError:
+            raise ValueError(
+                "Offline-test private state must remain inside its temporary root"
+            ) from None
+    if candidate.exists() or candidate.is_symlink():
+        metadata = candidate.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise ValueError(
+                "Private matched-panel state must be a current-user, "
+                "single-link 0600 regular file"
+            )
+    return {
+        "schema_version": _PRIVATE_STATE_STORAGE_SCHEMA,
+        "storage_class": storage_class,
+        "canonical_path": str(canonical_path),
+        "repository_root": str(resolved_root),
+        "parent_device": int(parent_metadata.st_dev),
+        "parent_inode": int(parent_metadata.st_ino),
+    }
+
+
+def _validate_bound_private_state_storage(
+    path: Path, private: Mapping[str, Any]
+) -> None:
+    binding = private.get("private_state_storage")
+    expected_keys = {
+        "schema_version",
+        "storage_class",
+        "canonical_path",
+        "repository_root",
+        "parent_device",
+        "parent_inode",
+    }
+    if (
+        not isinstance(binding, Mapping)
+        or set(binding) != expected_keys
+        or binding.get("schema_version") != _PRIVATE_STATE_STORAGE_SCHEMA
+        or binding.get("storage_class")
+        not in {"durable_external", "temporary_offline_test"}
+        or not isinstance(binding.get("canonical_path"), str)
+        or not isinstance(binding.get("repository_root"), str)
+        or type(binding.get("parent_device")) is not int
+        or type(binding.get("parent_inode")) is not int
+    ):
+        raise ValueError("Invalid private matched-panel state storage binding")
+    observed = _private_state_storage_binding(
+        path,
+        root=Path(str(binding["repository_root"])),
+    )
+    if not hmac.compare_digest(
+        _canonical_bytes(dict(binding)), _canonical_bytes(observed)
+    ):
+        raise ValueError("Private matched-panel state storage binding changed")
+
+
+def assert_durable_live_execution_paths(
+    *, root: Path, private_state_path: Path
+) -> None:
+    """Reject live CLI execution from a disposable checkout or state path."""
+
+    resolved_root = root.resolve(strict=True)
+    root_metadata = root.lstat()
+    if (
+        not stat.S_ISDIR(root_metadata.st_mode)
+        or stat.S_ISLNK(root_metadata.st_mode)
+        or root_metadata.st_uid != os.getuid()
+        or _is_temporary_storage_path(resolved_root)
+    ):
+        raise RuntimeError(
+            "Live matched-panel execution requires a current-user durable "
+            "repository checkout outside OS temporary storage"
+        )
+    binding = _private_state_storage_binding(
+        private_state_path,
+        root=resolved_root,
+    )
+    if binding["storage_class"] != "durable_external":
+        raise RuntimeError(
+            "Live matched-panel execution requires durable external private state"
+        )
 
 
 def _validate_claude_secure_storage_dir(path: Path, *, root: Path) -> Path:
@@ -2918,6 +3104,21 @@ def _spend_authorization_contract() -> dict[str, Any]:
     }
 
 
+def _private_state_storage_contract() -> dict[str, Any]:
+    return {
+        "schema_version": _PRIVATE_STATE_STORAGE_SCHEMA,
+        "authoritative_copy_count": 1,
+        "location": "outside_repository_and_os_temporary_storage",
+        "parent": "pre_existing_current_user_0700_real_directory",
+        "state_file": "current_user_single_link_0600_regular_file",
+        "private_binding": "canonical_path_and_parent_device_inode_hmac_authenticated",
+        "write_validation": "before_and_after_every_authenticated_atomic_write",
+        "read_validation": "metadata_during_open_then_binding_after_authentication",
+        "public_paths_or_filesystem_identifiers": False,
+        "rollback_fallback_copy": False,
+    }
+
+
 def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     per_call_ceiling = float(claude_max_budget_usd)
     current_preflight_calls = sum(
@@ -2931,8 +3132,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v10_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v10_authorization_breakdown": {
+        "claude_current_v11_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v11_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -2953,6 +3154,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v7_usd": 10.0,
             "v8_usd": 15.0,
             "v9_usd": 20.0,
+            "v10_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -2997,6 +3199,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v9_stopped_watermark": (
                 "results/development-matched-50x6-v9.json"
             ),
+            "v10_manifest": (
+                "results/development-matched-50x6-v10.manifest.json"
+            ),
+            "v10_supersession": (
+                "results/development-matched-50x6-v10.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -3030,18 +3238,23 @@ def prepare_panel(
         private_state_path,
         public_manifest_path,
     )
-    _relative_to_root(private_state_path, root)
     _relative_to_root(public_manifest_path, root)
     if private_state_path.exists() or public_manifest_path.exists():
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V10 requires an exact 1800-second assignment timeout")
+        raise ValueError("V11 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V10 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V11 requires an exact $5 Claude per-call ceiling")
+
+    private_state_storage = _private_state_storage_binding(
+        private_state_path,
+        root=root,
+        create_temporary_test_parent=True,
+    )
 
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -3217,6 +3430,7 @@ def prepare_panel(
                 "active_job_may_be_booted_out": False,
             },
             "spend_authorization": _spend_authorization_contract(),
+            "private_state_storage": _private_state_storage_contract(),
             "retry_policy": "at most one provider invocation per assignment",
             "orphan_policy": (
                 "seal started assignment as transport_void; never retry; "
@@ -3369,6 +3583,7 @@ def prepare_panel(
         "schema_version": SCHEMA_VERSION,
         "panel_id": PANEL_ID,
         "status": "prepared",
+        "private_state_storage": private_state_storage,
         "public_precommitment_sha256": public["precommitment_sha256"],
         "cohort_manifest_path": str(manifest_path.resolve()),
         "claude_secure_storage_dir": str(resolved_claude_secure_storage_dir),
@@ -3404,6 +3619,10 @@ def prepare_panel(
         "assignments": [],
     }
     _write_private_state(private_state_path, private, key)
+    if _load_private_state(private_state_path, key) != private:
+        raise RuntimeError(
+            "Authenticated private matched-panel state failed its post-write reload"
+        )
     _atomic_json(public_manifest_path, public)
     return public
 
@@ -3439,6 +3658,8 @@ def _validate_contracts(
         or not isinstance(public.get("run_contract"), dict)
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
+        or public["run_contract"].get("private_state_storage")
+        != _private_state_storage_contract()
         or private.get("panel_id") != PANEL_ID
         or private.get("public_precommitment_sha256")
         != public.get("precommitment_sha256")
@@ -3702,7 +3923,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V10 spend authorization contract mismatch")
+        raise ValueError("V11 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -3730,7 +3951,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v10 spend authorization receipt is required "
+            "A manifest-bound exact v11 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -3752,8 +3973,12 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v10 $570 cumulative spend acknowledgement text is required"
+            "The exact v11 $570 cumulative spend acknowledgement text is required"
         )
+    assert_durable_live_execution_paths(
+        root=root,
+        private_state_path=private_state_path,
+    )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
     )
@@ -5468,6 +5693,10 @@ def run_environment_preflight(
     private test-only helper below.
     """
 
+    assert_durable_live_execution_paths(
+        root=root,
+        private_state_path=private_state_path,
+    )
     return _run_environment_preflight_core(
         root=root,
         authentication_key_file=authentication_key_file,
@@ -5525,11 +5754,16 @@ def _preflight_execution(
     allowed_private_artifact_paths: Sequence[Path] = (),
 ) -> None:
     public_relative = _relative_to_root(public_manifest_path, root)
-    private_relative = _relative_to_root(private_state_path, root)
+    try:
+        private_relative = _relative_to_root(private_state_path, root)
+    except ValueError:
+        private_relative = None
     results_relative = _relative_to_root(public_results_path, root)
     if _git_output(root, "ls-files", "--error-unmatch", public_relative) != public_relative:
         raise RuntimeError("Public matched-panel precommitment has not been committed")
-    if _git_output(root, "ls-files", private_relative):
+    if private_relative is not None and _git_output(
+        root, "ls-files", private_relative
+    ):
         raise RuntimeError("Private matched-panel state must never be tracked")
     if os.stat(private_state_path).st_mode & 0o077:
         raise RuntimeError("Private matched-panel state permissions are too broad")
@@ -6177,6 +6411,10 @@ def finalize_supervised_release(
 
     if operation not in {"preflight", "production"}:
         raise ValueError("Supervised release operation is invalid")
+    assert_durable_live_execution_paths(
+        root=root,
+        private_state_path=private_state_path,
+    )
     _assert_distinct_paths(
         authentication_key_file,
         private_state_path,
@@ -6900,6 +7138,10 @@ def run_panel(
         raise RuntimeError(
             "Explicit acknowledgement of unbounded provider spend is required"
         )
+    assert_durable_live_execution_paths(
+        root=root,
+        private_state_path=private_state_path,
+    )
     with _exclusive_run_lock(private_state_path):
         return _run_panel_locked(
             root=root,

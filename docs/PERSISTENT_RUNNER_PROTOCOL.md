@@ -189,10 +189,21 @@ states never reach `bootout`.
 
 ## Pause, sleep, network, and shutdown
 
+The source checkout and authoritative private checkpoint have separate
+lifecycles. The live V11 CLI must run from a current-user durable checkout
+outside OS temporary storage. Its one HMAC-authenticated private state lives in
+a different, pre-existing current-user `0700` real directory outside both that
+checkout and OS temporary storage. The private state binds its canonical path
+and parent device/inode, and every authenticated read and atomic write
+revalidates that binding plus exact `0600`, current-user, single-link file
+metadata. The public manifest commits only the path-free storage policy.
+Repository cleanup therefore cannot silently delete the authoritative
+checkpoint, and no rollback-capable peer mirror is used.
+
 `pause_after_current` is available to the generic multi-command supervisor and
 is honored only between its child commands. The current production-shaped
 adapter has one child command for the entire panel, so it does **not** claim a
-safe between-provider pause. No live V10 operator may use a stop signal as a
+safe between-provider pause. No live V11 operator may use a stop signal as a
 pause; stopping an active child is an interruption and requires incident
 audit.
 
@@ -210,7 +221,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V10 model call may start until all of the following pass through the same
+No V11 model call may start until all of the following pass through the same
 supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -249,7 +260,10 @@ supervisor path intended for production:
 
 The hardened supervisor changes the source, Python binding, live-attestation,
 and operational contracts. Terminal V9 therefore cannot be resumed or
-relabeled. A live V10 requires a fresh hidden cohort and schedule,
+relabeled. V10 was separately abandoned before its manifest-bound
+authorization receipt could be persisted after OS-temporary checkout cleanup
+removed its sole authenticated private state. A live V11 requires a fresh
+hidden cohort and schedule,
 authentication key, credential namespaces, public precommitment, supervised
 six-profile preflight, and exact spend authorization. V8/V9 completed records
 and transport voids are audit evidence only and are never mixed into the new

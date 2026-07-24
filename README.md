@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V10 runs as a
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V11 runs as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
 supervisor lease, and bounded hash-chain log are authenticated; the Cursor key
@@ -369,9 +369,28 @@ virtual-environment launch semantics while detecting byte, inode, or symlink
 drift before credential access and child launch. Finally, `launchctl`'s literal
 `state = not running` is parsed as loaded-but-inactive for authenticated
 terminal cleanup; that parser was not on V9's live-attestation path and did not
-cause the V9 stop. These changes invalidate V9's frozen source contract. The
-resulting V10 panel contract requires a fresh cohort, manifest, preflight, and
-spend authorization; no V10 provider call has been authorized or invoked.
+cause the V9 stop. These changes invalidate V9's frozen source contract.
+
+V10 prepared a fresh cohort and public precommitment, but its sole
+authenticated private control state lived in an ignored directory of an
+OS-temporary checkout. Cleanup removed that state before the supplied exact
+acknowledgment could be bound into the required manifest-specific private
+authorization receipt.
+The public
+[V10 supersession](results/development-matched-50x6-v10.superseded.json) binds
+the committed manifest and records that no authentication bootstrap, preflight
+profile, model-bearing benchmark call, or production assignment started.
+Credential-free preparation identity probes are explicitly excluded from that
+zero-call scope. V10 cannot be reconstructed or resumed.
+
+V11 moves the single authoritative private state outside both the repository
+and OS temporary storage. Its pre-existing owner-only directory, canonical
+path, and parent filesystem identity are HMAC-bound in private state and
+revalidated on every authenticated read and atomic write. The public manifest
+contains only the path-free storage policy. The live CLI also rejects a
+temporary checkout before preparation, authorization, preflight, or
+production. V11 requires a fresh cohort, manifest, preflight, and spend
+authorization.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
@@ -383,7 +402,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed V10 assignment is designed to record an evaluator-owned,
+Each completed V11 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -405,12 +424,12 @@ A Codex timeout is the one timeout exception: killing it during an in-place
 credential refresh could leave authentication ambiguous, so the assignment is
 a terminal transport void and the panel cannot complete.
 
-Before production, V10 first runs two no-model authentication bootstraps. The
+Before production, V11 first runs two no-model authentication bootstraps. The
 managed-Glean bootstrap discards token-bearing stdout. The Codex bootstrap runs
 the pinned CLI's browser OAuth flow with file-only credential storage in a new
 panel namespace; it may open a separate sign-in page, and both output streams
 are discarded. The active host Codex login is neither copied nor linked. Only
-after both bootstraps pass does V10 run a disposable six-call, unscored
+after both bootstraps pass does V11 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -428,36 +447,37 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V10 authorization ceiling is $510: two Claude
+a $5 per-call runner ceiling. The V11 authorization ceiling is $510: two Claude
 preflight calls plus 100 production calls. Prior failed panels contribute a
 conservative $60 ceiling: two v2 Claude preflight calls ($10), the ambiguous v5
 attempt ($5), v7's two returned Claude preflight calls ($10), v8's two
 preflight plus one production Claude calls ($15), and V9's two preflight plus
-two production Claude calls ($20); v3, v4, and v6 started no Claude model call.
+two production Claude calls ($20); v3, v4, v6, and V10 started no Claude model
+call.
 The cumulative Claude authorization ceiling is therefore $570, not a claim
 about measured billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-A generic command-line acknowledgement is not sufficient to unlock V10. After
+A generic command-line acknowledgement is not sufficient to unlock V11. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v10 preflight and 300-assignment
+> I acknowledge the replacement six-call v11 preflight and 300-assignment
 > production run, including unbounded Codex/Cursor provider spend and up to
 > $570 total Claude spend across the failed v2 preflight, failed v5 preflight,
 > failed v6 authentication bootstrap, failed v7 preflight, failed v8
-> production run, v9 preflight and failed production run, and the v10
-> preflight and production run.
+> production run, v9 preflight and failed production run, the abandoned
+> zero-model-call v10 precommitment, and the v11 preflight and production run.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, V10 panel identifier, final public
+private receipt bound to the exact text, V11 panel identifier, final public
 precommitment, budget-contract hash, cumulative $570 Claude ceiling, and
 unbounded Codex/Cursor spend. A missing receipt, a receipt copied from another
 manifest, or any altered field fails before either authentication bootstrap or
@@ -466,7 +486,7 @@ probes are part of manifest preparation and contract validation, not authorized
 benchmark calls. The preflight and production commands still require
 `--acknowledge-unbounded-provider-spend` as an immediate execution guard.
 
-The V10 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V11 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -516,7 +536,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V10 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V11 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. The installed
 helper behavior is supported by a manual source audit plus binary hash/version;
@@ -528,7 +548,7 @@ invalid model submission remain scored zeros so an agent cannot erase a hard
 episode by hanging. Output capture is bounded, but this macOS development
 runner has no aggregate provider RSS, filesystem-byte/file-count, process-count,
 or OS-job ceiling. macOS process groups do not contain a descendant that
-deliberately creates a new session and closes its inherited pipes; V10 detects
+deliberately creates a new session and closes its inherited pipes; V11 detects
 the pipe-retaining form of that escape, but original-process-group containment
 is not full job containment. These explicit limitations are another reason the
 host-networked panel remains development-only rather than leaderboard-ready.

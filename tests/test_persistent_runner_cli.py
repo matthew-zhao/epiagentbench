@@ -59,14 +59,18 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     target,
                     return_value={
-                        "panel_id": "development-matched-50x6-v10",
+                        "panel_id": "development-matched-50x6-v11",
                         "status": status,
                     },
                 ) as invoked,
+                patch.object(
+                    matched_cli, "assert_durable_live_execution_paths"
+                ) as durable_paths,
                 patch("builtins.print"),
             ):
                 self.assertEqual(matched_cli.main(), expected)
             self.assertEqual(invoked.call_count, 1)
+            self.assertEqual(durable_paths.call_count, 1)
             self.assertNotIn(
                 "require_persistent_supervisor", invoked.call_args.kwargs
             )
@@ -75,6 +79,20 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 invoked.call_args.kwargs["supervisor_runtime_dir"],
                 Path("/private/supervisor"),
             )
+
+    def test_disposable_execution_root_fails_before_runner_invocation(self) -> None:
+        with (
+            patch.object(sys, "argv", self._arguments("run")),
+            patch.object(
+                matched_cli,
+                "assert_durable_live_execution_paths",
+                side_effect=RuntimeError("durable execution required"),
+            ),
+            patch.object(matched_cli, "run_panel") as run_panel,
+            self.assertRaisesRegex(RuntimeError, "durable execution required"),
+        ):
+            matched_cli.main()
+        run_panel.assert_not_called()
 
 
 if __name__ == "__main__":
