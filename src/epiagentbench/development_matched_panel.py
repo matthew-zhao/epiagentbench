@@ -78,23 +78,24 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v9"
+PANEL_ID = "development-matched-50x6-v10"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v9"
+SCHEMA_VERSION = "development_matched_panel_v10"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v9 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v10 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
-    "to $550 total Claude spend across the failed v2 preflight, failed v5 "
+    "to $570 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
-    "failed v8 production run, v9 preflight, and production."
+    "failed v8 production run, v9 preflight and failed production run, and "
+    "the v10 preflight and production run."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
-_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 550.0
+_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 570.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
     "cursor": "unbounded",
@@ -2926,12 +2927,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
     )
-    prior_ceiling = 40.0
+    prior_ceiling = 60.0
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v9_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v9_authorization_breakdown": {
+        "claude_current_v10_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v10_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -2951,6 +2952,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v6_usd": 0.0,
             "v7_usd": 10.0,
             "v8_usd": 15.0,
+            "v9_usd": 20.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -2988,6 +2990,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             ),
             "v8_supersession": (
                 "results/development-matched-50x6-v8.superseded.json"
+            ),
+            "v9_preflight_receipt": (
+                "results/development-matched-50x6-v9.preflight.json"
+            ),
+            "v9_stopped_watermark": (
+                "results/development-matched-50x6-v9.json"
             ),
         },
         "ceiling_interpretation": (
@@ -3027,13 +3035,13 @@ def prepare_panel(
     if private_state_path.exists() or public_manifest_path.exists():
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V9 requires an exact 1800-second assignment timeout")
+        raise ValueError("V10 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V9 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V10 requires an exact $5 Claude per-call ceiling")
 
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -3694,7 +3702,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V9 spend authorization contract mismatch")
+        raise ValueError("V10 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -3722,7 +3730,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v9 spend authorization receipt is required "
+            "A manifest-bound exact v10 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -3744,7 +3752,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v9 $550 cumulative spend acknowledgement text is required"
+            "The exact v10 $570 cumulative spend acknowledgement text is required"
         )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root

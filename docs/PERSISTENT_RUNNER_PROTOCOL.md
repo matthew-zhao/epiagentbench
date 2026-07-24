@@ -192,7 +192,7 @@ states never reach `bootout`.
 `pause_after_current` is available to the generic multi-command supervisor and
 is honored only between its child commands. The current production-shaped
 adapter has one child command for the entire panel, so it does **not** claim a
-safe between-provider pause. No live v9 operator may use a stop signal as a
+safe between-provider pause. No live V10 operator may use a stop signal as a
 pause; stopping an active child is an interruption and requires incident
 audit.
 
@@ -210,7 +210,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No v9 model call may start until all of the following pass through the same
+No V10 model call may start until all of the following pass through the same
 supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the

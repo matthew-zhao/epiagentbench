@@ -59,7 +59,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     target,
                     return_value={
-                        "panel_id": "development-matched-50x6-v9",
+                        "panel_id": "development-matched-50x6-v10",
                         "status": status,
                     },
                 ) as invoked,

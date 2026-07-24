@@ -1517,7 +1517,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v9_authorization_breakdown"],
+            contract["claude_current_v10_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -1527,7 +1527,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v9_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v10_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -1539,10 +1539,15 @@ class MatchedPanelTests(unittest.TestCase):
                 "v6_usd": 0.0,
                 "v7_usd": 10.0,
                 "v8_usd": 15.0,
+                "v9_usd": 20.0,
             },
         )
         self.assertEqual(
-            contract["claude_cumulative_authorization_ceiling_usd"], 550.0
+            contract["claude_prior_failed_panel_conservative_ceiling_usd"],
+            60.0,
+        )
+        self.assertEqual(
+            contract["claude_cumulative_authorization_ceiling_usd"], 570.0
         )
         self.assertEqual(
             set(contract["prior_public_audit_references"]),
@@ -1558,6 +1563,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "v8_preflight_receipt",
                 "v8_stopped_watermark",
                 "v8_supersession",
+                "v9_preflight_receipt",
+                "v9_stopped_watermark",
             },
         )
         self.assertIn("not measured", contract["ceiling_interpretation"])
@@ -1649,7 +1656,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v9_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v10_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -1771,7 +1778,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v9")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v10")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -1795,7 +1802,7 @@ class MatchedPanelTests(unittest.TestCase):
             private["spend_authorization"][
                 "claude_cumulative_authorization_ceiling_usd"
             ],
-            550.0,
+            570.0,
         )
         self.assertEqual(
             private["spend_authorization"]["unbounded_provider_spend"],
@@ -3791,12 +3798,12 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v9_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v10_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
-        stale_v7_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v9", "six-call v8"
-        ).replace("$550", "$535")
+        stale_v9_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
+            "six-call v10", "six-call v9"
+        ).replace("$570", "$550")
         with (
             patch(
                 "epiagentbench.development_matched_panel."
@@ -3810,7 +3817,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v9 \\$550"),
+            self.assertRaisesRegex(RuntimeError, "exact v10 \\$570"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -3819,7 +3826,7 @@ class MatchedPanelTests(unittest.TestCase):
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                acknowledgement_text=stale_v7_text,
+                acknowledgement_text=stale_v9_text,
             )
         glean_bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
@@ -4104,7 +4111,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v9"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v10"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -4151,7 +4158,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v9"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v10"),
         ):
             run_panel(
                 root=self.root,
@@ -4518,15 +4525,24 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_crash_interrupted_codex_assignment_is_non_resumable(self):
         self._prepare()
-        private = json.loads(self.private_path.read_text())
-        private.pop("state_authentication")
-        first_ref = private["schedule"][0]["episode_ref"]
-        first_profile = private["schedule"][0]["profile_order"][0]
-        self.assertEqual(matched._PROFILE_BY_ID[first_profile]["system"], "codex")
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        keys = matched._assignment_keys(private["schedule"])
+        orphan_index = next(
+            index
+            for index, (_ref, profile_id) in enumerate(keys)
+            if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
+        )
+        self._set_terminal_assignment_prefix(orphan_index)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        orphan_ref, orphan_profile = keys[orphan_index]
         private["assignments"].append(
             {
-                "episode_ref": first_ref,
-                "profile_id": first_profile,
+                "episode_ref": orphan_ref,
+                "profile_id": orphan_profile,
                 "status": "started",
                 "started_at_utc": "before-crash",
             }
@@ -4548,7 +4564,7 @@ class MatchedPanelTests(unittest.TestCase):
             private_after["codex_auth_incident"],
             {
                 "status": "terminal",
-                "assignment_index": 0,
+                "assignment_index": orphan_index,
                 "failure_class": "interrupted_after_durable_start",
             },
         )
@@ -5007,6 +5023,16 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_codex_auth_attestation_error_is_terminal_but_not_generic_error(self):
         self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        keys = matched._assignment_keys(private["schedule"])
+        codex_index = next(
+            index
+            for index, (_ref, profile_id) in enumerate(keys)
+            if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
+        )
+        self._set_terminal_assignment_prefix(codex_index)
 
         result, invoked = self._run_with(
             CodexAuthenticationIncidentError(
@@ -5497,6 +5523,16 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_production_codex_timeout_is_terminal_auth_incident(self):
         self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        keys = matched._assignment_keys(private["schedule"])
+        codex_index = next(
+            index
+            for index, (_ref, profile_id) in enumerate(keys)
+            if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
+        )
+        self._set_terminal_assignment_prefix(codex_index)
         calls = 0
 
         def evaluate(system: str, **kwargs):
@@ -5529,7 +5565,7 @@ class MatchedPanelTests(unittest.TestCase):
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
-        timeout_assignment = private["assignments"][0]
+        timeout_assignment = private["assignments"][codex_index]
         self.assertEqual(timeout_assignment["status"], "transport_void")
         self.assertNotIn("public_result", timeout_assignment)
         self.assertEqual(private["codex_auth_incident"]["status"], "terminal")
@@ -6250,7 +6286,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v9_receipt(self):
+    def test_environment_preflight_gate_validates_full_v10_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
