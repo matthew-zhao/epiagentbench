@@ -1,0 +1,876 @@
+{
+  "backend": "starsim-ltc-v3",
+  "benchmark_base_commit": "00f653a90b1287c8e103ccd0412b5f8f4f4ad045",
+  "budget_contract": {
+    "ceiling_interpretation": "authorization ceilings, not measured provider billing",
+    "claude_cumulative_authorization_ceiling_usd": 570.0,
+    "claude_current_v11_authorization_breakdown": {
+      "per_call_ceiling_usd": 5.0,
+      "preflight_calls": 2,
+      "preflight_ceiling_usd": 10.0,
+      "production_calls": 100,
+      "production_ceiling_usd": 500.0
+    },
+    "claude_current_v11_authorization_ceiling_usd": 510.0,
+    "claude_max_budget_usd_per_assignment": 5.0,
+    "claude_max_budget_usd_per_call": 5.0,
+    "claude_prior_failed_panel_breakdown": {
+      "v10_usd": 0.0,
+      "v2_usd": 10.0,
+      "v3_usd": 0.0,
+      "v4_usd": 0.0,
+      "v5_usd": 5.0,
+      "v6_usd": 0.0,
+      "v7_usd": 10.0,
+      "v8_usd": 15.0,
+      "v9_usd": 20.0
+    },
+    "claude_prior_failed_panel_conservative_ceiling_usd": 60.0,
+    "explicit_unbounded_provider_spend_acknowledgement_required": true,
+    "other_provider_spend": "unbounded",
+    "other_provider_spend_cap": null,
+    "prior_public_audit_references": {
+      "v10_manifest": "results/development-matched-50x6-v10.manifest.json",
+      "v10_supersession": "results/development-matched-50x6-v10.superseded.json",
+      "v2_preflight_receipt": "results/development-matched-50x6-v2.preflight.json",
+      "v2_supersession": "results/development-matched-50x6-v2.superseded.json",
+      "v5_preflight_receipt": "results/development-matched-50x6-v5.preflight.json",
+      "v5_supersession": "results/development-matched-50x6-v5.superseded.json",
+      "v6_preflight_receipt": "results/development-matched-50x6-v6.preflight.json",
+      "v6_supersession": "results/development-matched-50x6-v6.superseded.json",
+      "v7_preflight_receipt": "results/development-matched-50x6-v7.preflight.json",
+      "v7_supersession": "results/development-matched-50x6-v7.superseded.json",
+      "v8_preflight_receipt": "results/development-matched-50x6-v8.preflight.json",
+      "v8_stopped_watermark": "results/development-matched-50x6-v8.json",
+      "v8_supersession": "results/development-matched-50x6-v8.superseded.json",
+      "v9_preflight_receipt": "results/development-matched-50x6-v9.preflight.json",
+      "v9_stopped_watermark": "results/development-matched-50x6-v9.json"
+    }
+  },
+  "calibrated": false,
+  "claude_auth_contract": {
+    "credential_backend": {
+      "claude_calls": "credentials_required_before_and_after",
+      "claude_plaintext_fallback": "forbidden",
+      "credential_contents": "never_read_or_hashed",
+      "credential_file_metadata": {
+        "hard_links": 1,
+        "mode": "0600",
+        "owner": "current_uid",
+        "size_bytes_max": 1048576,
+        "size_bytes_min": 1,
+        "type": "regular_nonsymlink"
+      },
+      "initial_state": "absent_at_prepare",
+      "macos_keychain": "required_absent_throughout",
+      "managed_glean_api_key_helper": "required",
+      "persistent_allowlist": [
+        "credentials.json"
+      ],
+      "preflight_bootstrap": "separate_no_model_step"
+    },
+    "filesystem_identity": "private_device_and_inode_committed",
+    "inherited_provider_routing": "scrubbed",
+    "per_invocation_isolation": {
+      "config_root": "fresh",
+      "home_root": "fresh_with_evaluator_owned_glean_symlink",
+      "session_root": "fresh"
+    },
+    "schema_version": "epiagentbench.claude_auth.v3",
+    "secure_storage_namespace_commitment": "hmac-sha256:9db763a9373843c8a23cda985690bf7da284ca5d71d4655c19e572c45dee0327",
+    "secure_storage_role": "stable_managed_glean_auth_only"
+  },
+  "cli_contract": {
+    "ambient_proxy_or_custom_ca_overrides": [],
+    "claude_auth_dependencies": {
+      "claude_otel_headers_helper": {
+        "path": "/usr/local/bin/claude-otel-helper",
+        "sha256": "sha256:a882cb00a8b6e1730a9cbb5b1c9f1dac305ddfe01346eb34c3861a130afe4a13"
+      },
+      "glean_config": {
+        "path": "/usr/local/etc/glean/config.json",
+        "semantic_projection": {
+          "claude_client_id_sha256": "sha256:395e0d3a986ed3b87128e6a2eacac4682141e7e9550984cb2b89534d2a3026bc",
+          "codex_client_id_sha256": "sha256:9b7f32920785f4bc03f76249012dd716072a197bb067bca9b6d2719c93a158f1",
+          "contains_secret_bearing_fields": false,
+          "gateway_endpoint_allowlist_tag": "approved_managed_gateway_v1",
+          "gateway_port": "default_https",
+          "gateway_scheme": "https",
+          "gateway_url_sha256": "sha256:85149e53b43b0d08be95efe77a15b6adbb79eac40e34857de00cbbd86180216f",
+          "schema": "gateway_url_plus_claude_and_codex_oauth_client_ids_only"
+        },
+        "sha256": "sha256:1c3048fbba8d896d3da7e1f48671d6e9e2a64539f6640adfa9aea01500ac56cd"
+      },
+      "glean_helper": {
+        "path": "/usr/local/bin/glean-helper",
+        "sha256": "sha256:a0f329d3f3a0ee9ab53e71afac27371012be99ce355b5d9eaf11705e8035d3f9",
+        "version": "0.0.31"
+      },
+      "glean_llm_gateway_token_wrapper": {
+        "dispatch_contract": {
+          "arguments": [],
+          "argv0_basename": "glean-llm-gateway-token",
+          "credential_path": "$HOME/.glean-llm-gateway/credentials.json",
+          "oauth_client_id_source": "explicit_GLEAN_HELPER_OAUTH_CLIENT_ID",
+          "option_source": "glean.DefaultOptions"
+        },
+        "entrypoint_kind": "symlink",
+        "link_text": "/usr/local/bin/glean-helper",
+        "path": "/usr/local/bin/glean-llm-gateway-token",
+        "resolved_path": "/usr/local/bin/glean-helper",
+        "target_sha256": "sha256:a0f329d3f3a0ee9ab53e71afac27371012be99ce355b5d9eaf11705e8035d3f9"
+      },
+      "macos_security_metadata_tool": {
+        "path": "/usr/bin/security",
+        "sha256": "sha256:c1b823585d9ff8e07c53aa616c1eb5cb0a26b1b1d4bc1951a3d337ed49a8207a"
+      },
+      "managed_settings": {
+        "path": "/Library/Application Support/ClaudeCode/managed-settings.json",
+        "redacted_projection_sha256": "sha256:8a06207d9d07b52687369d7a211a75ba461db723100a5e80d349ebfeab29633f",
+        "semantic_projection": {
+          "anthropic_base_url_matches_glean_gateway": true,
+          "api_key_helper_matches_pinned_wrapper": true,
+          "forbidden_sensitive_fields_absent": true,
+          "managed_environment_key_allowlist_exact": true,
+          "managed_environment_key_count": 17,
+          "managed_environment_value_types_and_policies_validated": true,
+          "otel_headers_helper_matches_pinned_helper": true,
+          "personal_identifier_commitment_published": false,
+          "raw_file_sha256_published": false,
+          "raw_values_disclosed": false,
+          "telemetry_enabled": true,
+          "top_level_key_allowlist_exact": true
+        }
+      }
+    },
+    "executables": [
+      {
+        "executable_sha256": "sha256:8b45adad93f336ab95f33e714494b19fd3377a494eb05c122c8677bc895876ad",
+        "name": "claude",
+        "version": "2.1.195 (Claude Code)"
+      },
+      {
+        "executable_sha256": "sha256:718724d7221cf1298071ca92411cb74caa8422809154150cedca7b569a4518e3",
+        "name": "codex",
+        "version": "codex-cli 0.144.3"
+      },
+      {
+        "executable_sha256": "sha256:eed61c5224668c9236334c4c68936a16aecc37374b592f59e31eb50433817831",
+        "name": "cursor-agent",
+        "version": "2026.07.13-7fe37d2"
+      }
+    ]
+  },
+  "codex_auth_contract": {
+    "credential_backend": {
+      "codex_calls": "credentials_required_before_and_after",
+      "credential_contents": "opaque_never_parsed_hashed_or_logged",
+      "credential_file_metadata": {
+        "hard_links": 1,
+        "mode": "0600",
+        "owner": "current_uid",
+        "size_bytes_max": 1048576,
+        "size_bytes_min": 1,
+        "type": "regular_nonsymlink"
+      },
+      "credential_store": "inline_file_mode_only",
+      "host_auth_and_keyring": "forbidden",
+      "host_writeback": "forbidden",
+      "initial_state": "absent_at_prepare",
+      "persistent_allowlist": [
+        "auth.json"
+      ],
+      "preflight_bootstrap": "dedicated_pinned_cli_oauth_no_model_call",
+      "refresh_rotation": "pinned_cli_in_place_write_with_file_identity_fixed"
+    },
+    "filesystem_identity": "private_device_and_inode_committed",
+    "inherited_provider_routing": "scrubbed",
+    "per_invocation_isolation": {
+      "config_root": "fresh",
+      "home_root": "fresh_with_evaluator_owned_codex_symlink",
+      "session_root": "fresh"
+    },
+    "schema_version": "epiagentbench.codex_auth.v1",
+    "secure_storage_namespace_commitment": "hmac-sha256:77725a58a270b36af5c7ab9ee55a7a948550d47d31a5013dbb2abe1904dd412c",
+    "secure_storage_role": "stable_codex_auth_only"
+  },
+  "cohort": {
+    "balanced_mode_count": 5,
+    "cohort_id": "development-matched-50x6-v11",
+    "episode_count": 50,
+    "episodes_per_mode": 10,
+    "generator_fingerprint": "sha256:4aa2e2b2540e4ca0baaa784d1bf807e37eb6597762b59e7a4ed7b29729aec991",
+    "pack_set_commitment": "sha256:96fdda9c5600ac802d8f591a49751781601c66a315853f14ae803ef94c79ba12"
+  },
+  "contract_hashes": {
+    "budgets_sha256": "sha256:b46a454571f729edba83d3a5948f75c56a71d88d7cf4cf3e34e6a5d6c8368943",
+    "claude_auth_sha256": "sha256:8f51d54dd9e96d7eed09f7f88ea23a433e01ddfc04810c447e2dacc57dfdff8e",
+    "cli_sha256": "sha256:40f6074b0a3d380b9eae1cd63723b61881ad11f9f83c2b65a2ee641b68a2ccb7",
+    "codex_auth_sha256": "sha256:ef9a823877718f356923fcd8d17ca4c9f0eaadd686a682a32c315ac2c3f84665",
+    "profiles_sha256": "sha256:e82badbc50c4d05ee07a54f9820987bafcbd3dcb5c486c91d3958b3bafae4001",
+    "replay_sha256": "sha256:9af83264f99eeeae38a0b7710fb6fde919a6e97e6fa9b8edbbac7d3c205cf52c",
+    "runtime_sha256": "sha256:20c4386e7a290a0c1848570b330e1ae628f918890c6931f78008560dd05652bc",
+    "source_sha256": "sha256:6647949f3df3e6cfe4b6fa9b1a6dd975f11dc2dabe0f43dd0b7db4a6eec5e52a",
+    "supervisor_sha256": "sha256:4fa8658eb2cf6a92dfef8f2a9f8ab2df6861fedde3a53034d773b775559d1b98",
+    "timeouts_sha256": "sha256:f5fce49ad7ddfb2e3feb8ee92e6fb0b1ad488aba80b32abaeca2df50f90d319f"
+  },
+  "development_only": true,
+  "episodes": [
+    {
+      "episode_ref": "episode_0001",
+      "pack_commitment": "sha256:327d0f1bd6326ee23236733b2d2c36cf0bacf55acdb54acb40c567a021712a2f"
+    },
+    {
+      "episode_ref": "episode_0002",
+      "pack_commitment": "sha256:51714d2e5f65d89552f095d946b694f4cabb957296391e965d48dd6d4c9276e2"
+    },
+    {
+      "episode_ref": "episode_0003",
+      "pack_commitment": "sha256:537d3aab1fff8da6d52bc9e0165d0c6cfbea1380ff635b009588f9cbb7181f0d"
+    },
+    {
+      "episode_ref": "episode_0004",
+      "pack_commitment": "sha256:f2c5f1d5508db03f7469c866580dedd36815dd9626133658d8d963bf6305534f"
+    },
+    {
+      "episode_ref": "episode_0005",
+      "pack_commitment": "sha256:a9bdee433f2bd64e9ed937cf2da9a9a0e183434e38991fb56f6b7b1d517eede3"
+    },
+    {
+      "episode_ref": "episode_0006",
+      "pack_commitment": "sha256:f359c7a5e5550f96d6d1e45f2ea351e5f0f9ffa8e66539bff2edf6cc2426caeb"
+    },
+    {
+      "episode_ref": "episode_0007",
+      "pack_commitment": "sha256:39204e92d7d5d2c7681e45ef7a3b0b3c30b628bf3afcdd526c1977f40e698975"
+    },
+    {
+      "episode_ref": "episode_0008",
+      "pack_commitment": "sha256:7b4baa3f7942588b3df4d1e690fa1233c492a4adea1b3f9ef2662def23c22ea7"
+    },
+    {
+      "episode_ref": "episode_0009",
+      "pack_commitment": "sha256:3a6e39e53d56c9f5532c86659b83f6edc719c3ba181738e9538a20a02f9a77b1"
+    },
+    {
+      "episode_ref": "episode_0010",
+      "pack_commitment": "sha256:f5b92e498c8a36d6bb68a3117c4183975030242a528edb4f9f90e44609db768a"
+    },
+    {
+      "episode_ref": "episode_0011",
+      "pack_commitment": "sha256:a807ece45946cf10262fd73b2ef7d2d0dd875b3ce52867d3be268ba5c38fd41f"
+    },
+    {
+      "episode_ref": "episode_0012",
+      "pack_commitment": "sha256:e7f084a3f97a110e75f6dbc8a400080873c64d743f6417dfe9f39e3a7d9d2ca5"
+    },
+    {
+      "episode_ref": "episode_0013",
+      "pack_commitment": "sha256:899bcde1e152e922cab75f2ba8815377f05a636a44a3fa5248957fc87764bd38"
+    },
+    {
+      "episode_ref": "episode_0014",
+      "pack_commitment": "sha256:04ab055acb95b792f8510e8f3cde2fb7ea32928ab77c5f4aa4965c116df3ba9c"
+    },
+    {
+      "episode_ref": "episode_0015",
+      "pack_commitment": "sha256:3e5474d3ceff1815e5f7a26ccf65979915c8d9758bf1639344782e07b83b039e"
+    },
+    {
+      "episode_ref": "episode_0016",
+      "pack_commitment": "sha256:883f50a7f37f4d532acb7e8846a4dba37aa22ecab5989950432dfad26e84138b"
+    },
+    {
+      "episode_ref": "episode_0017",
+      "pack_commitment": "sha256:b8fa5f4877fdb6a23a456dd404b7c7eb1bc6a7c36426c6740b8c5c2777b41103"
+    },
+    {
+      "episode_ref": "episode_0018",
+      "pack_commitment": "sha256:ab674a24a85c47a1951af167d34ee0b4de1d2e283575e2df3b5e504fc6b90a11"
+    },
+    {
+      "episode_ref": "episode_0019",
+      "pack_commitment": "sha256:fe0c835b4ce869b052ca4a2ff73be734e792ea4122b883d026f3efccdbc7c91d"
+    },
+    {
+      "episode_ref": "episode_0020",
+      "pack_commitment": "sha256:3359b5e67b616b7a005af394c5d17929df446e9acb3ae89085710f2ad3b72afa"
+    },
+    {
+      "episode_ref": "episode_0021",
+      "pack_commitment": "sha256:78febfa0eaad48011168ea7da6009554a98cc7ea208a55e630465dce6f89b559"
+    },
+    {
+      "episode_ref": "episode_0022",
+      "pack_commitment": "sha256:0726f1880fe359cd2981d87856b99b893bec42e0622e10ba6e13e26ed8f4b326"
+    },
+    {
+      "episode_ref": "episode_0023",
+      "pack_commitment": "sha256:9aadae67f78a5470c1a4be6cdb6968803202d8346c792a0a346f93e0f2f4b725"
+    },
+    {
+      "episode_ref": "episode_0024",
+      "pack_commitment": "sha256:d38f0f221f75913211b811db38548914b6b2184dcd04e29ce7bb0e35a090204d"
+    },
+    {
+      "episode_ref": "episode_0025",
+      "pack_commitment": "sha256:d1d71bd7544623b190167a10a0d1d0a3b4cae4f6aa14ef27cffc0992dbe754ac"
+    },
+    {
+      "episode_ref": "episode_0026",
+      "pack_commitment": "sha256:6a84d2ed932182a6cb3bcc6071cf285e0225d4756f82879a51809d1369ccfa35"
+    },
+    {
+      "episode_ref": "episode_0027",
+      "pack_commitment": "sha256:d77658e04b959b73754e2a8359960f833d5140afd65a75fb8f571aabf45731b8"
+    },
+    {
+      "episode_ref": "episode_0028",
+      "pack_commitment": "sha256:49a9eaac8386d20d29eb82c0f3c16b06dada6d7eafff82c4256e89d0484134b2"
+    },
+    {
+      "episode_ref": "episode_0029",
+      "pack_commitment": "sha256:f6f6df94887b6f8e6da188952bce30d4138f625a45693d767d460fb6db5db4fb"
+    },
+    {
+      "episode_ref": "episode_0030",
+      "pack_commitment": "sha256:aa2fb13b2412b3345c552f500172c342cdbb4517ff97482b0e430b08e04e386a"
+    },
+    {
+      "episode_ref": "episode_0031",
+      "pack_commitment": "sha256:6ad37b09324c47165ed0074495919ed100ac2ff771f3948348122b04eb4fc7cc"
+    },
+    {
+      "episode_ref": "episode_0032",
+      "pack_commitment": "sha256:bcd26ff027e1f880431219f26d54d19b04c5673948ae527d6d12f99b6240b670"
+    },
+    {
+      "episode_ref": "episode_0033",
+      "pack_commitment": "sha256:47f7c28bece9edf7f6b569c43c6b5f192987debebc2df6b504a188abd8a43aa2"
+    },
+    {
+      "episode_ref": "episode_0034",
+      "pack_commitment": "sha256:14aab382596f0ddcbc73ba294d6c836b0c12d0ef8b6d6a5d379a0577995322c3"
+    },
+    {
+      "episode_ref": "episode_0035",
+      "pack_commitment": "sha256:b35de2136159dd2176fc43a8e100e20e8f9fbf55496795a85f162ee16e21547f"
+    },
+    {
+      "episode_ref": "episode_0036",
+      "pack_commitment": "sha256:3b439268d51a6f3ef95db6cb318c064367a8a70a25eac12514b0f929181001b1"
+    },
+    {
+      "episode_ref": "episode_0037",
+      "pack_commitment": "sha256:30977fdc0c50a31502d8b2f391349dc515411abf614bf68382d948e6e7a5a3ef"
+    },
+    {
+      "episode_ref": "episode_0038",
+      "pack_commitment": "sha256:5c0ee24274d9a4476400e187e582e448cac5e07dc5c633ce432194bcc1335c55"
+    },
+    {
+      "episode_ref": "episode_0039",
+      "pack_commitment": "sha256:210627314107a7e45b313b8a7b804804c56ba9953fbeef19f92d14e002fbb676"
+    },
+    {
+      "episode_ref": "episode_0040",
+      "pack_commitment": "sha256:6619da1e2a509c09e950203d7cc239533b9a1216111b63ff14e31b58b1f9a711"
+    },
+    {
+      "episode_ref": "episode_0041",
+      "pack_commitment": "sha256:ee05285348fcc863046b3ba0d716a30bafbb5312170b8d591ceabe5ad9f2650e"
+    },
+    {
+      "episode_ref": "episode_0042",
+      "pack_commitment": "sha256:2d33fd4eea39442896be4d1b0adcb311294c28971fff8f8880b14451c8881ae7"
+    },
+    {
+      "episode_ref": "episode_0043",
+      "pack_commitment": "sha256:14f097116c443dd56a1b0281e50e6376536510675f23d7b39f5fec8ad60e6f8b"
+    },
+    {
+      "episode_ref": "episode_0044",
+      "pack_commitment": "sha256:b8ff5ce2a14a38408b20326486db644580a4670ec3f6e42ab2e1ae55a754be7c"
+    },
+    {
+      "episode_ref": "episode_0045",
+      "pack_commitment": "sha256:5116bb3ceacc9967bef72ec679e74e568db8792c94a5800f5bf6c14d09c8a299"
+    },
+    {
+      "episode_ref": "episode_0046",
+      "pack_commitment": "sha256:e5e5668badb167bf8f49bd9d12fd30e920794b7f1362f9ad9a90481772fed63e"
+    },
+    {
+      "episode_ref": "episode_0047",
+      "pack_commitment": "sha256:fd16544a5f6a158b117d0f485d8e627f4098696cfd6c9386f390b4ebcdf246fa"
+    },
+    {
+      "episode_ref": "episode_0048",
+      "pack_commitment": "sha256:80961dd0a2d5b4d2afeffec7466a529aa13b3b6a1484cd82627a049f3d7d6d3a"
+    },
+    {
+      "episode_ref": "episode_0049",
+      "pack_commitment": "sha256:673d2a0d97bc4245fe8f4e1becc14a7bf8cdef52330db5b791b4f61bb2ee6ee0"
+    },
+    {
+      "episode_ref": "episode_0050",
+      "pack_commitment": "sha256:cb6eaf2d8eef5b303ce1a55bcce3586d845915e6f77a360cad001596c083eca8"
+    }
+  ],
+  "hermetic": false,
+  "leaderboard_eligible": false,
+  "limitations": [
+    "host-networked provider CLIs; execution is not hermetic",
+    "synthetic development episodes are not held-out external validation",
+    "intervals condition on this generator and equal family weights; they do not include model rerun variability or simulator misspecification",
+    "provider spend outside Claude's assignment cap is unbounded",
+    "complete agent-system outcomes are not isolated base-model scores",
+    "provider usage, cost, and signed request receipts are not yet captured by this development runner",
+    "local HMAC checkpoints, a public progress watermark, and a host-global lock are not an external rollback-resistant ledger",
+    "provider output capture is bounded, but this macOS development runner enforces no aggregate provider RSS, filesystem-byte or file-count, process-count, or OS-job ceiling; original-process-group containment is not full job containment"
+  ],
+  "paired": true,
+  "panel_id": "development-matched-50x6-v11",
+  "persistent_supervisor_contract": {
+    "adapter_scope": "one_complete_evaluator_command",
+    "automatic_outer_crash_recovery": false,
+    "cursor_key_source": "macos_keychain_in_memory_only",
+    "execution_binding": [
+      "launchd_label",
+      "operation",
+      "panel_id",
+      "public_precommitment_sha256",
+      "python_executable_sha256",
+      "sealed_config_file_sha256"
+    ],
+    "execution_binding_policy": "create_once_per_operation_never_replace",
+    "frozen_privileged_sources": [
+      "launchd_agent",
+      "persistent_supervisor",
+      "development_matched_panel"
+    ],
+    "job_policy": "finite_one_shot_no_unconditional_keepalive",
+    "live_attestation": {
+      "clean_boundary_attempts": 3,
+      "clean_boundary_deadline_milliseconds": 250,
+      "clean_boundary_retry_delays_milliseconds": [
+        50,
+        100
+      ],
+      "failure_codes": [
+        "attestation_internal",
+        "binding_mismatch",
+        "binding_projection_invalid",
+        "config_integrity",
+        "core_integrity",
+        "core_not_running",
+        "core_not_started",
+        "core_phase_invalid",
+        "core_unhealthy",
+        "heartbeat_stale",
+        "invalid_expectation",
+        "private_binding_invalid",
+        "process_identity_mismatch",
+        "public_binding_invalid",
+        "public_contract_mismatch",
+        "runtime_replacement",
+        "start_commitment_invalid",
+        "start_commitment_missing",
+        "status_snapshot_unstable",
+        "supervisor_required",
+        "worker_not_running",
+        "worker_status_invalid"
+      ],
+      "retry_boundary": "before_durable_provider_launch_commitment",
+      "retryable_reads": [
+        "authenticated_worker_atomic_replacement",
+        "authenticated_core_status_lease_torn_pair"
+      ]
+    },
+    "liveness": {
+      "heartbeat_interval_seconds": 15,
+      "provider_activity_is_liveness": false,
+      "requires_boot_pid_and_process_birth_match": true
+    },
+    "manual_finalize_scope": "local_idempotent_publication_only_no_provider",
+    "operator_stop_policy": "never_stop_or_bootout_an_active_job",
+    "platform": "macos_user_launchagent",
+    "private_config": "owner_only_hmac_authenticated_closed_schema",
+    "provider_assignment_authority": "authenticated_inner_evaluator_checkpoint_and_panel_lock",
+    "python_entrypoint": "content_digest_plus_private_symlink_inode_topology",
+    "release_gate": "two_phase_private_candidate_then_authenticated_supervisor_completed_status_lease_and_event_chain_before_public_success",
+    "schema_version": "epiagentbench.persistent_supervisor_contract.v3",
+    "sleep_inhibitor": "caffeinate_-dimsu",
+    "status": "owner_only_hmac_authenticated_closed_schema",
+    "stdout_stderr": "discarded"
+  },
+  "planned_assignments": 300,
+  "precommitment_sha256": "sha256:b4dd0011899578ef93b8df1b8ef36014898b47609578b46b3914bf0b8097b63b",
+  "prepared_at_utc": "2026-07-24T18:05:34.611935Z",
+  "private_family_map_commitment": "sha256:560e0518b0a3dbbd2144126382d880f67e85ed8500250ff406cf9bd95b4a5df9",
+  "private_schedule_commitment": "sha256:f869362b1e8571a32795adcfa4731ce79e3270053ef785e8a04bb5c7da346206",
+  "profiles": [
+    {
+      "executable": "claude",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "claude-opus-high",
+      "requested_model": "claude-opus-4-8",
+      "requested_reasoning": "high",
+      "system": "claude"
+    },
+    {
+      "executable": "claude",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "claude-sonnet-high",
+      "requested_model": "claude-sonnet-5",
+      "requested_reasoning": "high",
+      "system": "claude"
+    },
+    {
+      "executable": "codex",
+      "model_receipt_policy": "command_attested",
+      "profile_id": "codex-sol",
+      "requested_model": "gpt-5.6-sol",
+      "requested_reasoning": "medium",
+      "system": "codex"
+    },
+    {
+      "executable": "codex",
+      "model_receipt_policy": "command_attested",
+      "profile_id": "codex-luna-max",
+      "requested_model": "gpt-5.6-luna",
+      "requested_reasoning": "max",
+      "system": "codex"
+    },
+    {
+      "executable": "cursor-agent",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "cursor-grok-high",
+      "requested_model": "cursor-grok-4.5-high",
+      "requested_reasoning": "high_model_alias",
+      "system": "cursor"
+    },
+    {
+      "executable": "cursor-agent",
+      "model_receipt_policy": "provider_match_required",
+      "profile_id": "cursor-kimi-k27-code",
+      "requested_model": "kimi-k2.7-code",
+      "requested_reasoning": "model default; Cursor exposes no reasoning tier",
+      "system": "cursor"
+    }
+  ],
+  "replay_trace_contract": {
+    "action_types": [
+      "infection_control",
+      "source_control",
+      "entry_control",
+      "audit_reporting",
+      "other",
+      "monitor",
+      "request_inspection",
+      "notify_health_officer",
+      "public_alert",
+      "close_business",
+      "publish_pii",
+      "quarantine_person"
+    ],
+    "control_levels": [
+      "off",
+      "standard",
+      "intensive"
+    ],
+    "control_types": [
+      "infection_control",
+      "source_control",
+      "entry_control",
+      "audit_reporting"
+    ],
+    "event_keys": [
+      "action_type",
+      "effective_at_minute",
+      "event_type",
+      "level",
+      "minute",
+      "records_returned",
+      "sequence",
+      "status"
+    ],
+    "event_levels": [
+      "off",
+      "standard",
+      "intensive",
+      "other"
+    ],
+    "event_statuses": [
+      "ok",
+      "scheduled",
+      "no_change",
+      "not_found",
+      "duplicate_request",
+      "unavailable_before_deadline",
+      "unsupported",
+      "unavailable",
+      "too_soon",
+      "submitted",
+      "recommended",
+      "denied",
+      "pending_approval"
+    ],
+    "event_types": [
+      "search_observations",
+      "request_interview",
+      "order_confirmatory_test",
+      "request_inspection",
+      "advance_time",
+      "recommend_action",
+      "set_institution_control",
+      "set_response_control",
+      "submit_forecast",
+      "get_clock_and_budget"
+    ],
+    "frame_interval_minutes": 360,
+    "frame_keys": [
+      "active_cumulative_infections",
+      "active_currently_infected",
+      "active_reporting_artifacts",
+      "effective_controls",
+      "minute",
+      "no_action_cumulative_infections",
+      "no_action_currently_infected",
+      "no_action_reporting_artifacts"
+    ],
+    "max_agent_events": 1024,
+    "max_aggregate_count": 1000000,
+    "max_frames": 512,
+    "schema_version": "epiagentbench.aggregate-replay-trace.v1",
+    "trace_keys": [
+      "agent_events",
+      "frame_interval_minutes",
+      "frames",
+      "schema_version"
+    ]
+  },
+  "results": [],
+  "run_contract": {
+    "bootstrap": {
+      "method": "deterministic family-stratified percentile",
+      "pairwise_multiplicity": "bonferroni_fifteen_pairs",
+      "pairwise_resampling": "paired within episode",
+      "profile_confidence": 0.95,
+      "replicates": 20000,
+      "resampling_unit": "episode",
+      "strata": "five scenario families"
+    },
+    "codex_auth_bootstrap": {
+      "credentials_required_after": true,
+      "method": "pinned_cli_oauth_with_file_credential_store",
+      "model_calls": 0,
+      "one_shot": true,
+      "stage": "before_six_profile_calls"
+    },
+    "environment_preflight_failure_policy": {
+      "codex_clean_timeout": "durably_quarantine_codex_skip_later_codex_continue_independent_profiles",
+      "ordinary_clean_provider_failure": "record_finite_outcome_and_continue_in_frozen_sequence",
+      "production_gate": "all_six_profiles_must_pass",
+      "security_isolation_cleanup_or_contract_failure": "terminal_abort_and_no_later_provider_call"
+    },
+    "environment_preflight_required_before_production_launch": true,
+    "environment_preflight_scope": "unscored_infrastructure_routing_handshake_not_capability_screen",
+    "managed_glean_auth_bootstrap": {
+      "credentials_required_after": true,
+      "model_calls": 0,
+      "stage": "before_six_profile_calls",
+      "stderr": "inherited_for_oauth_instructions",
+      "stdout": "discarded_never_captured"
+    },
+    "orphan_policy": "seal started assignment as transport_void; never retry; block cohort completion and every later provider call",
+    "partial_public_results": false,
+    "per_provider_call_execution_attestation": {
+      "preflight": {
+        "after": "after_top_level_provider_harness_return",
+        "before": "before_top_level_provider_harness_invocation",
+        "drift_policy": "fail_preflight_closed"
+      },
+      "private_secrets_or_episode_packs_read_per_check": false,
+      "production": {
+        "after": "after_top_level_provider_harness_return_inside_transport_guard",
+        "before": "before_durable_assignment_start",
+        "mid_call_drift": "transport_void",
+        "preexisting_drift_consumes_assignment": false
+      },
+      "surfaces": [
+        "source_contract",
+        "cli_contract",
+        "runtime_contract",
+        "replay_trace_contract",
+        "profiles"
+      ]
+    },
+    "persistent_execution": {
+      "active_job_may_be_booted_out": false,
+      "contract": "persistent_supervisor_contract",
+      "monitor_may_relaunch": false,
+      "outer_command_scope": "one_complete_evaluator_command",
+      "provider_assignment_checkpoint_owner": "inner_evaluator",
+      "required_for_preflight_and_production": true
+    },
+    "planned_assignments": 300,
+    "primary_estimand": "fixed 50-episode mean per profile only with zero transport voids",
+    "private_state_storage": {
+      "authoritative_copy_count": 1,
+      "location": "outside_repository_and_os_temporary_storage",
+      "parent": "pre_existing_current_user_0700_real_directory",
+      "private_binding": "canonical_path_and_parent_device_inode_hmac_authenticated",
+      "public_paths_or_filesystem_identifiers": false,
+      "read_validation": "metadata_during_open_then_binding_after_authentication",
+      "rollback_fallback_copy": false,
+      "schema_version": "epiagentbench.private_state_storage.v1",
+      "state_file": "current_user_single_link_0600_regular_file",
+      "write_validation": "before_and_after_every_authenticated_atomic_write"
+    },
+    "provider_process_policy": "new POSIX session; bounded output capture; terminate and verify the original process group before continuing; detached processes that close inherited pipes remain outside this development runner's containment guarantee",
+    "replay_trace_release": {
+      "capture": "evaluator_generated_aggregate_only",
+      "frame_interval_minutes": 360,
+      "matched_no_action_twin_equality_required": true,
+      "partial_publication": false,
+      "release": "terminal_retired_panel_only",
+      "scored_endpoint_equality_required": true
+    },
+    "retry_policy": "at most one provider invocation per assignment",
+    "spend_authorization": {
+      "receipt_binding": [
+        "panel_id",
+        "final_public_precommitment_sha256",
+        "budget_contract_sha256",
+        "claude_cumulative_authorization_ceiling_usd",
+        "unbounded_codex_cursor_provider_spend",
+        "exact_acknowledgement_text"
+      ],
+      "required_acknowledgement_text_sha256": "sha256:684e3b10a7ee4d513296551ac5b73a8f589b46d7c3177921daa7d2eb047cedae",
+      "required_before": "any_authentication_bootstrap_or_model_bearing_provider_call",
+      "schema_version": "epiagentbench.spend_authorization.v1",
+      "storage": "authenticated_private_state_only"
+    },
+    "terminal_incident_policy": {
+      "codex_timeout_or_post_launch_credential_link_drift": [
+        "codex_auth_incident"
+      ],
+      "crash_after_durable_start": {
+        "codex": [
+          "execution_incident",
+          "codex_auth_incident"
+        ],
+        "non_codex": [
+          "execution_incident"
+        ]
+      },
+      "effects": "seal the current assignment as transport_void; never retry; call no later provider; block cohort retirement, terminal completion, and private trace release",
+      "episode_service_cleanup_failure": {
+        "codex": [
+          "execution_incident",
+          "codex_auth_incident"
+        ],
+        "non_codex": [
+          "execution_incident"
+        ]
+      },
+      "provider_process_or_output_pipe_isolation_failure": {
+        "codex": [
+          "execution_incident",
+          "codex_auth_incident"
+        ],
+        "non_codex": [
+          "execution_incident"
+        ]
+      },
+      "provider_state_persistence_guard_failure": {
+        "codex": [
+          "execution_incident",
+          "codex_auth_incident"
+        ],
+        "non_codex": [
+          "execution_incident"
+        ]
+      }
+    },
+    "transport_void_policy": "ordinary cleanly quiesced void ends only that provider assignment and the same still-running supervised evaluator continues with the next assignment without a second outer launch; crash-orphan, provider process or state isolation, episode-service cleanup, and Codex authentication incidents are terminal and non-resumable"
+  },
+  "runtime_contract": {
+    "machine": "arm64",
+    "platform": "Darwin",
+    "python": "3.13.7",
+    "python_cache_tag": "cpython-313",
+    "python_entrypoint_kind": "symlink_chain",
+    "python_executable_sha256": "sha256:406d73d07e33e164d986326fde00b85c2b8f4ed2c33278142c8431588fe2df14",
+    "python_implementation": "cpython",
+    "scientific_distributions": {
+      "epiagentbench": {
+        "record_sha256": null,
+        "version": null
+      },
+      "matplotlib": {
+        "record_sha256": "b7dacc50ee73dcd366c19b36ee01a62a69cbcc2c7dccddf2c37f2bf5fb246a72",
+        "version": "3.11.0"
+      },
+      "networkx": {
+        "record_sha256": "81f72e5704a737a5a8771b4c872c9a083a8a12ee54448f8245ac4ea2f97681b8",
+        "version": "3.6.1"
+      },
+      "numba": {
+        "record_sha256": "d459dc1a3bd39d2ac20149ab2814b4579dc2926099ba8a4c8d18b11d56453bed",
+        "version": "0.66.0"
+      },
+      "numpy": {
+        "record_sha256": "c202ded1a2e806542b127b221af2a9a61f2a481abdb7bc72c2b6a810e23d01cc",
+        "version": "2.4.6"
+      },
+      "pandas": {
+        "record_sha256": "f0d32b26211982a59943a3765759761bb2c73ab70495ef32deb811866b55fc19",
+        "version": "3.0.3"
+      },
+      "scipy": {
+        "record_sha256": "1cb4a32f540f0975fdeed14de9c2ed3cd5cba6108d78fa916f1f2eb1d393d529",
+        "version": "1.18.0"
+      },
+      "sciris": {
+        "record_sha256": "528e74b584fb1333da1e529b283e789bcb1da69b3210b11f3c2719b05cff1c39",
+        "version": "3.2.9"
+      },
+      "seaborn": {
+        "record_sha256": "1ef69e4b614c4ec7986d7a66ef62b258802b4e6e1df88f607e8ace4a089c3472",
+        "version": "0.13.2"
+      },
+      "starsim": {
+        "record_sha256": "4a1c8e937b5d30cc8cbdaed153bda0ef54f7b79312da5688a51aa8837c3517dd",
+        "version": "3.5.1"
+      }
+    },
+    "starsim": "3.5.1"
+  },
+  "schedule_design": {
+    "name": "private_family_stratified_near_balanced_williams",
+    "order_released_only_after_terminal_panel": true,
+    "ordered_carryover_count_max": 9,
+    "ordered_carryover_count_min": 8,
+    "profile_position_count_max": 9,
+    "profile_position_count_min": 8,
+    "within_family_ordered_carryover_count_max": 2,
+    "within_family_ordered_carryover_count_min": 1,
+    "within_family_profile_position_count_max": 2,
+    "within_family_profile_position_count_min": 1
+  },
+  "schema_version": "development_matched_panel_v11",
+  "source_contract": {
+    "task_prompt_sha256": "sha256:8bd3c34b94778d6211378d6a45ca71d121828aabd9621b2acb7ed02f33f24dbe",
+    "tracked_runtime_file_count": 58,
+    "tracked_runtime_surface_sha256": "sha256:cb0170b1ae3b078358fb8a548d83df2a061e734c46240ba4a3d57927d74aefe3"
+  },
+  "status": "precommitted",
+  "timeout_contract": {
+    "codex_timeout_policy": "terminal_transport_void_due_to_credential_refresh_ambiguity",
+    "non_codex_timeout_policy": "fixed_denominator_zero_after_original_process_group_quiescence",
+    "preflight_codex_timeout_policy": "after_clean_quiescence_and_auth_attestation_quarantine_codex_namespace_skip_later_codex_and_continue_independent_profiles",
+    "seconds_per_assignment": 1800
+  }
+}
