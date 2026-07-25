@@ -33,7 +33,6 @@ from epiagentbench.pilot import (
     CodexAuthenticationIncidentError,
     PilotRunResult,
     ProviderExecutionIsolationError,
-    ProviderOutputOverflowError,
     ProviderProcessIsolationError,
     ProviderStateIsolationError,
 )
@@ -53,9 +52,12 @@ SOURCE_CONTRACT = {
 }
 CLI_CONTRACT = {
     "executables": [
-        {"name": "claude", "version": "claude-test"},
-        {"name": "codex", "version": "codex-test"},
-        {"name": "cursor-agent", "version": "cursor-test"},
+        {"name": "claude", "executable_sha256": "sha256:" + "1" * 64},
+        {"name": "codex", "executable_sha256": "sha256:" + "2" * 64},
+        {
+            "name": "cursor-agent",
+            "executable_sha256": "sha256:" + "3" * 64,
+        },
     ]
 }
 RUNTIME_CONTRACT = {
@@ -67,7 +69,9 @@ RUNTIME_CONTRACT = {
     "machine": "test-machine",
 }
 CLI_VERSIONS = {
-    item["name"]: item["version"] for item in CLI_CONTRACT["executables"]
+    "claude": "claude-test",
+    "codex": "codex-test",
+    "cursor-agent": "cursor-test",
 }
 
 # Production entry points always require authenticated supervision and expose
@@ -186,9 +190,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v12.authentication.json",
+            "results/development-matched-50x6-v13.authentication.json",
         ):
-            return "results/development-matched-50x6-v12.authentication.json"
+            return "results/development-matched-50x6-v13.authentication.json"
         return ""
 
     @staticmethod
@@ -1075,11 +1079,6 @@ class MatchedPanelTests(unittest.TestCase):
             ),
             patch(
                 "epiagentbench.development_matched_panel."
-                "_identity_version_probe",
-                side_effect=forbidden,
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
                 "_run_provider_process_group",
                 side_effect=forbidden,
             ),
@@ -1583,7 +1582,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v12_authorization_breakdown"],
+            contract["claude_current_v13_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -1593,7 +1592,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v12_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v13_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -1608,6 +1607,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v9_usd": 20.0,
                 "v10_usd": 0.0,
                 "v11_usd": 0.0,
+                "v12_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -1637,6 +1637,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v10_supersession",
                 "v11_manifest",
                 "v11_supersession",
+                "v12_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -1730,7 +1731,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v12_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v13_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -1774,6 +1775,295 @@ class MatchedPanelTests(unittest.TestCase):
             public["contract_hashes"]["timeouts_sha256"],
             matched._component_hash(public["timeout_contract"]),
         )
+
+    def test_prepare_publishes_create_once_without_provider_or_replace_calls(self):
+        manifest_path = self._cohort()
+        forbidden = AssertionError("prepare crossed a forbidden live boundary")
+        executable = self.root / "identity-cli"
+        executable.write_bytes(b"provider-controlled-version-sentinel")
+        executable.chmod(0o755)
+        real_cli_contract = matched._cli_contract
+        with (
+            self._contracts(),
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "epiagentbench.development_matched_panel._cli_contract",
+                side_effect=real_cli_contract,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.shutil.which",
+                return_value=str(executable),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._GLEAN_HELPER_PATH",
+                executable,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._safe_glean_config",
+                return_value=(
+                    self._glean_config_fixture(),
+                    {
+                        "path": str(matched._GLEAN_CONFIG_PATH),
+                        "sha256": "sha256:" + "4" * 64,
+                    },
+                ),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_managed_settings_identity",
+                return_value=(
+                    {"sha256": "sha256:" + "5" * 64},
+                    False,
+                ),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_safe_entrypoint_identity",
+                return_value={
+                    "path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
+                    "entrypoint_kind": "regular_file",
+                    "link_text": None,
+                    "resolved_path": str(
+                        matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH
+                    ),
+                    "target_sha256": "sha256:" + "6" * 64,
+                },
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._atomic_json",
+                side_effect=forbidden,
+            ) as atomic_json,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_run_provider_process_group",
+                side_effect=forbidden,
+            ) as provider_process,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=forbidden,
+            ) as evaluator,
+        ):
+            public = prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+
+        self.assertEqual(matched._load_json(self.public_path), public)
+        self.assertNotIn(
+            "provider-controlled-version-sentinel",
+            json.dumps(public, sort_keys=True),
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["public_precommitment_sha256"],
+            public["precommitment_sha256"],
+        )
+        marker = matched._load_cohort_preparation_marker(
+            matched._cohort_preparation_path(manifest_path),
+            AUTHENTICATION_KEY,
+        )
+        self.assertEqual(private["cohort_preparation_claim"], marker)
+        atomic_json.assert_not_called()
+        provider_process.assert_not_called()
+        evaluator.assert_not_called()
+
+    def test_prepare_refuses_a_concurrent_host_global_panel_lease(self):
+        manifest_path = self._cohort()
+        with (
+            matched._exclusive_run_lock(self.private_path),
+            self._contracts(),
+            self.assertRaisesRegex(RuntimeError, "already holds the lock"),
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        self.assertFalse(self.private_path.exists())
+        self.assertFalse(self.public_path.exists())
+        self.assertFalse(
+            matched._cohort_preparation_path(manifest_path).exists()
+        )
+
+    def test_prepare_private_publication_race_never_creates_public_manifest(self):
+        manifest_path = self._cohort()
+        competitor = b"competitor-owned-private-publication\n"
+        original_create = matched._create_private_json_once
+
+        def lose_private_race(path, value):
+            if Path(path) == self.private_path:
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                Path(path).write_bytes(competitor)
+                Path(path).chmod(0o600)
+            return original_create(path, value)
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_create_private_json_once",
+                side_effect=lose_private_race,
+            ),
+            self.assertRaisesRegex(FileExistsError, "private state"),
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+
+        self.assertEqual(self.private_path.read_bytes(), competitor)
+        self.assertFalse(self.public_path.exists())
+        self.assertTrue(
+            matched._cohort_preparation_path(manifest_path).is_file()
+        )
+
+    def test_prepare_cohort_claim_race_never_clobbers_competitor(self):
+        manifest_path = self._cohort()
+        claim_path = matched._cohort_preparation_path(manifest_path)
+        competitor = b"competitor-owned-cohort-claim\n"
+        original_create = matched._create_private_json_once
+
+        def lose_claim_race(path, value):
+            if Path(path).name == matched._COHORT_PREPARATION_FILE:
+                Path(path).write_bytes(competitor)
+                Path(path).chmod(0o600)
+            return original_create(path, value)
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_create_private_json_once",
+                side_effect=lose_claim_race,
+            ),
+            self.assertRaisesRegex(FileExistsError, "preparation claim"),
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+
+        self.assertEqual(claim_path.read_bytes(), competitor)
+        self.assertFalse(self.private_path.exists())
+        self.assertFalse(self.public_path.exists())
+
+    def test_prepare_publication_race_never_clobbers_competitor(self):
+        manifest_path = self._cohort()
+        competitor = b"competitor-owned-publication\n"
+        original_create = matched._create_public_json_once
+
+        def lose_public_race(path, value):
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_bytes(competitor)
+            return original_create(path, value)
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_create_public_json_once",
+                side_effect=lose_public_race,
+            ),
+            self.assertRaises(FileExistsError),
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+
+        self.assertEqual(self.public_path.read_bytes(), competitor)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["status"], "prepared")
+        self.assertTrue(
+            matched._cohort_preparation_path(manifest_path).is_file()
+        )
+
+    def test_prepare_rejects_dangling_artifact_symlinks_without_replacement(self):
+        manifest_path = self._cohort()
+        for destination_name in ("private", "public"):
+            with self.subTest(destination=destination_name):
+                private_path = (
+                    self.root
+                    / "run_artifacts"
+                    / f"{destination_name}-private.json"
+                )
+                public_path = (
+                    self.root
+                    / "results"
+                    / f"{destination_name}-manifest.json"
+                )
+                destination = (
+                    private_path
+                    if destination_name == "private"
+                    else public_path
+                )
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.symlink_to(
+                    destination.with_name(destination.name + ".missing")
+                )
+                with self._contracts(), self.assertRaises(FileExistsError):
+                    prepare_panel(
+                        root=self.root,
+                        cohort_manifest_path=manifest_path,
+                        authentication_key_file=self.key_path,
+                        claude_secure_storage_dir=(
+                            self.claude_secure_storage_dir
+                        ),
+                        codex_secure_storage_dir=(
+                            self.codex_secure_storage_dir
+                        ),
+                        private_state_path=private_path,
+                        public_manifest_path=public_path,
+                    )
+                self.assertTrue(destination.is_symlink())
+                self.assertFalse(
+                    matched._cohort_preparation_path(manifest_path).exists()
+                )
 
     def test_prepare_rejects_any_non_1800_second_timeout(self):
         manifest_path = self._cohort()
@@ -1855,7 +2145,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v12")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v13")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -2625,47 +2915,12 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(events, ["launch_pending"])
         self.assertEqual(start.call_count, 1)
 
-    def test_identity_probes_use_bounded_credential_free_process_groups(self):
+    def test_identity_contract_hashes_files_without_running_provider_processes(self):
         executable = self.root / "identity-cli"
         executable.write_bytes(b"fixed executable bytes")
         executable.chmod(0o755)
-        observed_roots: list[Path] = []
-
-        def version(command, **kwargs):
-            self.assertEqual(Path(command[0]).resolve(), executable.resolve())
-            self.assertEqual(command[1:], ["--version"])
-            self.assertEqual(kwargs["timeout_seconds"], 15)
-            self.assertEqual(kwargs["umask"], 0o077)
-            environment = kwargs["environment"]
-            self.assertFalse(
-                set(environment)
-                & {
-                    "ANTHROPIC_API_KEY",
-                    "CURSOR_API_KEY",
-                    "GLEAN_TOKEN",
-                    "OPENAI_API_KEY",
-                }
-            )
-            observed_roots.append(kwargs["cwd"])
-            self.assertEqual(
-                Path(environment["HOME"]), kwargs["cwd"] / "identity-home"
-            )
-            return subprocess.CompletedProcess(
-                command, 0, stdout=b"", stderr=b"identity-cli 1.2.3\n"
-            )
 
         with (
-            patch.dict(
-                os.environ,
-                {
-                    "PATH": "/bin",
-                    "OPENAI_API_KEY": "must-not-pass",
-                    "ANTHROPIC_API_KEY": "must-not-pass",
-                    "CURSOR_API_KEY": "must-not-pass",
-                    "GLEAN_TOKEN": "must-not-pass",
-                },
-                clear=True,
-            ),
             patch(
                 "epiagentbench.development_matched_panel.shutil.which",
                 return_value=str(executable),
@@ -2677,34 +2932,107 @@ class MatchedPanelTests(unittest.TestCase):
             patch(
                 "epiagentbench.development_matched_panel."
                 "_run_provider_process_group",
-                side_effect=version,
+                side_effect=AssertionError("identity hashing must not execute"),
             ) as run_group,
         ):
             cli_identity = matched._read_cli_identity("identity-cli")
             glean_identity = matched._glean_helper_identity()
 
-        self.assertEqual(cli_identity["version"], "identity-cli 1.2.3")
-        self.assertEqual(glean_identity["version"], "identity-cli 1.2.3")
-        self.assertEqual(run_group.call_count, 2)
-        self.assertEqual(len(observed_roots), 2)
-        self.assertTrue(all(not root.exists() for root in observed_roots))
+        expected = "sha256:" + hashlib.sha256(
+            b"fixed executable bytes"
+        ).hexdigest()
+        self.assertEqual(
+            cli_identity,
+            {"name": "identity-cli", "executable_sha256": expected},
+        )
+        self.assertEqual(
+            glean_identity,
+            {"path": str(executable), "sha256": expected},
+        )
+        run_group.assert_not_called()
 
-    def test_identity_probe_overflow_is_a_terminal_typed_failure(self):
+    def test_cli_contract_is_provider_process_free(self):
+        forbidden = AssertionError("CLI contract attempted to execute a process")
+
+        def identity(executable: str) -> dict[str, str]:
+            return {
+                "name": executable,
+                "executable_sha256": "sha256:" + "1" * 64,
+            }
+
         with (
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "epiagentbench.development_matched_panel._read_cli_identity",
+                side_effect=identity,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_glean_helper_identity",
+                return_value={
+                    "path": str(matched._GLEAN_HELPER_PATH),
+                    "sha256": "sha256:" + "2" * 64,
+                },
+            ),
+            patch(
+                "epiagentbench.development_matched_panel._safe_glean_config",
+                return_value=(
+                    self._glean_config_fixture(),
+                    {
+                        "path": str(matched._GLEAN_CONFIG_PATH),
+                        "sha256": "sha256:" + "3" * 64,
+                    },
+                ),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_managed_settings_identity",
+                return_value=(
+                    {"sha256": "sha256:" + "4" * 64},
+                    False,
+                ),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_safe_entrypoint_identity",
+                return_value={
+                    "path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
+                    "entrypoint_kind": "regular_file",
+                    "link_text": None,
+                    "resolved_path": str(
+                        matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH
+                    ),
+                    "target_sha256": "sha256:" + "5" * 64,
+                },
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_fixed_file_sha256",
+                return_value="sha256:" + "6" * 64,
+            ),
             patch(
                 "epiagentbench.development_matched_panel."
                 "_run_provider_process_group",
-                side_effect=ProviderOutputOverflowError(
-                    returncode=0,
-                    stdout=b"bounded",
-                    stderr=b"bounded",
-                ),
-            ),
-            self.assertRaises(ProviderStateIsolationError),
+                side_effect=forbidden,
+            ) as provider_process,
+            patch(
+                "epiagentbench.development_matched_panel.subprocess.run",
+                side_effect=forbidden,
+            ) as subprocess_run,
+            patch(
+                "epiagentbench.development_matched_panel.subprocess.Popen",
+                side_effect=forbidden,
+            ) as subprocess_popen,
         ):
-            matched._identity_version_probe(
-                ["/trusted/tool", "--version"], label="provider CLI"
-            )
+            contract = matched._cli_contract()
+
+        self.assertEqual(
+            {item["name"] for item in contract["executables"]},
+            {"claude", "codex", "cursor-agent"},
+        )
+        provider_process.assert_not_called()
+        subprocess_run.assert_not_called()
+        subprocess_popen.assert_not_called()
 
     def test_managed_glean_bootstrap_discards_token_and_cleans_home(self):
         captured_home: Path | None = None
@@ -3186,7 +3514,6 @@ class MatchedPanelTests(unittest.TestCase):
         def identity(executable: str) -> dict[str, str]:
             return {
                 "name": executable,
-                "version": f"{executable}-test",
                 "executable_sha256": "sha256:" + "1" * 64,
             }
 
@@ -3200,7 +3527,6 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel._glean_helper_identity",
                 return_value={
                     "path": str(matched._GLEAN_HELPER_PATH),
-                    "version": "glean-helper-test",
                     "sha256": "sha256:" + "2" * 64,
                 },
             ),
@@ -3976,11 +4302,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v12_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v13_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v12", "six-call v10"
+            "six-call v13", "six-call v10"
         )
         with (
             patch(
@@ -3995,7 +4321,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v12 \\$570"),
+            self.assertRaisesRegex(RuntimeError, "exact v13 \\$570"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -4293,7 +4619,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v12"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v13"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -4340,7 +4666,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v12"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v13"),
         ):
             run_panel(
                 root=self.root,
@@ -4516,6 +4842,9 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertTrue(payload["cohort_retired_before_trace_publication"])
         self.assertTrue(
             all(result["trace_status"] == "recorded" for result in payload["results"])
+        )
+        self.assertTrue(
+            all("cli_version" not in result for result in payload["results"])
         )
         self.assertTrue(
             all(
@@ -5979,6 +6308,9 @@ class MatchedPanelTests(unittest.TestCase):
             receipt["provider_calls_conservatively_chargeable"], 6
         )
         self.assertEqual(len(receipt["profiles"]), len(PROFILES))
+        self.assertTrue(
+            all("cli_version" not in item for item in receipt["profiles"])
+        )
         self.assertEqual(
             [
                 (
@@ -6196,6 +6528,9 @@ class MatchedPanelTests(unittest.TestCase):
             ],
         )
         self.assertEqual(receipt["status"], "failed")
+        self.assertTrue(
+            all("cli_version" not in item for item in receipt["profiles"])
+        )
         self.assertEqual(
             [item["profile_id"] for item in receipt["profiles"]],
             [profile["profile_id"] for profile in PROFILES],
@@ -6456,7 +6791,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v12_receipt(self):
+    def test_environment_preflight_gate_validates_full_v13_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -7492,7 +7827,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v12"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v13"),
         ):
             matched.authenticate_panel(
                 root=self.root,

@@ -45,7 +45,6 @@ from .pilot import (
     CodexAuthenticationIncidentError,
     PilotRunResult,
     ProviderExecutionIsolationError,
-    ProviderOutputOverflowError,
     ProviderProcessIsolationError,
     ProviderStateIsolationError,
     _ProviderTemporaryDirectory,
@@ -55,7 +54,6 @@ from .pilot import (
     _canonical_codex_auth_storage_path,
     _install_disposable_storage_roots,
     _isolate_claude_environment,
-    _isolate_identity_environment,
     _quiesce_provider_process_group,
     _retain_path_and_locale,
     _reject_claude_plaintext_fallback,
@@ -78,22 +76,23 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v12"
+PANEL_ID = "development-matched-50x6-v13"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v12"
+SCHEMA_VERSION = "development_matched_panel_v13"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v12 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v13 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $570 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
     "failed v8 production run, v9 preflight and failed production run, the "
     "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
-    "v11 authentication bootstrap, and the v12 preflight and production run."
+    "v11 authentication bootstrap, the abandoned zero-model-call v12 "
+    "precommitment, and the v13 preflight and production run."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
 _AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v1"
@@ -179,6 +178,24 @@ _EXTRA_SEQUENCES = (
 _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
+_COHORT_PREPARATION_DOMAIN = (
+    b"EpiAgentBench authenticated create-once cohort preparation v1\x00"
+)
+_COHORT_PREPARATION_SCHEMA = "epiagentbench.cohort_preparation.v1"
+_COHORT_PREPARATION_FILE = ".epiagentbench-cohort-prepared.json"
+_COHORT_PREPARATION_KEYS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "cohort_id",
+        "panel_id",
+        "pack_set_commitment",
+        "public_precommitment_sha256",
+        "private_state_target_sha256",
+        "public_manifest_target_sha256",
+        "claimed_at_utc",
+    }
+)
 _COHORT_RETIREMENT_DOMAIN = (
     b"EpiAgentBench authenticated terminal cohort retirement v1\x00"
 )
@@ -545,6 +562,28 @@ def _write_private_state(path: Path, value: Mapping[str, Any], key: bytes) -> No
     _validate_bound_private_state_storage(path, value)
 
 
+def _create_private_state_once(
+    path: Path, value: Mapping[str, Any], key: bytes
+) -> None:
+    """Create the first authenticated checkpoint without replacing any path."""
+
+    _validate_bound_private_state_storage(path, value)
+    unsigned = dict(value)
+    unsigned.pop("state_authentication", None)
+    sealed = {
+        **unsigned,
+        "state_authentication": {
+            "algorithm": "hmac-sha256",
+            "tag": _private_state_tag(unsigned, key),
+        },
+    }
+    if not _create_private_json_once(path, sealed):
+        raise FileExistsError(
+            "Refusing to replace an existing matched-panel private state"
+        )
+    _validate_bound_private_state_storage(path, value)
+
+
 def _load_private_state(path: Path, key: bytes) -> dict[str, Any]:
     sealed = _load_json(path, private=True)
     authentication = sealed.pop("state_authentication", None)
@@ -611,10 +650,10 @@ def _create_private_json_once(path: Path, value: Any) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     parent_metadata = path.parent.lstat()
     if not stat.S_ISDIR(parent_metadata.st_mode) or path.parent.is_symlink():
-        raise ValueError("Retirement marker parent must be a real directory")
+        raise ValueError("Create-once private record parent must be a real directory")
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if not 0 < len(payload) <= _MAX_PANEL_JSON_BYTES:
-        raise ValueError("Retirement marker exceeds the size limit")
+        raise ValueError("Create-once private record exceeds the size limit")
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(16)}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
@@ -648,6 +687,135 @@ def _create_private_json_once(path: Path, value: Any) -> bool:
                 temporary.unlink()
             except OSError:
                 pass
+            else:
+                _fsync_directory(path.parent)
+
+
+def _cohort_preparation_path(cohort_manifest_path: Path) -> Path:
+    return cohort_manifest_path.parent / _COHORT_PREPARATION_FILE
+
+
+def _cohort_preparation_tag(value: Mapping[str, Any], key: bytes) -> str:
+    return hmac.new(
+        key,
+        _COHORT_PREPARATION_DOMAIN + _canonical_bytes(value),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _load_cohort_preparation_marker(
+    path: Path, key: bytes
+) -> dict[str, Any]:
+    sealed = _load_json(path, private=True)
+    authentication = sealed.pop("authentication", None)
+    supplied = (
+        authentication.get("tag") if isinstance(authentication, dict) else None
+    )
+    expected = _cohort_preparation_tag(sealed, key)
+    if (
+        set(sealed) != _COHORT_PREPARATION_KEYS
+        or not isinstance(authentication, dict)
+        or set(authentication) != {"algorithm", "tag"}
+        or authentication.get("algorithm") != "hmac-sha256"
+        or not isinstance(supplied, str)
+        or not hmac.compare_digest(supplied, expected)
+        or sealed.get("schema_version") != _COHORT_PREPARATION_SCHEMA
+        or sealed.get("status") != "claimed_create_once_preparation"
+    ):
+        raise ValueError("Cohort preparation marker authentication failed")
+    return sealed
+
+
+def _cohort_preparation_claim(
+    *,
+    manifest: PrivateEpisodeCohortManifest,
+    public_manifest: Mapping[str, Any],
+    private_state_path: Path,
+    public_manifest_path: Path,
+) -> dict[str, Any]:
+    return {
+        "schema_version": _COHORT_PREPARATION_SCHEMA,
+        "status": "claimed_create_once_preparation",
+        "cohort_id": manifest.cohort_id,
+        "panel_id": PANEL_ID,
+        "pack_set_commitment": manifest.pack_set_commitment,
+        "public_precommitment_sha256": public_manifest[
+            "precommitment_sha256"
+        ],
+        "private_state_target_sha256": _sha256(
+            str(private_state_path.expanduser().resolve()).encode("utf-8")
+        ),
+        "public_manifest_target_sha256": _sha256(
+            str(public_manifest_path.expanduser().resolve()).encode("utf-8")
+        ),
+        "claimed_at_utc": _utc_now(),
+    }
+
+
+def _claim_cohort_preparation(
+    *,
+    cohort_manifest_path: Path,
+    manifest: PrivateEpisodeCohortManifest,
+    public_manifest: Mapping[str, Any],
+    private_state_path: Path,
+    public_manifest_path: Path,
+    authentication_key: bytes,
+) -> dict[str, Any]:
+    """Burn one frozen cohort into exactly one create-once preparation."""
+
+    expected = _cohort_preparation_claim(
+        manifest=manifest,
+        public_manifest=public_manifest,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+    )
+    path = _cohort_preparation_path(cohort_manifest_path)
+    sealed = {
+        **expected,
+        "authentication": {
+            "algorithm": "hmac-sha256",
+            "tag": _cohort_preparation_tag(expected, authentication_key),
+        },
+    }
+    if not _create_private_json_once(path, sealed):
+        raise FileExistsError(
+            "Frozen cohort already has a preparation claim; never retry it"
+        )
+    if _load_cohort_preparation_marker(path, authentication_key) != expected:
+        raise RuntimeError("Cohort preparation claim failed its post-write reload")
+    return expected
+
+
+def _assert_cohort_preparation_matches_panel(
+    marker: Mapping[str, Any],
+    *,
+    manifest: PrivateEpisodeCohortManifest,
+    public_manifest: Mapping[str, Any],
+    private_state_path: Path,
+    public_manifest_path: Path,
+) -> None:
+    expected = {
+        "schema_version": _COHORT_PREPARATION_SCHEMA,
+        "status": "claimed_create_once_preparation",
+        "cohort_id": manifest.cohort_id,
+        "panel_id": PANEL_ID,
+        "pack_set_commitment": manifest.pack_set_commitment,
+        "public_precommitment_sha256": public_manifest.get(
+            "precommitment_sha256"
+        ),
+        "private_state_target_sha256": _sha256(
+            str(private_state_path.expanduser().resolve()).encode("utf-8")
+        ),
+        "public_manifest_target_sha256": _sha256(
+            str(public_manifest_path.expanduser().resolve()).encode("utf-8")
+        ),
+    }
+    if any(marker.get(name) != value for name, value in expected.items()):
+        raise ValueError("Cohort preparation marker belongs to another panel")
+    if not isinstance(marker.get("claimed_at_utc"), str) or not marker[
+        "claimed_at_utc"
+    ]:
+        raise ValueError("Cohort preparation marker has no claim time")
 
 
 def _assert_retirement_matches_panel(
@@ -2260,39 +2428,6 @@ def _source_contract(root: Path) -> dict[str, Any]:
     }
 
 
-def _identity_version_probe(command: Sequence[str], *, label: str) -> str:
-    """Read a bounded version string in a credential-free process group."""
-
-    try:
-        with _ProviderTemporaryDirectory() as temporary:
-            root = Path(temporary).resolve()
-            environment = os.environ.copy()
-            _isolate_identity_environment(environment, root)
-            process = _run_provider_process_group(
-                command,
-                cwd=root,
-                environment=environment,
-                timeout_seconds=15,
-                umask=0o077,
-            )
-    except ProviderExecutionIsolationError:
-        raise
-    except (ProviderOutputOverflowError, subprocess.TimeoutExpired):
-        raise ProviderStateIsolationError(
-            f"Unable to pin {label} version"
-        ) from None
-    except (OSError, RuntimeError, ValueError):
-        raise ProviderStateIsolationError(
-            f"Unable to pin {label} version"
-        ) from None
-    version = (process.stdout + b"\n" + process.stderr).decode(
-        "utf-8", errors="replace"
-    ).strip()[:200]
-    if process.returncode != 0 or not version:
-        raise ProviderStateIsolationError(f"Unable to pin {label} version")
-    return version
-
-
 def _read_cli_identity(executable: str) -> dict[str, str]:
     try:
         resolved = shutil.which(executable)
@@ -2314,9 +2449,6 @@ def _read_cli_identity(executable: str) -> dict[str, str]:
         raise ProviderStateIsolationError(
             f"Unable to pin provider CLI identity: {executable}"
         ) from None
-    version = _identity_version_probe(
-        [str(resolved_path), "--version"], label=f"provider CLI {executable}"
-    )
     try:
         final_digest = _fixed_file_sha256(
             resolved_path, label=f"provider CLI {executable}"
@@ -2331,7 +2463,6 @@ def _read_cli_identity(executable: str) -> dict[str, str]:
         )
     return {
         "name": executable,
-        "version": version,
         "executable_sha256": digest,
     }
 
@@ -2865,9 +2996,6 @@ def _glean_helper_identity() -> dict[str, str]:
         raise ProviderStateIsolationError(
             "Unable to pin Glean helper identity"
         ) from None
-    version = _identity_version_probe(
-        [str(_GLEAN_HELPER_PATH), "--version"], label="Glean helper"
-    )
     try:
         final_digest = _fixed_file_sha256(
             _GLEAN_HELPER_PATH, label="Glean helper"
@@ -2882,7 +3010,6 @@ def _glean_helper_identity() -> dict[str, str]:
         )
     return {
         "path": str(_GLEAN_HELPER_PATH),
-        "version": version,
         "sha256": digest,
     }
 
@@ -3291,8 +3418,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v12_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v12_authorization_breakdown": {
+        "claude_current_v13_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v13_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -3315,6 +3442,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v9_usd": 20.0,
             "v10_usd": 0.0,
             "v11_usd": 0.0,
+            "v12_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -3371,6 +3499,9 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v11_supersession": (
                 "results/development-matched-50x6-v11.superseded.json"
             ),
+            "v12_supersession": (
+                "results/development-matched-50x6-v12.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -3381,7 +3512,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     }
 
 
-def prepare_panel(
+def _prepare_panel_locked(
     *,
     root: Path,
     cohort_manifest_path: Path,
@@ -3393,7 +3524,7 @@ def prepare_panel(
     timeout_seconds: int = 1800,
     claude_max_budget_usd: float = 5.0,
 ) -> dict[str, Any]:
-    """Bind a fresh authenticated cohort and write its public precommitment."""
+    """Prepare while the host-global panel lease is held."""
 
     _validate_schedule_design()
     authentication_receipt_path = _authentication_receipt_path(
@@ -3411,19 +3542,21 @@ def prepare_panel(
     _relative_to_root(public_manifest_path, root)
     if (
         private_state_path.exists()
+        or private_state_path.is_symlink()
         or public_manifest_path.exists()
+        or public_manifest_path.is_symlink()
         or authentication_receipt_path.exists()
         or authentication_receipt_path.is_symlink()
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V12 requires an exact 1800-second assignment timeout")
+        raise ValueError("V13 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V12 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V13 requires an exact $5 Claude per-call ceiling")
 
     private_state_storage = _private_state_storage_binding(
         private_state_path,
@@ -3452,6 +3585,13 @@ def prepare_panel(
     key_path = _existing_path_without_final_symlink(authentication_key_file)
     key = _read_authentication_key(key_path)
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
+    if _cohort_retirement_if_present(manifest_path, key) is not None:
+        raise ValueError("Frozen cohort is retired and cannot be prepared again")
+    preparation_claim_path = _cohort_preparation_path(manifest_path)
+    if preparation_claim_path.exists() or preparation_claim_path.is_symlink():
+        raise FileExistsError(
+            "Frozen cohort already has a preparation claim; never retry it"
+        )
     _assert_claude_storage_separate_from_artifacts(
         resolved_claude_secure_storage_dir,
         cohort_manifest_path=manifest_path,
@@ -3804,13 +3944,61 @@ def prepare_panel(
         },
         "assignments": [],
     }
-    _write_private_state(private_state_path, private, key)
+    claim = _claim_cohort_preparation(
+        cohort_manifest_path=manifest_path,
+        manifest=manifest,
+        public_manifest=public,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+        authentication_key=key,
+    )
+    _assert_cohort_preparation_matches_panel(
+        claim,
+        manifest=manifest,
+        public_manifest=public,
+        private_state_path=private_state_path,
+        public_manifest_path=public_manifest_path,
+    )
+    private["cohort_preparation_claim"] = claim
+    _create_private_state_once(private_state_path, private, key)
     if _load_private_state(private_state_path, key) != private:
         raise RuntimeError(
             "Authenticated private matched-panel state failed its post-write reload"
         )
-    _atomic_json(public_manifest_path, public)
+    _create_public_json_once(public_manifest_path, public)
+    if _load_json(public_manifest_path) != public:
+        raise RuntimeError(
+            "Public matched-panel precommitment failed its post-write reload"
+        )
     return public
+
+
+def prepare_panel(
+    *,
+    root: Path,
+    cohort_manifest_path: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    timeout_seconds: int = 1800,
+    claude_max_budget_usd: float = 5.0,
+) -> dict[str, Any]:
+    """Bind one fresh cohort and publish one create-once precommitment pair."""
+
+    with _exclusive_run_lock(private_state_path):
+        return _prepare_panel_locked(
+            root=root,
+            cohort_manifest_path=cohort_manifest_path,
+            authentication_key_file=authentication_key_file,
+            claude_secure_storage_dir=claude_secure_storage_dir,
+            codex_secure_storage_dir=codex_secure_storage_dir,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+            timeout_seconds=timeout_seconds,
+            claude_max_budget_usd=claude_max_budget_usd,
+        )
 
 
 def _validate_public_hash(public: Mapping[str, Any]) -> None:
@@ -3927,6 +4115,19 @@ def _validate_contracts(
         str(private.get("cohort_manifest_path"))
     )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
+    preparation_claim = _load_cohort_preparation_marker(
+        _cohort_preparation_path(manifest_path), authentication_key
+    )
+    if (
+        private.get("cohort_preparation_claim") != preparation_claim
+        or preparation_claim.get("cohort_id") != manifest.cohort_id
+        or preparation_claim.get("panel_id") != PANEL_ID
+        or preparation_claim.get("pack_set_commitment")
+        != manifest.pack_set_commitment
+        or preparation_claim.get("public_precommitment_sha256")
+        != public.get("precommitment_sha256")
+    ):
+        raise ValueError("Cohort preparation claim differs from this panel")
     retirement = _cohort_retirement_if_present(
         manifest_path, authentication_key
     )
@@ -4114,7 +4315,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V12 spend authorization contract mismatch")
+        raise ValueError("V13 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -4142,7 +4343,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v12 spend authorization receipt is required "
+            "A manifest-bound exact v13 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -4164,7 +4365,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v12 $570 cumulative spend acknowledgement text is required"
+            "The exact v13 $570 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -4888,7 +5089,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V12 panel cannot retry"
+                    "state; this V13 panel cannot retry"
                 ) from None
             _attest_execution_contracts(root=root, public=public)
             if (
@@ -4919,7 +5120,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V12 panel "
+                "Authentication process state is ambiguous; this V13 panel "
                 "cannot retry"
             )
         if (
@@ -4953,7 +5154,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V12 panel cannot retry"
+                "state; this V13 panel cannot retry"
             ) from None
         _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
@@ -5078,7 +5279,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V12 panel cannot retry"
+                    "state; this V13 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -5150,7 +5351,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V12 panel cannot retry"
+                    "V13 panel cannot retry"
                 ) from None
 
         _attest_execution_contracts(root=root, public=public)
@@ -5176,7 +5377,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V12 panel cannot retry"
+                "state; this V13 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             private=private,
@@ -5394,10 +5595,6 @@ def _assert_environment_preflight(
         raise RuntimeError("The passed environment preflight receipt is not committed")
     receipt = _load_json(receipt_path)
     profile_receipts = receipt.get("profiles")
-    expected_cli_versions = {
-        str(item["name"]): str(item["version"])
-        for item in public["cli_contract"]["executables"]
-    }
 
     def valid_profile_receipt(
         item: Any, expected_profile: Mapping[str, Any]
@@ -5433,8 +5630,7 @@ def _assert_environment_preflight(
             and item.get("timed_out") is False
             and item.get("conservative_chargeable") is True
             and item.get("failure_reason") is None
-            and item.get("cli_version")
-            == expected_cli_versions[str(expected_profile["executable"])]
+            and "cli_version" not in item
             and item.get("scored") is False
             and item.get("replay_trace_validated") is True
             and item.get("infrastructure_handshake_passed") is True
@@ -6157,10 +6353,6 @@ def _run_environment_preflight_core(
                 "supervisor_sha256",
             )
         }
-        cli_versions = {
-            str(item["name"]): str(item["version"])
-            for item in public["cli_contract"]["executables"]
-        }
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         claude_glean_oauth_client_id = _glean_claude_oauth_client_id()
         codex_auth_file_identity = _private_codex_auth_file_identity(private)
@@ -6367,8 +6559,6 @@ def _run_environment_preflight_core(
                 if (
                     result.system != profile["system"]
                     or result.requested_model != profile["requested_model"]
-                    or result.cli_version
-                    != cli_versions[str(profile["executable"])]
                 ):
                     raise RuntimeError(
                         "Disposable provider result contract drifted"
@@ -6439,7 +6629,6 @@ def _run_environment_preflight_core(
                 public_attempt.update(
                     {
                         "observed_models": list(result.observed_models),
-                        "cli_version": result.cli_version,
                         "model_receipt_satisfied": (
                             receipt_ok if receipt_required else None
                         ),
@@ -6976,6 +7165,7 @@ def _sanitize_result(
         started_at=started_at,
         finished_at=finished_at,
     )
+    sanitized.pop("cli_version", None)
     sanitized["profile_id"] = profile["profile_id"]
     sanitized["pack_commitment"] = episode["pack_commitment"]
     sanitized["requested_reasoning"] = profile["requested_reasoning"]
@@ -7858,10 +8048,6 @@ def _run_panel_locked(
     _write_private_state(private_state_path, private, authentication_key)
     _atomic_json(public_results_path, _public_running(public_manifest, private))
     episode_by_ref = {str(item["episode_ref"]): item for item in private["episodes"]}
-    cli_versions = {
-        str(item["name"]): str(item["version"])
-        for item in public_manifest["cli_contract"]["executables"]
-    }
     timeout = int(public_manifest["timeout_contract"]["seconds_per_assignment"])
     claude_glean_oauth_client_id = _glean_claude_oauth_client_id()
     budget = float(
@@ -8038,7 +8224,6 @@ def _run_panel_locked(
             if (
                 result.system != profile["system"]
                 or result.requested_model != profile["requested_model"]
-                or result.cli_version != cli_versions[str(profile["executable"])]
             ):
                 raise RuntimeError("Provider result differs from its pinned profile")
             finished = _utc_now()

@@ -81,7 +81,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     target,
                     return_value={
-                        "panel_id": "development-matched-50x6-v12",
+                        "panel_id": "development-matched-50x6-v13",
                         "status": status,
                     },
                 ) as invoked,
@@ -118,7 +118,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_authenticate_dispatches_only_to_foreground_authentication(self) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v12",
+            "panel_id": "development-matched-50x6-v13",
             "status": "passed",
             "providers": {
                 "codex": {"status": "passed"},
@@ -157,7 +157,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self.assertEqual(
             rendered,
             {
-                "panel_id": "development-matched-50x6-v12",
+                "panel_id": "development-matched-50x6-v13",
                 "status": "passed",
                 "authentication_ready": True,
                 "codex_status": "passed",
@@ -171,7 +171,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v12",
+            "panel_id": "development-matched-50x6-v13",
             "status": "retryable_failed",
             "providers": {
                 "codex": {"status": "retryable_failed"},
@@ -200,7 +200,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v12",
+            "panel_id": "development-matched-50x6-v13",
             "status": "required",
             "providers": {
                 "codex": {"status": "required"},

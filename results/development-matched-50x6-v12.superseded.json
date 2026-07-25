@@ -1,0 +1,61 @@
+{
+  "authentication_bootstraps_started": {
+    "codex": 0,
+    "managed_glean": 0,
+    "total": 0
+  },
+  "development_only": true,
+  "failure_reason_codes": [
+    "prepare_executed_provider_controlled_version_commands",
+    "initial_artifact_publication_was_not_create_once"
+  ],
+  "failure_stage": "zero_model_precommitment_audit",
+  "model_bearing_provider_call_exposure": {
+    "claude": 0,
+    "codex": 0,
+    "cursor": 0,
+    "total": 0
+  },
+  "model_bearing_provider_calls_conservatively_chargeable": 0,
+  "original_manifest_file_sha256": "sha256:fef3ccc4bb05338e60b48b89ca3546bb96a10e72f34f9868cff4c96910ebcec5",
+  "original_manifest_unpublished_local_commit": "9e70193ae1e6a3efdb7fe74d8fae69bacb68daae",
+  "original_manifest_published": false,
+  "original_panel_id": "development-matched-50x6-v12",
+  "original_precommitment_sha256": "sha256:ee7f7f752e8e08d7eee27907cf85f9ddc5a9b9fbc4674d7cafee12af8d8ee674",
+  "original_source_commit": "a83dba29f473243a2891d845f701d4a557b55762",
+  "preparation_audit": {
+    "assignments_started": 0,
+    "authenticated_private_state_status": "prepared",
+    "model_calls_started": 0,
+    "provider_or_helper_version_processes_started": 4
+  },
+  "preflight_profiles_attempted": 0,
+  "preflight_profiles_passed": 0,
+  "production_assignments_started": 0,
+  "public_authentication_receipt_created": false,
+  "public_manifest_withheld": true,
+  "public_preflight_receipt_created": false,
+  "public_results_artifact_created": false,
+  "replacement_panel_id": "development-matched-50x6-v13",
+  "replacement_requirements": [
+    "fresh_panel_and_cohort_identity",
+    "fresh_authentication_key",
+    "fresh_private_schedule",
+    "fresh_managed_glean_credential_namespace",
+    "fresh_codex_credential_namespace",
+    "provider_process_free_preparation",
+    "host_global_prepare_lease",
+    "authenticated_create_once_cohort_claim",
+    "create_once_private_then_public_publication"
+  ],
+  "results_released": false,
+  "resumption_permitted": false,
+  "schema_version": "epiagentbench.panel_supersession.v4",
+  "scores_released": false,
+  "spend_authorization_recorded": false,
+  "status": "abandoned_zero_model_precommitment",
+  "superseded_at_utc": "2026-07-25T01:07:31Z",
+  "traces_released": false,
+  "v12_cohort_reuse_permitted": false,
+  "zero_call_claim_scope": "model-bearing provider invocations; four zero-model provider/helper version processes ran during preparation"
+}
