@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V13 runs as a
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V14 runs as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
 supervisor lease, and bounded hash-chain log are authenticated; the Cursor key
@@ -411,14 +411,28 @@ records the authenticated zero-model state, the four zero-model identity
 processes, and the exact abandoned precommitment without publishing their
 output. V12 cannot be authorized, resumed, or reused.
 
-V13 moves both sign-ins into a separate foreground ceremony before the
+V13 then published a fresh create-once precommitment and received the exact
+operator acknowledgement, but the post-acknowledgement authorization check
+failed before the private spend receipt write. Between preparation and that
+check, the root-managed
+`glean-helper` binary and its gateway-token wrapper had been updated; their
+prepare-time hashes no longer matched. No helper process, authentication
+bootstrap, model-bearing preflight call, or production assignment started. The
+public [V13 supersession](results/development-matched-50x6-v13.superseded.json)
+binds the published manifest and records that the cohort cannot be resumed or
+reused.
+
+V14 moves both sign-ins into a separate foreground ceremony before the
 create-once preflight supervisor exists. Codex runs the pinned
 `login --device-auth` flow with its instructions visible in the operator's
 terminal; managed Glean likewise keeps its interactive instructions visible
 while token-bearing standard output remains suppressed. Successful credentials
 are promoted without clobbering into fresh, panel-specific storage. A sanitized
-public receipt records only that both sign-ins passed and that zero model calls
-were made. That receipt must be committed before a supervisor can be created.
+public receipt records that both sign-ins passed, that zero model calls were
+made, the precommitted contract and spend-receipt hashes, and one opaque hash
+committing the exact authentication-helper bundle. It withholds component
+binary hashes, raw paths, credentials, and provider output. That receipt must
+be committed before a supervisor can be created.
 Preflight and production never attempt login themselves, and the one-shot start
 rechecks both credential identities plus Cursor Keychain availability before
 writing its irreversible start marker.
@@ -433,7 +447,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed V13 assignment is designed to record an evaluator-owned,
+Each completed V14 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -448,10 +462,17 @@ different no-action futures for the same episode.
 The runner predeclares a hidden six-condition Williams schedule with 300
 assignments. Every profile occupies each execution position 8 or 9 times
 overall and 1 or 2 times within every family. Preparation itself is
-provider-process-free: executable content hashes are read directly, no
-provider CLI or Glean helper process is launched, and no provider-controlled
-version string enters a manifest or public result. A host-global preparation
-lease, an
+provider-process-free: provider executable content hashes and static routing
+policy are read directly, no provider CLI or Glean helper process is launched,
+and no provider-controlled version string enters a manifest or public result.
+Because the root-managed Glean helper and token wrapper can be updated while an
+operator reviews the manifest, their fixed paths, ownership, and dispatch
+semantics are frozen at preparation, while their exact bytes are frozen
+by repeated consistent sampling and bound in the same authenticated private
+write as the manifest-bound spend authorization. The sanitized
+authentication receipt commits those byte identities before preflight, and
+every authentication, preflight, and production boundary re-attests them. They
+are never silently refreshed. A host-global preparation lease, an
 authenticated create-once cohort claim, and private-first/public-second
 no-clobber publication make a partial or competing preparation fail closed.
 Model-attributable failures—including invalid reports, receipt mismatches, and
@@ -462,9 +483,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V13 first completes the foreground, zero-model
+Before production, V14 first completes the foreground, zero-model
 authentication ceremony described above. Only after its sanitized receipt is
-committed does V13 run a disposable six-call, unscored
+committed does V14 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -482,54 +503,56 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V13 authorization ceiling is $510: two Claude
+a $5 per-call runner ceiling. The V14 authorization ceiling is $510: two Claude
 preflight calls plus 100 production calls. Prior failed panels contribute a
 conservative $60 ceiling: two v2 Claude preflight calls ($10), the ambiguous v5
 attempt ($5), v7's two returned Claude preflight calls ($10), v8's two
 preflight plus one production Claude calls ($15), and V9's two preflight plus
-two production Claude calls ($20); v3, v4, v6, V10, V11, and V12 started no
-Claude model call.
+two production Claude calls ($20); v3, v4, v6, V10, V11, V12, and V13 started
+no Claude model call.
 The cumulative Claude authorization ceiling is therefore $570, not a claim
 about measured billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-A generic command-line acknowledgement is not sufficient to unlock V13. After
+A generic command-line acknowledgement is not sufficient to unlock V14. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v13 preflight and 300-assignment
+> I acknowledge the replacement six-call v14 preflight and 300-assignment
 > production run, including unbounded Codex/Cursor provider spend and up to
 > $570 total Claude spend across the failed v2 preflight, failed v5 preflight,
 > failed v6 authentication bootstrap, failed v7 preflight, failed v8
 > production run, v9 preflight and failed production run, the abandoned
 > zero-model-call v10 precommitment, the failed zero-model-call v11
 > authentication bootstrap, the abandoned zero-model-call v12 precommitment,
-> and the v13 preflight and production run.
+> the abandoned zero-model-call v13 precommitment, and the v14 preflight and
+> production run.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, V13 panel identifier, final public
-precommitment, budget-contract hash, cumulative $570 Claude ceiling, and
-unbounded Codex/Cursor spend. A missing receipt, a receipt copied from another
-manifest, or any altered field fails before either authentication bootstrap or
-model-bearing provider invocation. Preparation and contract validation hash the
-provider executables without running them; provider-controlled version output
-is not a public benchmark field. Next, run the `authenticate` subcommand in a
+private receipt bound to the exact text, V14 panel identifier, final public
+precommitment, budget-contract hash, exact Glean authentication-dependency
+identity, cumulative $570 Claude ceiling, and unbounded Codex/Cursor spend. A
+missing receipt, a receipt copied from another manifest, or any altered field
+fails before either authentication bootstrap or model-bearing provider
+invocation. Preparation and authorization hash files without running them;
+provider-controlled version output is not a public benchmark field. Next, run
+the `authenticate` subcommand in a
 foreground terminal with `--acknowledge-interactive-authentication`. It exposes
 sign-in instructions but never provider tokens, prompts, observations, traces,
 hidden episode data, or scores. Commit the resulting
-`results/development-matched-50x6-v13.authentication.json` before generating
+`results/development-matched-50x6-v14.authentication.json` before generating
 the one-shot preflight supervisor. The preflight and production commands still
 require `--acknowledge-unbounded-provider-spend` as an immediate execution
 guard.
 
-The V13 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V14 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -579,20 +602,29 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V13 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V14 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
-helper, scientific runtime, replay schema, and profile surface. The installed
-helper behavior is supported by a manual source audit plus its binary content
-hash; there is not yet cryptographic source-to-binary provenance. Pre-existing
-drift consumes no production assignment. Mid-call drift or a non-timeout
-nonzero provider exit seals that assignment as a non-retryable transport void.
+helper, scientific runtime, replay schema, and profile surface. The trusted
+computing base includes the root administrator and the installed Glean
+distribution; there is not yet an independently approved digest or
+cryptographic source-to-binary provenance for that helper bundle. V14 commits
+the exact installed bundle after acknowledgement and detects persistent
+identity or ownership drift at every call boundary, but a malicious
+administrator capable of an ABA swap between attestation and execution is
+explicitly out of scope. Such an administrator could also replace the
+evaluator, key, or runtime, so this host remains development-only.
+The ownership checks rely on ordinary POSIX metadata and do not independently
+rule out permissive ACLs or ownership-disabled mount semantics.
+Pre-existing drift consumes no production assignment. Mid-call drift or a
+non-timeout nonzero provider exit seals that assignment as a non-retryable
+transport void.
 Except for the Codex credential-safety case above, a benchmark timeout and a
 zero-exit invalid model submission remain scored zeros so an agent cannot erase
 a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V13 detects the pipe-retaining form of that escape, but
+pipes; V14 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

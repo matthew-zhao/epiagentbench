@@ -76,27 +76,34 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v13"
+PANEL_ID = "development-matched-50x6-v14"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v13"
+SCHEMA_VERSION = "development_matched_panel_v14"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v13 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v14 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $570 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
     "failed v8 production run, v9 preflight and failed production run, the "
     "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
     "v11 authentication bootstrap, the abandoned zero-model-call v12 "
-    "precommitment, and the v13 preflight and production run."
+    "precommitment, the abandoned zero-model-call v13 precommitment, and the "
+    "v14 preflight and production run."
 )
-_SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
-_AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v1"
-_AUTHENTICATION_RECEIPT_SCHEMA = "epiagentbench.authentication_receipt.v1"
+_SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v2"
+_AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v2"
+_AUTHENTICATION_RECEIPT_SCHEMA = "epiagentbench.authentication_receipt.v2"
+_AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA = (
+    "epiagentbench.authentication_dependency_freeze.v1"
+)
+_ROOT_MANAGED_EXECUTABLE_POLICY = (
+    "root_owned_root_group_single_link_regular_nonwritable_executable"
+)
 _PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v1"
 _CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 570.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
@@ -2991,13 +2998,15 @@ def _safe_entrypoint_identity(path: Path, *, label: str) -> dict[str, Any]:
 
 def _glean_helper_identity() -> dict[str, str]:
     try:
-        digest = _fixed_file_sha256(_GLEAN_HELPER_PATH, label="Glean helper")
+        digest = _root_owned_regular_executable_sha256(
+            _GLEAN_HELPER_PATH, label="Glean helper"
+        )
     except (OSError, RuntimeError):
         raise ProviderStateIsolationError(
             "Unable to pin Glean helper identity"
         ) from None
     try:
-        final_digest = _fixed_file_sha256(
+        final_digest = _root_owned_regular_executable_sha256(
             _GLEAN_HELPER_PATH, label="Glean helper"
         )
     except (OSError, RuntimeError):
@@ -3011,7 +3020,197 @@ def _glean_helper_identity() -> dict[str, str]:
     return {
         "path": str(_GLEAN_HELPER_PATH),
         "sha256": digest,
+        "policy": _ROOT_MANAGED_EXECUTABLE_POLICY,
     }
+
+
+def _glean_gateway_dispatch_contract() -> dict[str, Any]:
+    return {
+        "argv0_basename": "glean-llm-gateway-token",
+        "arguments": [],
+        "option_source": "glean.DefaultOptions",
+        "oauth_client_id_source": "explicit_GLEAN_HELPER_OAUTH_CLIENT_ID",
+        "credential_path": "$HOME/.glean-llm-gateway/credentials.json",
+    }
+
+
+def _require_root_owned_regular_executable_metadata(
+    metadata: os.stat_result, *, label: str
+) -> None:
+    """Enforce the root-managed executable policy on one metadata sample."""
+
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or metadata.st_nlink != 1
+        or metadata.st_mode & 0o022
+        or not metadata.st_mode & 0o111
+    ):
+        raise RuntimeError(f"Required {label} ownership policy drifted")
+
+
+def _require_root_owned_nonwritable_ancestry(
+    path: Path, *, label: str
+) -> None:
+    """Exclude non-root pathname replacement through every ancestor."""
+
+    current = path.parent
+    while True:
+        try:
+            metadata = current.lstat()
+        except OSError:
+            raise RuntimeError(
+                f"Required {label} ancestor is unavailable"
+            ) from None
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or metadata.st_mode & 0o022
+        ):
+            raise RuntimeError(
+                f"Required {label} ancestor ownership policy drifted"
+            )
+        if current.parent == current:
+            break
+        current = current.parent
+
+
+def _root_owned_regular_executable_sha256(path: Path, *, label: str) -> str:
+    """Hash a stable root-owned executable and re-attest its path policy."""
+
+    if not path.is_absolute():
+        raise RuntimeError(f"Required {label} path must be absolute")
+    _require_root_owned_nonwritable_ancestry(path, label=label)
+    try:
+        before = path.lstat()
+    except OSError:
+        raise RuntimeError(f"Required {label} is unavailable") from None
+    _require_root_owned_regular_executable_metadata(before, label=label)
+    digest = _fixed_file_sha256(path, label=label)
+    try:
+        after = path.lstat()
+    except OSError:
+        raise RuntimeError(f"Required {label} changed while hashing") from None
+    _require_root_owned_regular_executable_metadata(after, label=label)
+    stable_fields = (
+        "st_dev",
+        "st_ino",
+        "st_mode",
+        "st_uid",
+        "st_gid",
+        "st_nlink",
+        "st_size",
+        "st_mtime_ns",
+        "st_ctime_ns",
+    )
+    if any(
+        getattr(after, field) != getattr(before, field)
+        for field in stable_fields
+    ):
+        raise RuntimeError(f"Required {label} changed while hashing")
+    _require_root_owned_nonwritable_ancestry(path, label=label)
+    return digest
+
+
+def _root_owned_regular_executable_identity(
+    path: Path, *, label: str
+) -> dict[str, Any]:
+    """Pin one fixed, nonsymlink root-managed executable entrypoint."""
+
+    digest = _root_owned_regular_executable_sha256(path, label=label)
+    try:
+        resolved = path.resolve(strict=True)
+        entry_metadata = path.lstat()
+        resolved_metadata = resolved.lstat()
+    except (OSError, RuntimeError):
+        raise RuntimeError(f"Unable to resolve required {label}") from None
+    _require_root_owned_regular_executable_metadata(
+        entry_metadata, label=label
+    )
+    _require_root_owned_regular_executable_metadata(
+        resolved_metadata, label=label
+    )
+    if (
+        (entry_metadata.st_dev, entry_metadata.st_ino)
+        != (resolved_metadata.st_dev, resolved_metadata.st_ino)
+        or resolved != path
+    ):
+        raise RuntimeError(f"Required {label} must be a fixed regular file")
+    final_digest = _root_owned_regular_executable_sha256(path, label=label)
+    if not hmac.compare_digest(digest, final_digest):
+        raise RuntimeError(f"Required {label} changed during identity probe")
+    return {
+        "path": str(path),
+        "entrypoint_kind": "regular_file",
+        "link_text": None,
+        "resolved_path": str(resolved),
+        "target_sha256": digest,
+        "policy": _ROOT_MANAGED_EXECUTABLE_POLICY,
+    }
+
+
+def _deferred_root_owned_executable_contract(
+    path: Path, *, label: str
+) -> dict[str, Any]:
+    """Validate a fixed root-managed entrypoint without freezing its bytes yet."""
+
+    if not path.is_absolute():
+        raise RuntimeError(f"Required {label} path must be absolute")
+    try:
+        metadata = path.lstat()
+    except OSError:
+        raise RuntimeError(f"Required {label} is unavailable") from None
+    _require_root_owned_nonwritable_ancestry(path, label=label)
+    _require_root_owned_regular_executable_metadata(metadata, label=label)
+    return {
+        "path": str(path),
+        "entrypoint_kind": "root_owned_single_link_regular_executable",
+        "group_or_world_writable": False,
+        "trusted_root_owned_nonwritable_ancestry": True,
+        "exact_content_freeze_stage": (
+            "manifest_bound_spend_authorization_before_authentication"
+        ),
+        "freeze_once": True,
+        "required_live_attestation_boundaries": [
+            "before_and_after_foreground_authentication",
+            "before_and_after_each_preflight_provider_call",
+            "before_and_after_each_production_provider_call",
+        ],
+    }
+
+
+def _current_glean_auth_dependency_identity() -> dict[str, Any]:
+    """Take one internally consistent, process-free snapshot of mutable helpers."""
+
+    def read_once() -> dict[str, Any]:
+        try:
+            wrapper = _root_owned_regular_executable_identity(
+                _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
+                label="Glean LLM gateway token wrapper",
+            )
+            wrapper["dispatch_contract"] = _glean_gateway_dispatch_contract()
+            return {
+                "schema_version": _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA,
+                "glean_helper": _glean_helper_identity(),
+                "glean_llm_gateway_token_wrapper": wrapper,
+            }
+        except ProviderExecutionIsolationError:
+            raise
+        except (OSError, RuntimeError, ValueError):
+            raise ProviderStateIsolationError(
+                "Unable to attest Glean authentication dependencies"
+            ) from None
+
+    first = read_once()
+    second = read_once()
+    if first != second:
+        raise ProviderStateIsolationError(
+            "Glean authentication dependencies changed during identity freeze"
+        )
+    return first
 
 
 def _cli_contract() -> dict[str, Any]:
@@ -3022,7 +3221,7 @@ def _cli_contract() -> dict[str, Any]:
         raise RuntimeError(
             "Matched-panel preparation forbids ambient proxy or custom-CA overrides"
         )
-    identities: dict[str, dict[str, str]] = {}
+    identities: dict[str, dict[str, Any]] = {}
     for profile in PROFILES:
         executable = str(profile["executable"])
         if executable not in identities:
@@ -3031,17 +3230,11 @@ def _cli_contract() -> dict[str, Any]:
     managed_settings, telemetry_enabled = _managed_settings_identity(
         glean_config
     )
-    gateway_wrapper = _safe_entrypoint_identity(
+    gateway_wrapper = _deferred_root_owned_executable_contract(
         _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
         label="Glean LLM gateway token wrapper",
     )
-    gateway_wrapper["dispatch_contract"] = {
-        "argv0_basename": "glean-llm-gateway-token",
-        "arguments": [],
-        "option_source": "glean.DefaultOptions",
-        "oauth_client_id_source": "explicit_GLEAN_HELPER_OAUTH_CLIENT_ID",
-        "credential_path": "$HOME/.glean-llm-gateway/credentials.json",
-    }
+    gateway_wrapper["dispatch_contract"] = _glean_gateway_dispatch_contract()
     otel_helper = (
         {
             "path": str(_CLAUDE_OTEL_HELPER_PATH),
@@ -3065,7 +3258,10 @@ def _cli_contract() -> dict[str, Any]:
                     label="macOS Keychain metadata tool",
                 ),
             },
-            "glean_helper": _glean_helper_identity(),
+            "glean_helper": _deferred_root_owned_executable_contract(
+                _GLEAN_HELPER_PATH,
+                label="Glean helper",
+            ),
             "glean_llm_gateway_token_wrapper": gateway_wrapper,
             "glean_config": glean_config_identity,
             "managed_settings": managed_settings,
@@ -3188,10 +3384,12 @@ def _attest_execution_contracts(
             "persistent_supervisor_contract": _persistent_supervisor_contract(),
             "profiles": _profile_contract(),
         }
-    except Exception as error:
-        raise RuntimeError(
+    except ProviderExecutionIsolationError:
+        raise
+    except Exception:
+        raise ProviderStateIsolationError(
             "Unable to attest per-call execution contracts"
-        ) from error
+        ) from None
     hashes = public.get("contract_hashes")
     hash_names = {
         "source_contract": "source_sha256",
@@ -3207,7 +3405,7 @@ def _attest_execution_contracts(
             or public.get(surface) != current
             or hashes.get(hash_names[surface]) != _component_hash(current)
         ):
-            raise RuntimeError(
+            raise ProviderStateIsolationError(
                 f"Per-call execution contract drifted: {surface}"
             )
 
@@ -3354,6 +3552,7 @@ def _spend_authorization_contract() -> dict[str, Any]:
             "panel_id",
             "final_public_precommitment_sha256",
             "budget_contract_sha256",
+            "frozen_glean_auth_dependency_identity_sha256",
             "claude_cumulative_authorization_ceiling_usd",
             "unbounded_codex_cursor_provider_spend",
             "exact_acknowledgement_text",
@@ -3382,6 +3581,18 @@ def _authentication_setup_contract(
             },
         },
         "model_calls": 0,
+        "authentication_dependency_identity": {
+            "prepare_time_contract": (
+                "fixed_root_owned_paths_and_dispatch_semantics"
+            ),
+            "exact_byte_identity_freeze": (
+                "consistently_sampled_and_bound_with_manifest_bound_"
+                "spend_authorization"
+            ),
+            "public_commitment": (
+                "opaque_bundle_hash_in_authentication_receipt_before_preflight"
+            ),
+        },
         "retry_policy": (
             "only_after_verified_process_group_quiescence_and_"
             "unchanged_empty_target"
@@ -3418,8 +3629,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v13_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v13_authorization_breakdown": {
+        "claude_current_v14_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v14_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -3443,6 +3654,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v10_usd": 0.0,
             "v11_usd": 0.0,
             "v12_usd": 0.0,
+            "v13_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -3502,6 +3714,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v12_supersession": (
                 "results/development-matched-50x6-v12.superseded.json"
             ),
+            "v13_manifest": (
+                "results/development-matched-50x6-v13.manifest.json"
+            ),
+            "v13_supersession": (
+                "results/development-matched-50x6-v13.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -3550,13 +3768,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V13 requires an exact 1800-second assignment timeout")
+        raise ValueError("V14 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V13 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V14 requires an exact $5 Claude per-call ceiling")
 
     private_state_storage = _private_state_storage_binding(
         private_state_path,
@@ -3902,6 +4120,10 @@ def _prepare_panel_locked(
         "episodes": episodes,
         "schedule_nonce_hex": nonce.hex(),
         "schedule": schedule,
+        "authentication_dependency_freeze": {
+            "schema_version": _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA,
+            "status": "required",
+        },
         "authentication_setup": {
             "schema_version": _AUTHENTICATION_SETUP_SCHEMA,
             "status": "required",
@@ -4043,6 +4265,11 @@ def _validate_contracts(
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Matched-panel manifest contract mismatch")
+    _authentication_dependency_freeze(
+        private,
+        public,
+        require_frozen=private.get("spend_authorization") is not None,
+    )
     _validate_authentication_setup_state(private, public)
     _validate_claude_auth_binding(
         root=root,
@@ -4278,6 +4505,8 @@ def _validate_contracts(
 
 def _expected_spend_authorization(
     public: Mapping[str, Any],
+    *,
+    frozen_glean_auth_dependency_identity_sha256: str,
 ) -> dict[str, Any]:
     """Build the one exact private receipt accepted for this precommitment."""
 
@@ -4311,17 +4540,21 @@ def _expected_spend_authorization(
         or budget.get("other_provider_spend") != "unbounded"
         or non_claude_systems != set(_UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION)
         or hashes.get("budgets_sha256") != _component_hash(budget)
+        or not _is_sha256(frozen_glean_auth_dependency_identity_sha256)
         or not isinstance(public.get("run_contract"), Mapping)
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V13 spend authorization contract mismatch")
+        raise ValueError("V14 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
         "panel_id": PANEL_ID,
         "final_public_precommitment_sha256": precommitment,
         "budget_contract_sha256": str(hashes["budgets_sha256"]),
+        "frozen_glean_auth_dependency_identity_sha256": (
+            frozen_glean_auth_dependency_identity_sha256
+        ),
         "claude_cumulative_authorization_ceiling_usd": float(ceiling),
         "unbounded_provider_spend": dict(
             _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION
@@ -4337,13 +4570,32 @@ def _expected_spend_authorization(
 def _assert_spend_authorization(
     private: Mapping[str, Any], public: Mapping[str, Any]
 ) -> dict[str, Any]:
-    expected = _expected_spend_authorization(public)
     supplied = private.get("spend_authorization")
-    if not isinstance(supplied, Mapping) or not hmac.compare_digest(
+    if not isinstance(supplied, Mapping):
+        raise RuntimeError(
+            "A manifest-bound exact v14 spend authorization receipt is required "
+            "before any authentication bootstrap or model-bearing provider call"
+        )
+    try:
+        freeze = _authentication_dependency_freeze(
+            private, public, require_frozen=True
+        )
+        expected = _expected_spend_authorization(
+            public,
+            frozen_glean_auth_dependency_identity_sha256=str(
+                freeze["identity_sha256"]
+            ),
+        )
+    except (RuntimeError, ValueError):
+        raise RuntimeError(
+            "A manifest-bound exact v14 spend authorization receipt is required "
+            "before any authentication bootstrap or model-bearing provider call"
+        ) from None
+    if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v13 spend authorization receipt is required "
+            "A manifest-bound exact v14 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -4365,7 +4617,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v13 $570 cumulative spend acknowledgement text is required"
+            "The exact v14 $570 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -4440,11 +4692,20 @@ def authorize_panel_spend(
             expected_identity=codex_identity,
             credentials_present=False,
         )
-        expected = _expected_spend_authorization(public)
         existing = private.get("spend_authorization")
         if existing is not None:
-            _assert_spend_authorization(private, public)
+            expected = _assert_spend_authorization(private, public)
+            _attest_frozen_glean_auth_dependencies(private, public)
             return expected
+        if private.get("authentication_dependency_freeze") != {
+            "schema_version": _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA,
+            "status": "required",
+        }:
+            raise RuntimeError(
+                "Authentication dependency identity was already consumed"
+            )
+        frozen_identity = _current_glean_auth_dependency_identity()
+        frozen_identity_sha256 = _component_hash(frozen_identity)
         _assert_authorization_worktree(
             root=root,
             private_state_path=private_state_path,
@@ -4456,6 +4717,28 @@ def authorize_panel_spend(
                 "Public matched-panel precommitment changed during spend "
                 "authorization"
             )
+        if _current_glean_auth_dependency_identity() != frozen_identity:
+            raise ProviderStateIsolationError(
+                "Glean authentication dependencies changed during authorization"
+            )
+        private["authentication_dependency_freeze"] = {
+            "schema_version": _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA,
+            "status": "frozen",
+            "panel_id": PANEL_ID,
+            "public_precommitment_sha256": public["precommitment_sha256"],
+            "static_cli_contract_sha256": public["contract_hashes"][
+                "cli_sha256"
+            ],
+            "identity": frozen_identity,
+            "identity_sha256": frozen_identity_sha256,
+            "frozen_at_utc": _utc_now(),
+        }
+        expected = _expected_spend_authorization(
+            public,
+            frozen_glean_auth_dependency_identity_sha256=(
+                frozen_identity_sha256
+            ),
+        )
         private["spend_authorization"] = expected
         _write_private_state(private_state_path, private, authentication_key)
         return expected
@@ -4500,6 +4783,133 @@ def _authentication_contract_hashes(
     ):
         raise ValueError("Authentication contract commitments are invalid")
     return {name: str(hashes[name]) for name in names}
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith("sha256:")
+        and len(value) == 71
+        and all(character in "0123456789abcdef" for character in value[7:])
+    )
+
+
+def _validate_glean_auth_dependency_identity(
+    value: Any,
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {
+        "schema_version",
+        "glean_helper",
+        "glean_llm_gateway_token_wrapper",
+    }:
+        raise ValueError("Frozen Glean authentication dependency identity is invalid")
+    helper = value.get("glean_helper")
+    wrapper = value.get("glean_llm_gateway_token_wrapper")
+    if (
+        value.get("schema_version") != _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA
+        or not isinstance(helper, dict)
+        or set(helper) != {"path", "sha256", "policy"}
+        or helper.get("path") != str(_GLEAN_HELPER_PATH)
+        or not _is_sha256(helper.get("sha256"))
+        or helper.get("policy") != _ROOT_MANAGED_EXECUTABLE_POLICY
+        or not isinstance(wrapper, dict)
+        or set(wrapper)
+        != {
+            "path",
+            "entrypoint_kind",
+            "link_text",
+            "resolved_path",
+            "target_sha256",
+            "policy",
+            "dispatch_contract",
+        }
+        or wrapper.get("path") != str(_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH)
+        or wrapper.get("entrypoint_kind") != "regular_file"
+        or wrapper.get("link_text") is not None
+        or wrapper.get("policy") != _ROOT_MANAGED_EXECUTABLE_POLICY
+        or not isinstance(wrapper.get("resolved_path"), str)
+        or not Path(str(wrapper["resolved_path"])).is_absolute()
+        or not _is_sha256(wrapper.get("target_sha256"))
+        or wrapper.get("dispatch_contract") != _glean_gateway_dispatch_contract()
+    ):
+        raise ValueError("Frozen Glean authentication dependency identity is invalid")
+    return value
+
+
+def _authentication_dependency_freeze(
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+    *,
+    require_frozen: bool,
+) -> dict[str, Any]:
+    freeze = private.get("authentication_dependency_freeze")
+    if not isinstance(freeze, dict) or freeze.get("schema_version") != (
+        _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA
+    ):
+        raise ValueError("Private authentication dependency freeze is invalid")
+    if freeze.get("status") == "required":
+        if set(freeze) != {"schema_version", "status"} or require_frozen:
+            raise RuntimeError(
+                "Manifest-bound Glean authentication dependencies are not frozen"
+            )
+        return freeze
+    if set(freeze) != {
+        "schema_version",
+        "status",
+        "panel_id",
+        "public_precommitment_sha256",
+        "static_cli_contract_sha256",
+        "identity",
+        "identity_sha256",
+        "frozen_at_utc",
+    }:
+        raise ValueError("Private authentication dependency freeze is invalid")
+    identity = _validate_glean_auth_dependency_identity(freeze.get("identity"))
+    hashes = public.get("contract_hashes")
+    if (
+        freeze.get("status") != "frozen"
+        or freeze.get("panel_id") != PANEL_ID
+        or freeze.get("public_precommitment_sha256")
+        != public.get("precommitment_sha256")
+        or not isinstance(hashes, Mapping)
+        or freeze.get("static_cli_contract_sha256") != hashes.get("cli_sha256")
+        or freeze.get("identity_sha256") != _component_hash(identity)
+        or not isinstance(freeze.get("frozen_at_utc"), str)
+        or not freeze["frozen_at_utc"]
+    ):
+        raise ValueError("Private authentication dependency freeze is invalid")
+    return freeze
+
+
+def _sanitized_authentication_dependency_projection(
+    freeze: Mapping[str, Any],
+) -> dict[str, Any]:
+    _validate_glean_auth_dependency_identity(freeze.get("identity"))
+    return {
+        "schema_version": _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA,
+        "identity_sha256": freeze["identity_sha256"],
+        "root_owned_single_link_regular_executable_policy_attested": True,
+        "exact_bundle_identity_withheld": True,
+        "raw_provider_output_published": False,
+        "raw_machine_paths_published": False,
+    }
+
+
+def _attest_frozen_glean_auth_dependencies(
+    private: Mapping[str, Any], public: Mapping[str, Any]
+) -> dict[str, Any]:
+    freeze = _authentication_dependency_freeze(
+        private, public, require_frozen=True
+    )
+    current = _current_glean_auth_dependency_identity()
+    if not hmac.compare_digest(
+        _canonical_bytes(current),
+        _canonical_bytes(dict(freeze["identity"])),
+    ):
+        raise ProviderStateIsolationError(
+            "Frozen Glean authentication dependencies drifted"
+        )
+    return freeze
 
 
 def _validate_authentication_setup_state(
@@ -4690,6 +5100,7 @@ def _validate_authentication_contracts(
         raise ValueError("Authentication component commitment mismatch")
     if revalidate_live_identity_contracts:
         _attest_execution_contracts(root=root, public=public)
+        _attest_frozen_glean_auth_dependencies(private, public)
     return _validate_authentication_setup_state(private, public)
 
 
@@ -4699,6 +5110,9 @@ def _expected_authentication_receipt(
 ) -> dict[str, Any]:
     _require_completed_authentication_state(private, public)
     spend = _assert_spend_authorization(private, public)
+    dependency_freeze = _authentication_dependency_freeze(
+        private, public, require_frozen=True
+    )
     unsigned = {
         "schema_version": _AUTHENTICATION_RECEIPT_SCHEMA,
         "panel_id": PANEL_ID,
@@ -4709,6 +5123,11 @@ def _expected_authentication_receipt(
             public
         ),
         "spend_authorization_receipt_sha256": spend["receipt_sha256"],
+        "authentication_dependency_identity": (
+            _sanitized_authentication_dependency_projection(
+                dependency_freeze
+            )
+        ),
         "authentication_prerequisite": {
             "codex": "passed_before_preflight",
             "managed_glean": "passed_before_preflight",
@@ -5067,6 +5486,7 @@ def authenticate_panel(
         )
         _assert_spend_authorization(private, public)
         _attest_execution_contracts(root=root, public=public)
+        _attest_frozen_glean_auth_dependencies(private, public)
         if setup.get("status") == "terminal_failed":
             raise RuntimeError(
                 "This panel has a terminal authentication incident"
@@ -5080,6 +5500,8 @@ def authenticate_panel(
                     claude_secure_storage_dir=resolved_claude,
                     codex_secure_storage_dir=resolved_codex,
                 )
+                _attest_execution_contracts(root=root, public=public)
+                _attest_frozen_glean_auth_dependencies(private, public)
             except Exception:
                 _terminalize_authentication_incident(
                     private=private,
@@ -5089,9 +5511,8 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V13 panel cannot retry"
+                    "state; this V14 panel cannot retry"
                 ) from None
-            _attest_execution_contracts(root=root, public=public)
             if (
                 setup.get("status") == "pending_publication"
                 and not receipt_path.exists()
@@ -5120,7 +5541,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V13 panel "
+                "Authentication process state is ambiguous; this V14 panel "
                 "cannot retry"
             )
         if (
@@ -5154,7 +5575,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V13 panel cannot retry"
+                "state; this V14 panel cannot retry"
             ) from None
         _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
@@ -5257,6 +5678,7 @@ def authenticate_panel(
             if state.get("status") == "passed":
                 continue
             _attest_execution_contracts(root=root, public=public)
+            _attest_frozen_glean_auth_dependencies(private, public)
             _assert_authorization_worktree(
                 root=root,
                 private_state_path=private_state_path,
@@ -5279,10 +5701,12 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V13 panel cannot retry"
+                    "state; this V14 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
+                _attest_execution_contracts(root=root, public=public)
+                _attest_frozen_glean_auth_dependencies(private, public)
                 if provider == "codex":
                     _require_codex_credential_state(
                         resolved_codex,
@@ -5351,10 +5775,11 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V13 panel cannot retry"
+                    "V14 panel cannot retry"
                 ) from None
 
         _attest_execution_contracts(root=root, public=public)
+        _attest_frozen_glean_auth_dependencies(private, public)
         _assert_authorization_worktree(
             root=root,
             private_state_path=private_state_path,
@@ -5377,7 +5802,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V13 panel cannot retry"
+                "state; this V14 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             private=private,
@@ -5485,6 +5910,7 @@ def assert_panel_authentication_ready(
     _assert_spend_authorization(private, public)
     if revalidate_live_identity_contracts:
         _attest_execution_contracts(root=root, public=public)
+        _attest_frozen_glean_auth_dependencies(private, public)
     if setup.get("status") != "passed":
         raise RuntimeError(
             "Foreground authentication must pass before supervisor creation"
@@ -6482,6 +6908,7 @@ def _run_environment_preflight_core(
                 failure_stage = "execution_contract_before_harness"
                 attest_current_supervisor()
                 _attest_execution_contracts(root=root, public=public)
+                _attest_frozen_glean_auth_dependencies(private, public)
                 failure_stage = "provider_launch"
                 marker["provider_invocation"] = {
                     "status": "started",
@@ -6531,6 +6958,7 @@ def _run_environment_preflight_core(
                 failure_stage = "execution_contract_after_harness"
                 attest_current_supervisor()
                 _attest_execution_contracts(root=root, public=public)
+                _attest_frozen_glean_auth_dependencies(private, public)
                 if profile["system"] == "claude":
                     failure_stage = "credential_attestation"
                     _require_claude_credential_state(
@@ -7969,6 +8397,24 @@ def _run_panel_locked(
                 time.sleep(delay)
         raise AssertionError("Clean-boundary attestation retry loop escaped")
 
+    def attest_full_provider_boundary() -> None:
+        """Attest supervisor, execution, and helper state as one boundary."""
+
+        try:
+            attest_clean_provider_boundary()
+            _attest_execution_contracts(
+                root=root, public=public_manifest
+            )
+            _attest_frozen_glean_auth_dependencies(
+                private, public_manifest
+            )
+        except ProviderExecutionIsolationError:
+            raise
+        except (OSError, RuntimeError, ValueError):
+            raise ProviderStateIsolationError(
+                "Provider boundary attestation failed"
+            ) from None
+
     if assignments and assignments[-1]["status"] == "started":
         interrupted_profile_id = str(assignments[-1]["profile_id"])
         private["execution_incident"] = {
@@ -8090,7 +8536,7 @@ def _run_panel_locked(
                 codex_auth_file_identity,
             )
         try:
-            attest_clean_provider_boundary()
+            attest_full_provider_boundary()
         except ProviderExecutionIsolationError as error:
             private["execution_incident"] = {
                 "status": "terminal",
@@ -8111,7 +8557,6 @@ def _run_panel_locked(
             )
             _atomic_json(public_results_path, stopped)
             return stopped
-        _attest_execution_contracts(root=root, public=public_manifest)
         started = _utc_now()
         marker: dict[str, Any] = {
             "episode_ref": ref,
@@ -8170,8 +8615,7 @@ def _run_panel_locked(
                 progress_callback=persist_progress,
                 **provider_auth_kwargs,
             )
-            attest_current_supervisor()
-            _attest_execution_contracts(root=root, public=public_manifest)
+            attest_full_provider_boundary()
             if profile["system"] == "claude":
                 try:
                     _require_claude_credential_state(
@@ -8295,7 +8739,7 @@ def _run_panel_locked(
             f"Matched panel did not reach {ASSIGNMENT_COUNT} terminal assignments"
         )
     try:
-        attest_current_supervisor()
+        attest_full_provider_boundary()
     except ProviderExecutionIsolationError as error:
         private["execution_incident"] = {
             "status": "terminal",

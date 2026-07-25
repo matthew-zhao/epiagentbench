@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from epiagentbench.development_matched_panel import (
+    PANEL_ID,
     assert_durable_live_execution_paths,
     authenticate_panel,
     authorize_panel_spend,
@@ -75,7 +76,7 @@ def _safe_authentication_summary(payload: dict[str, object]) -> dict[str, object
         else 0
     )
     raw_panel_id = payload.get("panel_id")
-    panel_id = raw_panel_id if isinstance(raw_panel_id, str) else "unknown"
+    panel_id = PANEL_ID if raw_panel_id == PANEL_ID else "unknown"
     return {
         "panel_id": panel_id,
         "status": status,

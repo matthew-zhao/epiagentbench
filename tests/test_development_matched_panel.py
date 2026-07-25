@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -59,6 +60,33 @@ CLI_CONTRACT = {
             "executable_sha256": "sha256:" + "3" * 64,
         },
     ]
+}
+AUTHENTICATION_DEPENDENCY_IDENTITY = {
+    "schema_version": "epiagentbench.authentication_dependency_freeze.v1",
+    "glean_helper": {
+        "path": "/usr/local/bin/glean-helper",
+        "sha256": "sha256:" + "4" * 64,
+        "policy": (
+            "root_owned_root_group_single_link_regular_nonwritable_executable"
+        ),
+    },
+    "glean_llm_gateway_token_wrapper": {
+        "path": "/usr/local/bin/glean-llm-gateway-token",
+        "entrypoint_kind": "regular_file",
+        "link_text": None,
+        "resolved_path": "/usr/local/bin/glean-llm-gateway-token",
+        "target_sha256": "sha256:" + "5" * 64,
+        "policy": (
+            "root_owned_root_group_single_link_regular_nonwritable_executable"
+        ),
+        "dispatch_contract": {
+            "argv0_basename": "glean-llm-gateway-token",
+            "arguments": [],
+            "option_source": "glean.DefaultOptions",
+            "oauth_client_id_source": "explicit_GLEAN_HELPER_OAUTH_CLIENT_ID",
+            "credential_path": "$HOME/.glean-llm-gateway/credentials.json",
+        },
+    },
 }
 RUNTIME_CONTRACT = {
     "python": "test-python",
@@ -190,9 +218,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v13.authentication.json",
+            "results/development-matched-50x6-v14.authentication.json",
         ):
-            return "results/development-matched-50x6-v13.authentication.json"
+            return "results/development-matched-50x6-v14.authentication.json"
         return ""
 
     @staticmethod
@@ -292,6 +320,13 @@ class MatchedPanelTests(unittest.TestCase):
                 patch(
                     "epiagentbench.development_matched_panel._cli_contract",
                     return_value=CLI_CONTRACT,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_current_glean_auth_dependency_identity",
+                    return_value=AUTHENTICATION_DEPENDENCY_IDENTITY,
                 )
             )
             stack.enter_context(
@@ -1582,7 +1617,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v13_authorization_breakdown"],
+            contract["claude_current_v14_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -1592,7 +1627,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v13_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v14_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -1608,6 +1643,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v10_usd": 0.0,
                 "v11_usd": 0.0,
                 "v12_usd": 0.0,
+                "v13_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -1638,6 +1674,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "v11_manifest",
                 "v11_supersession",
                 "v12_supersession",
+                "v13_manifest",
+                "v13_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -1731,7 +1769,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v13_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v14_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -1797,6 +1835,28 @@ class MatchedPanelTests(unittest.TestCase):
             patch(
                 "epiagentbench.development_matched_panel._GLEAN_HELPER_PATH",
                 executable,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_deferred_root_owned_executable_contract",
+                side_effect=lambda path, **_kwargs: {
+                    "path": str(path),
+                    "entrypoint_kind": (
+                        "root_owned_single_link_regular_executable"
+                    ),
+                    "group_or_world_writable": False,
+                    "trusted_root_owned_nonwritable_ancestry": True,
+                    "exact_content_freeze_stage": (
+                        "manifest_bound_spend_authorization_before_"
+                        "authentication"
+                    ),
+                    "freeze_once": True,
+                    "required_live_attestation_boundaries": [
+                        "before_and_after_foreground_authentication",
+                        "before_and_after_each_preflight_provider_call",
+                        "before_and_after_each_production_provider_call",
+                    ],
+                },
             ),
             patch(
                 "epiagentbench.development_matched_panel._safe_glean_config",
@@ -2145,7 +2205,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v13")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v14")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -2153,7 +2213,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             private["spend_authorization"],
-            matched._expected_spend_authorization(public),
+            matched._expected_spend_authorization(
+                public,
+                frozen_glean_auth_dependency_identity_sha256=private[
+                    "authentication_dependency_freeze"
+                ]["identity_sha256"],
+            ),
         )
         self.assertEqual(
             private["spend_authorization"][
@@ -2919,6 +2984,9 @@ class MatchedPanelTests(unittest.TestCase):
         executable = self.root / "identity-cli"
         executable.write_bytes(b"fixed executable bytes")
         executable.chmod(0o755)
+        expected = "sha256:" + hashlib.sha256(
+            b"fixed executable bytes"
+        ).hexdigest()
 
         with (
             patch(
@@ -2931,6 +2999,11 @@ class MatchedPanelTests(unittest.TestCase):
             ),
             patch(
                 "epiagentbench.development_matched_panel."
+                "_root_owned_regular_executable_sha256",
+                return_value=expected,
+            ) as root_owned_hash,
+            patch(
+                "epiagentbench.development_matched_panel."
                 "_run_provider_process_group",
                 side_effect=AssertionError("identity hashing must not execute"),
             ) as run_group,
@@ -2938,18 +3011,133 @@ class MatchedPanelTests(unittest.TestCase):
             cli_identity = matched._read_cli_identity("identity-cli")
             glean_identity = matched._glean_helper_identity()
 
-        expected = "sha256:" + hashlib.sha256(
-            b"fixed executable bytes"
-        ).hexdigest()
         self.assertEqual(
             cli_identity,
             {"name": "identity-cli", "executable_sha256": expected},
         )
         self.assertEqual(
             glean_identity,
-            {"path": str(executable), "sha256": expected},
+            {
+                "path": str(executable),
+                "sha256": expected,
+                "policy": (
+                    "root_owned_root_group_single_link_regular_"
+                    "nonwritable_executable"
+                ),
+            },
         )
+        self.assertEqual(root_owned_hash.call_count, 2)
         run_group.assert_not_called()
+
+    def test_glean_dependency_bundle_freeze_rejects_mixed_snapshot(self):
+        wrapper = copy.deepcopy(
+            AUTHENTICATION_DEPENDENCY_IDENTITY[
+                "glean_llm_gateway_token_wrapper"
+            ]
+        )
+        with (
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_glean_helper_identity",
+                side_effect=[
+                    {
+                        "path": str(matched._GLEAN_HELPER_PATH),
+                        "sha256": "sha256:" + "1" * 64,
+                        "policy": (
+                            "root_owned_root_group_single_link_regular_"
+                            "nonwritable_executable"
+                        ),
+                    },
+                    {
+                        "path": str(matched._GLEAN_HELPER_PATH),
+                        "sha256": "sha256:" + "2" * 64,
+                        "policy": (
+                            "root_owned_root_group_single_link_regular_"
+                            "nonwritable_executable"
+                        ),
+                    },
+                ],
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_root_owned_regular_executable_identity",
+                return_value={
+                    name: value
+                    for name, value in wrapper.items()
+                    if name != "dispatch_contract"
+                },
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.subprocess.Popen",
+                side_effect=AssertionError("identity freeze must not execute"),
+            ) as popen,
+            self.assertRaisesRegex(
+                ProviderStateIsolationError,
+                "changed during identity freeze",
+            ),
+        ):
+            matched._current_glean_auth_dependency_identity()
+        popen.assert_not_called()
+
+    def test_authorization_identity_rejects_non_root_or_symlink_entrypoint(self):
+        regular = self.root / "gateway-token"
+        regular.write_bytes(b"gateway-token\n")
+        regular.chmod(0o755)
+        symlink = self.root / "gateway-token-link"
+        symlink.symlink_to(regular)
+
+        for path in (regular, symlink):
+            with (
+                self.subTest(path=path),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_require_root_owned_nonwritable_ancestry"
+                ),
+                self.assertRaisesRegex(RuntimeError, "ownership policy drifted"),
+            ):
+                matched._root_owned_regular_executable_identity(
+                    path, label="gateway"
+                )
+
+    def test_root_managed_executable_policy_rejects_every_metadata_downgrade(self):
+        def metadata(
+            *,
+            mode: int = stat.S_IFREG | 0o755,
+            links: int = 1,
+            uid: int = 0,
+            gid: int = 0,
+        ) -> os.stat_result:
+            return os.stat_result(
+                (mode, 1, 1, links, uid, gid, 10, 0, 0, 0)
+            )
+
+        matched._require_root_owned_regular_executable_metadata(
+            metadata(), label="gateway"
+        )
+        downgraded = (
+            metadata(mode=stat.S_IFLNK | 0o755),
+            metadata(mode=stat.S_IFREG | 0o775),
+            metadata(mode=stat.S_IFREG | 0o644),
+            metadata(links=2),
+            metadata(uid=max(os.getuid(), 1)),
+            metadata(gid=max(os.getgid(), 1)),
+        )
+        for observed in downgraded:
+            with self.subTest(observed=observed), self.assertRaisesRegex(
+                RuntimeError, "ownership policy drifted"
+            ):
+                matched._require_root_owned_regular_executable_metadata(
+                    observed, label="gateway"
+                )
+
+        untrusted = self.root / "gateway-token"
+        untrusted.write_bytes(b"gateway-token\n")
+        with self.assertRaisesRegex(
+            RuntimeError, "ancestor ownership policy drifted"
+        ):
+            matched._require_root_owned_nonwritable_ancestry(
+                untrusted, label="gateway"
+            )
 
     def test_cli_contract_is_provider_process_free(self):
         forbidden = AssertionError("CLI contract attempted to execute a process")
@@ -2969,11 +3157,8 @@ class MatchedPanelTests(unittest.TestCase):
             patch(
                 "epiagentbench.development_matched_panel."
                 "_glean_helper_identity",
-                return_value={
-                    "path": str(matched._GLEAN_HELPER_PATH),
-                    "sha256": "sha256:" + "2" * 64,
-                },
-            ),
+                side_effect=forbidden,
+            ) as glean_identity,
             patch(
                 "epiagentbench.development_matched_panel._safe_glean_config",
                 return_value=(
@@ -2995,14 +3180,24 @@ class MatchedPanelTests(unittest.TestCase):
             patch(
                 "epiagentbench.development_matched_panel."
                 "_safe_entrypoint_identity",
-                return_value={
-                    "path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
-                    "entrypoint_kind": "regular_file",
-                    "link_text": None,
-                    "resolved_path": str(
-                        matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH
+                side_effect=forbidden,
+            ) as entrypoint_identity,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_deferred_root_owned_executable_contract",
+                side_effect=lambda path, **_kwargs: {
+                    "path": str(path),
+                    "entrypoint_kind": (
+                        "root_owned_single_link_regular_executable"
                     ),
-                    "target_sha256": "sha256:" + "5" * 64,
+                    "group_or_world_writable": False,
+                    "trusted_root_owned_nonwritable_ancestry": True,
+                    "exact_content_freeze_stage": (
+                        "manifest_bound_spend_authorization_before_"
+                        "authentication"
+                    ),
+                    "freeze_once": True,
+                    "required_live_attestation_boundaries": [],
                 },
             ),
             patch(
@@ -3030,6 +3225,8 @@ class MatchedPanelTests(unittest.TestCase):
             {item["name"] for item in contract["executables"]},
             {"claude", "codex", "cursor-agent"},
         )
+        glean_identity.assert_not_called()
+        entrypoint_identity.assert_not_called()
         provider_process.assert_not_called()
         subprocess_run.assert_not_called()
         subprocess_popen.assert_not_called()
@@ -3510,11 +3707,30 @@ class MatchedPanelTests(unittest.TestCase):
             for temporary in temporaries:
                 temporary.cleanup()
 
-    def test_cli_contract_pins_claude_auth_dependency_files(self):
+    def test_cli_contract_defers_mutable_glean_dependency_bytes(self):
         def identity(executable: str) -> dict[str, str]:
             return {
                 "name": executable,
                 "executable_sha256": "sha256:" + "1" * 64,
+            }
+
+        def deferred(path: Path, **_kwargs) -> dict[str, object]:
+            return {
+                "path": str(path),
+                "entrypoint_kind": (
+                    "root_owned_single_link_regular_executable"
+                ),
+                "group_or_world_writable": False,
+                "trusted_root_owned_nonwritable_ancestry": True,
+                "exact_content_freeze_stage": (
+                    "manifest_bound_spend_authorization_before_authentication"
+                ),
+                "freeze_once": True,
+                "required_live_attestation_boundaries": [
+                    "before_and_after_foreground_authentication",
+                    "before_and_after_each_preflight_provider_call",
+                    "before_and_after_each_production_provider_call",
+                ],
             }
 
         with (
@@ -3525,25 +3741,25 @@ class MatchedPanelTests(unittest.TestCase):
             ),
             patch(
                 "epiagentbench.development_matched_panel._glean_helper_identity",
-                return_value={
-                    "path": str(matched._GLEAN_HELPER_PATH),
-                    "sha256": "sha256:" + "2" * 64,
-                },
-            ),
+                side_effect=AssertionError(
+                    "prepare must not hash the mutable Glean helper"
+                ),
+            ) as glean_identity,
             patch(
                 "epiagentbench.development_matched_panel._fixed_file_sha256",
                 return_value="sha256:" + "3" * 64,
             ) as fixed_hash,
             patch(
                 "epiagentbench.development_matched_panel._safe_entrypoint_identity",
-                return_value={
-                    "path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
-                    "entrypoint_kind": "symlink",
-                    "link_text": "/usr/local/bin/glean-helper",
-                    "resolved_path": "/usr/local/bin/glean-helper",
-                    "target_sha256": "sha256:" + "4" * 64,
-                },
+                side_effect=AssertionError(
+                    "prepare must not hash the mutable Glean wrapper"
+                ),
             ) as entrypoint_identity,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_deferred_root_owned_executable_contract",
+                side_effect=deferred,
+            ),
             patch(
                 "epiagentbench.development_matched_panel._safe_glean_config",
                 return_value=(
@@ -3589,10 +3805,20 @@ class MatchedPanelTests(unittest.TestCase):
             dependencies["glean_llm_gateway_token_wrapper"],
             {
                 "path": "/usr/local/bin/glean-llm-gateway-token",
-                "entrypoint_kind": "symlink",
-                "link_text": "/usr/local/bin/glean-helper",
-                "resolved_path": "/usr/local/bin/glean-helper",
-                "target_sha256": "sha256:" + "4" * 64,
+                "entrypoint_kind": (
+                    "root_owned_single_link_regular_executable"
+                ),
+                "group_or_world_writable": False,
+                "trusted_root_owned_nonwritable_ancestry": True,
+                "exact_content_freeze_stage": (
+                    "manifest_bound_spend_authorization_before_authentication"
+                ),
+                "freeze_once": True,
+                "required_live_attestation_boundaries": [
+                    "before_and_after_foreground_authentication",
+                    "before_and_after_each_preflight_provider_call",
+                    "before_and_after_each_production_provider_call",
+                ],
                 "dispatch_contract": {
                     "argv0_basename": "glean-llm-gateway-token",
                     "arguments": [],
@@ -3604,6 +3830,26 @@ class MatchedPanelTests(unittest.TestCase):
                         "$HOME/.glean-llm-gateway/credentials.json"
                     ),
                 },
+            },
+        )
+        self.assertEqual(
+            dependencies["glean_helper"],
+            {
+                "path": "/usr/local/bin/glean-helper",
+                "entrypoint_kind": (
+                    "root_owned_single_link_regular_executable"
+                ),
+                "group_or_world_writable": False,
+                "trusted_root_owned_nonwritable_ancestry": True,
+                "exact_content_freeze_stage": (
+                    "manifest_bound_spend_authorization_before_authentication"
+                ),
+                "freeze_once": True,
+                "required_live_attestation_boundaries": [
+                    "before_and_after_foreground_authentication",
+                    "before_and_after_each_preflight_provider_call",
+                    "before_and_after_each_production_provider_call",
+                ],
             },
         )
         self.assertEqual(
@@ -3626,10 +3872,8 @@ class MatchedPanelTests(unittest.TestCase):
                 matched._CLAUDE_OTEL_HELPER_PATH,
             },
         )
-        entrypoint_identity.assert_called_once_with(
-            matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
-            label="Glean LLM gateway token wrapper",
-        )
+        glean_identity.assert_not_called()
+        entrypoint_identity.assert_not_called()
 
     @unittest.skipUnless(
         sys.platform == "darwin"
@@ -4004,6 +4248,25 @@ class MatchedPanelTests(unittest.TestCase):
                     root=self.root, public=public
                 )
 
+    def test_frozen_glean_dependency_attestation_checks_full_topology(self):
+        public = self._prepare(authenticate=False)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        drifted = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
+        wrapper = drifted["glean_llm_gateway_token_wrapper"]
+        wrapper["entrypoint_kind"] = "symlink"
+        wrapper["link_text"] = "glean-helper"
+        with patch(
+            "epiagentbench.development_matched_panel."
+            "_current_glean_auth_dependency_identity",
+            return_value=drifted,
+        ), self.assertRaisesRegex(
+            ProviderStateIsolationError,
+            "Frozen Glean authentication dependencies drifted",
+        ):
+            matched._attest_frozen_glean_auth_dependencies(private, public)
+
     def test_prepare_rejects_secure_storage_nested_in_frozen_cohort(self):
         with TemporaryDirectory(
             prefix="epiagentbench-cohort-separation-", dir=Path.home()
@@ -4302,11 +4565,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v13_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v14_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v13", "six-call v10"
+            "six-call v14", "six-call v10"
         )
         with (
             patch(
@@ -4321,7 +4584,26 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v13 \\$570"),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity"
+            ) as dependency_identity,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_read_authentication_key"
+            ) as read_authentication_key,
+            patch(
+                "epiagentbench.development_matched_panel._cli_contract"
+            ) as cli_contract,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_glean_helper_identity"
+            ) as glean_helper_identity,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_root_owned_regular_executable_identity"
+            ) as wrapper_identity,
+            self.assertRaisesRegex(RuntimeError, "exact v14 \\$570"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -4335,6 +4617,11 @@ class MatchedPanelTests(unittest.TestCase):
         glean_bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
         evaluate.assert_not_called()
+        dependency_identity.assert_not_called()
+        read_authentication_key.assert_not_called()
+        cli_contract.assert_not_called()
+        glean_helper_identity.assert_not_called()
+        wrapper_identity.assert_not_called()
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
@@ -4351,12 +4638,361 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        self.assertEqual(receipt, matched._expected_spend_authorization(public))
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
+        self.assertEqual(
+            receipt,
+            matched._expected_spend_authorization(
+                public,
+                frozen_glean_auth_dependency_identity_sha256=private[
+                    "authentication_dependency_freeze"
+                ]["identity_sha256"],
+            ),
+        )
         self.assertEqual(private["spend_authorization"], receipt)
         self.assertEqual(self.public_path.read_bytes(), public_before)
+
+    def test_authorization_freezes_post_prepare_glean_identity_once(self):
+        public = self._prepare(authorize=False)
+        public_before = self.public_path.read_bytes()
+        drifted = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
+        drifted["glean_helper"]["sha256"] = "sha256:" + "6" * 64
+        drifted["glean_llm_gateway_token_wrapper"]["target_sha256"] = (
+            "sha256:" + "7" * 64
+        )
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity",
+                return_value=drifted,
+            ) as identity,
+        ):
+            receipt = authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        freeze = private["authentication_dependency_freeze"]
+        self.assertEqual(identity.call_count, 2)
+        self.assertEqual(freeze["identity"], drifted)
+        self.assertEqual(
+            freeze["identity_sha256"], matched._component_hash(drifted)
+        )
+        self.assertEqual(
+            receipt["frozen_glean_auth_dependency_identity_sha256"],
+            freeze["identity_sha256"],
+        )
+        self.assertEqual(self.public_path.read_bytes(), public_before)
+
+        changed_again = copy.deepcopy(drifted)
+        changed_again["glean_helper"]["sha256"] = "sha256:" + "8" * 64
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity",
+                return_value=changed_again,
+            ),
+            self.assertRaisesRegex(
+                ProviderStateIsolationError,
+                "Frozen Glean authentication dependencies drifted",
+            ),
+        ):
+            authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        unchanged = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            unchanged["authentication_dependency_freeze"], freeze
+        )
+
+    def test_repeated_authorization_returns_without_refreeze_or_rewrite(self):
+        self._prepare(authorize=False)
+        with self._contracts():
+            first = authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        before = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_write_private_state"
+            ) as write_private,
+            patch(
+                "epiagentbench.development_matched_panel._utc_now",
+                side_effect=AssertionError("authorization must not refreeze"),
+            ),
+        ):
+            second = authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        after = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(second, first)
+        self.assertEqual(after, before)
+        write_private.assert_not_called()
+
+    def test_authorization_dependency_drift_before_write_leaves_no_receipt(self):
+        self._prepare(authorize=False)
+        first = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
+        second = copy.deepcopy(first)
+        second["glean_helper"]["sha256"] = "sha256:" + "8" * 64
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity",
+                side_effect=[first, second],
+            ),
+            self.assertRaisesRegex(
+                ProviderStateIsolationError,
+                "changed during authorization",
+            ),
+        ):
+            authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["authentication_dependency_freeze"],
+            {
+                "schema_version": (
+                    "epiagentbench.authentication_dependency_freeze.v1"
+                ),
+                "status": "required",
+            },
+        )
+        self.assertNotIn("spend_authorization", private)
+
+    def test_authorization_atomic_write_failure_is_fail_closed_or_idempotent(self):
+        self._prepare(authorize=False)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.os.replace",
+                side_effect=OSError("pre-replace failure"),
+            ),
+            self.assertRaises(OSError),
+        ):
+            authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        unchanged = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            unchanged["authentication_dependency_freeze"]["status"],
+            "required",
+        )
+        self.assertNotIn("spend_authorization", unchanged)
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel._fsync_directory",
+                side_effect=OSError("ambiguous post-replace failure"),
+            ),
+            self.assertRaises(OSError),
+        ):
+            authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        durable = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        frozen_at = durable["authentication_dependency_freeze"][
+            "frozen_at_utc"
+        ]
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_write_private_state"
+            ) as write_private,
+        ):
+            recovered = authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        final = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(recovered, durable["spend_authorization"])
+        self.assertEqual(
+            final["authentication_dependency_freeze"]["frozen_at_utc"],
+            frozen_at,
+        )
+        self.assertEqual(final, durable)
+        write_private.assert_not_called()
+
+    def test_concurrent_authorization_is_rejected_before_private_reads(self):
+        self._prepare(authorize=False)
+        with (
+            matched._exclusive_run_lock(self.private_path),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_read_authentication_key"
+            ) as read_key,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity"
+            ) as identity,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "assert_durable_live_execution_paths"
+            ),
+            self.assertRaisesRegex(RuntimeError, "already holds the lock"),
+        ):
+            authorize_panel_spend(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
+            )
+        read_key.assert_not_called()
+        identity.assert_not_called()
+
+    def test_authorization_half_states_block_authentication_zero_call(self):
+        public = self._prepare(authorize=False)
+        baseline = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        frozen = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
+        frozen_record = {
+            "schema_version": (
+                "epiagentbench.authentication_dependency_freeze.v1"
+            ),
+            "status": "frozen",
+            "panel_id": "development-matched-50x6-v14",
+            "public_precommitment_sha256": public["precommitment_sha256"],
+            "static_cli_contract_sha256": public["contract_hashes"][
+                "cli_sha256"
+            ],
+            "identity": frozen,
+            "identity_sha256": matched._component_hash(frozen),
+            "frozen_at_utc": "2026-07-25T00:00:00Z",
+        }
+        authorized = matched._expected_spend_authorization(
+            public,
+            frozen_glean_auth_dependency_identity_sha256=frozen_record[
+                "identity_sha256"
+            ],
+        )
+        cases = {
+            "frozen_without_receipt": (
+                frozen_record,
+                None,
+            ),
+            "receipt_without_freeze": (
+                baseline["authentication_dependency_freeze"],
+                authorized,
+            ),
+        }
+        for name, (freeze, receipt) in cases.items():
+            candidate = copy.deepcopy(baseline)
+            candidate["authentication_dependency_freeze"] = copy.deepcopy(
+                freeze
+            )
+            if receipt is None:
+                candidate.pop("spend_authorization", None)
+            else:
+                candidate["spend_authorization"] = copy.deepcopy(receipt)
+            matched._write_private_state(
+                self.private_path, candidate, AUTHENTICATION_KEY
+            )
+            with (
+                self.subTest(name=name),
+                self._contracts(),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_require_operator_authentication_tty"
+                ) as tty,
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_bootstrap_codex_credentials"
+                ) as codex_bootstrap,
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_bootstrap_managed_glean_credentials"
+                ) as glean_bootstrap,
+                self.assertRaises(RuntimeError),
+            ):
+                matched.authenticate_panel(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=self.claude_secure_storage_dir,
+                    codex_secure_storage_dir=self.codex_secure_storage_dir,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    acknowledge_interactive_authentication=True,
+                )
+            tty.assert_not_called()
+            codex_bootstrap.assert_not_called()
+            glean_bootstrap.assert_not_called()
+        matched._write_private_state(
+            self.private_path, baseline, AUTHENTICATION_KEY
+        )
 
     def test_authorize_requires_committed_clean_manifest_zero_call(self):
         self._prepare(authorize=False)
@@ -4579,6 +5215,10 @@ class MatchedPanelTests(unittest.TestCase):
             "wrong_text": lambda receipt: receipt.__setitem__(
                 "acknowledgement_text", "stale acknowledgement"
             ),
+            "wrong_frozen_dependency_hash": lambda receipt: receipt.__setitem__(
+                "frozen_glean_auth_dependency_identity_sha256",
+                "sha256:" + "8" * 64,
+            ),
         }
         for name, mutate in mutations.items():
             candidate = copy.deepcopy(baseline)
@@ -4619,7 +5259,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v13"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v14"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -4666,7 +5306,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v13"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v14"),
         ):
             run_panel(
                 root=self.root,
@@ -5421,9 +6061,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "preexisting execution drift"),
         ):
-            run_panel(
+            result = run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
                 claude_secure_storage_dir=self.claude_secure_storage_dir,
@@ -5438,6 +6077,64 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, AUTHENTICATION_KEY
         )
         self.assertEqual(private["assignments"], [])
+        self.assertEqual(result["status"], "stopped_supervisor_incident")
+        self.assertEqual(
+            private["execution_incident"]["failure_class"],
+            "ProviderStateIsolationError",
+        )
+        self.assertEqual(
+            private["execution_incident"]["boundary"],
+            "clean_before_assignment",
+        )
+
+    def test_production_before_call_helper_drift_is_terminal_zero_call(self):
+        self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_frozen_glean_auth_dependencies",
+                side_effect=ProviderStateIsolationError(
+                    "frozen helper drift"
+                ),
+            ) as helper_attestation,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            result = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate.assert_not_called()
+        self.assertEqual(helper_attestation.call_count, 1)
+        self.assertEqual(result["status"], "stopped_supervisor_incident")
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["assignments"], [])
+        self.assertEqual(
+            private["execution_incident"]["boundary"],
+            "clean_before_assignment",
+        )
 
     def test_production_after_call_drift_becomes_transport_void(self):
         self._prepare()
@@ -5496,7 +6193,142 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(len(private["assignments"]), 1)
         self.assertEqual(private["assignments"][0]["status"], "transport_void")
-        self.assertEqual(private["assignments"][0]["void_reason"], "RuntimeError")
+        self.assertEqual(
+            private["assignments"][0]["void_reason"],
+            "ProviderStateIsolationError",
+        )
+        self.assertEqual(
+            private["execution_incident"]["failure_class"],
+            "ProviderStateIsolationError",
+        )
+
+    def test_production_after_call_helper_drift_is_terminal_void(self):
+        self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+
+        def evaluate(system: str, **kwargs):
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 50.0
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_frozen_glean_auth_dependencies",
+                side_effect=[
+                    None,
+                    ProviderStateIsolationError("frozen helper drift"),
+                ],
+            ) as helper_attestation,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            result = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(helper_attestation.call_count, 2)
+        self.assertEqual(result["status"], "stopped_transport_void")
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(len(private["assignments"]), 1)
+        self.assertEqual(
+            private["assignments"][0]["void_reason"],
+            "ProviderStateIsolationError",
+        )
+        self.assertEqual(
+            private["execution_incident"]["failure_class"],
+            "ProviderStateIsolationError",
+        )
+
+    def test_final_helper_drift_blocks_terminal_release(self):
+        self._prepare()
+        self._prime_codex_auth()
+        self.keychain_present = True
+        self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
+
+        def evaluate(system: str, **kwargs):
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 50.0
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_frozen_glean_auth_dependencies",
+                side_effect=[
+                    None,
+                    None,
+                    ProviderStateIsolationError("frozen helper drift"),
+                ],
+            ) as helper_attestation,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            result = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                require_persistent_supervisor=False,
+                offline_test_evaluator=invoked,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(helper_attestation.call_count, 3)
+        self.assertEqual(result["status"], "stopped_supervisor_incident")
+        self.assertEqual(result["results"], [])
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT)
+        self.assertEqual(
+            private["execution_incident"]["boundary"], "final_completion"
+        )
+        self.assertNotEqual(private["status"], "complete")
+        self.assertFalse(
+            matched._cohort_retirement_path(
+                Path(private["cohort_manifest_path"])
+            ).exists()
+        )
 
     def test_production_nonzero_provider_exit_becomes_transport_void(self):
         self._prepare()
@@ -6791,7 +7623,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v13_receipt(self):
+    def test_environment_preflight_gate_validates_full_v14_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -7312,7 +8144,129 @@ class MatchedPanelTests(unittest.TestCase):
         authentication_receipt = matched._load_json(
             matched._authentication_receipt_path(self.public_path)
         )
+        public = matched._load_json(self.public_path)
+        self.assertEqual(
+            set(authentication_receipt),
+            {
+                "schema_version",
+                "panel_id",
+                "status",
+                "development_only",
+                "precommitment_sha256",
+                "authentication_contract_hashes",
+                "spend_authorization_receipt_sha256",
+                "authentication_dependency_identity",
+                "authentication_prerequisite",
+                "model_calls_started",
+                "production_episodes_consumed",
+                "scores_reported",
+                "receipt_sha256",
+            },
+        )
+        self.assertEqual(
+            authentication_receipt["schema_version"],
+            "epiagentbench.authentication_receipt.v2",
+        )
+        self.assertEqual(
+            authentication_receipt["panel_id"],
+            "development-matched-50x6-v14",
+        )
+        self.assertEqual(authentication_receipt["status"], "passed")
+        self.assertIs(authentication_receipt["development_only"], True)
+        self.assertEqual(
+            authentication_receipt["precommitment_sha256"],
+            public["precommitment_sha256"],
+        )
+        self.assertEqual(
+            authentication_receipt["authentication_contract_hashes"],
+            matched._authentication_contract_hashes(public),
+        )
+        self.assertEqual(
+            authentication_receipt["spend_authorization_receipt_sha256"],
+            private["spend_authorization"]["receipt_sha256"],
+        )
+        self.assertEqual(
+            authentication_receipt["authentication_prerequisite"],
+            {
+                "codex": "passed_before_preflight",
+                "managed_glean": "passed_before_preflight",
+                "codex_method": "pinned_cli_device_auth",
+                "managed_glean_method": "pinned_managed_oauth_helper",
+                "model_calls": 0,
+            },
+        )
         self.assertEqual(authentication_receipt["model_calls_started"], 0)
+        self.assertEqual(
+            authentication_receipt["production_episodes_consumed"], 0
+        )
+        self.assertIs(authentication_receipt["scores_reported"], False)
+        unsigned_receipt = dict(authentication_receipt)
+        unsigned_receipt.pop("receipt_sha256")
+        self.assertEqual(
+            authentication_receipt["receipt_sha256"],
+            matched._component_hash(unsigned_receipt),
+        )
+        dependency = authentication_receipt[
+            "authentication_dependency_identity"
+        ]
+        self.assertEqual(
+            dependency["identity_sha256"],
+            matched._component_hash(AUTHENTICATION_DEPENDENCY_IDENTITY),
+        )
+        self.assertEqual(
+            set(dependency),
+            {
+                "schema_version",
+                "identity_sha256",
+                "root_owned_single_link_regular_executable_policy_attested",
+                "exact_bundle_identity_withheld",
+                "raw_provider_output_published",
+                "raw_machine_paths_published",
+            },
+        )
+        self.assertIs(
+            dependency[
+                "root_owned_single_link_regular_executable_policy_attested"
+            ],
+            True,
+        )
+        self.assertIs(dependency["exact_bundle_identity_withheld"], True)
+        self.assertIs(dependency["raw_provider_output_published"], False)
+        self.assertIs(dependency["raw_machine_paths_published"], False)
+        encoded_dependency = json.dumps(dependency, sort_keys=True).lower()
+        self.assertNotIn("/usr/local/", encoded_dependency)
+        self.assertNotIn(
+            AUTHENTICATION_DEPENDENCY_IDENTITY["glean_helper"]["sha256"],
+            encoded_dependency,
+        )
+        self.assertNotIn(
+            AUTHENTICATION_DEPENDENCY_IDENTITY[
+                "glean_llm_gateway_token_wrapper"
+            ]["target_sha256"],
+            encoded_dependency,
+        )
+        self.assertNotIn("stdout", encoded_dependency)
+        self.assertNotIn("stderr", encoded_dependency)
+        self.assertNotIn("credential", encoded_dependency)
+        encoded_receipt = json.dumps(
+            authentication_receipt, sort_keys=True
+        ).lower()
+        for forbidden in (
+            "/usr/local/",
+            "/users/",
+            "/private/",
+            "credentials.json",
+            "auth.json",
+            "access_token",
+            "refresh_token",
+            "oauth_state",
+            "\"provider_output\":",
+            "episode_ref",
+            "episode_id",
+            "schedule_nonce",
+            "trace_steps",
+        ):
+            self.assertNotIn(forbidden, encoded_receipt)
 
         preflight_path = self.root / "results" / "preflight-markers.json"
         with (
@@ -7353,6 +8307,52 @@ class MatchedPanelTests(unittest.TestCase):
         codex_bootstrap.assert_not_called()
         glean_bootstrap.assert_not_called()
         self.assertEqual(receipt["status"], "passed")
+
+    def test_tampered_public_dependency_commitment_blocks_preflight(self):
+        self._prepare()
+        receipt_path = matched._authentication_receipt_path(
+            self.public_path
+        )
+        baseline = matched._load_json(receipt_path)
+        mutations = {
+            "identity": lambda dependency: dependency.__setitem__(
+                "identity_sha256", "sha256:" + "9" * 64
+            ),
+            "policy": lambda dependency: dependency.__setitem__(
+                "root_owned_single_link_regular_executable_policy_attested",
+                False,
+            ),
+        }
+        for name, mutate in mutations.items():
+            candidate = copy.deepcopy(baseline)
+            mutate(candidate["authentication_dependency_identity"])
+            unsigned = dict(candidate)
+            unsigned.pop("receipt_sha256")
+            candidate["receipt_sha256"] = matched._component_hash(unsigned)
+            matched._atomic_json(receipt_path, candidate)
+            with (
+                self.subTest(name=name),
+                self._contracts(),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "evaluate_local_cli_agent"
+                ) as evaluate,
+                self.assertRaisesRegex(
+                    ValueError, "Public authentication receipt is invalid"
+                ),
+            ):
+                matched.assert_panel_authentication_ready(
+                    root=self.root,
+                    authentication_key_file=self.key_path,
+                    claude_secure_storage_dir=self.claude_secure_storage_dir,
+                    codex_secure_storage_dir=self.codex_secure_storage_dir,
+                    private_state_path=self.private_path,
+                    public_manifest_path=self.public_path,
+                    require_clean_checkout=False,
+                    revalidate_live_identity_contracts=False,
+                )
+            evaluate.assert_not_called()
+        matched._atomic_json(receipt_path, baseline)
 
     def test_invalid_authentication_cross_states_cannot_publish(self):
         self._prepare()
@@ -7827,7 +8827,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v13"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v14"),
         ):
             matched.authenticate_panel(
                 root=self.root,
@@ -7841,6 +8841,50 @@ class MatchedPanelTests(unittest.TestCase):
         tty.assert_not_called()
         codex_bootstrap.assert_not_called()
         glean_bootstrap.assert_not_called()
+
+    def test_glean_dependency_drift_blocks_authentication_before_tty(self):
+        self._prepare(authenticate=False)
+        drifted = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
+        drifted["glean_helper"]["sha256"] = "sha256:" + "9" * 64
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity",
+                return_value=drifted,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ) as tty,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            self.assertRaisesRegex(
+                ProviderStateIsolationError,
+                "Frozen Glean authentication dependencies drifted",
+            ),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        tty.assert_not_called()
+        codex_bootstrap.assert_not_called()
+        glean_bootstrap.assert_not_called()
+        self.assertFalse(
+            matched._authentication_receipt_path(self.public_path).exists()
+        )
 
     def test_authentication_does_not_read_hidden_packs_or_leak_metadata(self):
         self._prepare(authenticate=False)
