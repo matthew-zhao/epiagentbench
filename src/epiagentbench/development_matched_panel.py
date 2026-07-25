@@ -78,24 +78,26 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v11"
+PANEL_ID = "development-matched-50x6-v12"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v11"
+SCHEMA_VERSION = "development_matched_panel_v12"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v11 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v12 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $570 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
     "failed v8 production run, v9 preflight and failed production run, the "
-    "abandoned zero-model-call v10 precommitment, and the v11 preflight and "
-    "production run."
+    "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
+    "v11 authentication bootstrap, and the v12 preflight and production run."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v1"
+_AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v1"
+_AUTHENTICATION_RECEIPT_SCHEMA = "epiagentbench.authentication_receipt.v1"
 _PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v1"
 _CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 570.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
@@ -476,6 +478,50 @@ def _atomic_json(path: Path, value: Any, *, private: bool = False) -> None:
                 pass
 
 
+def _create_public_json_once(path: Path, value: Any) -> None:
+    """Publish one complete public JSON file without replacing an existing path."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    parent_metadata = path.parent.lstat()
+    if not stat.S_ISDIR(parent_metadata.st_mode) or path.parent.is_symlink():
+        raise ValueError("Matched-panel artifact parent must be a real directory")
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    if len(payload) > _MAX_PANEL_JSON_BYTES:
+        raise ValueError("Matched-panel artifact exceeds the size limit")
+    temporary = path.with_name(
+        f".{path.name}.{secrets.token_hex(16)}.create-once"
+    )
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor: int | None = None
+    temporary_exists = False
+    try:
+        descriptor = os.open(temporary, flags, 0o644)
+        temporary_exists = True
+        with os.fdopen(descriptor, "wb", closefd=True) as stream:
+            descriptor = None
+            os.fchmod(stream.fileno(), 0o644)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, path, follow_symlinks=False)
+        _fsync_directory(path.parent)
+        temporary.unlink()
+        temporary_exists = False
+        _fsync_directory(path.parent)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if temporary_exists:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+
+
 def _private_state_tag(value: Mapping[str, Any], key: bytes) -> str:
     return hmac.new(
         key,
@@ -806,6 +852,10 @@ def _exclusive_run_lock(_: Path):
 
 def _component_hash(value: Any) -> str:
     return _sha256(_canonical_bytes(value))
+
+
+def _authentication_receipt_path(public_manifest_path: Path) -> Path:
+    return public_manifest_path.with_name(f"{PANEL_ID}.authentication.json")
 
 
 def _path_is_within(path: Path, parent: Path) -> bool:
@@ -1151,7 +1201,9 @@ def _claude_auth_contract(
                 "size_bytes_max": _MAX_MANAGED_GLEAN_CREDENTIAL_BYTES,
             },
             "initial_state": "absent_at_prepare",
-            "preflight_bootstrap": "separate_no_model_step",
+            "authentication_stage": (
+                "foreground_interactive_zero_model_before_preflight"
+            ),
             "claude_calls": "credentials_required_before_and_after",
             "macos_keychain": "required_absent_throughout",
             "claude_plaintext_fallback": "forbidden",
@@ -1293,7 +1345,10 @@ def _codex_auth_contract(
                 "size_bytes_max": 1024 * 1024,
             },
             "initial_state": "absent_at_prepare",
-            "preflight_bootstrap": "dedicated_pinned_cli_oauth_no_model_call",
+            "authentication_stage": (
+                "foreground_device_auth_zero_model_before_preflight"
+            ),
+            "device_auth_flag": "--device-auth",
             "codex_calls": "credentials_required_before_and_after",
             "refresh_rotation": "pinned_cli_in_place_write_with_file_identity_fixed",
             "credential_store": "inline_file_mode_only",
@@ -1461,12 +1516,14 @@ def _require_empty_codex_auth_target(
 def _remove_promoted_codex_auth_if_owned(
     target_directory_descriptor: int,
     source_metadata: os.stat_result,
+    *,
+    credential_name: str = "auth.json",
 ) -> bool:
     """Best-effort rollback without ever removing an unrelated target."""
 
     try:
         target_metadata = os.stat(
-            "auth.json",
+            credential_name,
             dir_fd=target_directory_descriptor,
             follow_symlinks=False,
         )
@@ -1478,7 +1535,7 @@ def _remove_promoted_codex_auth_if_owned(
     ):
         return False
     try:
-        os.unlink("auth.json", dir_fd=target_directory_descriptor)
+        os.unlink(credential_name, dir_fd=target_directory_descriptor)
         os.fsync(target_directory_descriptor)
     except OSError:
         return False
@@ -1490,8 +1547,19 @@ def _promote_staged_codex_auth(
     target_directory: Path,
     *,
     expected_target_identity: Mapping[str, int],
+    credential_name: str = "auth.json",
+    maximum_bytes: int = _CODEX_BOOTSTRAP_AUTH_BYTES_MAX,
+    provider_label: str = "Codex",
 ) -> None:
-    """Publish opaque Codex auth with a same-filesystem no-clobber move."""
+    """Publish one opaque auth file with a same-filesystem no-clobber move."""
+
+    if (
+        not credential_name
+        or "/" in credential_name
+        or credential_name in {".", ".."}
+        or maximum_bytes < 1
+    ):
+        raise ValueError("Invalid authentication promotion contract")
 
     source_directory_descriptor = _open_codex_bootstrap_directory(
         source_directory
@@ -1512,12 +1580,12 @@ def _promote_staged_codex_auth(
             or os.listdir(target_directory_descriptor)
         ):
             raise ProviderStateIsolationError(
-                "Codex authentication target changed before promotion"
+                f"{provider_label} authentication target changed before promotion"
             )
         source_directory_metadata = os.fstat(source_directory_descriptor)
         if source_directory_metadata.st_dev != target_directory_metadata.st_dev:
             raise ProviderStateIsolationError(
-                "Codex authentication staging filesystem changed"
+                f"{provider_label} authentication staging filesystem changed"
             )
 
         flags = os.O_RDONLY
@@ -1526,15 +1594,17 @@ def _promote_staged_codex_auth(
         flags |= getattr(os, "O_NONBLOCK", 0)
         try:
             source_descriptor = os.open(
-                "auth.json",
+                credential_name,
                 flags,
                 dir_fd=source_directory_descriptor,
             )
         except FileNotFoundError:
-            raise RuntimeError("Codex authentication bootstrap failed") from None
+            raise RuntimeError(
+                f"{provider_label} authentication bootstrap failed"
+            ) from None
         except OSError:
             raise ProviderStateIsolationError(
-                "Codex authentication staged credential is unsafe"
+                f"{provider_label} authentication staged credential is unsafe"
             ) from None
         source_metadata = os.fstat(source_descriptor)
         if (
@@ -1544,34 +1614,34 @@ def _promote_staged_codex_auth(
             or source_metadata.st_nlink != 1
             or not 1
             <= source_metadata.st_size
-            <= _CODEX_BOOTSTRAP_AUTH_BYTES_MAX
+            <= maximum_bytes
             or source_metadata.st_dev != target_directory_metadata.st_dev
         ):
             raise ProviderStateIsolationError(
-                "Codex authentication staged credential is unsafe"
+                f"{provider_label} authentication staged credential is unsafe"
             )
         try:
             path_metadata = os.stat(
-                "auth.json",
+                credential_name,
                 dir_fd=source_directory_descriptor,
                 follow_symlinks=False,
             )
             os.fsync(source_descriptor)
         except OSError:
             raise ProviderStateIsolationError(
-                "Codex authentication staged credential changed"
+                f"{provider_label} authentication staged credential changed"
             ) from None
         if not _same_codex_bootstrap_metadata(
             source_metadata, path_metadata, _CODEX_BOOTSTRAP_FILE_FIELDS
         ):
             raise ProviderStateIsolationError(
-                "Codex authentication staged credential changed"
+                f"{provider_label} authentication staged credential changed"
             )
 
         try:
             os.link(
-                "auth.json",
-                "auth.json",
+                credential_name,
+                credential_name,
                 src_dir_fd=source_directory_descriptor,
                 dst_dir_fd=target_directory_descriptor,
                 follow_symlinks=False,
@@ -1579,14 +1649,14 @@ def _promote_staged_codex_auth(
             linked = True
             os.fsync(target_directory_descriptor)
             target_metadata = os.stat(
-                "auth.json",
+                credential_name,
                 dir_fd=target_directory_descriptor,
                 follow_symlinks=False,
             )
             source_after_link = os.fstat(source_descriptor)
         except OSError:
             raise ProviderStateIsolationError(
-                "Codex authentication credential promotion failed"
+                f"{provider_label} authentication credential promotion failed"
             ) from None
         if (
             target_metadata.st_dev != source_metadata.st_dev
@@ -1595,25 +1665,25 @@ def _promote_staged_codex_auth(
             or source_after_link.st_nlink != 2
         ):
             raise ProviderStateIsolationError(
-                "Codex authentication credential promotion changed"
+                f"{provider_label} authentication credential promotion changed"
             )
 
         try:
-            os.unlink("auth.json", dir_fd=source_directory_descriptor)
+            os.unlink(credential_name, dir_fd=source_directory_descriptor)
             os.fsync(source_directory_descriptor)
             os.fsync(target_directory_descriptor)
             final_target_metadata = os.stat(
-                "auth.json",
+                credential_name,
                 dir_fd=target_directory_descriptor,
                 follow_symlinks=False,
             )
         except OSError:
             raise ProviderStateIsolationError(
-                "Codex authentication credential promotion failed"
+                f"{provider_label} authentication credential promotion failed"
             ) from None
         try:
             os.stat(
-                "auth.json",
+                credential_name,
                 dir_fd=source_directory_descriptor,
                 follow_symlinks=False,
             )
@@ -1621,11 +1691,11 @@ def _promote_staged_codex_auth(
             pass
         except OSError:
             raise ProviderStateIsolationError(
-                "Codex authentication staging state is unavailable"
+                f"{provider_label} authentication staging state is unavailable"
             ) from None
         else:
             raise ProviderStateIsolationError(
-                "Codex authentication staging entry remained after promotion"
+                f"{provider_label} authentication staging entry remained after promotion"
             )
         if (
             final_target_metadata.st_dev != source_metadata.st_dev
@@ -1638,7 +1708,7 @@ def _promote_staged_codex_auth(
             )
         ):
             raise ProviderStateIsolationError(
-                "Codex authentication credential promotion changed"
+                f"{provider_label} authentication credential promotion changed"
             )
         linked = False
     except BaseException as error:
@@ -1647,10 +1717,11 @@ def _promote_staged_codex_auth(
             rollback_failed = not _remove_promoted_codex_auth_if_owned(
                 target_directory_descriptor,
                 source_metadata,
+                credential_name=credential_name,
             )
         if rollback_failed:
             raise ProviderStateIsolationError(
-                "Codex authentication credential promotion rollback failed"
+                f"{provider_label} authentication credential promotion rollback failed"
             ) from error
         raise
     finally:
@@ -1668,6 +1739,7 @@ def _run_no_capture_process_group(
     timeout_seconds: int,
     stdout_target: int | None,
     stderr_target: int | None,
+    stdin_target: int | None = subprocess.DEVNULL,
     umask: int,
     invocation_launch_pending: Callable[[], None] | None = None,
     invocation_started: Callable[[], None] | None = None,
@@ -1676,11 +1748,12 @@ def _run_no_capture_process_group(
 ) -> subprocess.CompletedProcess[None]:
     """Run an authentication helper without capturing credential-bearing output."""
 
-    if stdout_target not in {None, subprocess.DEVNULL} or stderr_target not in {
-        None,
-        subprocess.DEVNULL,
-    }:
-        raise ValueError("Authentication process output must not be captured")
+    if (
+        stdin_target not in {None, subprocess.DEVNULL}
+        or stdout_target not in {None, subprocess.DEVNULL}
+        or stderr_target not in {None, subprocess.DEVNULL}
+    ):
+        raise ValueError("Authentication process streams must not be captured")
     if os.name != "posix" or not hasattr(os, "killpg"):
         raise ProviderProcessIsolationError(
             "Authentication process-group isolation is unavailable"
@@ -1695,7 +1768,7 @@ def _run_no_capture_process_group(
             process = subprocess.Popen(
                 list(command),
                 cwd=cwd,
-                stdin=subprocess.DEVNULL,
+                stdin=stdin_target,
                 stdout=stdout_target,
                 stderr=stderr_target,
                 env=dict(environment),
@@ -1832,14 +1905,16 @@ def _bootstrap_codex_credentials(
                 [
                     resolved_executable,
                     "login",
+                    "--device-auth",
                     "-c",
                     'cli_auth_credentials_store="file"',
                 ],
                 cwd=root,
                 environment=environment,
                 timeout_seconds=timeout_seconds,
-                stdout_target=subprocess.DEVNULL,
-                stderr_target=subprocess.DEVNULL,
+                stdin_target=None,
+                stdout_target=None,
+                stderr_target=None,
                 umask=0o077,
                 invocation_launch_pending=invocation_launch_pending,
                 invocation_started=invocation_started,
@@ -1962,6 +2037,23 @@ def _attest_managed_glean_credentials(path: Path) -> bool:
     return True
 
 
+def _managed_glean_auth_file_identity(path: Path) -> dict[str, int]:
+    if not _attest_managed_glean_credentials(path):
+        raise RuntimeError("Managed Glean credential file is unavailable")
+    try:
+        metadata = (path / "credentials.json").lstat()
+    except OSError:
+        raise RuntimeError("Managed Glean credential file is unavailable") from None
+    return {"device": int(metadata.st_dev), "inode": int(metadata.st_ino)}
+
+
+def _require_managed_glean_auth_file_identity(
+    path: Path, expected_identity: Mapping[str, int]
+) -> None:
+    if _managed_glean_auth_file_identity(path) != dict(expected_identity):
+        raise RuntimeError("Managed Glean credential file identity changed")
+
+
 def _require_claude_credential_state(
     path: Path,
     *,
@@ -2004,23 +2096,38 @@ def _bootstrap_managed_glean_credentials(
     invocation_start_failed: Callable[[], None] | None = None,
     invocation_returned: Callable[[int], None] | None = None,
 ) -> None:
-    """Run the pinned helper without capturing its token-bearing stdout."""
+    """Authenticate into same-filesystem staging, then publish without clobber."""
 
-    with _ProviderTemporaryDirectory() as temporary:
+    target_identity = _claude_secure_storage_identity(path)
+    if _attest_managed_glean_credentials(path):
+        raise ProviderStateIsolationError(
+            "Managed Glean authentication target changed"
+        )
+    with _ProviderTemporaryDirectory(directory=path.parent) as temporary:
         root = Path(temporary).resolve()
+        staging = root / "credentials"
+        runtime = root / "runtime"
+        try:
+            staging.mkdir(mode=0o700)
+            runtime.mkdir(mode=0o700)
+        except OSError:
+            raise ProviderStateIsolationError(
+                "Managed Glean authentication staging directory is unsafe"
+            ) from None
         environment = os.environ.copy()
         glean_home_link = _isolate_claude_environment(
-            environment, root, path, oauth_client_id
+            environment, runtime, staging, oauth_client_id
         )
         if glean_home_link is None:
             raise RuntimeError("Managed Glean bootstrap isolation failed")
-        _attest_managed_glean_home_link(glean_home_link, path)
+        _attest_managed_glean_home_link(glean_home_link, staging)
         try:
             process = _run_no_capture_process_group(
                 [str(_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH)],
-                cwd=root,
+                cwd=runtime,
                 environment=environment,
                 timeout_seconds=timeout_seconds,
+                stdin_target=None,
                 stdout_target=subprocess.DEVNULL,
                 stderr_target=None,
                 umask=0o077,
@@ -2036,7 +2143,7 @@ def _bootstrap_managed_glean_credentials(
         finally:
             active_error = sys.exception()
             try:
-                _attest_managed_glean_home_link(glean_home_link, path)
+                _attest_managed_glean_home_link(glean_home_link, staging)
             except Exception:
                 if not isinstance(
                     active_error, ProviderExecutionIsolationError
@@ -2044,6 +2151,28 @@ def _bootstrap_managed_glean_credentials(
                     raise
         if process.returncode != 0:
             raise RuntimeError("Managed Glean authentication bootstrap failed")
+        if _claude_secure_storage_identity(path) != target_identity:
+            raise ProviderStateIsolationError(
+                "Managed Glean authentication target changed"
+            )
+        if _attest_managed_glean_credentials(path):
+            raise ProviderStateIsolationError(
+                "Managed Glean authentication target changed"
+            )
+        if not _attest_managed_glean_credentials(staging):
+            raise RuntimeError("Managed Glean authentication bootstrap failed")
+        _promote_staged_codex_auth(
+            staging,
+            path,
+            expected_target_identity=target_identity,
+            credential_name="credentials.json",
+            maximum_bytes=_MAX_MANAGED_GLEAN_CREDENTIAL_BYTES,
+            provider_label="Managed Glean",
+        )
+        if not _attest_managed_glean_credentials(path):
+            raise ProviderStateIsolationError(
+                "Managed Glean authentication credential promotion failed"
+            )
 
 
 def _validate_claude_auth_binding(
@@ -2862,7 +2991,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v3",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v4",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -2904,6 +3033,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "operation",
             "panel_id",
             "public_precommitment_sha256",
+            "public_authentication_receipt_sha256",
             "python_executable_sha256",
             "sealed_config_file_sha256",
         ],
@@ -3104,6 +3234,35 @@ def _spend_authorization_contract() -> dict[str, Any]:
     }
 
 
+def _authentication_setup_contract(
+    public_manifest_path: Path,
+) -> dict[str, Any]:
+    return {
+        "schema_version": _AUTHENTICATION_SETUP_SCHEMA,
+        "stage": "foreground_interactive_before_one_shot_preflight",
+        "public_receipt_file": _authentication_receipt_path(
+            public_manifest_path
+        ).name,
+        "providers": {
+            "codex": {
+                "method": "pinned_cli_device_auth",
+                "interactive_streams": "operator_tty_never_captured",
+            },
+            "managed_glean": {
+                "method": "pinned_managed_oauth_helper",
+                "stdout": "discarded_never_captured",
+                "stderr": "operator_tty_never_captured",
+            },
+        },
+        "model_calls": 0,
+        "retry_policy": (
+            "only_after_verified_process_group_quiescence_and_"
+            "unchanged_empty_target"
+        ),
+        "preflight_behavior": "attest_only_never_authenticate",
+    }
+
+
 def _private_state_storage_contract() -> dict[str, Any]:
     return {
         "schema_version": _PRIVATE_STATE_STORAGE_SCHEMA,
@@ -3132,8 +3291,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v11_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v11_authorization_breakdown": {
+        "claude_current_v12_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v12_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -3155,6 +3314,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v8_usd": 15.0,
             "v9_usd": 20.0,
             "v10_usd": 0.0,
+            "v11_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -3205,6 +3365,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v10_supersession": (
                 "results/development-matched-50x6-v10.superseded.json"
             ),
+            "v11_manifest": (
+                "results/development-matched-50x6-v11.manifest.json"
+            ),
+            "v11_supersession": (
+                "results/development-matched-50x6-v11.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -3230,6 +3396,9 @@ def prepare_panel(
     """Bind a fresh authenticated cohort and write its public precommitment."""
 
     _validate_schedule_design()
+    authentication_receipt_path = _authentication_receipt_path(
+        public_manifest_path
+    )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError("Commit and clean the matched-panel harness before prepare")
     _assert_distinct_paths(
@@ -3237,18 +3406,24 @@ def prepare_panel(
         authentication_key_file,
         private_state_path,
         public_manifest_path,
+        authentication_receipt_path,
     )
     _relative_to_root(public_manifest_path, root)
-    if private_state_path.exists() or public_manifest_path.exists():
+    if (
+        private_state_path.exists()
+        or public_manifest_path.exists()
+        or authentication_receipt_path.exists()
+        or authentication_receipt_path.is_symlink()
+    ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V11 requires an exact 1800-second assignment timeout")
+        raise ValueError("V12 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V11 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V12 requires an exact $5 Claude per-call ceiling")
 
     private_state_storage = _private_state_storage_binding(
         private_state_path,
@@ -3430,6 +3605,9 @@ def prepare_panel(
                 "active_job_may_be_booted_out": False,
             },
             "spend_authorization": _spend_authorization_contract(),
+            "authentication_setup": _authentication_setup_contract(
+                public_manifest_path
+            ),
             "private_state_storage": _private_state_storage_contract(),
             "retry_policy": "at most one provider invocation per assignment",
             "orphan_policy": (
@@ -3494,20 +3672,9 @@ def prepare_panel(
                 ),
                 "production_gate": "all_six_profiles_must_pass",
             },
-            "managed_glean_auth_bootstrap": {
-                "stage": "before_six_profile_calls",
-                "model_calls": 0,
-                "stdout": "discarded_never_captured",
-                "stderr": "inherited_for_oauth_instructions",
-                "credentials_required_after": True,
-            },
-            "codex_auth_bootstrap": {
-                "stage": "before_six_profile_calls",
-                "model_calls": 0,
-                "one_shot": True,
-                "method": "pinned_cli_oauth_with_file_credential_store",
-                "credentials_required_after": True,
-            },
+            "authentication_prerequisite": (
+                "committed_sanitized_receipt_before_supervisor_creation"
+            ),
             "per_provider_call_execution_attestation": {
                 "surfaces": [
                     "source_contract",
@@ -3595,6 +3762,25 @@ def prepare_panel(
         "episodes": episodes,
         "schedule_nonce_hex": nonce.hex(),
         "schedule": schedule,
+        "authentication_setup": {
+            "schema_version": _AUTHENTICATION_SETUP_SCHEMA,
+            "status": "required",
+            "required_contract_hashes": {
+                name: public["contract_hashes"][name]
+                for name in (
+                    "source_sha256",
+                    "cli_sha256",
+                    "claude_auth_sha256",
+                    "codex_auth_sha256",
+                    "budgets_sha256",
+                    "runtime_sha256",
+                    "supervisor_sha256",
+                )
+            },
+            "codex": {"status": "required", "attempts": []},
+            "managed_glean": {"status": "required", "attempts": []},
+            "model_calls_started": 0,
+        },
         "environment_preflight": {
             "status": "required",
             "required_contract_hashes": {
@@ -3658,6 +3844,10 @@ def _validate_contracts(
         or not isinstance(public.get("run_contract"), dict)
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
+        or public["run_contract"].get("authentication_setup")
+        != _authentication_setup_contract(
+            Path(f"{PANEL_ID}.manifest.json")
+        )
         or public["run_contract"].get("private_state_storage")
         != _private_state_storage_contract()
         or private.get("panel_id") != PANEL_ID
@@ -3665,6 +3855,7 @@ def _validate_contracts(
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Matched-panel manifest contract mismatch")
+    _validate_authentication_setup_state(private, public)
     _validate_claude_auth_binding(
         root=root,
         claude_secure_storage_dir=claude_secure_storage_dir,
@@ -3923,7 +4114,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V11 spend authorization contract mismatch")
+        raise ValueError("V12 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -3951,7 +4142,7 @@ def _assert_spend_authorization(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v11 spend authorization receipt is required "
+            "A manifest-bound exact v12 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -3973,7 +4164,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v11 $570 cumulative spend acknowledgement text is required"
+            "The exact v12 $570 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -4015,11 +4206,20 @@ def authorize_panel_spend(
             codex_secure_storage_dir=resolved_codex_secure_storage_dir,
         )
         preflight = private.get("environment_preflight")
+        authentication_setup = _validate_authentication_setup_state(
+            private, public
+        )
         if (
             private.get("status") != "prepared"
             or private.get("assignments") != []
             or not isinstance(preflight, Mapping)
             or preflight.get("status") != "required"
+            or authentication_setup.get("status") != "required"
+            or any(
+                authentication_setup[name].get("status") != "required"
+                or authentication_setup[name].get("attempts") != []
+                for name in ("codex", "managed_glean")
+            )
         ):
             raise RuntimeError(
                 "Spend authorization must precede every authentication bootstrap "
@@ -4060,6 +4260,1070 @@ def authorize_panel_spend(
         return expected
 
 
+_AUTHENTICATION_PROVIDER_STATUSES = frozenset(
+    {
+        "required",
+        "running",
+        "retryable_failed",
+        "terminal_failed",
+        "passed",
+    }
+)
+_AUTHENTICATION_SETUP_STATUSES = frozenset(
+    {
+        "required",
+        "running",
+        "retryable_failed",
+        "terminal_failed",
+        "pending_publication",
+        "passed",
+    }
+)
+
+
+def _authentication_contract_hashes(
+    public: Mapping[str, Any],
+) -> dict[str, str]:
+    hashes = public.get("contract_hashes")
+    names = (
+        "source_sha256",
+        "cli_sha256",
+        "claude_auth_sha256",
+        "codex_auth_sha256",
+        "budgets_sha256",
+        "runtime_sha256",
+        "supervisor_sha256",
+    )
+    if not isinstance(hashes, Mapping) or any(
+        not isinstance(hashes.get(name), str) for name in names
+    ):
+        raise ValueError("Authentication contract commitments are invalid")
+    return {name: str(hashes[name]) for name in names}
+
+
+def _validate_authentication_setup_state(
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> dict[str, Any]:
+    setup = private.get("authentication_setup")
+    if (
+        not isinstance(setup, dict)
+        or setup.get("schema_version") != _AUTHENTICATION_SETUP_SCHEMA
+        or setup.get("status") not in _AUTHENTICATION_SETUP_STATUSES
+        or setup.get("required_contract_hashes")
+        != _authentication_contract_hashes(public)
+        or setup.get("model_calls_started") != 0
+        or type(setup.get("model_calls_started")) is not int
+    ):
+        raise ValueError("Private authentication setup state is invalid")
+    for provider in ("codex", "managed_glean"):
+        value = setup.get(provider)
+        if (
+            not isinstance(value, dict)
+            or value.get("status") not in _AUTHENTICATION_PROVIDER_STATUSES
+            or not isinstance(value.get("attempts"), list)
+            or any(
+                not isinstance(attempt, dict)
+                or attempt.get("status")
+                not in {
+                    "launch_pending",
+                    "started",
+                    "start_failed",
+                    "returned",
+                    "retryable_failed",
+                    "terminal_failed",
+                    "passed",
+                }
+                for attempt in value["attempts"]
+            )
+        ):
+            raise ValueError("Private provider authentication state is invalid")
+        attempts = value["attempts"]
+        provider_status = value["status"]
+        if provider_status == "required":
+            if attempts:
+                raise ValueError(
+                    "Private provider authentication state is invalid"
+                )
+        elif (
+            not attempts
+            or attempts[-1].get("status") != provider_status
+            and not (
+                provider_status == "running"
+                and attempts[-1].get("status")
+                in {
+                    "launch_pending",
+                    "started",
+                    "start_failed",
+                    "returned",
+                }
+            )
+        ):
+            raise ValueError(
+                "Private provider authentication state is invalid"
+            )
+
+    overall = setup["status"]
+    provider_pair = (
+        setup["codex"]["status"],
+        setup["managed_glean"]["status"],
+    )
+    allowed_pairs = {
+        "required": {
+            ("required", "required"),
+            ("passed", "required"),
+        },
+        "running": {
+            ("running", "required"),
+            ("passed", "running"),
+        },
+        "retryable_failed": {
+            ("retryable_failed", "required"),
+            ("passed", "retryable_failed"),
+        },
+        "terminal_failed": {
+            ("terminal_failed", "required"),
+            ("passed", "terminal_failed"),
+            ("terminal_failed", "terminal_failed"),
+        },
+        "pending_publication": {("passed", "passed")},
+        "passed": {("passed", "passed")},
+    }
+    if provider_pair not in allowed_pairs[overall]:
+        raise ValueError(
+            "Private authentication setup state transition is invalid"
+        )
+    return setup
+
+
+def _require_completed_authentication_state(
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> dict[str, Any]:
+    setup = _validate_authentication_setup_state(private, public)
+    if (
+        setup.get("status") not in {"pending_publication", "passed"}
+        or setup["codex"].get("status") != "passed"
+        or setup["managed_glean"].get("status") != "passed"
+    ):
+        raise RuntimeError("Authentication providers have not both passed")
+    for field in (
+        "codex_auth_file_identity",
+        "managed_glean_auth_file_identity",
+    ):
+        identity = private.get(field)
+        if (
+            not isinstance(identity, Mapping)
+            or set(identity) != {"device", "inode"}
+            or any(
+                type(identity.get(name)) is not int
+                or int(identity[name]) < 0
+                for name in ("device", "inode")
+            )
+        ):
+            raise ValueError(
+                "Completed authentication credential identity is invalid"
+            )
+    return setup
+
+
+def _validate_authentication_contracts(
+    *,
+    root: Path,
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+    public_manifest_path: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    revalidate_live_identity_contracts: bool,
+) -> dict[str, Any]:
+    """Validate authentication-only surfaces without reading cohort packs."""
+
+    _validate_public_hash(public)
+    run_contract = public.get("run_contract")
+    if (
+        public.get("schema_version") != SCHEMA_VERSION
+        or public.get("panel_id") != PANEL_ID
+        or public.get("status") != "precommitted"
+        or public.get("results") != []
+        or public.get("budget_contract") != _budget_contract(5.0)
+        or not isinstance(run_contract, Mapping)
+        or run_contract.get("spend_authorization")
+        != _spend_authorization_contract()
+        or run_contract.get("authentication_setup")
+        != _authentication_setup_contract(public_manifest_path)
+        or private.get("schema_version") != SCHEMA_VERSION
+        or private.get("panel_id") != PANEL_ID
+        or private.get("public_precommitment_sha256")
+        != public.get("precommitment_sha256")
+    ):
+        raise ValueError("Authentication setup contract mismatch")
+    _validate_claude_auth_binding(
+        root=root,
+        claude_secure_storage_dir=claude_secure_storage_dir,
+        private=private,
+        public=public,
+    )
+    _validate_codex_auth_binding(
+        root=root,
+        codex_secure_storage_dir=codex_secure_storage_dir,
+        private=private,
+        public=public,
+    )
+    hashes = public.get("contract_hashes")
+    if not isinstance(hashes, Mapping) or any(
+        hashes.get(name) != _component_hash(value)
+        for name, value in (
+            ("source_sha256", public.get("source_contract")),
+            ("cli_sha256", public.get("cli_contract")),
+            ("claude_auth_sha256", public.get("claude_auth_contract")),
+            ("codex_auth_sha256", public.get("codex_auth_contract")),
+            ("profiles_sha256", public.get("profiles")),
+            ("budgets_sha256", public.get("budget_contract")),
+            ("timeouts_sha256", public.get("timeout_contract")),
+            ("runtime_sha256", public.get("runtime_contract")),
+            ("replay_sha256", public.get("replay_trace_contract")),
+            ("supervisor_sha256", public.get("persistent_supervisor_contract")),
+        )
+    ):
+        raise ValueError("Authentication component commitment mismatch")
+    if revalidate_live_identity_contracts:
+        _attest_execution_contracts(root=root, public=public)
+    return _validate_authentication_setup_state(private, public)
+
+
+def _expected_authentication_receipt(
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> dict[str, Any]:
+    _require_completed_authentication_state(private, public)
+    spend = _assert_spend_authorization(private, public)
+    unsigned = {
+        "schema_version": _AUTHENTICATION_RECEIPT_SCHEMA,
+        "panel_id": PANEL_ID,
+        "status": "passed",
+        "development_only": True,
+        "precommitment_sha256": public["precommitment_sha256"],
+        "authentication_contract_hashes": _authentication_contract_hashes(
+            public
+        ),
+        "spend_authorization_receipt_sha256": spend["receipt_sha256"],
+        "authentication_prerequisite": {
+            "codex": "passed_before_preflight",
+            "managed_glean": "passed_before_preflight",
+            "codex_method": "pinned_cli_device_auth",
+            "managed_glean_method": "pinned_managed_oauth_helper",
+            "model_calls": 0,
+        },
+        "model_calls_started": 0,
+        "production_episodes_consumed": 0,
+        "scores_reported": False,
+    }
+    return {**unsigned, "receipt_sha256": _component_hash(unsigned)}
+
+
+def _validate_authentication_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> None:
+    expected = _expected_authentication_receipt(private, public)
+    if not hmac.compare_digest(
+        _canonical_bytes(dict(receipt)), _canonical_bytes(expected)
+    ):
+        raise ValueError("Public authentication receipt is invalid")
+
+
+def _authentication_status_payload(
+    setup: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "panel_id": PANEL_ID,
+        "status": str(setup.get("status")),
+        "providers": {
+            provider: {"status": str(setup[provider].get("status"))}
+            for provider in ("codex", "managed_glean")
+        },
+        "model_calls_started": 0,
+    }
+
+
+def _require_operator_authentication_tty() -> None:
+    streams = (sys.stdin, sys.stdout, sys.stderr)
+    if any(
+        not callable(getattr(stream, "isatty", None))
+        or not stream.isatty()
+        for stream in streams
+    ):
+        raise RuntimeError(
+            "Interactive authentication requires a foreground operator TTY"
+        )
+
+
+def _authentication_provider_is_retryably_empty(
+    provider: str,
+    *,
+    root: Path,
+    private: Mapping[str, Any],
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+) -> bool:
+    try:
+        if provider == "codex":
+            _require_codex_credential_state(
+                codex_secure_storage_dir,
+                root=root,
+                expected_identity=_private_codex_storage_identity(private),
+                credentials_present=False,
+            )
+            return True
+        elif provider == "managed_glean":
+            _require_claude_credential_state(
+                claude_secure_storage_dir,
+                root=root,
+                expected_identity=_private_claude_storage_identity(private),
+                managed_glean_credentials_present=False,
+            )
+            return True
+    except Exception:
+        return False
+    raise ValueError("Unknown authentication provider")
+
+
+def _terminalize_authentication_incident(
+    *,
+    private: dict[str, Any],
+    private_state_path: Path,
+    authentication_key: bytes,
+    incident: str,
+) -> None:
+    setup = private["authentication_setup"]
+    now = _utc_now()
+    for provider in ("codex", "managed_glean"):
+        state = setup[provider]
+        attempts = state["attempts"]
+        attempts.append(
+            {
+                "status": "terminal_failed",
+                "finished_at_utc": now,
+                "invocation": incident,
+            }
+        )
+        state["status"] = "terminal_failed"
+    setup["status"] = "terminal_failed"
+    _write_private_state(
+        private_state_path, private, authentication_key
+    )
+
+
+def _persist_authentication_attempt(
+    *,
+    private: dict[str, Any],
+    provider: str,
+    private_state_path: Path,
+    authentication_key: bytes,
+    action: str,
+    returncode: int | None = None,
+) -> None:
+    setup = private["authentication_setup"]
+    state = setup[provider]
+    attempts = state["attempts"]
+    now = _utc_now()
+    if action == "launch_pending":
+        if state.get("status") not in {"required", "retryable_failed"}:
+            raise ProviderStateIsolationError(
+                "Authentication invocation state changed"
+            )
+        attempts.append(
+            {
+                "status": "launch_pending",
+                "launch_pending_at_utc": now,
+            }
+        )
+        state["status"] = "running"
+        setup["status"] = "running"
+    else:
+        if state.get("status") != "running" or not attempts:
+            raise ProviderStateIsolationError(
+                "Authentication invocation state changed"
+            )
+        attempt = attempts[-1]
+        if action == "started" and attempt.get("status") == "launch_pending":
+            attempt.update({"status": "started", "started_at_utc": now})
+        elif (
+            action == "start_failed"
+            and attempt.get("status") == "launch_pending"
+        ):
+            attempt.update(
+                {"status": "start_failed", "start_failed_at_utc": now}
+            )
+        elif (
+            action == "returned"
+            and attempt.get("status") == "started"
+            and type(returncode) is int
+        ):
+            attempt.update(
+                {
+                    "status": "returned",
+                    "returned_at_utc": now,
+                    "returncode": returncode,
+                }
+            )
+        else:
+            raise ProviderStateIsolationError(
+                "Authentication invocation state changed"
+            )
+    try:
+        _write_private_state(private_state_path, private, authentication_key)
+    except Exception as error:
+        raise ProviderStateIsolationError(
+            "Authentication invocation marker could not be persisted"
+        ) from error
+
+
+def _finish_authentication_provider_attempt(
+    *,
+    private: dict[str, Any],
+    provider: str,
+    status: str,
+    private_state_path: Path,
+    authentication_key: bytes,
+) -> None:
+    setup = private["authentication_setup"]
+    state = setup[provider]
+    attempts = state["attempts"]
+    if status not in {"retryable_failed", "terminal_failed", "passed"}:
+        raise ValueError("Invalid authentication attempt outcome")
+    if not attempts:
+        attempts.append(
+            {
+                "status": status,
+                "finished_at_utc": _utc_now(),
+                "invocation": "not_launched",
+            }
+        )
+    else:
+        attempts[-1] = {
+            **attempts[-1],
+            "status": status,
+            "finished_at_utc": _utc_now(),
+        }
+    state["status"] = status
+    if status == "terminal_failed":
+        setup["status"] = "terminal_failed"
+    elif status == "retryable_failed":
+        setup["status"] = "retryable_failed"
+    elif all(
+        setup[name].get("status") == "passed"
+        for name in ("codex", "managed_glean")
+    ):
+        setup["status"] = "pending_publication"
+    else:
+        setup["status"] = "required"
+    _write_private_state(private_state_path, private, authentication_key)
+
+
+def _publish_authentication_receipt(
+    *,
+    private: dict[str, Any],
+    public: Mapping[str, Any],
+    private_state_path: Path,
+    public_manifest_path: Path,
+    authentication_key: bytes,
+) -> dict[str, Any]:
+    setup = _require_completed_authentication_state(private, public)
+    receipt_path = _authentication_receipt_path(public_manifest_path)
+    expected = _expected_authentication_receipt(private, public)
+    if setup.get("status") == "pending_publication":
+        candidate = setup.get("pending_public_receipt")
+        if candidate is None:
+            setup["pending_public_receipt"] = expected
+            setup["public_receipt_path"] = str(receipt_path.resolve())
+            setup["public_receipt_sha256"] = expected["receipt_sha256"]
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
+        elif candidate != expected:
+            raise ProviderStateIsolationError(
+                "Authentication receipt publication state changed"
+            )
+    elif setup.get("status") != "passed":
+        raise RuntimeError("Authentication providers have not both passed")
+
+    if receipt_path.exists() or receipt_path.is_symlink():
+        observed = _load_json(receipt_path)
+        _validate_authentication_receipt(
+            observed, private=private, public=public
+        )
+    else:
+        try:
+            _create_public_json_once(receipt_path, expected)
+        except FileExistsError:
+            pass
+        observed = _load_json(receipt_path)
+        _validate_authentication_receipt(
+            observed, private=private, public=public
+        )
+    if setup.get("status") != "passed":
+        setup.pop("pending_public_receipt", None)
+        setup["status"] = "passed"
+        setup["public_receipt_path"] = str(receipt_path.resolve())
+        setup["public_receipt_sha256"] = observed["receipt_sha256"]
+        _write_private_state(private_state_path, private, authentication_key)
+    return observed
+
+
+def _attest_authentication_credentials(
+    *,
+    root: Path,
+    private: Mapping[str, Any],
+    setup: Mapping[str, Any],
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+) -> None:
+    codex_passed = setup["codex"].get("status") == "passed"
+    glean_passed = setup["managed_glean"].get("status") == "passed"
+    _require_codex_credential_state(
+        codex_secure_storage_dir,
+        root=root,
+        expected_identity=_private_codex_storage_identity(private),
+        credentials_present=codex_passed,
+    )
+    _require_claude_credential_state(
+        claude_secure_storage_dir,
+        root=root,
+        expected_identity=_private_claude_storage_identity(private),
+        managed_glean_credentials_present=glean_passed,
+    )
+    if codex_passed:
+        identity = private.get("codex_auth_file_identity")
+        if not isinstance(identity, Mapping):
+            raise ValueError("Codex credential identity is unavailable")
+        _require_codex_auth_file_identity(
+            codex_secure_storage_dir, identity
+        )
+    if glean_passed:
+        identity = private.get("managed_glean_auth_file_identity")
+        if not isinstance(identity, Mapping):
+            raise ValueError("Managed Glean credential identity is unavailable")
+        _require_managed_glean_auth_file_identity(
+            claude_secure_storage_dir, identity
+        )
+
+
+def authenticate_panel(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    acknowledge_interactive_authentication: bool = False,
+) -> dict[str, Any]:
+    """Run foreground, zero-model authentication before one-shot preflight."""
+
+    if acknowledge_interactive_authentication is not True:
+        raise RuntimeError(
+            "Explicit acknowledgement of foreground interactive "
+            "authentication is required"
+        )
+    assert_durable_live_execution_paths(
+        root=root, private_state_path=private_state_path
+    )
+    resolved_claude = _validate_claude_secure_storage_dir(
+        claude_secure_storage_dir, root=root
+    )
+    resolved_codex = _validate_codex_secure_storage_dir(
+        codex_secure_storage_dir, root=root
+    )
+    if _paths_overlap(resolved_claude, resolved_codex):
+        raise ValueError(
+            "Claude and Codex secure storage directories must not overlap"
+        )
+    receipt_path = _authentication_receipt_path(public_manifest_path)
+    _assert_distinct_paths(
+        authentication_key_file,
+        private_state_path,
+        public_manifest_path,
+        receipt_path,
+    )
+    with _exclusive_run_lock(private_state_path):
+        key = _read_authentication_key(
+            _existing_path_without_final_symlink(authentication_key_file)
+        )
+        private = _load_private_state(private_state_path, key)
+        public = _load_json(public_manifest_path)
+        setup = _validate_authentication_contracts(
+            root=root,
+            private=private,
+            public=public,
+            public_manifest_path=public_manifest_path,
+            claude_secure_storage_dir=resolved_claude,
+            codex_secure_storage_dir=resolved_codex,
+            revalidate_live_identity_contracts=False,
+        )
+        _assert_spend_authorization(private, public)
+        _attest_execution_contracts(root=root, public=public)
+        if setup.get("status") == "terminal_failed":
+            raise RuntimeError(
+                "This panel has a terminal authentication incident"
+            )
+        if setup.get("status") in {"pending_publication", "passed"}:
+            try:
+                _attest_authentication_credentials(
+                    root=root,
+                    private=private,
+                    setup=setup,
+                    claude_secure_storage_dir=resolved_claude,
+                    codex_secure_storage_dir=resolved_codex,
+                )
+            except Exception:
+                _terminalize_authentication_incident(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    incident="credential_integrity_incident",
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal credential-integrity "
+                    "state; this V12 panel cannot retry"
+                ) from None
+            _attest_execution_contracts(root=root, public=public)
+            if (
+                setup.get("status") == "pending_publication"
+                and not receipt_path.exists()
+                and not receipt_path.is_symlink()
+            ):
+                _assert_authorization_worktree(
+                    root=root,
+                    private_state_path=private_state_path,
+                    public_manifest_path=public_manifest_path,
+                )
+            _publish_authentication_receipt(
+                private=private,
+                public=public,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+                authentication_key=key,
+            )
+            return _authentication_status_payload(
+                private["authentication_setup"]
+            )
+        if setup.get("status") == "running":
+            _terminalize_authentication_incident(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                incident="interrupted_process_state",
+            )
+            raise RuntimeError(
+                "Authentication process state is ambiguous; this V12 panel "
+                "cannot retry"
+            )
+        if (
+            private.get("status") != "prepared"
+            or private.get("assignments") != []
+            or not isinstance(private.get("environment_preflight"), Mapping)
+            or private["environment_preflight"].get("status") != "required"
+        ):
+            raise RuntimeError(
+                "Authentication must precede the one-shot environment preflight"
+            )
+        _assert_authorization_worktree(
+            root=root,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+        )
+        try:
+            _attest_authentication_credentials(
+                root=root,
+                private=private,
+                setup=setup,
+                claude_secure_storage_dir=resolved_claude,
+                codex_secure_storage_dir=resolved_codex,
+            )
+        except Exception:
+            _terminalize_authentication_incident(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                incident="credential_integrity_incident",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal credential-integrity "
+                "state; this V12 panel cannot retry"
+            ) from None
+        _require_operator_authentication_tty()
+        timeout = int(public["timeout_contract"]["seconds_per_assignment"])
+        providers = (
+            (
+                "codex",
+                lambda: _bootstrap_codex_credentials(
+                    resolved_codex,
+                    executable=str(
+                        _PROFILE_BY_ID["codex-sol"]["executable"]
+                    ),
+                    timeout_seconds=timeout,
+                    invocation_launch_pending=lambda: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="codex",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="launch_pending",
+                        )
+                    ),
+                    invocation_started=lambda: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="codex",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="started",
+                        )
+                    ),
+                    invocation_start_failed=lambda: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="codex",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="start_failed",
+                        )
+                    ),
+                    invocation_returned=lambda returncode: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="codex",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="returned",
+                            returncode=returncode,
+                        )
+                    ),
+                ),
+            ),
+            (
+                "managed_glean",
+                lambda: _bootstrap_managed_glean_credentials(
+                    resolved_claude,
+                    oauth_client_id=_glean_claude_oauth_client_id(),
+                    timeout_seconds=timeout,
+                    invocation_launch_pending=lambda: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="managed_glean",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="launch_pending",
+                        )
+                    ),
+                    invocation_started=lambda: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="managed_glean",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="started",
+                        )
+                    ),
+                    invocation_start_failed=lambda: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="managed_glean",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="start_failed",
+                        )
+                    ),
+                    invocation_returned=lambda returncode: (
+                        _persist_authentication_attempt(
+                            private=private,
+                            provider="managed_glean",
+                            private_state_path=private_state_path,
+                            authentication_key=key,
+                            action="returned",
+                            returncode=returncode,
+                        )
+                    ),
+                ),
+            ),
+        )
+        for provider, bootstrap in providers:
+            state = setup[provider]
+            if state.get("status") == "passed":
+                continue
+            _attest_execution_contracts(root=root, public=public)
+            _assert_authorization_worktree(
+                root=root,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+            )
+            try:
+                _attest_authentication_credentials(
+                    root=root,
+                    private=private,
+                    setup=setup,
+                    claude_secure_storage_dir=resolved_claude,
+                    codex_secure_storage_dir=resolved_codex,
+                )
+            except Exception:
+                _terminalize_authentication_incident(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    incident="credential_integrity_incident",
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal credential-integrity "
+                    "state; this V12 panel cannot retry"
+                ) from None
+            try:
+                bootstrap()
+                if provider == "codex":
+                    _require_codex_credential_state(
+                        resolved_codex,
+                        root=root,
+                        expected_identity=_private_codex_storage_identity(
+                            private
+                        ),
+                        credentials_present=True,
+                    )
+                    private["codex_auth_file_identity"] = (
+                        _codex_auth_file_identity(resolved_codex)
+                    )
+                else:
+                    _require_claude_credential_state(
+                        resolved_claude,
+                        root=root,
+                        expected_identity=_private_claude_storage_identity(
+                            private
+                        ),
+                        managed_glean_credentials_present=True,
+                    )
+                    private["managed_glean_auth_file_identity"] = (
+                        _managed_glean_auth_file_identity(resolved_claude)
+                    )
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status="passed",
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                )
+            except KeyboardInterrupt:
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status="terminal_failed",
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                )
+                raise
+            except Exception as error:
+                retryable = (
+                    not isinstance(error, ProviderExecutionIsolationError)
+                    and _authentication_provider_is_retryably_empty(
+                        provider,
+                        root=root,
+                        private=private,
+                        claude_secure_storage_dir=resolved_claude,
+                        codex_secure_storage_dir=resolved_codex,
+                    )
+                )
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status=(
+                        "retryable_failed"
+                        if retryable
+                        else "terminal_failed"
+                    ),
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                )
+                if retryable:
+                    return _authentication_status_payload(
+                        private["authentication_setup"]
+                    )
+                raise RuntimeError(
+                    "Authentication entered a terminal ambiguous state; this "
+                    "V12 panel cannot retry"
+                ) from None
+
+        _attest_execution_contracts(root=root, public=public)
+        _assert_authorization_worktree(
+            root=root,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+        )
+        try:
+            _attest_authentication_credentials(
+                root=root,
+                private=private,
+                setup=private["authentication_setup"],
+                claude_secure_storage_dir=resolved_claude,
+                codex_secure_storage_dir=resolved_codex,
+            )
+        except Exception:
+            _terminalize_authentication_incident(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                incident="credential_integrity_incident",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal credential-integrity "
+                "state; this V12 panel cannot retry"
+            ) from None
+        _publish_authentication_receipt(
+            private=private,
+            public=public,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+            authentication_key=key,
+        )
+        return _authentication_status_payload(
+            private["authentication_setup"]
+        )
+
+
+def panel_authentication_status(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+) -> dict[str, Any]:
+    """Return finite authentication state without launching any helper."""
+
+    with _exclusive_run_lock(private_state_path):
+        key = _read_authentication_key(
+            _existing_path_without_final_symlink(authentication_key_file)
+        )
+        private = _load_private_state(private_state_path, key)
+        public = _load_json(public_manifest_path)
+        resolved_claude = _validate_claude_secure_storage_dir(
+            claude_secure_storage_dir, root=root
+        )
+        resolved_codex = _validate_codex_secure_storage_dir(
+            codex_secure_storage_dir, root=root
+        )
+        setup = _validate_authentication_contracts(
+            root=root,
+            private=private,
+            public=public,
+            public_manifest_path=public_manifest_path,
+            claude_secure_storage_dir=resolved_claude,
+            codex_secure_storage_dir=resolved_codex,
+            revalidate_live_identity_contracts=False,
+        )
+        try:
+            _attest_authentication_credentials(
+                root=root,
+                private=private,
+                setup=setup,
+                claude_secure_storage_dir=resolved_claude,
+                codex_secure_storage_dir=resolved_codex,
+            )
+        except Exception:
+            terminal = _authentication_status_payload(setup)
+            terminal["status"] = "terminal_failed"
+            terminal["providers"] = {
+                provider: {"status": "terminal_failed"}
+                for provider in ("codex", "managed_glean")
+            }
+            return terminal
+        if setup.get("status") == "passed":
+            receipt = _load_json(
+                _authentication_receipt_path(public_manifest_path)
+            )
+            _validate_authentication_receipt(
+                receipt, private=private, public=public
+            )
+        return _authentication_status_payload(setup)
+
+
+def assert_panel_authentication_ready(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    require_clean_checkout: bool = True,
+    revalidate_live_identity_contracts: bool = True,
+) -> dict[str, Any]:
+    """Fail closed unless committed foreground authentication is still valid."""
+
+    key = _read_authentication_key(
+        _existing_path_without_final_symlink(authentication_key_file)
+    )
+    private = _load_private_state(private_state_path, key)
+    public = _load_json(public_manifest_path)
+    resolved_claude = _validate_claude_secure_storage_dir(
+        claude_secure_storage_dir, root=root
+    )
+    resolved_codex = _validate_codex_secure_storage_dir(
+        codex_secure_storage_dir, root=root
+    )
+    setup = _validate_authentication_contracts(
+        root=root,
+        private=private,
+        public=public,
+        public_manifest_path=public_manifest_path,
+        claude_secure_storage_dir=resolved_claude,
+        codex_secure_storage_dir=resolved_codex,
+        revalidate_live_identity_contracts=False,
+    )
+    _assert_spend_authorization(private, public)
+    if revalidate_live_identity_contracts:
+        _attest_execution_contracts(root=root, public=public)
+    if setup.get("status") != "passed":
+        raise RuntimeError(
+            "Foreground authentication must pass before supervisor creation"
+        )
+    _attest_authentication_credentials(
+        root=root,
+        private=private,
+        setup=setup,
+        claude_secure_storage_dir=resolved_claude,
+        codex_secure_storage_dir=resolved_codex,
+    )
+    receipt_path = _authentication_receipt_path(public_manifest_path)
+    receipt = _load_json(receipt_path)
+    _validate_authentication_receipt(
+        receipt, private=private, public=public
+    )
+    if (
+        setup.get("public_receipt_path") != str(receipt_path.resolve())
+        or setup.get("public_receipt_sha256") != receipt.get("receipt_sha256")
+    ):
+        raise RuntimeError("Authentication receipt binding changed")
+    if require_clean_checkout:
+        _assert_authorization_worktree(
+            root=root,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+        )
+        receipt_relative = _relative_to_root(receipt_path, root)
+        if (
+            _git_output(
+                root, "ls-files", "--error-unmatch", receipt_relative
+            )
+            != receipt_relative
+        ):
+            raise RuntimeError(
+                "Authentication receipt must be committed before supervisor creation"
+            )
+    return receipt
+
+
 def _assert_environment_preflight(
     root: Path, private: Mapping[str, Any], public: Mapping[str, Any]
 ) -> None:
@@ -4082,34 +5346,26 @@ def _assert_environment_preflight(
     private_attempts = (
         preflight.get("attempts") if isinstance(preflight, dict) else None
     )
-    expected_bootstrap_fields = {
-        "status",
-        "launch_pending_at_utc",
-        "started_at_utc",
-        "returned_at_utc",
-        "returncode",
-        "finished_at_utc",
+    authentication_setup = _validate_authentication_setup_state(
+        private, public
+    )
+    expected_authentication_prerequisite = {
+        "receipt_sha256": authentication_setup.get("public_receipt_sha256"),
+        "codex": "passed_before_preflight",
+        "managed_glean": "passed_before_preflight",
+        "model_calls": 0,
     }
-
-    def passed_bootstrap(value: Any) -> bool:
-        return (
-            isinstance(value, dict)
-            and set(value) == expected_bootstrap_fields
-            and value.get("status") == "passed"
-            and value.get("returncode") == 0
-            and all(
-                isinstance(value.get(name), str) and bool(value[name])
-                for name in expected_bootstrap_fields
-                - {"status", "returncode"}
-            )
-        )
 
     if (
         not isinstance(preflight, dict)
+        or authentication_setup.get("status") != "passed"
+        or not isinstance(
+            authentication_setup.get("public_receipt_sha256"), str
+        )
         or preflight.get("status") != "passed"
         or preflight.get("passed_contract_hashes") != expected
-        or not passed_bootstrap(preflight.get("managed_glean_auth_bootstrap"))
-        or not passed_bootstrap(preflight.get("codex_auth_bootstrap"))
+        or preflight.get("authentication_prerequisite")
+        != expected_authentication_prerequisite
         or preflight.get("codex_auth_quarantine") != {"status": "clear"}
         or not isinstance(private_attempts, list)
         or len(private_attempts) != len(PROFILES)
@@ -4232,8 +5488,8 @@ def _assert_environment_preflight(
         or receipt.get("production_episodes_consumed") != 0
         or type(receipt.get("production_episodes_consumed")) is not int
         or receipt.get("scores_reported") is not False
-        or receipt.get("managed_glean_auth_bootstrap") != "passed"
-        or receipt.get("codex_auth_bootstrap") != "passed"
+        or receipt.get("authentication_prerequisite")
+        != expected_authentication_prerequisite
         or receipt.get("codex_auth_quarantine") != "clear"
         or receipt.get("preflight_purpose")
         != "unscored_infrastructure_routing_handshake"
@@ -4760,6 +6016,11 @@ def _run_environment_preflight_core(
         public_manifest_path,
         public_preflight_path,
     )
+    if not os.environ.get("CURSOR_API_KEY", "").strip():
+        raise RuntimeError(
+            "Disposable six-profile preflight requires CURSOR_API_KEY before "
+            "any provider call"
+        )
     with _exclusive_run_lock(private_state_path):
         authentication_key = _read_authentication_key(
             _existing_path_without_final_symlink(authentication_key_file)
@@ -4767,6 +6028,16 @@ def _run_environment_preflight_core(
         private = _load_private_state(private_state_path, authentication_key)
         public = _load_json(public_manifest_path)
         _validate_public_hash(public)
+        authentication_receipt = assert_panel_authentication_ready(
+            root=root,
+            authentication_key_file=authentication_key_file,
+            claude_secure_storage_dir=resolved_claude_secure_storage_dir,
+            codex_secure_storage_dir=resolved_codex_secure_storage_dir,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+            require_clean_checkout=require_persistent_supervisor,
+            revalidate_live_identity_contracts=False,
+        )
         _, binding_created = _attest_and_match_persistent_execution(
             required=require_persistent_supervisor,
             supervisor_runtime_dir=supervisor_runtime_dir,
@@ -4776,8 +6047,8 @@ def _run_environment_preflight_core(
             private=private,
         )
         if binding_created:
-            # The exact label/context is burned before any authentication
-            # bootstrap or model-bearing call.  It is never replaceable.
+            # Authentication is already sealed and committed.  The exact
+            # label/context is now burned before any model-bearing call.
             _write_private_state(private_state_path, private, authentication_key)
 
         def attest_current_supervisor() -> None:
@@ -4825,11 +6096,6 @@ def _run_environment_preflight_core(
             public_manifest_path=public_manifest_path,
             additional_artifact_paths=(public_preflight_path,),
         )
-        if not os.environ.get("CURSOR_API_KEY", "").strip():
-            raise RuntimeError(
-                "Disposable six-profile preflight requires CURSOR_API_KEY before "
-                "any provider call"
-            )
         _validate_contracts(
             root=root,
             private=private,
@@ -4849,13 +6115,13 @@ def _run_environment_preflight_core(
             resolved_claude_secure_storage_dir,
             root=root,
             expected_identity=claude_secure_storage_identity,
-            managed_glean_credentials_present=False,
+            managed_glean_credentials_present=True,
         )
         _require_codex_credential_state(
             resolved_codex_secure_storage_dir,
             root=root,
             expected_identity=codex_secure_storage_identity,
-            credentials_present=False,
+            credentials_present=True,
         )
         _preflight_execution(
             root=root,
@@ -4867,13 +6133,13 @@ def _run_environment_preflight_core(
             resolved_claude_secure_storage_dir,
             root=root,
             expected_identity=claude_secure_storage_identity,
-            managed_glean_credentials_present=False,
+            managed_glean_credentials_present=True,
         )
         _require_codex_credential_state(
             resolved_codex_secure_storage_dir,
             root=root,
             expected_identity=codex_secure_storage_identity,
-            credentials_present=False,
+            credentials_present=True,
         )
 
         contract_hashes = {
@@ -4897,6 +6163,14 @@ def _run_environment_preflight_core(
         }
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         claude_glean_oauth_client_id = _glean_claude_oauth_client_id()
+        codex_auth_file_identity = _private_codex_auth_file_identity(private)
+        managed_glean_auth_file_identity = private.get(
+            "managed_glean_auth_file_identity"
+        )
+        if not isinstance(managed_glean_auth_file_identity, Mapping):
+            raise RuntimeError(
+                "Managed Glean credential identity is unavailable"
+            )
         budget = float(
             public["budget_contract"]["claude_max_budget_usd_per_assignment"]
         )
@@ -4906,287 +6180,16 @@ def _run_environment_preflight_core(
             "started_at_utc": _utc_now(),
             "attempts": attempts,
             "required_contract_hashes": contract_hashes,
-            "managed_glean_auth_bootstrap": {"status": "not_started"},
-            "codex_auth_bootstrap": {"status": "not_started"},
+            "authentication_prerequisite": {
+                "receipt_sha256": authentication_receipt["receipt_sha256"],
+                "codex": "passed_before_preflight",
+                "managed_glean": "passed_before_preflight",
+                "model_calls": 0,
+            },
             "codex_auth_quarantine": {"status": "clear"},
         }
         _write_private_state(private_state_path, private, authentication_key)
-
-        def persist_bootstrap_marker(
-            name: str,
-            *,
-            expected_status: str,
-            replacement: Mapping[str, Any],
-        ) -> None:
-            state = private["environment_preflight"][name]
-            if state.get("status") != expected_status:
-                raise ProviderStateIsolationError(
-                    "Authentication bootstrap invocation marker changed"
-                )
-            private["environment_preflight"][name] = dict(replacement)
-            try:
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
-            except Exception:
-                private["environment_preflight"][name] = state
-                raise
-
-        def mark_bootstrap_launch_pending(name: str) -> None:
-            persist_bootstrap_marker(
-                name,
-                expected_status="not_started",
-                replacement={
-                    "status": "launch_pending",
-                    "launch_pending_at_utc": _utc_now(),
-                },
-            )
-
-        def mark_bootstrap_started(name: str) -> None:
-            state = private["environment_preflight"][name]
-            persist_bootstrap_marker(
-                name,
-                expected_status="launch_pending",
-                replacement={
-                    **state,
-                    "status": "started",
-                    "started_at_utc": _utc_now(),
-                },
-            )
-
-        def mark_bootstrap_start_failed(name: str) -> None:
-            state = private["environment_preflight"][name]
-            persist_bootstrap_marker(
-                name,
-                expected_status="launch_pending",
-                replacement={
-                    **state,
-                    "status": "start_failed",
-                    "start_failed_at_utc": _utc_now(),
-                },
-            )
-
-        def mark_bootstrap_returned(name: str, returncode: int) -> None:
-            state = private["environment_preflight"][name]
-            if type(returncode) is not int:
-                raise ProviderStateIsolationError(
-                    "Authentication bootstrap invocation marker changed"
-                )
-            persist_bootstrap_marker(
-                name,
-                expected_status="started",
-                replacement={
-                    **state,
-                    "status": "returned",
-                    "returned_at_utc": _utc_now(),
-                    "returncode": returncode,
-                },
-            )
-
         public_attempts: list[dict[str, Any]] = []
-        failure_stage = "codex_auth_bootstrap"
-        active_bootstrap: str | None = None
-        try:
-            attest_current_supervisor()
-            _attest_execution_contracts(root=root, public=public)
-            _require_codex_credential_state(
-                resolved_codex_secure_storage_dir,
-                root=root,
-                expected_identity=codex_secure_storage_identity,
-                credentials_present=False,
-            )
-            active_bootstrap = "codex_auth_bootstrap"
-            _bootstrap_codex_credentials(
-                resolved_codex_secure_storage_dir,
-                executable=str(_PROFILE_BY_ID["codex-sol"]["executable"]),
-                timeout_seconds=timeout,
-                invocation_launch_pending=lambda: mark_bootstrap_launch_pending(
-                    "codex_auth_bootstrap"
-                ),
-                invocation_started=lambda: mark_bootstrap_started(
-                    "codex_auth_bootstrap"
-                ),
-                invocation_start_failed=lambda: mark_bootstrap_start_failed(
-                    "codex_auth_bootstrap"
-                ),
-                invocation_returned=lambda returncode: mark_bootstrap_returned(
-                    "codex_auth_bootstrap", returncode
-                ),
-            )
-            if private["environment_preflight"][active_bootstrap].get(
-                "status"
-            ) != "returned":
-                raise ProviderStateIsolationError(
-                    "Codex authentication bootstrap return was not recorded"
-                )
-            _require_codex_credential_state(
-                resolved_codex_secure_storage_dir,
-                root=root,
-                expected_identity=codex_secure_storage_identity,
-                credentials_present=True,
-            )
-            codex_auth_file_identity = _codex_auth_file_identity(
-                resolved_codex_secure_storage_dir
-            )
-            private["codex_auth_file_identity"] = codex_auth_file_identity
-            private["environment_preflight"]["codex_auth_bootstrap"] = {
-                **private["environment_preflight"]["codex_auth_bootstrap"],
-                "status": "passed",
-                "finished_at_utc": _utc_now(),
-            }
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
-            active_bootstrap = None
-            failure_stage = "post_codex_auth_contract_attestation"
-            attest_current_supervisor()
-            _attest_execution_contracts(root=root, public=public)
-
-            failure_stage = "managed_glean_auth_bootstrap"
-            attest_current_supervisor()
-            _attest_execution_contracts(root=root, public=public)
-            _require_claude_credential_state(
-                resolved_claude_secure_storage_dir,
-                root=root,
-                expected_identity=claude_secure_storage_identity,
-                managed_glean_credentials_present=False,
-            )
-            active_bootstrap = "managed_glean_auth_bootstrap"
-            _bootstrap_managed_glean_credentials(
-                resolved_claude_secure_storage_dir,
-                oauth_client_id=claude_glean_oauth_client_id,
-                timeout_seconds=timeout,
-                invocation_launch_pending=lambda: mark_bootstrap_launch_pending(
-                    "managed_glean_auth_bootstrap"
-                ),
-                invocation_started=lambda: mark_bootstrap_started(
-                    "managed_glean_auth_bootstrap"
-                ),
-                invocation_start_failed=lambda: mark_bootstrap_start_failed(
-                    "managed_glean_auth_bootstrap"
-                ),
-                invocation_returned=lambda returncode: mark_bootstrap_returned(
-                    "managed_glean_auth_bootstrap", returncode
-                ),
-            )
-            if private["environment_preflight"][active_bootstrap].get(
-                "status"
-            ) != "returned":
-                raise ProviderStateIsolationError(
-                    "Managed Glean authentication bootstrap return was not recorded"
-                )
-            _require_claude_credential_state(
-                resolved_claude_secure_storage_dir,
-                root=root,
-                expected_identity=claude_secure_storage_identity,
-                managed_glean_credentials_present=True,
-            )
-            _require_codex_credential_state(
-                resolved_codex_secure_storage_dir,
-                root=root,
-                expected_identity=codex_secure_storage_identity,
-                credentials_present=True,
-            )
-            _require_codex_auth_file_identity(
-                resolved_codex_secure_storage_dir,
-                codex_auth_file_identity,
-            )
-            attest_current_supervisor()
-            _attest_execution_contracts(root=root, public=public)
-            private["environment_preflight"][
-                "managed_glean_auth_bootstrap"
-            ] = {
-                **private["environment_preflight"][
-                    "managed_glean_auth_bootstrap"
-                ],
-                "status": "passed",
-                "finished_at_utc": _utc_now(),
-            }
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
-            active_bootstrap = None
-        except Exception as error:
-            if active_bootstrap is not None:
-                bootstrap_state = private["environment_preflight"][
-                    active_bootstrap
-                ]
-                if bootstrap_state.get("status") in {"started", "returned"}:
-                    private["environment_preflight"][active_bootstrap] = {
-                        **bootstrap_state,
-                        "status": "failed",
-                        "finished_at_utc": _utc_now(),
-                    }
-            private["environment_preflight"] = {
-                **private["environment_preflight"],
-                "status": "failed",
-                "finished_at_utc": _utc_now(),
-            }
-            terminal_profiles: list[dict[str, Any]] = []
-            for profile in PROFILES:
-                attempts.append(
-                    {
-                        "profile_id": profile["profile_id"],
-                        "status": "not_started_terminal_abort",
-                        "finished_at_utc": _utc_now(),
-                    }
-                )
-                outcome = _preflight_profile_outcome(
-                    profile,
-                    invocation_state="not_started",
-                    outcome="not_started_terminal_abort",
-                    timed_out=False,
-                )
-                outcome.update(
-                    {
-                        "failure_reason": "authentication_bootstrap_failure",
-                        "scored": False,
-                        "infrastructure_handshake_passed": False,
-                    }
-                )
-                terminal_profiles.append(outcome)
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
-            failed = {
-                "schema_version": SCHEMA_VERSION,
-                "panel_id": PANEL_ID,
-                "status": "failed",
-                "development_only": True,
-                "production_episodes_consumed": 0,
-                "contract_hashes": contract_hashes,
-                "precommitment_sha256": public["precommitment_sha256"],
-                "managed_glean_auth_bootstrap": private[
-                    "environment_preflight"
-                ]["managed_glean_auth_bootstrap"]["status"],
-                "codex_auth_bootstrap": private[
-                    "environment_preflight"
-                ]["codex_auth_bootstrap"]["status"],
-                "codex_auth_quarantine": "clear",
-                "preflight_purpose": (
-                    "unscored_infrastructure_routing_handshake"
-                ),
-                "profiles": terminal_profiles,
-                "profiles_passed": [],
-                "failed_profile_ids": list(_PROFILE_IDS),
-                "failed_provider_invocation_state": None,
-                "provider_calls_conservatively_chargeable": 0,
-                "failure_reason": "authentication_bootstrap_failure",
-                "failure_stage": failure_stage,
-                "timed_out": False,
-                "scores_reported": False,
-            }
-            _atomic_json(public_preflight_path, failed)
-            private["environment_preflight"]["public_receipt_path"] = str(
-                public_preflight_path.resolve()
-            )
-            private["environment_preflight"]["public_receipt_sha256"] = (
-                _component_hash(failed)
-            )
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
-            return failed
 
         shared_digest = hashlib.sha256(
             f"{PANEL_ID}|disposable-preflight|shared".encode("ascii")
@@ -5243,6 +6246,10 @@ def _run_environment_preflight_core(
                         root=root,
                         expected_identity=claude_secure_storage_identity,
                         managed_glean_credentials_present=True,
+                    )
+                    _require_managed_glean_auth_file_identity(
+                        resolved_claude_secure_storage_dir,
+                        managed_glean_auth_file_identity,
                     )
                     managed_glean_state_before = "present"
                     failure_stage = "provider_launch"
@@ -5339,6 +6346,10 @@ def _run_environment_preflight_core(
                         root=root,
                         expected_identity=claude_secure_storage_identity,
                         managed_glean_credentials_present=True,
+                    )
+                    _require_managed_glean_auth_file_identity(
+                        resolved_claude_secure_storage_dir,
+                        managed_glean_auth_file_identity,
                     )
                 if profile["system"] == "codex":
                     failure_stage = "credential_attestation"
@@ -5524,8 +6535,9 @@ def _run_environment_preflight_core(
                     "production_episodes_consumed": 0,
                     "contract_hashes": contract_hashes,
                     "precommitment_sha256": public["precommitment_sha256"],
-                    "managed_glean_auth_bootstrap": "passed",
-                    "codex_auth_bootstrap": "passed",
+                    "authentication_prerequisite": private[
+                        "environment_preflight"
+                    ]["authentication_prerequisite"],
                     "codex_auth_quarantine": private[
                         "environment_preflight"
                     ]["codex_auth_quarantine"]["status"],
@@ -5576,8 +6588,9 @@ def _run_environment_preflight_core(
             "production_episodes_consumed": 0,
             "contract_hashes": contract_hashes,
             "precommitment_sha256": public["precommitment_sha256"],
-            "managed_glean_auth_bootstrap": "passed",
-            "codex_auth_bootstrap": "passed",
+            "authentication_prerequisite": private[
+                "environment_preflight"
+            ]["authentication_prerequisite"],
             "codex_auth_quarantine": private["environment_preflight"][
                 "codex_auth_quarantine"
             ]["status"],
@@ -6658,6 +7671,11 @@ def _run_panel_locked(
     )
     claude_secure_storage_identity = _private_claude_storage_identity(private)
     codex_secure_storage_identity = _private_codex_storage_identity(private)
+    managed_glean_auth_file_identity = private.get(
+        "managed_glean_auth_file_identity"
+    )
+    if not isinstance(managed_glean_auth_file_identity, Mapping):
+        raise RuntimeError("Managed Glean credential identity is unavailable")
     cohort_manifest_path = _existing_path_without_final_symlink(
         str(private["cohort_manifest_path"])
     )
@@ -6791,6 +7809,17 @@ def _run_panel_locked(
         str(_PROFILE_BY_ID[profile_id]["system"])
         for profile_id in remaining_profile_ids
     }
+    if remaining_systems:
+        assert_panel_authentication_ready(
+            root=root,
+            authentication_key_file=authentication_key_file,
+            claude_secure_storage_dir=resolved_claude_secure_storage_dir,
+            codex_secure_storage_dir=resolved_codex_secure_storage_dir,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+            require_clean_checkout=False,
+            revalidate_live_identity_contracts=False,
+        )
     if (
         "cursor" in remaining_systems
         and not os.environ.get("CURSOR_API_KEY", "").strip()
@@ -6805,6 +7834,10 @@ def _run_panel_locked(
             root=root,
             expected_identity=claude_secure_storage_identity,
             managed_glean_credentials_present=True,
+        )
+        _require_managed_glean_auth_file_identity(
+            resolved_claude_secure_storage_dir,
+            managed_glean_auth_file_identity,
         )
     if "codex" in remaining_systems:
         codex_auth_file_identity = _private_codex_auth_file_identity(private)
@@ -6853,6 +7886,10 @@ def _run_panel_locked(
                 root=root,
                 expected_identity=claude_secure_storage_identity,
                 managed_glean_credentials_present=True,
+            )
+            _require_managed_glean_auth_file_identity(
+                resolved_claude_secure_storage_dir,
+                managed_glean_auth_file_identity,
             )
         if profile["system"] == "codex":
             assert codex_auth_file_identity is not None
@@ -6956,6 +7993,10 @@ def _run_panel_locked(
                         root=root,
                         expected_identity=claude_secure_storage_identity,
                         managed_glean_credentials_present=True,
+                    )
+                    _require_managed_glean_auth_file_identity(
+                        resolved_claude_secure_storage_dir,
+                        managed_glean_auth_file_identity,
                     )
                 except (OSError, RuntimeError, ValueError):
                     raise ProviderStateIsolationError(

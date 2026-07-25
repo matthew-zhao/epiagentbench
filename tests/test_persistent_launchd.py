@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import epiagentbench.development_matched_panel as development_matched_panel
 import epiagentbench.launchd_agent as launchd_agent
 import epiagentbench.persistent_supervisor as persistent_supervisor
 from epiagentbench.persistent_supervisor import ProcessDiagnostic, run_supervised_panel
@@ -93,6 +94,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.codex_storage.mkdir(mode=0o700)
         self.private_state = self.root / "private.json"
         self.public_manifest = self.root / "manifest.json"
+        self.public_authentication = (
+            self.root
+            / "development-matched-50x6-v9-test.authentication.json"
+        )
         self.public_results = self.root / "results.json"
         self.private_state.write_text("{}", encoding="utf-8")
         self.public_manifest.write_text(
@@ -112,10 +117,53 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.public_authentication.write_text(
+            json.dumps(
+                {
+                    "schema_version": (
+                        development_matched_panel._AUTHENTICATION_RECEIPT_SCHEMA
+                    ),
+                    "panel_id": "development-matched-50x6-v9-test",
+                    "status": "passed",
+                    "model_calls_started": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
         os.chmod(self.private_state, 0o600)
         os.chmod(self.public_manifest, 0o600)
+        os.chmod(self.public_authentication, 0o600)
+        self.authentication_readiness = patch.object(
+            development_matched_panel,
+            "assert_panel_authentication_ready",
+            create=True,
+            return_value={
+                "panel_id": "development-matched-50x6-v9-test",
+                "status": "passed",
+                "model_calls_started": 0,
+            },
+        )
+        self.mock_authentication_readiness = (
+            self.authentication_readiness.start()
+        )
+        self.durable_readiness = patch.object(
+            development_matched_panel,
+            "assert_durable_live_execution_paths",
+        )
+        self.mock_durable_readiness = self.durable_readiness.start()
+        self.real_cursor_attestation = (
+            launchd_agent._attest_cursor_keychain
+        )
+        self.cursor_readiness = patch.object(
+            launchd_agent,
+            "_attest_cursor_keychain",
+        )
+        self.mock_cursor_readiness = self.cursor_readiness.start()
 
     def tearDown(self) -> None:
+        self.cursor_readiness.stop()
+        self.durable_readiness.stop()
+        self.authentication_readiness.stop()
         self.temporary.cleanup()
 
     def _generate(self, **changes: object) -> dict:
@@ -354,6 +402,71 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         with self.assertRaises(LaunchAgentError):
             self._generate(claude_secure_storage_dir=not_a_directory)
 
+    def test_generator_requires_authentication_readiness_before_runtime_creation(
+        self,
+    ) -> None:
+        self.mock_authentication_readiness.side_effect = ValueError(
+            "authentication not ready"
+        )
+
+        with self.assertRaises(LaunchAgentError):
+            self._generate()
+
+        self.assertFalse(self.runtime.exists())
+        self.mock_authentication_readiness.assert_called_once_with(
+            root=self.repository,
+            authentication_key_file=self.authentication_key,
+            claude_secure_storage_dir=self.claude_storage,
+            codex_secure_storage_dir=self.codex_storage,
+            private_state_path=self.private_state,
+            public_manifest_path=self.public_manifest,
+            require_clean_checkout=True,
+        )
+
+    def test_authentication_receipt_is_derived_sealed_and_revalidated(
+        self,
+    ) -> None:
+        generated = self._generate()
+        config, _ = self._config_and_key()
+
+        self.assertEqual(
+            config["public_authentication_path"],
+            str(self.public_authentication),
+        )
+        self.assertEqual(
+            config["public_authentication_file_sha256"],
+            launchd_agent._file_sha256(
+                self.public_authentication,
+                maximum_bytes=(
+                    launchd_agent._MAX_PUBLIC_AUTHENTICATION_BYTES
+                ),
+                label="public authentication receipt",
+            ),
+        )
+
+        self.public_authentication.write_text(
+            '{"status":"tampered"}',
+            encoding="utf-8",
+        )
+        os.chmod(self.public_authentication, 0o600)
+        with self.assertRaises(LaunchAgentError):
+            inspect_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+        self.assertTrue(Path(generated["config_path"]).exists())
+
+    def test_generator_rejects_missing_derived_authentication_receipt(
+        self,
+    ) -> None:
+        self.public_authentication.unlink()
+
+        with self.assertRaises(LaunchAgentError):
+            self._generate()
+
+        self.assertFalse(self.runtime.exists())
+        self.mock_authentication_readiness.assert_not_called()
+
     def test_start_delegates_ownership_without_restart_or_provider_argv(self) -> None:
         generated = self._generate()
         calls: list[list[str]] = []
@@ -398,6 +511,94 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 command_runner=fake_launchctl,
             )
         self.assertEqual(len(calls), 1)
+
+    def test_start_rechecks_authentication_before_irreversible_marker(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_authentication_readiness.side_effect = RuntimeError(
+            "credential identity changed"
+        )
+        calls: list[list[str]] = []
+
+        def should_not_run(arguments, **kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=should_not_run,
+            )
+
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertEqual(calls, [])
+        self.mock_durable_readiness.assert_called_once_with(
+            root=self.repository,
+            private_state_path=self.private_state,
+        )
+        self.assertEqual(self.mock_authentication_readiness.call_count, 2)
+        self.mock_cursor_readiness.assert_not_called()
+
+    def test_start_requires_cursor_keychain_before_irreversible_marker(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_cursor_readiness.side_effect = RuntimeError(
+            "Cursor key unavailable"
+        )
+        calls: list[list[str]] = []
+
+        def should_not_run(arguments, **kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=should_not_run,
+            )
+
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertEqual(calls, [])
+        self.mock_cursor_readiness.assert_called_once()
+
+    def test_cursor_keychain_attestation_never_retrieves_secret(self) -> None:
+        self._generate()
+        config, _ = self._config_and_key()
+        observed: dict[str, object] = {}
+
+        def fake_security(arguments, **kwargs):
+            observed["arguments"] = list(arguments)
+            observed["stdin"] = kwargs["stdin"]
+            observed["stdout"] = kwargs["stdout"]
+            observed["stderr"] = kwargs["stderr"]
+            return subprocess.CompletedProcess(arguments, 0)
+
+        self.real_cursor_attestation(
+            config,
+            command_runner=fake_security,
+        )
+
+        arguments = observed["arguments"]
+        self.assertEqual(arguments[0:2], [
+            "/usr/bin/security",
+            "find-generic-password",
+        ])
+        self.assertNotIn("-w", arguments)
+        self.assertEqual(observed["stdin"], subprocess.DEVNULL)
+        self.assertEqual(observed["stdout"], subprocess.DEVNULL)
+        self.assertEqual(observed["stderr"], subprocess.DEVNULL)
 
     def test_worker_child_exit_is_finite_and_never_persists_keychain_value(self) -> None:
         generated = self._generate()
@@ -593,6 +794,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 copied_supervisor = copied_repository / (
                     "src/epiagentbench/persistent_supervisor.py"
                 )
+                copied_matched_panel = copied_repository / (
+                    "src/epiagentbench/development_matched_panel.py"
+                )
                 runtime = self.root / f"source-tamper-runtime-{index}"
                 with (
                     patch.object(launchd_agent, "__file__", str(copied_launchd)),
@@ -600,6 +804,11 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                         persistent_supervisor,
                         "__file__",
                         str(copied_supervisor),
+                    ),
+                    patch.object(
+                        development_matched_panel,
+                        "__file__",
+                        str(copied_matched_panel),
                     ),
                 ):
                     generated = self._generate(

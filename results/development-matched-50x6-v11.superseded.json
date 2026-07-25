@@ -1,0 +1,48 @@
+{
+  "authentication_bootstraps_started": {
+    "codex": 1,
+    "managed_glean": 0,
+    "total": 1
+  },
+  "development_only": true,
+  "failure_reason_code": "codex_device_auth_timed_out_without_foreground_terminal",
+  "failure_stage": "codex_authentication_bootstrap",
+  "model_bearing_provider_call_exposure": {
+    "claude": 0,
+    "codex": 0,
+    "cursor": 0,
+    "total": 0
+  },
+  "model_bearing_provider_calls_conservatively_chargeable": 0,
+  "original_manifest_canonical_sha256": "sha256:960f3d27489361461c224040dc030b870aa392930d92b097fe93bf3928637765",
+  "original_manifest_file_sha256": "sha256:cdcde1a87ba159ee7ba28e24e683182bfedc390e7cd35b32438101d038566845",
+  "original_manifest_git_commit": "92ca9e22c67cd3482044fe7a72f72277e8e8129d",
+  "original_panel_id": "development-matched-50x6-v11",
+  "original_precommitment_sha256": "sha256:b4dd0011899578ef93b8df1b8ef36014898b47609578b46b3914bf0b8097b63b",
+  "persistent_preflight_supervisor_started": true,
+  "preflight_profiles_attempted": 0,
+  "preflight_profiles_passed": 0,
+  "production_assignments_started": 0,
+  "public_preflight_receipt_created": false,
+  "public_results_artifact_created": false,
+  "replacement_panel_id": "development-matched-50x6-v12",
+  "replacement_requirements": [
+    "fresh_panel_precommitment",
+    "fresh_authentication_key",
+    "fresh_private_schedule",
+    "fresh_managed_glean_credential_namespace",
+    "fresh_codex_credential_namespace",
+    "foreground_interactive_authentication_before_preflight",
+    "sanitized_committed_authentication_receipt",
+    "preflight_and_production_start_gated_on_live_credential_identity"
+  ],
+  "results_released": false,
+  "resumption_permitted": false,
+  "schema_version": "epiagentbench.panel_supersession.v3",
+  "scores_released": false,
+  "spend_authorization_recorded": true,
+  "status": "failed_zero_model_authentication_bootstrap",
+  "superseded_at_utc": "2026-07-25T00:23:16Z",
+  "traces_released": false,
+  "zero_call_claim_scope": "model_bearing_provider_invocations; one zero-model Codex authentication helper was started"
+}

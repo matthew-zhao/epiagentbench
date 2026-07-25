@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -9,6 +10,27 @@ from examples import run_development_matched_panel as matched_cli
 
 
 class PersistentRunnerCliTests(unittest.TestCase):
+    def _authentication_arguments(
+        self, operation: str = "authenticate"
+    ) -> list[str]:
+        arguments = [
+            "run_development_matched_panel.py",
+            operation,
+            "--authentication-key",
+            "/private/authentication.key",
+            "--claude-secure-storage-dir",
+            "/private/claude",
+            "--codex-secure-storage-dir",
+            "/private/codex",
+            "--private-state",
+            "/private/state.json",
+            "--public-manifest",
+            "/public/manifest.json",
+        ]
+        if operation == "authenticate":
+            arguments.append("--acknowledge-interactive-authentication")
+        return arguments
+
     def _arguments(self, operation: str) -> list[str]:
         output_flag = (
             "--public-preflight" if operation == "preflight" else "--public-results"
@@ -59,7 +81,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     target,
                     return_value={
-                        "panel_id": "development-matched-50x6-v11",
+                        "panel_id": "development-matched-50x6-v12",
                         "status": status,
                     },
                 ) as invoked,
@@ -93,6 +115,165 @@ class PersistentRunnerCliTests(unittest.TestCase):
         ):
             matched_cli.main()
         run_panel.assert_not_called()
+
+    def test_authenticate_dispatches_only_to_foreground_authentication(self) -> None:
+        payload = {
+            "panel_id": "development-matched-50x6-v12",
+            "status": "passed",
+            "providers": {
+                "codex": {"status": "passed"},
+                "managed_glean": {"status": "passed"},
+            },
+            "model_calls_started": 0,
+            "credential_canary": "must-not-print",
+        }
+        with (
+            patch.object(sys, "argv", self._authentication_arguments()),
+            patch.object(
+                matched_cli, "authenticate_panel", return_value=payload
+            ) as authenticate,
+            patch.object(
+                matched_cli, "panel_authentication_status"
+            ) as authentication_status,
+            patch.object(
+                matched_cli, "assert_durable_live_execution_paths"
+            ) as durable_paths,
+            patch("builtins.print") as safe_print,
+        ):
+            self.assertEqual(matched_cli.main(), 0)
+
+        authentication_status.assert_not_called()
+        durable_paths.assert_called_once()
+        authenticate.assert_called_once_with(
+            root=Path(matched_cli.__file__).resolve().parents[1],
+            authentication_key_file=Path("/private/authentication.key"),
+            claude_secure_storage_dir=Path("/private/claude"),
+            codex_secure_storage_dir=Path("/private/codex"),
+            private_state_path=Path("/private/state.json"),
+            public_manifest_path=Path("/public/manifest.json"),
+            acknowledge_interactive_authentication=True,
+        )
+        rendered = json.loads(safe_print.call_args.args[0])
+        self.assertEqual(
+            rendered,
+            {
+                "panel_id": "development-matched-50x6-v12",
+                "status": "passed",
+                "authentication_ready": True,
+                "codex_status": "passed",
+                "managed_glean_status": "passed",
+                "model_calls_started": 0,
+            },
+        )
+        self.assertNotIn("must-not-print", safe_print.call_args.args[0])
+
+    def test_authentication_failure_returns_nonzero_and_sanitizes_status(
+        self,
+    ) -> None:
+        payload = {
+            "panel_id": "development-matched-50x6-v12",
+            "status": "retryable_failed",
+            "providers": {
+                "codex": {"status": "retryable_failed"},
+                "managed_glean": {"status": "required"},
+            },
+            "model_calls_started": 0,
+        }
+        with (
+            patch.object(sys, "argv", self._authentication_arguments()),
+            patch.object(
+                matched_cli, "authenticate_panel", return_value=payload
+            ),
+            patch.object(
+                matched_cli, "assert_durable_live_execution_paths"
+            ),
+            patch("builtins.print") as safe_print,
+        ):
+            self.assertEqual(matched_cli.main(), 1)
+
+        rendered = json.loads(safe_print.call_args.args[0])
+        self.assertEqual(rendered["status"], "retryable_failed")
+        self.assertIs(rendered["authentication_ready"], False)
+        self.assertEqual(rendered["model_calls_started"], 0)
+
+    def test_auth_status_is_read_only_and_does_not_require_acknowledgement(
+        self,
+    ) -> None:
+        payload = {
+            "panel_id": "development-matched-50x6-v12",
+            "status": "required",
+            "providers": {
+                "codex": {"status": "required"},
+                "managed_glean": {"status": "required"},
+            },
+            "model_calls_started": 0,
+        }
+        with (
+            patch.object(
+                sys, "argv", self._authentication_arguments("auth-status")
+            ),
+            patch.object(
+                matched_cli,
+                "panel_authentication_status",
+                return_value=payload,
+            ) as authentication_status,
+            patch.object(matched_cli, "authenticate_panel") as authenticate,
+            patch.object(
+                matched_cli, "assert_durable_live_execution_paths"
+            ),
+            patch("builtins.print"),
+        ):
+            self.assertEqual(matched_cli.main(), 0)
+
+        authenticate.assert_not_called()
+        authentication_status.assert_called_once_with(
+            root=Path(matched_cli.__file__).resolve().parents[1],
+            authentication_key_file=Path("/private/authentication.key"),
+            claude_secure_storage_dir=Path("/private/claude"),
+            codex_secure_storage_dir=Path("/private/codex"),
+            private_state_path=Path("/private/state.json"),
+            public_manifest_path=Path("/public/manifest.json"),
+        )
+
+    def test_authenticate_requires_explicit_interactive_acknowledgement(
+        self,
+    ) -> None:
+        arguments = self._authentication_arguments()
+        arguments.remove("--acknowledge-interactive-authentication")
+        with (
+            patch.object(sys, "argv", arguments),
+            patch.object(matched_cli, "authenticate_panel") as authenticate,
+            patch("sys.stderr"),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            matched_cli.main()
+        self.assertEqual(raised.exception.code, 2)
+        authenticate.assert_not_called()
+
+    def test_authentication_summary_rejects_unrecognized_secret_bearing_values(
+        self,
+    ) -> None:
+        payload = {
+            "panel_id": 7,
+            "status": "token-status-canary",
+            "providers": {
+                "codex": {"status": "token-provider-canary"},
+                "managed_glean": "not-a-provider-object",
+            },
+            "model_calls_started": "token-count-canary",
+        }
+        summary = matched_cli._safe_authentication_summary(payload)
+        self.assertEqual(
+            summary,
+            {
+                "panel_id": "unknown",
+                "status": "unknown",
+                "authentication_ready": False,
+                "codex_status": "unknown",
+                "managed_glean_status": "unknown",
+                "model_calls_started": 0,
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ from typing import Any, Callable, Mapping, Sequence
 from functools import wraps
 
 
-_SCHEMA = "epiagentbench.launchd_agent.v5"
+_SCHEMA = "epiagentbench.launchd_agent.v6"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v3"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -44,12 +44,13 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v5\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v6\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v3\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
 _MAX_CONFIG_BYTES = 64 * 1024
 _MAX_STATUS_BYTES = 16 * 1024
+_MAX_PUBLIC_AUTHENTICATION_BYTES = 1024 * 1024
 _MAX_PYTHON_EXECUTABLE_BYTES = 256 * 1024 * 1024
 _MAX_AUTHENTICATION_KEY_BYTES = 4096
 _MAX_PYTHON_SYMLINK_HOPS = 8
@@ -589,6 +590,13 @@ def _manifest_binding(path: Path) -> tuple[str, str, str, str]:
     )
 
 
+def _public_authentication_path(public_manifest: Path, panel_id: str) -> Path:
+    path = public_manifest.with_name(f"{panel_id}.authentication.json")
+    if path == public_manifest:
+        raise ValueError("Public authentication receipt must be distinct")
+    return path
+
+
 def _require_output_path(path: Path, *, label: str) -> None:
     metadata = _lstat_path_without_links(path, allow_missing_leaf=True)
     if metadata is None:
@@ -773,6 +781,16 @@ def generate_launch_agent(
         maximum_bytes=64 * 1024 * 1024,
         label="public manifest",
     )
+    public_authentication = _public_authentication_path(public_manifest, panel_id)
+    _require_regular(
+        public_authentication,
+        label="public authentication receipt",
+    )
+    public_authentication_file_sha256_before = _file_sha256(
+        public_authentication,
+        maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
+        label="public authentication receipt",
+    )
     runner_source_sha256 = _file_sha256(
         runner_script,
         maximum_bytes=1024 * 1024,
@@ -804,12 +822,38 @@ def generate_launch_agent(
         maximum_bytes=4 * 1024 * 1024,
         label="matched-panel module source",
     )
+    import epiagentbench.development_matched_panel as matched_panel
     import epiagentbench.persistent_supervisor as persistent_supervisor
 
+    _require_loaded_module_source(
+        matched_panel.__file__,
+        development_matched_panel_source,
+    )
     _require_loaded_module_source(
         persistent_supervisor.__file__,
         persistent_supervisor_source,
     )
+    matched_panel.assert_panel_authentication_ready(
+        root=root,
+        authentication_key_file=auth_key,
+        claude_secure_storage_dir=claude_storage,
+        codex_secure_storage_dir=codex_storage,
+        private_state_path=private_state,
+        public_manifest_path=public_manifest,
+        require_clean_checkout=True,
+    )
+    public_authentication_file_sha256 = _file_sha256(
+        public_authentication,
+        maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
+        label="public authentication receipt",
+    )
+    if (
+        public_authentication_file_sha256
+        != public_authentication_file_sha256_before
+    ):
+        raise ValueError(
+            "Public authentication receipt changed during readiness validation"
+        )
 
     label = f"{_LABEL_PREFIX}.{os.getuid()}.{token}"
     execution_context_sha256 = persistent_supervisor.compute_execution_context_sha256(
@@ -858,6 +902,9 @@ def generate_launch_agent(
         "precommitment_sha256": precommitment_sha256,
         "protocol_version": _PROTOCOL_VERSION,
         "public_manifest_file_sha256": public_manifest_file_sha256,
+        "public_authentication_file_sha256": (
+            public_authentication_file_sha256
+        ),
         "python_executable_sha256": python_executable_sha256,
         "runner_source_sha256": runner_source_sha256,
         "worker_source_sha256": worker_source_sha256,
@@ -881,6 +928,7 @@ def generate_launch_agent(
         "codex_secure_storage_dir": str(codex_storage),
         "private_state_path": str(private_state),
         "public_manifest_path": str(public_manifest),
+        "public_authentication_path": str(public_authentication),
         "public_output_path": str(output_path),
         "cursor_keychain": {
             "service": cursor_keychain_service,
@@ -945,6 +993,7 @@ def _load_and_validate(
         "precommitment_sha256",
         "protocol_version",
         "public_manifest_file_sha256",
+        "public_authentication_file_sha256",
         "python_executable_sha256",
         "runner_source_sha256",
         "worker_source_sha256",
@@ -964,6 +1013,7 @@ def _load_and_validate(
         "codex_secure_storage_dir",
         "private_state_path",
         "public_manifest_path",
+        "public_authentication_path",
         "public_output_path",
         "cursor_keychain",
         "base_environment",
@@ -998,6 +1048,7 @@ def _load_and_validate(
             not isinstance(config[name], str) or not _SHA256.fullmatch(config[name])
             for name in (
                 "public_manifest_file_sha256",
+                "public_authentication_file_sha256",
                 "python_executable_sha256",
                 "runner_source_sha256",
                 "worker_source_sha256",
@@ -1042,6 +1093,7 @@ def _load_and_validate(
         "codex_secure_storage_dir",
         "private_state_path",
         "public_manifest_path",
+        "public_authentication_path",
         "public_output_path",
     )
     if any(not isinstance(config[name], str) or not Path(config[name]).is_absolute() for name in path_fields):
@@ -1063,6 +1115,10 @@ def _load_and_validate(
     _require_directory(Path(config["codex_secure_storage_dir"]), label="Codex secure-storage directory", exact_mode=0o700)
     _require_regular(Path(config["private_state_path"]), label="private state", exact_mode=0o600)
     _require_regular(Path(config["public_manifest_path"]), label="public manifest")
+    _require_regular(
+        Path(config["public_authentication_path"]),
+        label="public authentication receipt",
+    )
     (
         observed_panel_id,
         observed_precommitment,
@@ -1083,12 +1139,26 @@ def _load_and_validate(
     ):
         raise ValueError("Launch-agent manifest binding mismatch")
     if (
+        Path(config["public_authentication_path"])
+        != _public_authentication_path(
+            Path(config["public_manifest_path"]),
+            config["panel_id"],
+        )
+    ):
+        raise ValueError("Launch-agent authentication-receipt path mismatch")
+    if (
         _file_sha256(
             Path(config["public_manifest_path"]),
             maximum_bytes=64 * 1024 * 1024,
             label="public manifest",
         )
         != config["public_manifest_file_sha256"]
+        or _file_sha256(
+            Path(config["public_authentication_path"]),
+            maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
+            label="public authentication receipt",
+        )
+        != config["public_authentication_file_sha256"]
         or _file_sha256(
             Path(config["runner_script"]),
             maximum_bytes=1024 * 1024,
@@ -1312,6 +1382,37 @@ def _read_cursor_key(config: Mapping[str, Any], *, command_runner: CommandRunner
         return raw.decode("utf-8")
     except UnicodeDecodeError:
         raise RuntimeError("Cursor Keychain lookup failed") from None
+
+
+def _attest_cursor_keychain(
+    config: Mapping[str, Any],
+    *,
+    command_runner: CommandRunner = subprocess.run,
+) -> None:
+    """Confirm the Cursor credential exists without retrieving its value."""
+
+    locator = config["cursor_keychain"]
+    try:
+        completed = command_runner(
+            [
+                str(_SECURITY),
+                "find-generic-password",
+                "-a",
+                locator["account"],
+                "-s",
+                locator["service"],
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            env=dict(config["base_environment"]),
+            timeout=_KEYCHAIN_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise RuntimeError("Cursor Keychain attestation failed") from None
+    if completed.returncode != 0:
+        raise RuntimeError("Cursor Keychain attestation failed")
 
 
 def _run_core_supervisor(
@@ -1608,6 +1709,33 @@ def start_launch_agent(
         )
         if core["state"] != "not_started":
             raise RuntimeError("Refusing to restart a supervised command")
+        import epiagentbench.development_matched_panel as matched_panel
+
+        _, _, development_matched_panel_source = _verify_frozen_runtime_sources(
+            config
+        )
+        _require_loaded_module_source(
+            matched_panel.__file__,
+            development_matched_panel_source,
+        )
+        matched_panel.assert_durable_live_execution_paths(
+            root=Path(config["repository_root"]),
+            private_state_path=Path(config["private_state_path"]),
+        )
+        matched_panel.assert_panel_authentication_ready(
+            root=Path(config["repository_root"]),
+            authentication_key_file=Path(config["authentication_key_file"]),
+            claude_secure_storage_dir=Path(
+                config["claude_secure_storage_dir"]
+            ),
+            codex_secure_storage_dir=Path(
+                config["codex_secure_storage_dir"]
+            ),
+            private_state_path=Path(config["private_state_path"]),
+            public_manifest_path=Path(config["public_manifest_path"]),
+            require_clean_checkout=True,
+        )
+        _attest_cursor_keychain(config, command_runner=command_runner)
         # This durable HMAC marker is the launch commitment for launchctl.  It
         # is written and directory-fsynced before kickstart, and intentionally
         # survives every nonzero or ambiguous kickstart outcome.

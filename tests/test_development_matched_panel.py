@@ -183,6 +183,12 @@ class MatchedPanelTests(unittest.TestCase):
             "results/manifest.json",
         ):
             return "results/manifest.json"
+        if arguments == (
+            "ls-files",
+            "--error-unmatch",
+            "results/development-matched-50x6-v12.authentication.json",
+        ):
+            return "results/development-matched-50x6-v12.authentication.json"
         return ""
 
     @staticmethod
@@ -248,6 +254,11 @@ class MatchedPanelTests(unittest.TestCase):
             launch_pending()
         if started is not None:
             started()
+        path = _args[0] if _args else self.claude_secure_storage_dir
+        credential = Path(path) / "credentials.json"
+        if not credential.exists():
+            credential.write_text('{"test":"opaque"}', encoding="utf-8")
+            credential.chmod(0o600)
         self.keychain_present = True
         if returned is not None:
             returned(0)
@@ -333,6 +344,7 @@ class MatchedPanelTests(unittest.TestCase):
         manifest_path: Path | None = None,
         *,
         authorize: bool = True,
+        authenticate: bool = True,
     ) -> dict:
         manifest_path = manifest_path or self._cohort()
         with self._contracts(), patch(
@@ -360,6 +372,8 @@ class MatchedPanelTests(unittest.TestCase):
                     public_manifest_path=self.public_path,
                     acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
                 )
+                if authenticate:
+                    self._prime_authentication()
             return public
 
     @staticmethod
@@ -450,18 +464,63 @@ class MatchedPanelTests(unittest.TestCase):
             "config_file_sha256": "sha256:" + config_character * 64,
         }
 
-    def _prime_codex_auth(self) -> None:
+    def _stage_authentication_pending_publication(
+        self,
+    ) -> tuple[dict, dict]:
         if not (self.codex_secure_storage_dir / "auth.json").exists():
             self._bootstrap_codex_fixture(self.codex_secure_storage_dir)
+        if not (
+            self.claude_secure_storage_dir / "credentials.json"
+        ).exists():
+            self._bootstrap_glean_fixture(
+                self.claude_secure_storage_dir
+            )
+        self.keychain_present = True
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
+        public = matched._load_json(self.public_path)
         private["codex_auth_file_identity"] = matched._codex_auth_file_identity(
             self.codex_secure_storage_dir
         )
+        private["managed_glean_auth_file_identity"] = (
+            matched._managed_glean_auth_file_identity(
+                self.claude_secure_storage_dir
+            )
+        )
+        setup = private["authentication_setup"]
+        for provider in ("codex", "managed_glean"):
+            setup[provider] = {
+                "status": "passed",
+                "attempts": [
+                    {
+                        "status": "passed",
+                        "launch_pending_at_utc": "test",
+                        "started_at_utc": "test",
+                        "returned_at_utc": "test",
+                        "returncode": 0,
+                        "finished_at_utc": "test",
+                    }
+                ],
+            }
+        setup["status"] = "pending_publication"
         matched._write_private_state(
             self.private_path, private, AUTHENTICATION_KEY
         )
+        return private, public
+
+    def _prime_authentication(self) -> None:
+        private, public = self._stage_authentication_pending_publication()
+        matched._publish_authentication_receipt(
+            private=private,
+            public=public,
+            private_state_path=self.private_path,
+            public_manifest_path=self.public_path,
+            authentication_key=AUTHENTICATION_KEY,
+        )
+
+    def _prime_codex_auth(self) -> None:
+        self._prime_authentication()
 
     def _run_with(self, side_effect):
         self._prime_codex_auth()
@@ -817,6 +876,7 @@ class MatchedPanelTests(unittest.TestCase):
         self._prepare()
         preflight_path = self.root / "results" / "default-preflight.json"
         with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
             patch(
                 "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
@@ -1523,7 +1583,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v11_authorization_breakdown"],
+            contract["claude_current_v12_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -1533,7 +1593,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v11_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v12_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -1547,6 +1607,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v8_usd": 15.0,
                 "v9_usd": 20.0,
                 "v10_usd": 0.0,
+                "v11_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -1574,8 +1635,12 @@ class MatchedPanelTests(unittest.TestCase):
                 "v9_stopped_watermark",
                 "v10_manifest",
                 "v10_supersession",
+                "v11_manifest",
+                "v11_supersession",
             },
         )
+        for reference in contract["prior_public_audit_references"].values():
+            self.assertTrue((Path(__file__).parents[1] / reference).is_file())
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
@@ -1665,7 +1730,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v11_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v12_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -1790,7 +1855,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v11")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v12")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -1898,24 +1963,12 @@ class MatchedPanelTests(unittest.TestCase):
             "terminal_retired_panel_only",
         )
         self.assertEqual(
-            public["run_contract"]["managed_glean_auth_bootstrap"],
-            {
-                "stage": "before_six_profile_calls",
-                "model_calls": 0,
-                "stdout": "discarded_never_captured",
-                "stderr": "inherited_for_oauth_instructions",
-                "credentials_required_after": True,
-            },
+            public["run_contract"]["authentication_setup"],
+            matched._authentication_setup_contract(self.public_path),
         )
         self.assertEqual(
-            public["run_contract"]["codex_auth_bootstrap"],
-            {
-                "stage": "before_six_profile_calls",
-                "model_calls": 0,
-                "one_shot": True,
-                "method": "pinned_cli_oauth_with_file_credential_store",
-                "credentials_required_after": True,
-            },
+            public["run_contract"]["authentication_prerequisite"],
+            "committed_sanitized_receipt_before_supervisor_creation",
         )
         self.assertEqual(
             public["run_contract"]["per_provider_call_execution_attestation"],
@@ -1970,7 +2023,9 @@ class MatchedPanelTests(unittest.TestCase):
                     "size_bytes_max": 1024 * 1024,
                 },
                 "initial_state": "absent_at_prepare",
-                "preflight_bootstrap": "separate_no_model_step",
+                "authentication_stage": (
+                    "foreground_interactive_zero_model_before_preflight"
+                ),
                 "claude_calls": "credentials_required_before_and_after",
                 "macos_keychain": "required_absent_throughout",
                 "claude_plaintext_fallback": "forbidden",
@@ -2659,6 +2714,7 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertEqual(
                 command, [str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH)]
             )
+            self.assertIsNone(kwargs["stdin_target"])
             self.assertIs(kwargs["stdout_target"], subprocess.DEVNULL)
             self.assertIsNone(kwargs["stderr_target"])
             self.assertEqual(kwargs["umask"], 0o077)
@@ -2671,8 +2727,11 @@ class MatchedPanelTests(unittest.TestCase):
             captured_home = Path(environment["HOME"])
             link = captured_home / ".glean-llm-gateway"
             self.assertTrue(link.is_symlink())
-            self.assertEqual(
+            self.assertNotEqual(
                 link.resolve(), self.claude_secure_storage_dir.resolve()
+            )
+            self.assertEqual(
+                link.resolve().parent, captured_home.parent.parent
             )
             credential = link / "credentials.json"
             credential.write_bytes(b"opaque-bootstrap-credential")
@@ -2731,12 +2790,14 @@ class MatchedPanelTests(unittest.TestCase):
                 [
                     "/trusted/codex",
                     "login",
+                    "--device-auth",
                     "-c",
                     'cli_auth_credentials_store="file"',
                 ],
             )
-            self.assertIs(kwargs["stdout_target"], subprocess.DEVNULL)
-            self.assertIs(kwargs["stderr_target"], subprocess.DEVNULL)
+            self.assertIsNone(kwargs["stdin_target"])
+            self.assertIsNone(kwargs["stdout_target"])
+            self.assertIsNone(kwargs["stderr_target"])
             self.assertEqual(kwargs["umask"], 0o077)
             self.assertEqual(kwargs["timeout_seconds"], 30)
             environment = kwargs["environment"]
@@ -3915,11 +3976,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v11_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v12_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v11", "six-call v10"
+            "six-call v12", "six-call v10"
         )
         with (
             patch(
@@ -3934,7 +3995,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "exact v11 \\$570"),
+            self.assertRaisesRegex(RuntimeError, "exact v12 \\$570"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -4232,7 +4293,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v11"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v12"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -4279,7 +4340,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v11"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v12"),
         ):
             run_panel(
                 root=self.root,
@@ -4520,7 +4581,7 @@ class MatchedPanelTests(unittest.TestCase):
                     / "run_artifacts"
                     / "reused-private.json",
                     public_manifest_path=self.root
-                    / "results"
+                    / "reused-results"
                     / "reused-manifest.json",
                 )
 
@@ -5212,7 +5273,7 @@ class MatchedPanelTests(unittest.TestCase):
         def require_credential_state(*_args, **_kwargs):
             nonlocal credential_checks
             credential_checks += 1
-            if credential_checks == 3:
+            if credential_checks == 4:
                 raise RuntimeError("sensitive post-return credential detail")
 
         def evaluate(system: str, **kwargs):
@@ -5229,7 +5290,7 @@ class MatchedPanelTests(unittest.TestCase):
             stopped, invoked = self._run_with(evaluate)
 
         self.assertEqual(invoked.call_count, 1)
-        self.assertEqual(credential_checks, 3)
+        self.assertEqual(credential_checks, 4)
         self.assertEqual(stopped["status"], "stopped_transport_void")
         self.assertEqual(stopped["terminal_assignments"], claude_index + 1)
         self.assertEqual(stopped["results"], [])
@@ -5903,8 +5964,12 @@ class MatchedPanelTests(unittest.TestCase):
             )
         )
         self.assertEqual(receipt["production_episodes_consumed"], 0)
-        self.assertEqual(receipt["managed_glean_auth_bootstrap"], "passed")
-        self.assertEqual(receipt["codex_auth_bootstrap"], "passed")
+        authentication = receipt["authentication_prerequisite"]
+        self.assertEqual(authentication["codex"], "passed_before_preflight")
+        self.assertEqual(
+            authentication["managed_glean"], "passed_before_preflight"
+        )
+        self.assertEqual(authentication["model_calls"], 0)
         self.assertEqual(
             receipt["preflight_purpose"],
             "unscored_infrastructure_routing_handshake",
@@ -5990,30 +6055,14 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, AUTHENTICATION_KEY
         )
         self.assertEqual(private["environment_preflight"]["status"], "passed")
-        for bootstrap_name in (
-            "managed_glean_auth_bootstrap",
-            "codex_auth_bootstrap",
-        ):
-            bootstrap = private["environment_preflight"][bootstrap_name]
-            self.assertEqual(bootstrap["status"], "passed")
-            self.assertEqual(
-                set(bootstrap),
-                {
-                    "status",
-                    "launch_pending_at_utc",
-                    "started_at_utc",
-                    "returned_at_utc",
-                    "returncode",
-                    "finished_at_utc",
-                },
-            )
-            self.assertEqual(bootstrap["returncode"], 0)
-            self.assertTrue(
-                all(
-                    isinstance(bootstrap[name], str) and bootstrap[name]
-                    for name in set(bootstrap) - {"status", "returncode"}
-                )
-            )
+        prerequisite = private["environment_preflight"][
+            "authentication_prerequisite"
+        ]
+        self.assertEqual(prerequisite["codex"], "passed_before_preflight")
+        self.assertEqual(
+            prerequisite["managed_glean"], "passed_before_preflight"
+        )
+        self.assertEqual(prerequisite["model_calls"], 0)
         self.assertEqual(
             private["codex_auth_file_identity"],
             matched._codex_auth_file_identity(self.codex_secure_storage_dir),
@@ -6407,7 +6456,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v11_receipt(self):
+    def test_environment_preflight_gate_validates_full_v12_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -6459,11 +6508,15 @@ class MatchedPanelTests(unittest.TestCase):
             ("development_only", False),
             ("production_episodes_consumed", 1),
             ("scores_reported", True),
-            ("managed_glean_auth_bootstrap", "failed"),
         ):
             candidate = copy.deepcopy(receipt)
             candidate[key] = value
             candidates.append(candidate)
+        wrong_authentication = copy.deepcopy(receipt)
+        wrong_authentication["authentication_prerequisite"][
+            "managed_glean"
+        ] = "failed"
+        candidates.append(wrong_authentication)
         missing_profile = copy.deepcopy(receipt)
         missing_profile["profiles"].pop()
         candidates.append(missing_profile)
@@ -6574,13 +6627,6 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         expected_events = [
-            "attest",
-            "codex_bootstrap",
-            "attest",
-            "attest",
-            "glean_bootstrap",
-            "attest",
-        ] + [
             event
             for profile in PROFILES
             for event in (
@@ -6604,13 +6650,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch(
                 "epiagentbench.development_matched_panel."
                 "_attest_execution_contracts",
-                side_effect=(
-                    None,
-                    None,
-                    None,
-                    None,
-                    RuntimeError("before-call drift"),
-                ),
+                side_effect=RuntimeError("before-call drift"),
             ),
             patch(
                 "epiagentbench.development_matched_panel."
@@ -6664,9 +6704,8 @@ class MatchedPanelTests(unittest.TestCase):
             matched._conservatively_chargeable_provider_calls(attempts), 2
         )
 
-    def test_disposable_preflight_bootstrap_failure_spends_no_model_call(self):
-        self._prepare()
-        preflight_path = self.root / "results" / "preflight-bootstrap.json"
+    def test_glean_authentication_clean_failure_is_retryable_zero_model_call(self):
+        self._prepare(authenticate=False)
 
         def fail_after_start(*_args, **kwargs):
             kwargs["invocation_launch_pending"]()
@@ -6674,10 +6713,10 @@ class MatchedPanelTests(unittest.TestCase):
             raise RuntimeError("redacted bootstrap failure")
 
         with (
-            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
@@ -6689,45 +6728,61 @@ class MatchedPanelTests(unittest.TestCase):
                 "evaluate_local_cli_agent"
             ) as evaluate,
         ):
-            receipt = run_environment_preflight(
+            status = matched.authenticate_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
                 claude_secure_storage_dir=self.claude_secure_storage_dir,
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                public_preflight_path=preflight_path,
-                acknowledge_unbounded_provider_spend=True,
+                acknowledge_interactive_authentication=True,
             )
         evaluate.assert_not_called()
-        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(status["status"], "retryable_failed")
         self.assertEqual(
-            receipt["failure_stage"], "managed_glean_auth_bootstrap"
+            status["providers"]["codex"]["status"], "passed"
         )
-        self.assertEqual(receipt["managed_glean_auth_bootstrap"], "failed")
-        self.assertEqual(receipt["profiles_passed"], [])
-        self.assertIsNone(receipt["failed_provider_invocation_state"])
         self.assertEqual(
-            receipt["provider_calls_conservatively_chargeable"], 0
+            status["providers"]["managed_glean"]["status"],
+            "retryable_failed",
         )
+        self.assertFalse(
+            matched._authentication_receipt_path(self.public_path).exists()
+        )
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+        ):
+            resumed = matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        codex_bootstrap.assert_not_called()
+        self.assertEqual(resumed["status"], "passed")
 
-    def test_failed_codex_setup_leaves_both_bootstraps_not_started(self):
-        self._prepare()
-        preflight_path = self.root / "results" / "preflight-codex-failure.json"
-        observed_started_state: dict | None = None
+    def test_codex_clean_failure_leaves_glean_unstarted_and_is_retryable(self):
+        self._prepare(authenticate=False)
 
         def fail_codex(*_args, **_kwargs):
-            nonlocal observed_started_state
-            observed_started_state = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]
             raise RuntimeError("redacted Codex bootstrap failure")
 
         with (
-            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
@@ -6738,56 +6793,44 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
-            ) as evaluate,
         ):
-            receipt = run_environment_preflight(
+            status = matched.authenticate_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
                 claude_secure_storage_dir=self.claude_secure_storage_dir,
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                public_preflight_path=preflight_path,
-                acknowledge_unbounded_provider_spend=True,
+                acknowledge_interactive_authentication=True,
             )
-
-        assert observed_started_state is not None
-        self.assertEqual(
-            observed_started_state["codex_auth_bootstrap"]["status"],
-            "not_started",
-        )
-        self.assertEqual(
-            observed_started_state["managed_glean_auth_bootstrap"],
-            {"status": "not_started"},
-        )
         glean_bootstrap.assert_not_called()
-        evaluate.assert_not_called()
-        self.assertEqual(receipt["status"], "failed")
-        self.assertEqual(receipt["failure_stage"], "codex_auth_bootstrap")
-        self.assertEqual(receipt["codex_auth_bootstrap"], "not_started")
+        self.assertEqual(status["status"], "retryable_failed")
         self.assertEqual(
-            receipt["managed_glean_auth_bootstrap"], "not_started"
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
+            status["providers"]["codex"]["status"], "retryable_failed"
         )
         self.assertEqual(
-            private["environment_preflight"]["codex_auth_bootstrap"][
-                "status"
-            ],
-            "not_started",
+            status["providers"]["managed_glean"]["status"], "required"
         )
-        self.assertEqual(
-            private["environment_preflight"]["managed_glean_auth_bootstrap"],
-            {"status": "not_started"},
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ),
+        ):
+            resumed = matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
         )
+        self.assertEqual(resumed["status"], "passed")
 
-    def test_codex_pre_started_failure_preserves_launch_pending(self):
-        self._prepare()
-        preflight_path = self.root / "results" / "preflight-launch-pending.json"
+    def test_codex_launch_pending_is_terminal_on_isolation_failure(self):
+        self._prepare(authenticate=False)
 
         def fail_after_spawn(*_args, **kwargs):
             kwargs["invocation_launch_pending"]()
@@ -6796,53 +6839,37 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         with (
-            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_codex_credentials",
                 side_effect=fail_after_spawn,
             ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_managed_glean_credentials"
-            ) as glean_bootstrap,
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
-            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
         ):
-            receipt = run_environment_preflight(
+            matched.authenticate_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
                 claude_secure_storage_dir=self.claude_secure_storage_dir,
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                public_preflight_path=preflight_path,
-                acknowledge_unbounded_provider_spend=True,
+                acknowledge_interactive_authentication=True,
             )
-
-        glean_bootstrap.assert_not_called()
-        evaluate.assert_not_called()
-        self.assertEqual(receipt["codex_auth_bootstrap"], "launch_pending")
-        self.assertEqual(
-            receipt["managed_glean_auth_bootstrap"], "not_started"
-        )
-        marker = matched._load_private_state(
+        setup = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
-        )["environment_preflight"]["codex_auth_bootstrap"]
-        self.assertEqual(marker["status"], "launch_pending")
-        self.assertEqual(
-            set(marker), {"status", "launch_pending_at_utc"}
-        )
+        )["authentication_setup"]
+        self.assertEqual(setup["status"], "terminal_failed")
+        marker = setup["codex"]["attempts"][-1]
+        self.assertEqual(marker["status"], "terminal_failed")
+        self.assertIn("launch_pending_at_utc", marker)
 
-    def test_codex_popen_failure_records_start_failed(self):
-        self._prepare()
-        preflight_path = self.root / "results" / "preflight-start-failed.json"
+    def test_codex_popen_failure_is_terminal_and_records_start_failure(self):
+        self._prepare(authenticate=False)
 
         def fail_to_start(*_args, **kwargs):
             kwargs["invocation_launch_pending"]()
@@ -6852,58 +6879,35 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         with (
-            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_codex_credentials",
                 side_effect=fail_to_start,
             ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_managed_glean_credentials"
-            ) as glean_bootstrap,
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
-            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
         ):
-            receipt = run_environment_preflight(
+            matched.authenticate_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
                 claude_secure_storage_dir=self.claude_secure_storage_dir,
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                public_preflight_path=preflight_path,
-                acknowledge_unbounded_provider_spend=True,
+                acknowledge_interactive_authentication=True,
             )
-
-        glean_bootstrap.assert_not_called()
-        evaluate.assert_not_called()
-        self.assertEqual(receipt["codex_auth_bootstrap"], "start_failed")
-        self.assertEqual(
-            receipt["managed_glean_auth_bootstrap"], "not_started"
-        )
         marker = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
-        )["environment_preflight"]["codex_auth_bootstrap"]
-        self.assertEqual(marker["status"], "start_failed")
-        self.assertEqual(
-            set(marker),
-            {
-                "status",
-                "launch_pending_at_utc",
-                "start_failed_at_utc",
-            },
-        )
+        )["authentication_setup"]["codex"]["attempts"][-1]
+        self.assertEqual(marker["status"], "terminal_failed")
+        self.assertIn("start_failed_at_utc", marker)
 
-    def test_codex_post_return_failure_retains_durable_return_marker(self):
-        self._prepare()
-        preflight_path = self.root / "results" / "preflight-codex-returned.json"
+    def test_codex_post_return_isolation_failure_is_terminal(self):
+        self._prepare(authenticate=False)
 
         def fail_after_return(*_args, **kwargs):
             kwargs["invocation_launch_pending"]()
@@ -6914,123 +6918,68 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         with (
-            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_codex_credentials",
                 side_effect=fail_after_return,
             ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_managed_glean_credentials"
-            ) as glean_bootstrap,
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
-            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
         ):
-            receipt = run_environment_preflight(
+            matched.authenticate_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
                 claude_secure_storage_dir=self.claude_secure_storage_dir,
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
-                public_preflight_path=preflight_path,
-                acknowledge_unbounded_provider_spend=True,
+                acknowledge_interactive_authentication=True,
             )
-
-        glean_bootstrap.assert_not_called()
-        evaluate.assert_not_called()
-        self.assertEqual(receipt["codex_auth_bootstrap"], "failed")
-        self.assertEqual(
-            receipt["managed_glean_auth_bootstrap"], "not_started"
-        )
         marker = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
-        )["environment_preflight"]["codex_auth_bootstrap"]
-        self.assertEqual(marker["status"], "failed")
+        )["authentication_setup"]["codex"]["attempts"][-1]
+        self.assertEqual(marker["status"], "terminal_failed")
         self.assertEqual(marker["returncode"], 0)
-        self.assertIn("started_at_utc", marker)
         self.assertIn("returned_at_utc", marker)
-        self.assertIn("finished_at_utc", marker)
 
-    def test_successful_bootstraps_have_durable_invocation_markers(self):
-        self._prepare()
+    def test_successful_authentication_is_durable_and_preflight_never_logs_in(self):
+        self._prepare(authenticate=False)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ),
+        ):
+            status = matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        self.assertEqual(status["status"], "passed")
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        for name in ("codex", "managed_glean"):
+            marker = private["authentication_setup"][name]["attempts"][-1]
+            self.assertEqual(marker["status"], "passed")
+            self.assertEqual(marker["returncode"], 0)
+            self.assertIn("started_at_utc", marker)
+            self.assertIn("returned_at_utc", marker)
+        authentication_receipt = matched._load_json(
+            matched._authentication_receipt_path(self.public_path)
+        )
+        self.assertEqual(authentication_receipt["model_calls_started"], 0)
+
         preflight_path = self.root / "results" / "preflight-markers.json"
-        observed: list[tuple[str, dict, dict]] = []
-
-        def bootstrap_codex(path: Path, **kwargs):
-            kwargs["invocation_launch_pending"]()
-            kwargs["invocation_started"]()
-            state = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]
-            observed.append(
-                (
-                    "codex",
-                    copy.deepcopy(state["codex_auth_bootstrap"]),
-                    copy.deepcopy(state["managed_glean_auth_bootstrap"]),
-                )
-            )
-            self._bootstrap_codex_fixture(path)
-            kwargs["invocation_returned"](0)
-            returned_state = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]
-            observed.append(
-                (
-                    "codex_returned",
-                    copy.deepcopy(
-                        returned_state["codex_auth_bootstrap"]
-                    ),
-                    copy.deepcopy(
-                        returned_state["managed_glean_auth_bootstrap"]
-                    ),
-                )
-            )
-
-        def bootstrap_glean(*_args, **kwargs):
-            kwargs["invocation_launch_pending"]()
-            kwargs["invocation_started"]()
-            state = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]
-            observed.append(
-                (
-                    "glean",
-                    copy.deepcopy(state["codex_auth_bootstrap"]),
-                    copy.deepcopy(state["managed_glean_auth_bootstrap"]),
-                )
-            )
-            self.keychain_present = True
-            kwargs["invocation_returned"](0)
-            returned_state = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]
-            observed.append(
-                (
-                    "glean_returned",
-                    copy.deepcopy(
-                        returned_state["codex_auth_bootstrap"]
-                    ),
-                    copy.deepcopy(
-                        returned_state["managed_glean_auth_bootstrap"]
-                    ),
-                )
-            )
-
-        def evaluate(system: str, **kwargs):
-            if system == "claude":
-                self.keychain_present = True
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 0.0
-            )
-
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
@@ -7039,18 +6988,21 @@ class MatchedPanelTests(unittest.TestCase):
             ),
             patch(
                 "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
-                side_effect=bootstrap_codex,
-            ),
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
-                "_bootstrap_managed_glean_credentials",
-                side_effect=bootstrap_glean,
-            ),
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent",
-                side_effect=evaluate,
+                side_effect=lambda system, **kwargs: self._result(
+                    system,
+                    kwargs["model"],
+                    kwargs["executable"],
+                    0.0,
+                ),
             ),
         ):
             receipt = run_environment_preflight(
@@ -7063,39 +7015,541 @@ class MatchedPanelTests(unittest.TestCase):
                 public_preflight_path=preflight_path,
                 acknowledge_unbounded_provider_spend=True,
             )
-
+        codex_bootstrap.assert_not_called()
+        glean_bootstrap.assert_not_called()
         self.assertEqual(receipt["status"], "passed")
-        self.assertEqual(
-            [item[0] for item in observed],
-            ["codex", "codex_returned", "glean", "glean_returned"],
-        )
-        self.assertEqual(observed[0][1]["status"], "started")
-        self.assertEqual(observed[0][2], {"status": "not_started"})
-        self.assertEqual(observed[1][1]["status"], "returned")
-        self.assertEqual(observed[2][1]["status"], "passed")
-        self.assertEqual(observed[2][2]["status"], "started")
-        self.assertEqual(observed[3][2]["status"], "returned")
+
+    def test_invalid_authentication_cross_states_cannot_publish(self):
+        self._prepare()
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
-        for name in (
-            "codex_auth_bootstrap",
-            "managed_glean_auth_bootstrap",
-        ):
-            marker = private["environment_preflight"][name]
-            self.assertEqual(marker["status"], "passed")
-            self.assertEqual(
-                set(marker),
-                {
-                    "status",
-                    "launch_pending_at_utc",
-                    "started_at_utc",
-                    "returned_at_utc",
-                    "returncode",
-                    "finished_at_utc",
-                },
+        public = matched._load_json(self.public_path)
+        passed = copy.deepcopy(private["authentication_setup"]["codex"])
+        required = {"status": "required", "attempts": []}
+        invalid = (
+            ("pending_publication", required, required),
+            ("pending_publication", passed, required),
+            ("passed", passed, required),
+            ("required", passed, passed),
+            ("running", passed, passed),
+            ("retryable_failed", passed, passed),
+        )
+        for overall, codex, glean in invalid:
+            with self.subTest(
+                overall=overall,
+                codex=codex["status"],
+                glean=glean["status"],
+            ):
+                candidate = copy.deepcopy(private)
+                candidate["authentication_setup"]["status"] = overall
+                candidate["authentication_setup"]["codex"] = copy.deepcopy(
+                    codex
+                )
+                candidate["authentication_setup"]["managed_glean"] = (
+                    copy.deepcopy(glean)
+                )
+                with self.assertRaises(ValueError):
+                    matched._validate_authentication_setup_state(
+                        candidate, public
+                    )
+
+        receipt_path = matched._authentication_receipt_path(
+            self.public_path
+        )
+        receipt_path.unlink()
+        private["authentication_setup"]["status"] = "pending_publication"
+        private["authentication_setup"]["codex"] = copy.deepcopy(required)
+        private["authentication_setup"]["managed_glean"] = copy.deepcopy(
+            required
+        )
+        with self.assertRaises(ValueError):
+            matched._publish_authentication_receipt(
+                private=private,
+                public=public,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                authentication_key=AUTHENTICATION_KEY,
             )
-            self.assertEqual(marker["returncode"], 0)
+        self.assertFalse(receipt_path.exists())
+
+    def test_interrupted_authentication_is_terminal_and_idempotent(self):
+        public = self._prepare(authenticate=False)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        setup = private["authentication_setup"]
+        setup["status"] = "running"
+        setup["codex"] = {
+            "status": "running",
+            "attempts": [
+                {
+                    "status": "started",
+                    "launch_pending_at_utc": "test",
+                    "started_at_utc": "test",
+                }
+            ],
+        }
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ) as tty,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+            self.assertRaisesRegex(RuntimeError, "ambiguous"),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        tty.assert_not_called()
+        codex_bootstrap.assert_not_called()
+        terminal = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        matched._validate_authentication_setup_state(terminal, public)
+        self.assertEqual(
+            terminal["authentication_setup"]["status"],
+            "terminal_failed",
+        )
+        for provider in ("codex", "managed_glean"):
+            self.assertEqual(
+                terminal["authentication_setup"][provider]["status"],
+                "terminal_failed",
+            )
+            self.assertEqual(
+                terminal["authentication_setup"][provider]["attempts"][-1][
+                    "status"
+                ],
+                "terminal_failed",
+            )
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+            self.assertRaisesRegex(RuntimeError, "terminal"),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        codex_bootstrap.assert_not_called()
+
+    def test_replaced_empty_auth_directory_is_terminal_not_retryable(self):
+        self._prepare(authenticate=False)
+
+        def replace_then_fail(path: Path, **_kwargs):
+            path.rmdir()
+            path.mkdir(mode=0o700)
+            raise RuntimeError("redacted authentication failure")
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=replace_then_fail,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        glean_bootstrap.assert_not_called()
+        setup = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )["authentication_setup"]
+        self.assertEqual(setup["status"], "terminal_failed")
+        self.assertEqual(setup["codex"]["status"], "terminal_failed")
+
+    def test_partial_pass_credential_drift_reports_and_persists_terminal(self):
+        self._prepare(authenticate=False)
+        self._bootstrap_codex_fixture(self.codex_secure_storage_dir)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        private["codex_auth_file_identity"] = (
+            matched._codex_auth_file_identity(
+                self.codex_secure_storage_dir
+            )
+        )
+        private["authentication_setup"]["status"] = "required"
+        private["authentication_setup"]["codex"] = {
+            "status": "passed",
+            "attempts": [
+                {
+                    "status": "passed",
+                    "launch_pending_at_utc": "test",
+                    "started_at_utc": "test",
+                    "returned_at_utc": "test",
+                    "returncode": 0,
+                    "finished_at_utc": "test",
+                }
+            ],
+        }
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        credential = self.codex_secure_storage_dir / "auth.json"
+        credential.unlink()
+        credential.write_text('{"test":"replacement"}', encoding="utf-8")
+        credential.chmod(0o600)
+
+        with self._contracts():
+            status = matched.panel_authentication_status(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        self.assertEqual(status["status"], "terminal_failed")
+        self.assertEqual(
+            status["providers"]["codex"]["status"], "terminal_failed"
+        )
+        unchanged = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            unchanged["authentication_setup"]["status"], "required"
+        )
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ) as tty,
+            self.assertRaisesRegex(
+                RuntimeError, "terminal credential-integrity"
+            ),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        tty.assert_not_called()
+        terminal = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            terminal["authentication_setup"]["status"], "terminal_failed"
+        )
+
+    def test_keyboard_interrupt_is_always_terminal(self):
+        self._prepare(authenticate=False)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials",
+                side_effect=KeyboardInterrupt,
+            ),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        setup = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )["authentication_setup"]
+        self.assertEqual(setup["status"], "terminal_failed")
+        self.assertEqual(setup["codex"]["status"], "terminal_failed")
+
+    def test_authentication_receipt_recovers_from_private_pending_crash(self):
+        self._prepare(authenticate=False)
+        private, public = self._stage_authentication_pending_publication()
+        expected = matched._expected_authentication_receipt(private, public)
+        setup = private["authentication_setup"]
+        setup["pending_public_receipt"] = expected
+        setup["public_receipt_path"] = str(
+            matched._authentication_receipt_path(
+                self.public_path
+            ).resolve()
+        )
+        setup["public_receipt_sha256"] = expected["receipt_sha256"]
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ) as tty,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+        ):
+            status = matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        tty.assert_not_called()
+        codex_bootstrap.assert_not_called()
+        self.assertEqual(status["status"], "passed")
+        self.assertEqual(
+            matched._load_json(
+                matched._authentication_receipt_path(self.public_path)
+            ),
+            expected,
+        )
+
+    def test_authentication_receipt_recovers_after_public_write_crash(self):
+        self._prepare(authenticate=False)
+        private, public = self._stage_authentication_pending_publication()
+        expected = matched._expected_authentication_receipt(private, public)
+        setup = private["authentication_setup"]
+        setup["pending_public_receipt"] = expected
+        setup["public_receipt_path"] = str(
+            matched._authentication_receipt_path(
+                self.public_path
+            ).resolve()
+        )
+        setup["public_receipt_sha256"] = expected["receipt_sha256"]
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        matched._create_public_json_once(
+            matched._authentication_receipt_path(self.public_path),
+            expected,
+        )
+
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ) as tty,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+        ):
+            status = matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        tty.assert_not_called()
+        codex_bootstrap.assert_not_called()
+        self.assertEqual(status["status"], "passed")
+        final = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            final["authentication_setup"]["status"], "passed"
+        )
+
+    def test_authentication_receipt_publication_never_clobbers(self):
+        self._prepare(authenticate=False)
+        private, public = self._stage_authentication_pending_publication()
+        receipt_path = matched._authentication_receipt_path(self.public_path)
+        original = b'{"schema_version":"foreign"}\n'
+
+        def race_create(
+            _source: Path,
+            destination: Path,
+            *,
+            follow_symlinks: bool,
+        ) -> None:
+            self.assertFalse(follow_symlinks)
+            Path(destination).write_bytes(original)
+            raise FileExistsError
+
+        with (
+            patch(
+                "epiagentbench.development_matched_panel.os.link",
+                side_effect=race_create,
+            ),
+            self.assertRaises(ValueError),
+        ):
+            matched._publish_authentication_receipt(
+                private=private,
+                public=public,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                authentication_key=AUTHENTICATION_KEY,
+            )
+        self.assertEqual(receipt_path.read_bytes(), original)
+
+    def test_authentication_requires_tty_without_state_or_provider_call(self):
+        self._prepare(authenticate=False)
+        before = self.private_path.read_bytes()
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty",
+                side_effect=RuntimeError("foreground operator TTY"),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "operator TTY"),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        codex_bootstrap.assert_not_called()
+        glean_bootstrap.assert_not_called()
+        evaluate.assert_not_called()
+        self.assertEqual(self.private_path.read_bytes(), before)
+        self.assertFalse(
+            matched._authentication_receipt_path(self.public_path).exists()
+        )
+
+    def test_authentication_requires_spend_before_tty_or_provider_call(self):
+        self._prepare(authorize=False, authenticate=False)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ) as tty,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_codex_credentials"
+            ) as codex_bootstrap,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_bootstrap_managed_glean_credentials"
+            ) as glean_bootstrap,
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v12"),
+        ):
+            matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        tty.assert_not_called()
+        codex_bootstrap.assert_not_called()
+        glean_bootstrap.assert_not_called()
+
+    def test_authentication_does_not_read_hidden_packs_or_leak_metadata(self):
+        self._prepare(authenticate=False)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_require_operator_authentication_tty"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "PrivateEpisodePack.read",
+                side_effect=AssertionError(
+                    "authentication must not open hidden packs"
+                ),
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate,
+        ):
+            status = matched.authenticate_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                acknowledge_interactive_authentication=True,
+            )
+        evaluate.assert_not_called()
+        self.assertEqual(status["status"], "passed")
+        receipt = matched._load_json(
+            matched._authentication_receipt_path(self.public_path)
+        )
+        serialized = json.dumps(receipt, sort_keys=True)
+        self.assertNotIn(str(self.private_path), serialized)
+        self.assertNotIn(str(self.claude_secure_storage_dir), serialized)
+        self.assertNotIn(str(self.codex_secure_storage_dir), serialized)
+        self.assertNotIn("episode_", serialized)
+        self.assertNotIn("schedule", serialized)
+        self.assertEqual(receipt["model_calls_started"], 0)
+        self.assertEqual(receipt["production_episodes_consumed"], 0)
+        self.assertFalse(receipt["scores_reported"])
 
     def test_disposable_preflight_after_call_drift_fails_closed(self):
         self._prepare()
@@ -7118,10 +7572,6 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_attest_execution_contracts",
                 side_effect=(
-                    None,
-                    None,
-                    None,
-                    None,
                     None,
                     RuntimeError("mid-call drift"),
                 ),
