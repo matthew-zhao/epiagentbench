@@ -1,0 +1,36 @@
+{
+  "authentication_contract_hashes": {
+    "budgets_sha256": "sha256:50630f3961f2bc7e974f2c0c3aa4e5c63c1c958f1daaec6f94e774ecccfbf6bb",
+    "claude_auth_sha256": "sha256:1eab21db0403c7fb4a8a57c05db223d81e5b0e7168ce6b4f7fdc574c3e118d50",
+    "cli_sha256": "sha256:64a2ac850da448957534e9de494667c22f1856c19e355f6b89765b7e0653ff61",
+    "codex_auth_sha256": "sha256:49f197ac283ae42ddb58ff2a416c9a72402f4e41c13346b4fb3d64ee4df07930",
+    "runtime_sha256": "sha256:20c4386e7a290a0c1848570b330e1ae628f918890c6931f78008560dd05652bc",
+    "source_sha256": "sha256:1aaf2d771df6b835c32469b30979d79da2ac5ff3d1f6a5236093549b7510c684",
+    "supervisor_sha256": "sha256:191c3c061d1c36efe4707e632a3cbe49a4010cf9250c3e8a500ffe21eb84b4f2"
+  },
+  "authentication_dependency_identity": {
+    "exact_bundle_identity_withheld": true,
+    "identity_sha256": "sha256:b8696677845b68513e6eddc995687a8f029e3d410a19dd93ace15f731f3e01a1",
+    "raw_machine_paths_published": false,
+    "raw_provider_output_published": false,
+    "root_owned_single_link_regular_executable_policy_attested": true,
+    "schema_version": "epiagentbench.authentication_dependency_freeze.v1"
+  },
+  "authentication_prerequisite": {
+    "codex": "passed_before_preflight",
+    "codex_method": "pinned_cli_device_auth",
+    "managed_glean": "passed_before_preflight",
+    "managed_glean_method": "pinned_managed_oauth_helper",
+    "model_calls": 0
+  },
+  "development_only": true,
+  "model_calls_started": 0,
+  "panel_id": "development-matched-50x6-v14",
+  "precommitment_sha256": "sha256:c1e9aae32fd3193a773f93a99852f4f79f099e34efe17cccd405bf71c1c277b5",
+  "production_episodes_consumed": 0,
+  "receipt_sha256": "sha256:ec77e0071f695ea1018f1f0dbbf177006f054d4ffadc6cee79ab941eb08b3c90",
+  "schema_version": "epiagentbench.authentication_receipt.v2",
+  "scores_reported": false,
+  "spend_authorization_receipt_sha256": "sha256:b2afff85c743786490ce00d177fe88f100a53916b336b14950441bf8ab5e50d3",
+  "status": "passed"
+}
