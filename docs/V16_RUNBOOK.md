@@ -299,8 +299,8 @@ The receipt is closed-schema public data. It contains aggregate smoke output,
 path-free scientific identities, opaque Python/cache binding hashes, and
 explicit zero provider/authentication process counters. It contains no raw
 Python entrypoint/bootstrap binding, cache contract, absolute path,
-device/inode/UID metadata, seed, episode identifier, schedule, credential,
-prompt, observation, provider output, trace, or score.
+device/inode/UID metadata, private random seed, episode identifier, schedule,
+credential, prompt, observation, provider output, trace, or score.
 
 The private cache binding seals every relative path and every entry's owner,
 mode, device, and inode. It additionally seals every regular file's byte hash,
