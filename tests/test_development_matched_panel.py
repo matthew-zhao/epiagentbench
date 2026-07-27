@@ -2382,6 +2382,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertLess(manifest_prepare, manifest_authorization)
         self.assertLess(manifest_authorization, cursor_credential)
         self.assertLess(manifest_authorization, supervisor_creation)
+        self.assertIn("for candidate_path in \\", runbook)
+        self.assertNotIn("for path in \\", runbook)
 
     def test_live_cli_execution_requires_manifest_bound_supervisor(self):
         public = {

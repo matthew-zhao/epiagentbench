@@ -116,13 +116,13 @@ authentication.
 set -e
 umask 077
 set -o noclobber
-for path in \
+for candidate_path in \
   "$HOME/.codex/epiagentbench-v15-secrets" \
   "$HOME/.codex/epiagentbench-v15-state" \
   "$HOME/.codex/epiagentbench-v15-credentials" \
   "$HOME/.codex/epiagentbench-v15-cohort"; do
-  if [ -e "$path" ] || [ -L "$path" ]; then
-    echo "Refusing to reuse V15 path: $path" >&2
+  if [ -e "$candidate_path" ] || [ -L "$candidate_path" ]; then
+    echo "Refusing to reuse V15 path: $candidate_path" >&2
     exit 1
   fi
 done
