@@ -1,0 +1,37 @@
+{
+  "authentication_contract_hashes": {
+    "budgets_sha256": "sha256:6d2b37a8811bc56e925e6cf6f9a7c9b906982cb0ae7be049a891b4b129013d42",
+    "claude_auth_sha256": "sha256:06cd8886c2a14b58997ed681dfac743fe0c3a59fa5c17fa2174b968bc4d005fd",
+    "cli_sha256": "sha256:64a2ac850da448957534e9de494667c22f1856c19e355f6b89765b7e0653ff61",
+    "codex_auth_sha256": "sha256:48b32856312788e24a8a3f779700bb9295f6dd9ca1035d820001d5544a94edbc",
+    "preparation_runtime_sha256": "sha256:cbe7c6241c71c8b8899713844d2f0409c303e54d7d43af32b87043bc5d479bb8",
+    "runtime_sha256": "sha256:8ad738b8169307fb14c621557924b32dc235794263728df98a70bcf7223e6384",
+    "source_sha256": "sha256:95f322ac1c4e4477c1f6d3f96213f39d243597423f4ac6187b0fbb725c3201e7",
+    "supervisor_sha256": "sha256:22f16259434a9dfb52b0647521ea1c7e84faf5ff99b8290f0218b02aba1dd181"
+  },
+  "authentication_dependency_identity": {
+    "exact_bundle_identity_withheld": true,
+    "identity_sha256": "sha256:b8696677845b68513e6eddc995687a8f029e3d410a19dd93ace15f731f3e01a1",
+    "raw_machine_paths_published": false,
+    "raw_provider_output_published": false,
+    "root_owned_single_link_regular_executable_policy_attested": true,
+    "schema_version": "epiagentbench.authentication_dependency_freeze.v1"
+  },
+  "authentication_prerequisite": {
+    "codex": "passed_before_preflight",
+    "codex_method": "pinned_cli_device_auth",
+    "managed_glean": "passed_before_preflight",
+    "managed_glean_method": "pinned_managed_oauth_helper",
+    "model_calls": 0
+  },
+  "development_only": true,
+  "model_calls_started": 0,
+  "panel_id": "development-matched-50x6-v16",
+  "precommitment_sha256": "sha256:eae445f3da55a5eade8e00a752882cb19813672609ec0a19b10945feabc23478",
+  "production_episodes_consumed": 0,
+  "receipt_sha256": "sha256:288a4db8fecdb905617c0ac35295cb85efb381778f7934ef97c81d7a7f074404",
+  "schema_version": "epiagentbench.authentication_receipt.v2",
+  "scores_reported": false,
+  "spend_authorization_receipt_sha256": "sha256:764b2b92f6d5bcca298a08926d4f8d208d41d46e13cfa1678df703237d5d8dc6",
+  "status": "passed"
+}
