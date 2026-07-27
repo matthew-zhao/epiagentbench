@@ -219,9 +219,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v14.authentication.json",
+            "results/development-matched-50x6-v15.authentication.json",
         ):
-            return "results/development-matched-50x6-v14.authentication.json"
+            return "results/development-matched-50x6-v15.authentication.json"
         return ""
 
     @staticmethod
@@ -2273,7 +2273,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v14_authorization_breakdown"],
+            contract["claude_current_v15_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -2283,7 +2283,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v14_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v15_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -2300,14 +2300,15 @@ class MatchedPanelTests(unittest.TestCase):
                 "v11_usd": 0.0,
                 "v12_usd": 0.0,
                 "v13_usd": 0.0,
+                "v14_usd": 10.0,
             },
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_conservative_ceiling_usd"],
-            60.0,
+            70.0,
         )
         self.assertEqual(
-            contract["claude_cumulative_authorization_ceiling_usd"], 570.0
+            contract["claude_cumulative_authorization_ceiling_usd"], 580.0
         )
         self.assertEqual(
             set(contract["prior_public_audit_references"]),
@@ -2332,12 +2333,34 @@ class MatchedPanelTests(unittest.TestCase):
                 "v12_supersession",
                 "v13_manifest",
                 "v13_supersession",
+                "v14_manifest",
+                "v14_authentication_receipt",
+                "v14_preflight_artifact",
+                "v14_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
             self.assertTrue((Path(__file__).parents[1] / reference).is_file())
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
+
+    def test_v15_acknowledgement_is_exact_and_accounts_for_v14(self):
+        self.assertEqual(
+            hashlib.sha256(
+                REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
+            ).hexdigest(),
+            "bdfae06d7e74ba73f61b136a703b9487bec3018259b6864e0624b0c2803160cd",
+        )
+        self.assertIn("six-call v15 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("$580 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("failed v14 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        runbook = (
+            Path(__file__).resolve().parents[1] / "docs" / "V15_RUNBOOK.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, runbook)
+        self.assertIn("development-matched-50x6-v15", runbook)
+        self.assertIn("development_matched_panel_v15", runbook)
+        self.assertIn("epiagentbench-cursor-v15", runbook)
 
     def test_live_cli_execution_requires_manifest_bound_supervisor(self):
         public = {
@@ -2425,7 +2448,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v14_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v15_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -2861,7 +2884,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v14")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v15")
+        self.assertEqual(public["schema_version"], "development_matched_panel_v15")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -2890,7 +2914,7 @@ class MatchedPanelTests(unittest.TestCase):
             private["spend_authorization"][
                 "claude_cumulative_authorization_ceiling_usd"
             ],
-            570.0,
+            580.0,
         )
         self.assertEqual(
             private["spend_authorization"]["unbounded_provider_spend"],
@@ -5221,11 +5245,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v14_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v15_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v14", "six-call v10"
+            "six-call v15", "six-call v10"
         )
         with (
             patch(
@@ -5259,7 +5283,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_root_owned_regular_executable_identity"
             ) as wrapper_identity,
-            self.assertRaisesRegex(RuntimeError, "exact v14 \\$570"),
+            self.assertRaisesRegex(RuntimeError, "exact v15 \\$580"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -5580,7 +5604,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.authentication_dependency_freeze.v1"
             ),
             "status": "frozen",
-            "panel_id": "development-matched-50x6-v14",
+            "panel_id": "development-matched-50x6-v15",
             "public_precommitment_sha256": public["precommitment_sha256"],
             "static_cli_contract_sha256": public["contract_hashes"][
                 "cli_sha256"
@@ -5915,7 +5939,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v14"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v15"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -5962,7 +5986,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v14"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v15"),
         ):
             run_panel(
                 root=self.root,
@@ -8394,7 +8418,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v14_receipt(self):
+    def test_environment_preflight_gate_validates_full_v15_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -8940,7 +8964,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             authentication_receipt["panel_id"],
-            "development-matched-50x6-v14",
+            "development-matched-50x6-v15",
         )
         self.assertEqual(authentication_receipt["status"], "passed")
         self.assertIs(authentication_receipt["development_only"], True)
@@ -9598,7 +9622,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v14"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v15"),
         ):
             matched.authenticate_panel(
                 root=self.root,

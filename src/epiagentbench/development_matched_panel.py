@@ -76,24 +76,24 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v14"
+PANEL_ID = "development-matched-50x6-v15"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v14"
+SCHEMA_VERSION = "development_matched_panel_v15"
 BACKEND = "starsim-ltc-v3"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v14 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v15 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
-    "to $570 total Claude spend across the failed v2 preflight, failed v5 "
+    "to $580 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
     "failed v8 production run, v9 preflight and failed production run, the "
     "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
     "v11 authentication bootstrap, the abandoned zero-model-call v12 "
-    "precommitment, the abandoned zero-model-call v13 precommitment, and the "
-    "v14 preflight and production run."
+    "precommitment, the abandoned zero-model-call v13 precommitment, the "
+    "failed v14 preflight, and the v15 preflight and production run."
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v2"
 _AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v2"
@@ -105,7 +105,7 @@ _ROOT_MANAGED_EXECUTABLE_POLICY = (
     "root_owned_root_group_single_link_regular_nonwritable_executable"
 )
 _PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v1"
-_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 570.0
+_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 580.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
     "cursor": "unbounded",
@@ -3661,12 +3661,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
     )
-    prior_ceiling = 60.0
+    prior_ceiling = 70.0
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v14_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v14_authorization_breakdown": {
+        "claude_current_v15_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v15_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -3691,6 +3691,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v11_usd": 0.0,
             "v12_usd": 0.0,
             "v13_usd": 0.0,
+            "v14_usd": 10.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -3756,6 +3757,18 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v13_supersession": (
                 "results/development-matched-50x6-v13.superseded.json"
             ),
+            "v14_manifest": (
+                "results/development-matched-50x6-v14.manifest.json"
+            ),
+            "v14_authentication_receipt": (
+                "results/development-matched-50x6-v14.authentication.json"
+            ),
+            "v14_preflight_artifact": (
+                "results/development-matched-50x6-v14.preflight.json"
+            ),
+            "v14_supersession": (
+                "results/development-matched-50x6-v14.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -3804,13 +3817,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V14 requires an exact 1800-second assignment timeout")
+        raise ValueError("V15 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V14 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V15 requires an exact $5 Claude per-call ceiling")
 
     private_state_storage = _private_state_storage_binding(
         private_state_path,
@@ -4581,7 +4594,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V14 spend authorization contract mismatch")
+        raise ValueError("V15 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -4609,7 +4622,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v14 spend authorization receipt is required "
+            "A manifest-bound exact v15 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -4624,14 +4637,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v14 spend authorization receipt is required "
+            "A manifest-bound exact v15 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v14 spend authorization receipt is required "
+            "A manifest-bound exact v15 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -4653,7 +4666,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v14 $570 cumulative spend acknowledgement text is required"
+            "The exact v15 $580 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -5547,7 +5560,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V14 panel cannot retry"
+                    "state; this V15 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -5577,7 +5590,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V14 panel "
+                "Authentication process state is ambiguous; this V15 panel "
                 "cannot retry"
             )
         if (
@@ -5611,7 +5624,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V14 panel cannot retry"
+                "state; this V15 panel cannot retry"
             ) from None
         _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
@@ -5737,7 +5750,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V14 panel cannot retry"
+                    "state; this V15 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -5811,7 +5824,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V14 panel cannot retry"
+                    "V15 panel cannot retry"
                 ) from None
 
         _attest_execution_contracts(root=root, public=public)
@@ -5838,7 +5851,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V14 panel cannot retry"
+                "state; this V15 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             private=private,

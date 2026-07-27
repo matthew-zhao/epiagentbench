@@ -1,8 +1,9 @@
 # Persistent matched-panel runner protocol
 
-Status: historical runner protocol plus unpublished persistent-supervisor
-contract schema v5 hardening intended for a future V15 run. This document and
-the hardening patch do not authorize a provider call.
+Status: versioned V15 persistent-supervisor contract schema v5. The source
+contract, panel/schema identifiers, spend accounting, path namespace, and
+[V15 runbook](V15_RUNBOOK.md) are defined, but no V15 cohort or manifest has
+been prepared and this document does not authorize a provider call.
 
 ## Purpose
 
@@ -232,7 +233,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No future V15 model call may start until all of the following pass through the
+No V15 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -271,18 +272,21 @@ same supervisor path intended for production:
 
 ## Versioning consequence
 
-This file contains historical post-V9/V11 design context, but the schema-v5
-changes in this patch are a V15 prerequisite. V14 completed its foreground
-authentication ceremony and later stopped fail-closed during preflight after a
-returned Codex Sol harness when post-harness live attestation reported
-`status_snapshot_unstable`. That create-once run is non-resumable and no V14
-production assignment started.
+This file contains historical post-V9/V11 design context. V14 completed its
+foreground authentication ceremony and later stopped fail-closed during
+preflight after three returned calls when post-harness live attestation
+reported `status_snapshot_unstable`. Its trace-free stopped preflight and
+supersession bind that terminal outcome. The create-once run is non-resumable,
+its cohort cannot be reused, and no V14 production assignment started.
 
-The new heartbeat-pair, retry, diagnostic, source, and operational contracts
-make the frozen V14 manifest incompatible. This unpublished hardening patch is
-not itself a runnable V15: before any publication, preparation, authorization,
-or model call, the panel/cohort identifier, top-level schema, exact spend
-acknowledgement, budget history, paths, and runbook must be versioned to V15,
-and V14 must receive a trace-free supersession record. Historical completed
-records and transport voids remain audit evidence only and are never mixed
-into the new estimand.
+V15 now binds the new heartbeat-pair, retry, diagnostic, source, and operational
+contracts under panel/cohort `development-matched-50x6-v15`, top-level schema
+`development_matched_panel_v15`, the exact $580 acknowledgement, and fresh V15
+paths. This source versioning remains a pre-preparation state: it does not
+create a cohort or manifest, authorize spend, authenticate, create a
+supervisor, or invoke a provider. The prerequisite commit must first be
+published and pinned; preparation must then create a fresh cohort and manifest,
+after which the operator must separately supply the exact manifest-bound
+acknowledgement before authorization. Historical completed records and
+transport voids remain audit evidence only and are never mixed into the new
+estimand.
