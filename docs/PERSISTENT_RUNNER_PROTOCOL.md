@@ -1,7 +1,8 @@
 # Persistent matched-panel runner protocol
 
-Status: hardened next-run execution contract after terminal V9. This document
-does not authorize a provider call.
+Status: historical runner protocol plus unpublished persistent-supervisor
+contract schema v5 hardening intended for a future V15 run. This document and
+the hardening patch do not authorize a provider call.
 
 ## Purpose
 
@@ -91,7 +92,7 @@ fail closed. This is drift attestation within the owner-scoped boundary, not a
 root-anchored pre-exec verifier: launchd necessarily starts Python before
 Python can perform its own validation.
 
-## Live-attestation failures and clean-boundary retry
+## Live-attestation failures and bounded snapshot retry
 
 Live attestation preserves no arbitrary exception text. It emits one finite
 safe failure code covering configuration/binding integrity, the durable start
@@ -101,15 +102,25 @@ authenticated status snapshot.
 
 Only `status_snapshot_unstable` is retryable. It means either the worker status
 changed during its atomic replacement or the authenticated core status/lease
-pair remained torn after its internal read loop. Immediately before a new
-assignment, the evaluator may make at most three total attestation attempts,
-with 50 ms and 100 ms delays and a 250 ms retry deadline, while proving that
-the lock-owned assignment list remains at its last durable count. The
-assignment's durable `started` marker and provider process creation both occur
-only after success. Initial binding, post-provider, and final-completion
-attestations are never retried. Semantic state, stale heartbeat, process
-mismatch, authentication, source, Python, manifest, config, and create-once
-binding failures are never retried.
+pair remained torn after its internal read loop. Initial binding and the
+read-only supervisor checks before and after a provider call and at final
+completion may each make at most three total attestation attempts, with 50 ms
+and 100 ms delays and a 250 ms retry deadline, while proving that the
+lock-owned attempt or assignment list remains at its last durable count. The
+lease copies the exact heartbeat timestamp already persisted in status; it
+never resamples the clock between the two authenticated records. The durable
+`started` marker and provider process creation occur only after the before-call
+check succeeds. Retrying a read-only attestation never retries a provider call.
+Semantic state, stale heartbeat, process mismatch, authentication, source,
+Python, manifest, config, and create-once binding failures are never retried.
+
+If production stops at a provider boundary, its public watermark includes only
+a finite failure stage and, for live-attestation failures, the allowlisted
+failure code. Reconciliation can rebuild that trace-free projection from the
+authenticated private incident without releasing provider output or benchmark
+data. Persistent-supervisor contract schema v5 intentionally rejects schema-v4
+manifests; a run must be freshly versioned, prepared, and authorized under the
+new contract.
 
 ## Two-phase success and public release
 
@@ -190,7 +201,7 @@ states never reach `bootout`.
 ## Pause, sleep, network, and shutdown
 
 The source checkout and authoritative private checkpoint have separate
-lifecycles. The live V11 CLI must run from a current-user durable checkout
+lifecycles. Any next live CLI must run from a current-user durable checkout
 outside OS temporary storage. Its one HMAC-authenticated private state lives in
 a different, pre-existing current-user `0700` real directory outside both that
 checkout and OS temporary storage. The private state binds its canonical path
@@ -203,7 +214,7 @@ checkpoint, and no rollback-capable peer mirror is used.
 `pause_after_current` is available to the generic multi-command supervisor and
 is honored only between its child commands. The current production-shaped
 adapter has one child command for the entire panel, so it does **not** claim a
-safe between-provider pause. No live V11 operator may use a stop signal as a
+safe between-provider pause. No live operator may use a stop signal as a
 pause; stopping an active child is an interruption and requires incident
 audit.
 
@@ -221,8 +232,8 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V11 model call may start until all of the following pass through the same
-supervisor path intended for production:
+No future V15 model call may start until all of the following pass through the
+same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
   production `PersistentSupervisor` core and a fake long-running child remain
@@ -245,9 +256,11 @@ supervisor path intended for production:
   trace, schedule, or family label is released before authenticated supervisor
   completion, plus idempotent post-completion finalization;
 - finite-code live-attestation tests proving that only an unstable authenticated
-  snapshot retries at a clean boundary, that two transient reads followed by
-  success launch exactly one provider, and that exhaustion or any semantic
-  failure launches none;
+  snapshot can retry at initial, before-provider, after-provider, and final
+  read-only boundaries; that every provider is invoked at most once; that
+  before-provider exhaustion invokes none; that after-provider or final
+  exhaustion invokes no additional provider; and that semantic failures are
+  never retried;
 - Python-entrypoint byte, inode, and venv-symlink drift tests proving failure
   before Keychain access or child launch;
 - exact and adversarial `launchctl` state-parser tests proving that
@@ -258,13 +271,18 @@ supervisor path intended for production:
 
 ## Versioning consequence
 
-The hardened supervisor changes the source, Python binding, live-attestation,
-and operational contracts. Terminal V9 therefore cannot be resumed or
-relabeled. V10 was separately abandoned before its manifest-bound
-authorization receipt could be persisted after OS-temporary checkout cleanup
-removed its sole authenticated private state. A live V11 requires a fresh
-hidden cohort and schedule,
-authentication key, credential namespaces, public precommitment, supervised
-six-profile preflight, and exact spend authorization. V8/V9 completed records
-and transport voids are audit evidence only and are never mixed into the new
-estimand.
+This file contains historical post-V9/V11 design context, but the schema-v5
+changes in this patch are a V15 prerequisite. V14 completed its foreground
+authentication ceremony and later stopped fail-closed during preflight after a
+returned Codex Sol harness when post-harness live attestation reported
+`status_snapshot_unstable`. That create-once run is non-resumable and no V14
+production assignment started.
+
+The new heartbeat-pair, retry, diagnostic, source, and operational contracts
+make the frozen V14 manifest incompatible. This unpublished hardening patch is
+not itself a runnable V15: before any publication, preparation, authorization,
+or model call, the panel/cohort identifier, top-level schema, exact spend
+acknowledgement, budget history, paths, and runbook must be versioned to V15,
+and V14 must receive a trace-free supersession record. Historical completed
+records and transport voids remain audit evidence only and are never mixed
+into the new estimand.

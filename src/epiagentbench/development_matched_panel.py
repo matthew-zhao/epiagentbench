@@ -264,7 +264,15 @@ _PERSISTENT_ATTESTATION_FAILURE_CODES = frozenset(
         "attestation_internal",
     }
 )
-_CLEAN_BOUNDARY_ATTESTATION_DEADLINE_SECONDS = 0.25
+_PROVIDER_ISOLATION_FAILURE_CLASSES = frozenset(
+    {
+        "ProviderExecutionIsolationError",
+        "ProviderProcessIsolationError",
+        "ProviderStateIsolationError",
+    }
+)
+_SNAPSHOT_ATTESTATION_DEADLINE_SECONDS = 0.25
+_SNAPSHOT_ATTESTATION_RETRY_DELAYS_SECONDS = (0.05, 0.10)
 _EXPECTED_RECEIPT_IDENTITIES = {
     "claude-opus-high": "claudeopus48",
     "claude-sonnet-high": "claudesonnet5",
@@ -3314,7 +3322,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v4",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v5",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -3342,14 +3350,42 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         },
         "live_attestation": {
             "failure_codes": sorted(_PERSISTENT_ATTESTATION_FAILURE_CODES),
-            "clean_boundary_attempts": 3,
-            "clean_boundary_deadline_milliseconds": 250,
-            "clean_boundary_retry_delays_milliseconds": [50, 100],
+            "snapshot_attempts": (
+                len(_SNAPSHOT_ATTESTATION_RETRY_DELAYS_SECONDS) + 1
+            ),
+            "snapshot_deadline_milliseconds": int(
+                _SNAPSHOT_ATTESTATION_DEADLINE_SECONDS * 1000
+            ),
+            "snapshot_retry_delays_milliseconds": [
+                int(delay * 1000)
+                for delay in _SNAPSHOT_ATTESTATION_RETRY_DELAYS_SECONDS
+            ],
             "retryable_reads": [
                 "authenticated_worker_atomic_replacement",
                 "authenticated_core_status_lease_torn_pair",
             ],
-            "retry_boundary": "before_durable_provider_launch_commitment",
+            "retry_boundaries": [
+                "initial_binding",
+                "before_provider_invocation",
+                "after_provider_invocation",
+                "final_completion",
+            ],
+            "provider_call_retry": "forbidden",
+            "public_incident_projection": {
+                "failure_stages": [
+                    "provider_isolation_after_provider",
+                    "provider_isolation_before_provider",
+                    "provider_isolation_final_completion",
+                    "supervisor_attestation_after_harness",
+                    "supervisor_attestation_after_provider",
+                    "supervisor_attestation_before_harness",
+                    "supervisor_attestation_before_provider",
+                    "supervisor_attestation_final_completion",
+                ],
+                "attestation_failure_code": "allowlisted_when_present",
+                "provider_output": "forbidden",
+                "benchmark_data": "forbidden",
+            },
         },
         "execution_binding": [
             "launchd_label",
@@ -6407,6 +6443,36 @@ def _attestation_incident_fields(error: BaseException) -> dict[str, str]:
     return {"attestation_failure_code": str(failure_code)}
 
 
+def _attest_with_transient_snapshot_retry(
+    attestation: Callable[[], Any],
+    *,
+    invariant: Callable[[], bool] | None = None,
+) -> Any:
+    """Retry only an authenticated torn snapshot, never a provider call."""
+
+    deadline = time.monotonic() + _SNAPSHOT_ATTESTATION_DEADLINE_SECONDS
+    retry_delays = _SNAPSHOT_ATTESTATION_RETRY_DELAYS_SECONDS
+    for attempt in range(len(retry_delays) + 1):
+        if invariant is not None and invariant() is not True:
+            raise _persistent_attestation_error("private_binding_invalid")
+        try:
+            return attestation()
+        except ProviderExecutionIsolationError as error:
+            if (
+                getattr(error, "attestation_failure_code", None)
+                != "status_snapshot_unstable"
+                or attempt == len(retry_delays)
+            ):
+                raise
+            delay = retry_delays[attempt]
+            if time.monotonic() + delay > deadline:
+                raise
+            time.sleep(delay)
+            if time.monotonic() > deadline:
+                raise
+    raise AssertionError("Snapshot-attestation retry loop escaped")
+
+
 def _attest_required_persistent_execution(
     *,
     required: bool,
@@ -6660,13 +6726,15 @@ def _run_environment_preflight_core(
             require_clean_checkout=require_persistent_supervisor,
             revalidate_live_identity_contracts=False,
         )
-        _, binding_created = _attest_and_match_persistent_execution(
-            required=require_persistent_supervisor,
-            supervisor_runtime_dir=supervisor_runtime_dir,
-            authentication_key_file=authentication_key_file,
-            operation="preflight",
-            public_manifest=public,
-            private=private,
+        _, binding_created = _attest_with_transient_snapshot_retry(
+            lambda: _attest_and_match_persistent_execution(
+                required=require_persistent_supervisor,
+                supervisor_runtime_dir=supervisor_runtime_dir,
+                authentication_key_file=authentication_key_file,
+                operation="preflight",
+                public_manifest=public,
+                private=private,
+            )
         )
         if binding_created:
             # Authentication is already sealed and committed.  The exact
@@ -6809,6 +6877,13 @@ def _run_environment_preflight_core(
         _write_private_state(private_state_path, private, authentication_key)
         public_attempts: list[dict[str, Any]] = []
 
+        def attest_preflight_supervisor_boundary() -> None:
+            expected_attempt_count = len(attempts)
+            _attest_with_transient_snapshot_retry(
+                attest_current_supervisor,
+                invariant=lambda: len(attempts) == expected_attempt_count,
+            )
+
         shared_digest = hashlib.sha256(
             f"{PANEL_ID}|disposable-preflight|shared".encode("ascii")
         ).digest()
@@ -6905,9 +6980,11 @@ def _run_environment_preflight_core(
                         else {}
                     )
                 )
+                failure_stage = "supervisor_attestation_before_harness"
+                attest_preflight_supervisor_boundary()
                 failure_stage = "execution_contract_before_harness"
-                attest_current_supervisor()
                 _attest_execution_contracts(root=root, public=public)
+                failure_stage = "glean_dependency_before_harness"
                 _attest_frozen_glean_auth_dependencies(private, public)
                 failure_stage = "provider_launch"
                 marker["provider_invocation"] = {
@@ -6955,9 +7032,11 @@ def _run_environment_preflight_core(
                 _write_private_state(
                     private_state_path, private, authentication_key
                 )
+                failure_stage = "supervisor_attestation_after_harness"
+                attest_preflight_supervisor_boundary()
                 failure_stage = "execution_contract_after_harness"
-                attest_current_supervisor()
                 _attest_execution_contracts(root=root, public=public)
+                failure_stage = "glean_dependency_after_harness"
                 _attest_frozen_glean_auth_dependencies(private, public)
                 if profile["system"] == "claude":
                     failure_stage = "credential_attestation"
@@ -7118,6 +7197,7 @@ def _run_environment_preflight_core(
                     {
                         "failure_reason": "terminal_abort",
                         "failure_stage": failure_stage,
+                        **_attestation_incident_fields(error),
                         "scored": False,
                         "infrastructure_handshake_passed": False,
                     }
@@ -7176,6 +7256,7 @@ def _run_environment_preflight_core(
                     ),
                     "failure_reason": "terminal_abort",
                     "failure_stage": failure_stage,
+                    **_attestation_incident_fields(error),
                     "timed_out": timed_out,
                     "scores_reported": False,
                 }
@@ -7236,7 +7317,7 @@ def _run_environment_preflight_core(
         }
         if not profile_failures:
             try:
-                attest_current_supervisor()
+                attest_preflight_supervisor_boundary()
             except ProviderExecutionIsolationError as error:
                 stopped = {
                     "schema_version": SCHEMA_VERSION,
@@ -7249,6 +7330,10 @@ def _run_environment_preflight_core(
                     "provider_calls_conservatively_chargeable": (
                         _conservatively_chargeable_provider_calls(attempts)
                     ),
+                    "failure_stage": (
+                        "supervisor_attestation_final_completion"
+                    ),
+                    **_attestation_incident_fields(error),
                     "scores_reported": False,
                 }
                 private["environment_preflight"] = {
@@ -7435,7 +7520,7 @@ def _public_running(
     assignments = private.get("assignments", [])
     completed = sum(item.get("status") == "complete" for item in assignments)
     voids = sum(item.get("status") == "transport_void" for item in assignments)
-    return {
+    artifact = {
         "schema_version": SCHEMA_VERSION,
         "panel_id": PANEL_ID,
         "precommitment_sha256": public_manifest["precommitment_sha256"],
@@ -7451,6 +7536,73 @@ def _public_running(
         "results": [],
         "summary": {"primary_estimand": "pending"},
     }
+    if status == "stopped_supervisor_incident":
+        artifact.update(_public_supervisor_incident_fields(private))
+    return artifact
+
+
+def _public_supervisor_incident_fields(
+    private: Mapping[str, Any],
+) -> dict[str, str]:
+    """Project one private incident onto a finite, trace-free public code."""
+
+    incident = private.get("execution_incident")
+    if not isinstance(incident, Mapping) or incident.get("status") != "terminal":
+        raise ValueError("Stopped supervisor artifact has no terminal incident")
+    failure_class = incident.get("failure_class")
+    if failure_class not in _PROVIDER_ISOLATION_FAILURE_CLASSES:
+        raise ValueError("Stopped supervisor incident class is invalid")
+    assignments = private.get("assignments")
+    if not isinstance(assignments, list):
+        raise ValueError("Stopped supervisor incident assignments are invalid")
+    assignment_index = incident.get("assignment_index")
+    boundary = incident.get("boundary")
+    failure_code = incident.get("attestation_failure_code")
+    if (
+        failure_code is not None
+        and failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES
+    ):
+        raise ValueError("Stopped supervisor artifact has an unsafe failure code")
+    if boundary == "clean_before_assignment":
+        if (
+            type(assignment_index) is not int
+            or assignment_index != len(assignments)
+            or not isinstance(incident.get("profile_id"), str)
+        ):
+            raise ValueError("Stopped supervisor incident boundary is invalid")
+        failure_stage = (
+            "supervisor_attestation_before_provider"
+            if failure_code is not None
+            else "provider_isolation_before_provider"
+        )
+    elif boundary == "final_completion":
+        if (
+            type(assignment_index) is not int
+            or assignment_index != len(assignments)
+        ):
+            raise ValueError("Stopped supervisor incident boundary is invalid")
+        failure_stage = (
+            "supervisor_attestation_final_completion"
+            if failure_code is not None
+            else "provider_isolation_final_completion"
+        )
+    else:
+        if (
+            "boundary" in incident
+            or type(assignment_index) is not int
+            or not 0 <= assignment_index < len(assignments)
+            or assignments[assignment_index].get("status")
+            != "transport_void"
+        ):
+            raise ValueError("Stopped supervisor incident boundary is invalid")
+        if failure_code is not None:
+            failure_stage = "supervisor_attestation_after_provider"
+        else:
+            failure_stage = "provider_isolation_after_provider"
+    fields = {"failure_stage": failure_stage}
+    if failure_code is not None:
+        fields["attestation_failure_code"] = str(failure_code)
+    return fields
 
 
 def _public_preflight_pending(
@@ -7487,10 +7639,88 @@ def _reconcile_terminal_incident_public_progress(
     """Repair only a trace-free public watermark after a durable incident."""
 
     execution_incident = private.get("execution_incident")
+    if execution_incident is not None:
+        assignments = private.get("assignments")
+        assignment_index = (
+            execution_incident.get("assignment_index")
+            if isinstance(execution_incident, Mapping)
+            else None
+        )
+        if (
+            not isinstance(execution_incident, Mapping)
+            or execution_incident.get("status") != "terminal"
+            or not isinstance(
+                execution_incident.get("failure_class"), str
+            )
+            or not execution_incident["failure_class"]
+            or type(assignment_index) is not int
+            or not isinstance(assignments, list)
+        ):
+            raise ValueError("Terminal execution incident state is invalid")
+        if "boundary" not in execution_incident and (
+            not 0 <= assignment_index < len(assignments)
+            or assignments[assignment_index].get("status")
+            != "transport_void"
+        ):
+            raise ValueError("Terminal execution incident state is invalid")
+    codex_auth_incident = private.get("codex_auth_incident")
+    if codex_auth_incident is not None:
+        assignments = private.get("assignments")
+        assignment_index = (
+            codex_auth_incident.get("assignment_index")
+            if isinstance(codex_auth_incident, Mapping)
+            else None
+        )
+        if (
+            not isinstance(codex_auth_incident, Mapping)
+            or codex_auth_incident.get("status") != "terminal"
+            or not isinstance(
+                codex_auth_incident.get("failure_class"), str
+            )
+            or not codex_auth_incident["failure_class"]
+            or "boundary" in codex_auth_incident
+            or type(assignment_index) is not int
+            or not isinstance(assignments, list)
+            or not 0 <= assignment_index < len(assignments)
+            or assignments[assignment_index].get("status")
+            != "transport_void"
+        ):
+            raise ValueError("Terminal Codex authentication incident is invalid")
+    if (
+        isinstance(execution_incident, Mapping)
+        and "boundary" in execution_incident
+        and execution_incident.get("boundary")
+        not in {"clean_before_assignment", "final_completion"}
+    ):
+        raise ValueError("Terminal supervisor incident boundary is invalid")
+    attestation_failure_code = (
+        execution_incident.get("attestation_failure_code")
+        if isinstance(execution_incident, Mapping)
+        else None
+    )
+    if (
+        attestation_failure_code is not None
+        and attestation_failure_code
+        not in _PERSISTENT_ATTESTATION_FAILURE_CODES
+    ):
+        raise ValueError("Terminal supervisor incident failure code is unsafe")
+    failure_class = (
+        execution_incident.get("failure_class")
+        if isinstance(execution_incident, Mapping)
+        else None
+    )
     supervisor_boundary = (
         isinstance(execution_incident, Mapping)
-        and execution_incident.get("boundary")
-        in {"clean_before_assignment", "final_completion"}
+        and (
+            execution_incident.get("boundary")
+            in {"clean_before_assignment", "final_completion"}
+            or attestation_failure_code
+            in _PERSISTENT_ATTESTATION_FAILURE_CODES
+            or (
+                "boundary" not in execution_incident
+                and failure_class in _PROVIDER_ISOLATION_FAILURE_CLASSES
+            )
+        )
     )
     expected_status = (
         "stopped_supervisor_incident"
@@ -7509,7 +7739,16 @@ def _reconcile_terminal_incident_public_progress(
     existing: dict[str, Any] | None = None
     if public_results_path.exists() or public_results_path.is_symlink():
         existing = _load_json(public_results_path)
-        if set(existing) != set(expected):
+        expected_running = _public_running(public_manifest, private)
+        existing_status = existing.get("status")
+        expected_schema = (
+            set(expected_running)
+            if existing_status == "running"
+            else set(expected)
+            if existing_status == expected_status
+            else set()
+        )
+        if set(existing) != expected_schema:
             raise ValueError(
                 "Terminal-incident public progress has an unsafe schema"
             )
@@ -7526,10 +7765,6 @@ def _reconcile_terminal_incident_public_progress(
         if any(existing[name] != expected[name] for name in fixed_fields):
             raise ValueError(
                 "Terminal-incident public progress differs from its panel"
-            )
-        if existing["status"] not in {"running", expected_status}:
-            raise ValueError(
-                "Terminal-incident public progress has an unsafe status"
             )
         if existing["results"] != [] or existing["summary"] != {
             "primary_estimand": "pending"
@@ -8258,13 +8493,15 @@ def _run_panel_locked(
             "A terminal Codex authentication incident makes this panel "
             "non-resumable"
         )
-    _, binding_created = _attest_and_match_persistent_execution(
-        required=require_persistent_supervisor,
-        supervisor_runtime_dir=supervisor_runtime_dir,
-        authentication_key_file=authentication_key_file,
-        operation="production",
-        public_manifest=public_manifest,
-        private=private,
+    _, binding_created = _attest_with_transient_snapshot_retry(
+        lambda: _attest_and_match_persistent_execution(
+            required=require_persistent_supervisor,
+            supervisor_runtime_dir=supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            operation="production",
+            public_manifest=public_manifest,
+            private=private,
+        )
     )
     if binding_created:
         _write_private_state(private_state_path, private, authentication_key)
@@ -8371,31 +8608,10 @@ def _run_panel_locked(
 
     def attest_clean_provider_boundary() -> None:
         expected_assignment_count = len(assignments)
-        retry_delays = (0.05, 0.10)
-        deadline = (
-            time.monotonic()
-            + _CLEAN_BOUNDARY_ATTESTATION_DEADLINE_SECONDS
+        _attest_with_transient_snapshot_retry(
+            attest_current_supervisor,
+            invariant=lambda: len(assignments) == expected_assignment_count,
         )
-        for attempt in range(len(retry_delays) + 1):
-            if len(assignments) != expected_assignment_count:
-                raise _persistent_attestation_error(
-                    "private_binding_invalid"
-                )
-            try:
-                attest_current_supervisor()
-                return
-            except ProviderExecutionIsolationError as error:
-                if (
-                    getattr(error, "attestation_failure_code", None)
-                    != "status_snapshot_unstable"
-                    or attempt == len(retry_delays)
-                ):
-                    raise
-                delay = retry_delays[attempt]
-                if time.monotonic() + delay > deadline:
-                    raise
-                time.sleep(delay)
-        raise AssertionError("Clean-boundary attestation retry loop escaped")
 
     def attest_full_provider_boundary() -> None:
         """Attest supervisor, execution, and helper state as one boundary."""
@@ -8720,8 +8936,13 @@ def _run_panel_locked(
                     _public_running(public_manifest, private),
                 )
                 continue
+            stopped_status = (
+                "stopped_supervisor_incident"
+                if isinstance(error, ProviderExecutionIsolationError)
+                else "stopped_transport_void"
+            )
             stopped = _public_running(
-                public_manifest, private, status="stopped_transport_void"
+                public_manifest, private, status=stopped_status
             )
             _atomic_json(public_results_path, stopped)
             return stopped

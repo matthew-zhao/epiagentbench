@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import epiagentbench.launchd_agent as launchd
 import epiagentbench.persistent_supervisor as persistent
 from epiagentbench.persistent_supervisor import (
     AssignmentPhase,
@@ -149,6 +150,17 @@ class FakeClock:
     def sleep(self, _: float) -> None:
         self.wall += self.wall_step_per_sleep
         self.monotonic += self.monotonic_step_per_sleep
+
+
+class IncrementingWallClock:
+    def __init__(self, wall: float = 1_000.05, step: float = 0.95):
+        self.wall = wall
+        self.step = step
+
+    def __call__(self) -> float:
+        observed = self.wall
+        self.wall += self.step
+        return observed
 
 
 class PollSequenceCommand:
@@ -308,6 +320,34 @@ class PersistentSupervisorTests(unittest.TestCase):
                     loader(self.runtime, authentication_key=AUTHENTICATION_KEY)
                 path.write_bytes(original)
                 os.chmod(path, 0o600)
+
+    def test_status_and_lease_share_timestamp_across_second_boundary(self) -> None:
+        wall_clock = IncrementingWallClock()
+        terminal = self._supervisor(
+            wall_clock=wall_clock,
+            monotonic_clock=lambda: 10.0,
+        ).run(LedgerRunner(1, self.ledger))
+        status = read_supervisor_status(
+            self.runtime, authentication_key=AUTHENTICATION_KEY
+        )
+        lease = read_supervisor_lease(
+            self.runtime, authentication_key=AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            status["heartbeat_wall_unix_seconds"],
+            lease["heartbeat_wall_unix_seconds"],
+        )
+        self.assertEqual(
+            terminal["heartbeat_wall_unix_seconds"],
+            lease["heartbeat_wall_unix_seconds"],
+        )
+        observed = launchd._core_status(
+            self.runtime,
+            authentication_key=AUTHENTICATION_KEY,
+            expected_execution_context_sha256=EXECUTION_CONTEXT_DIGEST,
+        )
+        self.assertEqual(observed["state"], "authenticated")
+        self.assertEqual(observed["health"], "terminal")
 
     def test_execution_context_mismatch_never_reuses_terminal_runtime(self) -> None:
         first = LedgerRunner(1, self.ledger)

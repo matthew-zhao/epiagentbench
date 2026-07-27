@@ -257,9 +257,22 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         raw_plist = plist_path.read_bytes()
         plist = plistlib.loads(raw_plist)
         arguments = plist["ProgramArguments"]
-        self.assertEqual(arguments[0:2], ["/usr/bin/caffeinate", "-dimsu"])
-        self.assertEqual(arguments[-3:-1], ["worker", "--config"])
-        self.assertEqual(Path(arguments[-1]), config_path)
+        self.assertEqual(
+            arguments,
+            [
+                "/usr/bin/caffeinate",
+                "-dimsu",
+                str(Path(sys.executable).resolve()),
+                str(
+                    self.repository
+                    / "examples"
+                    / "run_persistent_panel_supervisor.py"
+                ),
+                "worker",
+                "--config",
+                str(config_path),
+            ],
+        )
         self.assertEqual(plist["StandardOutPath"], "/dev/null")
         self.assertEqual(plist["StandardErrorPath"], "/dev/null")
         self.assertIs(plist["RunAtLoad"], False)
@@ -282,10 +295,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertNotIn("epiagentbench-cursor-v9-test", joined_arguments)
         self.assertNotIn("offline-test-account", joined_arguments)
         self.assertNotIn("CURSOR_API_KEY", joined_arguments)
-        self.assertNotIn("security", joined_arguments)
-        self.assertNotIn("claude", joined_arguments)
-        self.assertNotIn("codex", joined_arguments)
-        self.assertNotIn("cursor-agent", joined_arguments)
 
         all_generated = raw_plist + config_path.read_bytes()
         for canary in _SECRET_CANARIES:

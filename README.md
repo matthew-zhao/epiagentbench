@@ -321,7 +321,8 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V14 runs as a
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V14 was
+designed to run as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
 supervisor lease, and bounded hash-chain log are authenticated; the Cursor key
@@ -358,18 +359,27 @@ The next-run supervisor contract now closes that diagnostic gap without
 weakening the at-most-once boundary. Live attestation emits only a finite safe
 failure code. The sole retryable code, `status_snapshot_unstable`, covers an
 atomic worker-status replacement or an authenticated torn read of the core
-status/lease pair. At a clean pre-assignment boundary it may be retried twice
-(after 50 ms and 100 ms), provided the durable assignment count is unchanged.
-The check uses the lock-owned assignment list at its last durable count. No
-semantic, heartbeat, process-identity, binding, authentication, or integrity
-failure is retried, and initial, post-provider, and final-completion
-attestations remain single-shot. The exact Python launch entrypoint is also
+status/lease pair. Initial binding and the read-only checks before and after a
+provider call and at final completion may each be retried twice (after 50 ms
+and 100 ms) inside a 250 ms deadline, provided the durable attempt or assignment
+count is unchanged. The lease copies the exact heartbeat timestamp already
+written to status, so an integer-second rollover cannot create a persistently
+mismatched authenticated pair. The provider call itself is never inside this
+retry loop. No semantic, heartbeat, process-identity, binding, authentication,
+or integrity failure is retried. The exact Python launch entrypoint is also
 bound by target content plus private symlink/inode topology, preserving normal
 virtual-environment launch semantics while detecting byte, inode, or symlink
 drift before credential access and child launch. Finally, `launchctl`'s literal
 `state = not running` is parsed as loaded-but-inactive for authenticated
 terminal cleanup; that parser was not on V9's live-attestation path and did not
 cause the V9 stop. These changes invalidate V9's frozen source contract.
+
+Stopped production watermarks now add only a finite, trace-free failure stage
+and, when applicable, the allowlisted live-attestation code. They reveal no
+prompt, provider output, trace, seed, schedule, family, episode identity, or
+score. Persistent-supervisor contract schema v5 is a deliberate precommitment
+boundary: schema-v4/V14 manifests are incompatible, so this hardening requires
+a freshly versioned, prepared, and authorized run.
 
 V10 prepared a fresh cohort and public precommitment, but its sole
 authenticated private control state lived in an ignored directory of an
@@ -422,8 +432,10 @@ public [V13 supersession](results/development-matched-50x6-v13.superseded.json)
 binds the published manifest and records that the cohort cannot be resumed or
 reused.
 
-V14 moves both sign-ins into a separate foreground ceremony before the
-create-once preflight supervisor exists. Codex runs the pinned
+The following V14 design and authorization runbook is retained as historical
+audit context and must not be reused. V14 moved both sign-ins into a separate
+foreground ceremony before the create-once preflight supervisor existed. Codex
+runs the pinned
 `login --device-auth` flow with its instructions visible in the operator's
 terminal; managed Glean likewise keeps its interactive instructions visible
 while token-bearing standard output remains suppressed. Successful credentials
@@ -436,6 +448,15 @@ be committed before a supervisor can be created.
 Preflight and production never attempt login themselves, and the one-shot start
 rechecks both credential identities plus Cursor Keychain availability before
 writing its irreversible start marker.
+
+V14 completed that foreground authentication ceremony, then stopped
+fail-closed during preflight after a returned Codex Sol harness when the
+post-harness live supervisor check reported `status_snapshot_unstable`. The
+create-once V14 run is non-resumable and no production assignment started.
+The schema-v5 changes below are an unpublished V15 hardening prerequisite, not
+a runnable or authorized V15. Before any new preparation or model call, the
+panel/schema, spend history and acknowledgement, paths, runbook, and V14
+supersession must be versioned together.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
@@ -516,7 +537,8 @@ V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-A generic command-line acknowledgement is not sufficient to unlock V14. After
+Historically, a generic command-line acknowledgement was not sufficient to
+unlock V14. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:

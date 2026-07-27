@@ -1113,7 +1113,12 @@ class PersistentSupervisor:
             "assignment_phase": self._status["assignment_phase"],
             "heartbeat_sequence": self._heartbeat_sequence,
             "created_wall_unix_seconds": self._created_wall_seconds,
-            "heartbeat_wall_unix_seconds": int(self._wall_clock()),
+            # Status and lease are one authenticated snapshot written as two
+            # atomic files. Resampling the wall clock here can cross an
+            # integer-second boundary and leave a durable mismatched pair.
+            "heartbeat_wall_unix_seconds": self._status[
+                "heartbeat_wall_unix_seconds"
+            ],
         }
         _atomic_private_json(
             self.runtime_dir / LEASE_FILE,
