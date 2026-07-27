@@ -5,16 +5,76 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
+
+
+def _require_isolated_main_process() -> None:
+    if (
+        sys.flags.isolated != 1
+        or sys.flags.no_site != 1
+        or sys.flags.ignore_environment != 1
+        or sys.flags.dont_write_bytecode != 1
+        or not sys.flags.safe_path
+    ):
+        raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    _require_isolated_main_process()
+
+
+# V16 invokes this script with ``-I -S -B``.  Build the only permitted import
+# path explicitly: standard library first, then the frozen repository, then
+# the bound virtual-environment packages.  Appending these directories does
+# not execute .pth, sitecustomize, or usercustomize.
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if sys.flags.isolated:
+    if (
+        sys.flags.no_site != 1
+        or sys.flags.ignore_environment != 1
+        or sys.flags.dont_write_bytecode != 1
+        or not sys.flags.safe_path
+    ):
+        raise RuntimeError("Refusing a partially isolated V16 Python process")
+    _SOURCE_ROOT = _REPOSITORY_ROOT / "src"
+    _VENV_ROOT = Path(sys.executable).parent.parent
+    _SITE_PACKAGES = (
+        _VENV_ROOT
+        / "lib"
+        / f"python{sys.version_info.major}.{sys.version_info.minor}"
+        / "site-packages"
+    )
+    if (
+        not (_VENV_ROOT / "pyvenv.cfg").is_file()
+        or not _SITE_PACKAGES.is_dir()
+    ):
+        raise RuntimeError("V16 requires its bound virtual environment")
+    sys.path.append(str(_SOURCE_ROOT))
+    sys.path.append(str(_SITE_PACKAGES))
+
+    from epiagentbench.launchd_agent import (
+        _validate_isolated_python_process,
+    )
+
+    _validate_isolated_python_process(
+        python_executable=Path(sys.executable),
+        repository_root=_REPOSITORY_ROOT,
+        binding=None,
+        include_site_packages=True,
+    )
 
 from epiagentbench.development_matched_panel import (
     PANEL_ID,
     assert_durable_live_execution_paths,
     authenticate_panel,
     authorize_panel_spend,
+    freeze_panel_cohort,
     panel_authentication_status,
+    preflight_preparation_runtime,
     prepare_panel,
     run_environment_preflight,
     run_panel,
+    verify_preparation_runtime,
 )
 
 _AUTHENTICATION_STATUSES = frozenset(
@@ -90,9 +150,57 @@ def _safe_authentication_summary(payload: dict[str, object]) -> dict[str, object
 def main() -> int:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
+    preparation_preflight = commands.add_parser(
+        "preflight-preparation-runtime",
+        help=(
+            "Attest the exact provider-free scientific runtime before "
+            "creating any private panel artifact"
+        ),
+    )
+    preparation_preflight.add_argument(
+        "--expected-benchmark-base-commit", required=True
+    )
+    preparation_preflight.add_argument(
+        "--runtime-cache-dir", required=True, type=Path
+    )
+    preparation_verify = commands.add_parser(
+        "verify-preparation-runtime",
+        help="Re-attest against the committed pre-private runtime receipt",
+    )
+    preparation_verify.add_argument(
+        "--preparation-runtime-receipt", required=True, type=Path
+    )
+    preparation_verify.add_argument(
+        "--expected-benchmark-base-commit", required=True
+    )
+    preparation_verify.add_argument(
+        "--runtime-cache-dir", required=True, type=Path
+    )
+    freeze = commands.add_parser(
+        "freeze",
+        help="Freeze the one V16 cohort after runtime receipt verification",
+    )
+    freeze.add_argument(
+        "--preparation-runtime-receipt", required=True, type=Path
+    )
+    freeze.add_argument(
+        "--expected-benchmark-base-commit", required=True
+    )
+    freeze.add_argument("--runtime-cache-dir", required=True, type=Path)
+    freeze.add_argument("--authentication-key", required=True, type=Path)
+    freeze.add_argument("--output-directory", required=True, type=Path)
+    freeze.add_argument("--freeze-claim", required=True, type=Path)
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--cohort-manifest", required=True, type=Path)
+    prepare.add_argument(
+        "--preparation-runtime-receipt", required=True, type=Path
+    )
+    prepare.add_argument(
+        "--expected-benchmark-base-commit", required=True
+    )
+    prepare.add_argument("--runtime-cache-dir", required=True, type=Path)
     prepare.add_argument("--authentication-key", required=True, type=Path)
+    prepare.add_argument("--freeze-claim", required=True, type=Path)
     prepare.add_argument("--claude-secure-storage-dir", required=True, type=Path)
     prepare.add_argument("--codex-secure-storage-dir", required=True, type=Path)
     prepare.add_argument("--private-state", required=True, type=Path)
@@ -137,6 +245,64 @@ def main() -> int:
     )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    if args.command == "preflight-preparation-runtime":
+        print(
+            json.dumps(
+                preflight_preparation_runtime(
+                    root=root,
+                    expected_benchmark_base_commit=(
+                        args.expected_benchmark_base_commit
+                    ),
+                    runtime_cache_dir=args.runtime_cache_dir,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    if args.command == "verify-preparation-runtime":
+        verification = verify_preparation_runtime(
+            root=root,
+            receipt_path=args.preparation_runtime_receipt,
+            expected_benchmark_base_commit=(
+                args.expected_benchmark_base_commit
+            ),
+            runtime_cache_dir=args.runtime_cache_dir,
+        )
+        public_verification = {
+            name: value
+            for name, value in verification.items()
+            if name != "runtime_cache_contract"
+        }
+        print(
+            json.dumps(
+                public_verification,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    if args.command == "freeze":
+        print(
+            json.dumps(
+                freeze_panel_cohort(
+                    root=root,
+                    preparation_runtime_receipt_path=(
+                        args.preparation_runtime_receipt
+                    ),
+                    expected_benchmark_base_commit=(
+                        args.expected_benchmark_base_commit
+                    ),
+                    runtime_cache_dir=args.runtime_cache_dir,
+                    authentication_key_file=args.authentication_key,
+                    output_directory=args.output_directory,
+                    freeze_claim_path=args.freeze_claim,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
     assert_durable_live_execution_paths(
         root=root,
         private_state_path=args.private_state,
@@ -145,7 +311,15 @@ def main() -> int:
         payload = prepare_panel(
             root=root,
             cohort_manifest_path=args.cohort_manifest,
+            preparation_runtime_receipt_path=(
+                args.preparation_runtime_receipt
+            ),
+            expected_benchmark_base_commit=(
+                args.expected_benchmark_base_commit
+            ),
+            runtime_cache_dir=args.runtime_cache_dir,
             authentication_key_file=args.authentication_key,
+            freeze_claim_path=args.freeze_claim,
             claude_secure_storage_dir=args.claude_secure_storage_dir,
             codex_secure_storage_dir=args.codex_secure_storage_dir,
             private_state_path=args.private_state,
@@ -254,4 +428,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _require_isolated_main_process()
     raise SystemExit(main())

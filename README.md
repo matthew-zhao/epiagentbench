@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V15 is
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V16 is
 designed to run as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
@@ -369,11 +369,28 @@ retry loop. No semantic, heartbeat, process-identity, binding, authentication,
 or integrity failure is retried. The exact Python launch entrypoint is also
 bound by target content plus private symlink/inode topology, preserving normal
 virtual-environment launch semantics while detecting byte, inode, or symlink
-drift before credential access and child launch. Finally, `launchctl`'s literal
-`state = not running` is parsed as loaded-but-inactive for authenticated
-terminal cleanup; that parser was not on V9's live-attestation path and did not
-cause the V9 stop. These changes invalidate the frozen V9 and V14 source
-contracts.
+drift before credential access and child launch. V16 extends that binding to
+the pre-private scientific-runtime receipt. The exact V5 Python runs with
+`-I -S -B`; the isolated CLIs manually append only the attested repository
+source and V5 virtual-environment packages after the standard library, without
+executing `site`, `.pth`, or customization hooks. The worker requires the same
+full Python/bootstrap binding, closed owner-only runtime-cache v2 inventory,
+exact six cache environment variables, installed scientific-distribution
+bytes, and fixed real Starsim smoke result committed before the cohort existed.
+For the complete Python and cache bindings, public receipts expose only opaque
+hashes (alongside the Python target content hash and entrypoint kind). The raw
+Python symlink and standard-library bootstrap/module-origin binding is
+transient during preflight and is later recomputed and sealed in the
+authenticated owner-only LaunchAgent config. The selected Python launch path
+also necessarily appears in the local owner-only plist/command; the rest of
+the binding does not. The full cache paths, environment, inventory, and
+device/inode/UID metadata remain in authenticated private panel state and
+later in that config. Path-free scientific module-origin identities remain
+public as distribution-relative file names plus content hashes. Finally,
+`launchctl`'s literal `state = not running` is parsed as loaded-but-inactive
+for authenticated terminal cleanup; that parser was not on V9's
+live-attestation path and did not cause the V9 stop. These changes invalidate
+the frozen V9 and V14 source contracts.
 
 Stopped production watermarks now add only a finite, trace-free failure stage
 and, when applicable, the allowlisted live-attestation code. They reveal no
@@ -460,13 +477,52 @@ the manifest, authentication receipt, and stopped preflight artifact. The
 create-once V14 run is non-resumable, its cohort cannot be reused, and no
 production assignment started.
 
-V15 now versions the panel identifier, top-level schema, corrected $580
+V15 then froze a fresh 50-episode cohort, but its selected bare `python3`
+could not import Starsim during manifest preparation. The failure occurred
+before the create-once cohort claim, private panel state, public manifest,
+authorization, authentication, or any provider/helper process. The
+[V15 supersession](results/development-matched-50x6-v15.superseded.json) binds
+the exact published source and records that the V15 cohort, key, and empty
+credential namespaces are non-resumable and forbidden for reuse.
+
+V16 now versions the panel identifier, top-level schema, corrected $580
 cumulative acknowledgement, fresh path namespace, schema-v5 supervisor
-contract, and [execution runbook](docs/V15_RUNBOOK.md). This versioning step
-does not prepare V15, authorize spend, authenticate a provider, create a
-supervisor, or make a model call. Only after this prerequisite is published and
-pinned may a fresh V15 manifest be prepared; the exact acknowledgement must
-then be supplied again against that manifest before authorization.
+contract, and [execution runbook](docs/V16_RUNBOOK.md). V16 uses a two-commit
+provider-free preparation boundary: first publish the code commit; at that
+exact commit generate the scientific-runtime receipt twice under `-I -S -B`
+and compare it byte-for-byte; then publish the unchanged receipt as the second
+commit. Only a fresh checkout at that receipt commit may create the fresh key,
+empty credential directories, canonical freeze claim, cohort, private state,
+and public manifest. The manifest is then published separately and the phase
+stops before authorization. No V16 authentication, provider, or model call
+occurs anywhere in this phase.
+
+The runtime receipt proves exact Starsim 3.5.1 and executes a hardcoded
+three-person, four-day LTC scenario twice per branch through the real
+Starsim-backed engine. In the no-action branch, a seeded resident
+deterministically transmits to staff across the sole direct-care edge; a
+matched day-one contact-stop counterfactual prevents that transmission. This
+is a deterministic capability smoke, not calibration evidence, a biological
+effect estimate, or a benchmark score. The receipt binds that aggregate
+result, actual installed bytes of the declared scientific distributions, and
+the clean source and CLI contracts. It also commits opaque hashes for the full
+Python entrypoint/bootstrap binding and for a closed, bounded, current-user
+runtime-cache v2 tree. That tree has an exact current-user `0700` root whose
+only entries are exact current-user `0700` directories named `matplotlib`,
+`numba`, and `xdg`; below those children it permits at most 10,000 total
+descendants (directories plus regular files), all owner-only, nonsymlinked,
+and on the root filesystem. Regular files are single-link, at most 512 MiB
+each, with at most 4 GiB of regular-file content in total. Receipt bytes and
+command summaries must be staged outside that cache root. The public receipt
+includes the Python target content hash and entrypoint kind, path-free
+scientific module-origin identities, and only opaque hashes for the complete
+Python and cache bindings; it includes no raw absolute Python/cache path,
+environment, inventory, or device/inode/UID topology. It explicitly records
+zero provider and authentication processes and contains no private benchmark
+data. The same interpreter and cache bindings are mandatory for cohort
+freeze, prepare, preflight, and production. This versioning step itself does
+not prepare V16, authorize spend, authenticate a provider, create a supervisor,
+or make a model call.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
@@ -478,7 +534,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed V15 assignment is designed to record an evaluator-owned,
+Each completed V16 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -493,9 +549,17 @@ different no-action futures for the same episode.
 The runner predeclares a hidden six-condition Williams schedule with 300
 assignments. Every profile occupies each execution position 8 or 9 times
 overall and 1 or 2 times within every family. Preparation itself is
-provider-process-free: provider executable content hashes and static routing
-policy are read directly, no provider CLI or Glean helper process is launched,
-and no provider-controlled version string enters a manifest or public result.
+provider-process-free. The tracked runtime receipt is published before the
+key, cohort, schedule nonce, or private state exists. The matched freezer and
+prepare command each re-attest that receipt before accessing those private
+surfaces. The freezer first burns one HMAC-authenticated, create-once claim at
+the canonical hidden path in the authentication-key namespace and appends a
+separate completion only after the cohort is durable. Both `freeze` and
+`prepare` require that exact claim path; a pending claim without completion is
+terminal and nonretryable. Provider executable content hashes and static
+routing policy are read directly, no provider CLI, Glean helper, authentication
+helper, or model process is launched, and no provider-controlled version string
+enters a manifest or public result.
 Because the root-managed Glean helper and token wrapper can be updated while an
 operator reviews the manifest, their fixed paths, ownership, and dispatch
 semantics are frozen at preparation, while their exact bytes are frozen
@@ -514,9 +578,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V15 first completes the foreground, zero-model
+Before production, V16 first completes the foreground, zero-model
 authentication ceremony described above. Only after its sanitized receipt is
-committed does V15 run a disposable six-call, unscored
+committed does V16 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -534,25 +598,28 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V15 authorization ceiling is $510: two Claude
-preflight calls plus 100 production calls. Prior failed panels contribute a
-conservative $70 ceiling: two v2 Claude preflight calls ($10), the ambiguous v5
-attempt ($5), v7's two returned Claude preflight calls ($10), v8's two
+a $5 per-call runner ceiling. The V16 current-run Claude ceiling is $510: two
+Claude preflight calls plus 100 production calls, or 102 current-run Claude
+calls × $5. Prior failed panels contribute a conservative $70 ceiling: two v2
+Claude preflight calls ($10), the ambiguous v5 attempt ($5), v7's two returned
+Claude preflight calls ($10), v8's two
 preflight plus one production Claude calls ($15), V9's two preflight plus
 two production Claude calls ($20), and V14's two returned Claude preflight
-calls ($10); v3, v4, v6, V10, V11, V12, and V13 started no Claude model call.
-The cumulative Claude authorization ceiling is therefore $580, not a claim
-about measured billing. Codex and Cursor remain uncapped.
+calls ($10); v3, v4, v6, V10, V11, V12, V13, and V15 started no Claude model
+call.
+The exact acknowledgement's cumulative Claude ceiling is therefore $580
+($510 for V16 plus $70 for prior failed panels), not a claim about measured
+billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-A generic command-line acknowledgement is not sufficient to unlock V15. After
+A generic command-line acknowledgement is not sufficient to unlock V16. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v15 preflight and 300-assignment
+> I acknowledge the replacement six-call v16 preflight and 300-assignment
 > production run, including unbounded Codex/Cursor provider spend and up to
 > $580 total Claude spend across the failed v2 preflight, failed v5 preflight,
 > failed v6 authentication bootstrap, failed v7 preflight, failed v8
@@ -560,14 +627,15 @@ sentence:
 > zero-model-call v10 precommitment, the failed zero-model-call v11
 > authentication bootstrap, the abandoned zero-model-call v12 precommitment,
 > the abandoned zero-model-call v13 precommitment, the failed v14 preflight,
-> and the v15 preflight and production run.
+> the failed zero-model-call v15 pre-claim preparation, and the v16 preflight
+> and production run.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, V15 panel identifier, final public
+private receipt bound to the exact text, V16 panel identifier, final public
 precommitment, budget-contract hash, exact Glean authentication-dependency
 identity, cumulative $580 Claude ceiling, and unbounded Codex/Cursor spend. A
 missing receipt, a receipt copied from another manifest, or any altered field
@@ -578,12 +646,12 @@ the `authenticate` subcommand in a
 foreground terminal with `--acknowledge-interactive-authentication`. It exposes
 sign-in instructions but never provider tokens, prompts, observations, traces,
 hidden episode data, or scores. Commit the resulting
-`results/development-matched-50x6-v15.authentication.json` before generating
+`results/development-matched-50x6-v16.authentication.json` before generating
 the one-shot preflight supervisor. The preflight and production commands still
 require `--acknowledge-unbounded-provider-spend` as an immediate execution
 guard.
 
-The V15 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V16 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -633,17 +701,19 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V15 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V16 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
-helper, scientific runtime, replay schema, and profile surface. The trusted
-computing base includes the root administrator and the installed Glean
-distribution; there is not yet an independently approved digest or
-cryptographic source-to-binary provenance for that helper bundle. V15 commits
-the exact installed bundle after acknowledgement and detects persistent
-identity or ownership drift at every call boundary, but a malicious
-administrator capable of an ABA swap between attestation and execution is
-explicitly out of scope. Such an administrator could also replace the
-evaluator, key, or runtime, so this host remains development-only.
+helper, scientific runtime, replay schema, and profile surface. Its tracked
+pre-private receipt hashes every enumerated regular file in each declared
+scientific distribution rather than relying only on package name/version or
+`RECORD` metadata. The trusted computing base includes the root administrator
+and the installed Glean distribution; there is not yet an independently
+approved digest or cryptographic source-to-binary provenance for that helper
+bundle. V16 commits the exact installed helper bundle after acknowledgement and
+detects persistent identity or ownership drift at every call boundary, but a
+malicious administrator capable of an ABA swap between attestation and
+execution is explicitly out of scope. Such an administrator could also
+replace the evaluator, key, or runtime, so this host remains development-only.
 The ownership checks rely on ordinary POSIX metadata and do not independently
 rule out permissive ACLs or ownership-disabled mount semantics.
 Pre-existing drift consumes no production assignment. Mid-call drift or a
@@ -655,7 +725,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V15 detects the pipe-retaining form of that escape, but
+pipes; V16 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

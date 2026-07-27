@@ -33,7 +33,7 @@ from typing import Any, Callable, Mapping, Sequence
 from functools import wraps
 
 
-_SCHEMA = "epiagentbench.launchd_agent.v6"
+_SCHEMA = "epiagentbench.launchd_agent.v8"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v3"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -44,16 +44,21 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v6\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v8\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v3\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
-_MAX_CONFIG_BYTES = 64 * 1024
+_MAX_CONFIG_BYTES = 8 * 1024 * 1024
 _MAX_STATUS_BYTES = 16 * 1024
 _MAX_PUBLIC_AUTHENTICATION_BYTES = 1024 * 1024
 _MAX_PYTHON_EXECUTABLE_BYTES = 256 * 1024 * 1024
+_MAX_PYTHON_BOOTSTRAP_FILE_BYTES = 32 * 1024 * 1024
+_MAX_RUNTIME_CACHE_FILES = 10_000
+_MAX_RUNTIME_CACHE_FILE_BYTES = 512 * 1024 * 1024
+_MAX_RUNTIME_CACHE_BYTES = 4 * 1024 * 1024 * 1024
 _MAX_AUTHENTICATION_KEY_BYTES = 4096
 _MAX_PYTHON_SYMLINK_HOPS = 8
+_PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v2"
@@ -66,12 +71,32 @@ _SAFE_ENVIRONMENT_KEYS = (
     "LC_ALL",
     "LC_CTYPE",
     "LOGNAME",
+    "MPLBACKEND",
+    "MPLCONFIGDIR",
+    "NUMBA_CACHE_DIR",
     "PATH",
-    "PYTHONPATH",
+    "PYTHONDONTWRITEBYTECODE",
     "SHELL",
+    "STARSIM_INSTALL_FONTS",
     "TMPDIR",
     "USER",
+    "XDG_CACHE_HOME",
 )
+_RUNTIME_CACHE_ENVIRONMENT_KEYS = frozenset(
+    {
+        "MPLBACKEND",
+        "MPLCONFIGDIR",
+        "NUMBA_CACHE_DIR",
+        "PYTHONDONTWRITEBYTECODE",
+        "STARSIM_INSTALL_FONTS",
+        "XDG_CACHE_HOME",
+    }
+)
+_PYTHON_ENTRYPOINT_BINDING_SCHEMA = (
+    "epiagentbench.python_entrypoint_binding.v2"
+)
+_RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v2"
+_ISOLATED_PYTHON_FLAGS = ("-I", "-S", "-B")
 _LAUNCHD_AGENT_SOURCE = Path("src/epiagentbench/launchd_agent.py")
 _PERSISTENT_SUPERVISOR_SOURCE = Path(
     "src/epiagentbench/persistent_supervisor.py"
@@ -380,8 +405,428 @@ def _file_sha256(
     return "sha256:" + digest.hexdigest()
 
 
+def _component_sha256(value: object) -> str:
+    return "sha256:" + hashlib.sha256(_canonical_bytes(value)).hexdigest()
+
+
+def _bounded_file_binding(
+    path: Path,
+    *,
+    label: str,
+    maximum_bytes: int,
+    allowed_owners: frozenset[int],
+) -> dict[str, Any]:
+    """Bind an immutable-looking regular file, including empty cache files."""
+
+    _require_regular(path, label=label, allowed_owners=allowed_owners)
+    before = path.lstat()
+    if not 0 <= before.st_size <= maximum_bytes:
+        raise ValueError(f"{label} has an invalid size")
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+        with os.fdopen(descriptor, "rb", closefd=True) as stream:
+            opened = os.fstat(stream.fileno())
+            if (
+                (opened.st_dev, opened.st_ino)
+                != (before.st_dev, before.st_ino)
+                or opened.st_size != before.st_size
+                or opened.st_nlink != 1
+            ):
+                raise ValueError(f"{label} changed while opening")
+            digest = hashlib.sha256()
+            observed_bytes = 0
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                observed_bytes += len(chunk)
+                if observed_bytes > maximum_bytes:
+                    raise ValueError(f"{label} exceeds its size limit")
+                digest.update(chunk)
+    except OSError:
+        raise ValueError(f"{label} is unavailable") from None
+    after = path.lstat()
+    stable_fields = (
+        "st_dev",
+        "st_ino",
+        "st_size",
+        "st_mtime_ns",
+        "st_mode",
+        "st_nlink",
+        "st_uid",
+    )
+    if (
+        observed_bytes != before.st_size
+        or any(
+            getattr(before, field) != getattr(after, field)
+            for field in stable_fields
+        )
+    ):
+        raise ValueError(f"{label} changed while binding")
+    return {
+        "path": str(path),
+        "device": before.st_dev,
+        "inode": before.st_ino,
+        "owner_uid": before.st_uid,
+        "mode": f"{stat.S_IMODE(before.st_mode):04o}",
+        "size_bytes": before.st_size,
+        "mtime_ns": before.st_mtime_ns,
+        "sha256": "sha256:" + digest.hexdigest(),
+    }
+
+
+def _directory_binding(
+    path: Path,
+    *,
+    label: str,
+    exact_mode: int | None = None,
+    require_current_owner: bool = True,
+) -> dict[str, Any]:
+    _require_directory(
+        path,
+        label=label,
+        exact_mode=exact_mode,
+        require_current_owner=require_current_owner,
+    )
+    metadata = path.lstat()
+    return {
+        "path": str(path),
+        "device": metadata.st_dev,
+        "inode": metadata.st_ino,
+        "owner_uid": metadata.st_uid,
+        "mode": f"{stat.S_IMODE(metadata.st_mode):04o}",
+        "mtime_ns": metadata.st_mtime_ns,
+    }
+
+
+def _isolated_python_probe(path: Path) -> dict[str, Any]:
+    """Inspect one interpreter with startup hooks and ambient paths disabled."""
+
+    probe = (
+        "import importlib.util,json,sys;"
+        "names=('encodings','hashlib','hmac','json','pathlib','runpy');"
+        "origins={n:(getattr(importlib.util.find_spec(n),'origin',None)) "
+        "for n in names};"
+        "print(json.dumps({"
+        "'executable':sys.executable,"
+        "'implementation':sys.implementation.name,"
+        "'cache_tag':sys.implementation.cache_tag,"
+        "'version':[sys.version_info.major,sys.version_info.minor,"
+        "sys.version_info.micro],"
+        "'prefix':sys.prefix,"
+        "'base_prefix':sys.base_prefix,"
+        "'sys_path':sys.path,"
+        "'flags':{"
+        "'dont_write_bytecode':sys.flags.dont_write_bytecode,"
+        "'isolated':sys.flags.isolated,"
+        "'no_site':sys.flags.no_site,"
+        "'ignore_environment':sys.flags.ignore_environment,"
+        "'safe_path':sys.flags.safe_path},"
+        "'module_origins':origins},sort_keys=True))"
+    )
+    try:
+        completed = subprocess.run(
+            [str(path), *_ISOLATED_PYTHON_FLAGS, "-c", probe],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            cwd="/",
+            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+            timeout=_PYTHON_BOOTSTRAP_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise ValueError("Python isolated-bootstrap probe failed") from None
+    if (
+        completed.returncode != 0
+        or not 0 < len(completed.stdout) <= 64 * 1024
+    ):
+        raise ValueError("Python isolated-bootstrap probe failed")
+    try:
+        result = json.loads(completed.stdout)
+    except (UnicodeError, json.JSONDecodeError):
+        raise ValueError("Python isolated-bootstrap probe was invalid") from None
+    if not isinstance(result, dict):
+        raise ValueError("Python isolated-bootstrap probe was invalid")
+    return result
+
+
+def _path_identity_allow_absent(
+    path: Path,
+    *,
+    label: str,
+    allowed_owners: frozenset[int],
+) -> dict[str, Any]:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return {"path": str(path), "kind": "absent"}
+    if stat.S_ISDIR(metadata.st_mode):
+        _require_directory(
+            path,
+            label=label,
+            require_current_owner=False,
+        )
+        if metadata.st_uid not in allowed_owners:
+            raise ValueError(f"{label} has unsafe ownership")
+        return {
+            **_directory_binding(
+                path,
+                label=label,
+                require_current_owner=False,
+            ),
+            "kind": "directory",
+        }
+    if stat.S_ISREG(metadata.st_mode):
+        return {
+            **_bounded_file_binding(
+                path,
+                label=label,
+                maximum_bytes=_MAX_PYTHON_BOOTSTRAP_FILE_BYTES,
+                allowed_owners=allowed_owners,
+            ),
+            "kind": "regular_file",
+        }
+    raise ValueError(f"{label} has an unsafe type")
+
+
+def _python_startup_hook_inventory(
+    site_packages_path: Path,
+    *,
+    allowed_owners: frozenset[int],
+) -> list[dict[str, Any]]:
+    """Bind every .pth/sitecustomize/usercustomize candidate without loading it."""
+
+    try:
+        candidates = sorted(
+            (
+                candidate
+                for candidate in site_packages_path.iterdir()
+                if candidate.suffix == ".pth"
+                or candidate.name
+                in {
+                    "sitecustomize",
+                    "sitecustomize.py",
+                    "sitecustomize.pyc",
+                    "usercustomize",
+                    "usercustomize.py",
+                    "usercustomize.pyc",
+                }
+            ),
+            key=lambda candidate: candidate.name,
+        )
+    except OSError:
+        raise ValueError(
+            "Python startup-hook inventory is unavailable"
+        ) from None
+    inventory: list[dict[str, Any]] = []
+    total_bytes = 0
+    for candidate in candidates:
+        try:
+            metadata = candidate.lstat()
+        except OSError:
+            raise ValueError(
+                "Python startup-hook inventory changed"
+            ) from None
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError("Python startup hooks must not be symlinks")
+        descendants = (
+            [candidate]
+            if stat.S_ISREG(metadata.st_mode)
+            else (
+                sorted(
+                    candidate.rglob("*"),
+                    key=lambda item: item.relative_to(
+                        site_packages_path
+                    ).as_posix(),
+                )
+                if stat.S_ISDIR(metadata.st_mode)
+                else []
+            )
+        )
+        if not descendants and not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError("Python startup hook has an unsafe type")
+        if stat.S_ISDIR(metadata.st_mode):
+            descendants.insert(0, candidate)
+        for descendant in descendants:
+            if len(inventory) >= 1024:
+                raise ValueError("Python startup-hook inventory is too large")
+            relative = descendant.relative_to(site_packages_path).as_posix()
+            observed = descendant.lstat()
+            if (
+                not relative
+                or len(relative.encode("utf-8")) > 4096
+                or stat.S_ISLNK(observed.st_mode)
+                or observed.st_uid not in allowed_owners
+                or stat.S_IMODE(observed.st_mode) & 0o022
+            ):
+                raise ValueError("Python startup-hook inventory is unsafe")
+            if stat.S_ISDIR(observed.st_mode):
+                inventory.append(
+                    {
+                        "relative_path": relative,
+                        "kind": "directory",
+                        "device": observed.st_dev,
+                        "inode": observed.st_ino,
+                        "owner_uid": observed.st_uid,
+                        "mode": f"{stat.S_IMODE(observed.st_mode):04o}",
+                        "mtime_ns": observed.st_mtime_ns,
+                    }
+                )
+                continue
+            if not stat.S_ISREG(observed.st_mode):
+                raise ValueError("Python startup hook has an unsafe type")
+            binding = _bounded_file_binding(
+                descendant,
+                label="Python startup-hook file",
+                maximum_bytes=_MAX_PYTHON_BOOTSTRAP_FILE_BYTES,
+                allowed_owners=allowed_owners,
+            )
+            total_bytes += int(binding["size_bytes"])
+            if total_bytes > 64 * 1024 * 1024:
+                raise ValueError("Python startup-hook inventory is too large")
+            binding["relative_path"] = relative
+            binding["kind"] = "regular_file"
+            binding.pop("path")
+            inventory.append(binding)
+    return inventory
+
+
+def _python_bootstrap_binding(
+    launch_path: Path,
+    *,
+    allowed_owners: frozenset[int],
+) -> dict[str, Any]:
+    probe = _isolated_python_probe(launch_path)
+    expected_probe_keys = {
+        "base_prefix",
+        "cache_tag",
+        "executable",
+        "flags",
+        "implementation",
+        "module_origins",
+        "prefix",
+        "sys_path",
+        "version",
+    }
+    flags = probe.get("flags")
+    version = probe.get("version")
+    sys_path = probe.get("sys_path")
+    origins = probe.get("module_origins")
+    if (
+        set(probe) != expected_probe_keys
+        or probe.get("executable") != str(launch_path)
+        or not isinstance(probe.get("implementation"), str)
+        or not isinstance(probe.get("cache_tag"), str)
+        or not isinstance(probe.get("prefix"), str)
+        or not isinstance(probe.get("base_prefix"), str)
+        or not isinstance(version, list)
+        or len(version) != 3
+        or any(type(part) is not int or part < 0 for part in version)
+        or flags
+        != {
+            "dont_write_bytecode": 1,
+            "ignore_environment": 1,
+            "isolated": 1,
+            "no_site": 1,
+            "safe_path": True,
+        }
+        or not isinstance(sys_path, list)
+        or not sys_path
+        or any(
+            not isinstance(item, str)
+            or not item
+            or "\x00" in item
+            or not Path(item).is_absolute()
+            or Path(os.path.normpath(item)) != Path(item)
+            for item in sys_path
+        )
+        or len(set(sys_path)) != len(sys_path)
+        or not isinstance(origins, dict)
+        or set(origins)
+        != {"encodings", "hashlib", "hmac", "json", "pathlib", "runpy"}
+    ):
+        raise ValueError("Python isolated-bootstrap contract is invalid")
+
+    isolated_path_bindings = [
+        _path_identity_allow_absent(
+            Path(item),
+            label="isolated Python path",
+            allowed_owners=allowed_owners,
+        )
+        for item in sys_path
+    ]
+    module_origins: dict[str, dict[str, Any] | str] = {}
+    for name, raw_origin in sorted(origins.items()):
+        if raw_origin in {"built-in", "frozen"}:
+            module_origins[name] = str(raw_origin)
+            continue
+        if (
+            not isinstance(raw_origin, str)
+            or not Path(raw_origin).is_absolute()
+        ):
+            raise ValueError("Python bootstrap module origin is invalid")
+        module_origins[name] = _bounded_file_binding(
+            Path(raw_origin),
+            label=f"Python bootstrap module {name}",
+            maximum_bytes=_MAX_PYTHON_BOOTSTRAP_FILE_BYTES,
+            allowed_owners=allowed_owners,
+        )
+
+    venv_root = launch_path.parent.parent
+    pyvenv_cfg = venv_root / "pyvenv.cfg"
+    venv: dict[str, Any] | None = None
+    if pyvenv_cfg.exists() or pyvenv_cfg.is_symlink():
+        if launch_path.parent.name != "bin":
+            raise ValueError("Python virtual-environment layout is invalid")
+        pyvenv_binding = _bounded_file_binding(
+            pyvenv_cfg,
+            label="Python pyvenv.cfg",
+            maximum_bytes=64 * 1024,
+            allowed_owners=allowed_owners,
+        )
+        site_packages_path = (
+            venv_root
+            / "lib"
+            / f"python{version[0]}.{version[1]}"
+            / "site-packages"
+        )
+        site_packages_binding = _directory_binding(
+            site_packages_path,
+            label="Python virtual-environment site-packages",
+        )
+        startup_inventory = _python_startup_hook_inventory(
+            site_packages_path,
+            allowed_owners=allowed_owners,
+        )
+        venv = {
+            "root": _directory_binding(
+                venv_root,
+                label="Python virtual-environment root",
+            ),
+            "pyvenv_cfg": pyvenv_binding,
+            "site_packages": site_packages_binding,
+            "startup_hook_inventory": startup_inventory,
+        }
+    return {
+        "schema_version": "epiagentbench.python_isolated_bootstrap.v2",
+        "interpreter_flags": list(_ISOLATED_PYTHON_FLAGS),
+        "implementation": probe["implementation"],
+        "cache_tag": probe["cache_tag"],
+        "version": version,
+        "prefix": probe["prefix"],
+        "base_prefix": probe["base_prefix"],
+        "isolated_sys_path": isolated_path_bindings,
+        "module_origins": module_origins,
+        "venv": venv,
+    }
+
+
 def _python_entrypoint_binding(path: Path) -> dict[str, Any]:
-    """Bind one venv-preserving Python entrypoint without resolving its argv path."""
+    """Bind a Python entrypoint and its hook-free isolated bootstrap."""
 
     launch_path = _absolute(path, label="Python executable")
     if os.path.normpath(str(launch_path)) != str(launch_path):
@@ -415,6 +860,9 @@ def _python_entrypoint_binding(path: Path) -> dict[str, Any]:
                     "link_text": link_text,
                     "device": metadata.st_dev,
                     "inode": metadata.st_ino,
+                    "owner_uid": metadata.st_uid,
+                    "mode": f"{stat.S_IMODE(metadata.st_mode):04o}",
+                    "mtime_ns": metadata.st_mtime_ns,
                 }
             )
             target = Path(link_text)
@@ -449,20 +897,53 @@ def _python_entrypoint_binding(path: Path) -> dict[str, Any]:
                 or observed.st_uid not in allowed_owners
                 or observed.st_dev != hop["device"]
                 or observed.st_ino != hop["inode"]
+                or observed.st_uid != hop["owner_uid"]
+                or f"{stat.S_IMODE(observed.st_mode):04o}" != hop["mode"]
+                or observed.st_mtime_ns != hop["mtime_ns"]
                 or os.readlink(hop_path) != hop["link_text"]
             ):
                 raise ValueError("Python executable symlink changed while binding")
+        bootstrap = _python_bootstrap_binding(
+            launch_path,
+            allowed_owners=allowed_owners,
+        )
+        final_target = candidate.lstat()
+        if any(
+            getattr(before, name) != getattr(final_target, name)
+            for name in stable_fields
+        ):
+            raise ValueError("Python executable changed during bootstrap binding")
+        for hop in hops:
+            hop_path = Path(hop["path"])
+            observed = hop_path.lstat()
+            if (
+                not stat.S_ISLNK(observed.st_mode)
+                or observed.st_uid not in allowed_owners
+                or observed.st_dev != hop["device"]
+                or observed.st_ino != hop["inode"]
+                or observed.st_uid != hop["owner_uid"]
+                or f"{stat.S_IMODE(observed.st_mode):04o}" != hop["mode"]
+                or observed.st_mtime_ns != hop["mtime_ns"]
+                or os.readlink(hop_path) != hop["link_text"]
+            ):
+                raise ValueError(
+                    "Python executable symlink changed during bootstrap binding"
+                )
         return {
-            "schema_version": "epiagentbench.python_entrypoint_binding.v1",
+            "schema_version": _PYTHON_ENTRYPOINT_BINDING_SCHEMA,
             "launch_path": str(launch_path),
             "symlink_hops": hops,
             "target": {
                 "path": str(candidate),
                 "device": before.st_dev,
                 "inode": before.st_ino,
+                "owner_uid": before.st_uid,
+                "mode": f"{stat.S_IMODE(before.st_mode):04o}",
                 "size_bytes": before.st_size,
+                "mtime_ns": before.st_mtime_ns,
                 "sha256": digest,
             },
+            "bootstrap": bootstrap,
         }
     raise ValueError("Python executable symlink chain is too deep")
 
@@ -472,21 +953,141 @@ def _validate_python_entrypoint_binding(config: Mapping[str, Any]) -> None:
     if (
         not isinstance(binding, dict)
         or set(binding)
-        != {"schema_version", "launch_path", "symlink_hops", "target"}
+        != {
+            "schema_version",
+            "launch_path",
+            "symlink_hops",
+            "target",
+            "bootstrap",
+        }
         or binding.get("schema_version")
-        != "epiagentbench.python_entrypoint_binding.v1"
+        != _PYTHON_ENTRYPOINT_BINDING_SCHEMA
         or binding.get("launch_path") != config.get("python_executable")
         or not isinstance(binding.get("symlink_hops"), list)
         or not isinstance(binding.get("target"), dict)
         or set(binding["target"])
-        != {"path", "device", "inode", "size_bytes", "sha256"}
+        != {
+            "path",
+            "device",
+            "inode",
+            "owner_uid",
+            "mode",
+            "size_bytes",
+            "mtime_ns",
+            "sha256",
+        }
         or binding["target"].get("sha256")
         != config.get("python_executable_sha256")
+        or _component_sha256(binding)
+        != config.get("python_executable_binding_sha256")
     ):
         raise ValueError("Invalid Python executable binding")
     observed = _python_entrypoint_binding(Path(str(config["python_executable"])))
     if not hmac.compare_digest(_canonical_bytes(observed), _canonical_bytes(binding)):
         raise ValueError("Python executable binding changed")
+
+
+def _bound_isolated_sys_path(binding: Mapping[str, Any]) -> list[str]:
+    bootstrap = binding.get("bootstrap")
+    raw_paths = (
+        bootstrap.get("isolated_sys_path")
+        if isinstance(bootstrap, dict)
+        else None
+    )
+    if not isinstance(raw_paths, list):
+        raise ValueError("Python isolated-bootstrap path is invalid")
+    paths: list[str] = []
+    for identity in raw_paths:
+        path = identity.get("path") if isinstance(identity, dict) else None
+        if not isinstance(path, str) or not Path(path).is_absolute():
+            raise ValueError("Python isolated-bootstrap path is invalid")
+        paths.append(path)
+    return paths
+
+
+def _bound_site_packages(binding: Mapping[str, Any]) -> str | None:
+    bootstrap = binding.get("bootstrap")
+    venv = bootstrap.get("venv") if isinstance(bootstrap, dict) else None
+    if venv is None:
+        return None
+    site_packages = (
+        venv.get("site_packages") if isinstance(venv, dict) else None
+    )
+    path = (
+        site_packages.get("path")
+        if isinstance(site_packages, dict)
+        else None
+    )
+    if not isinstance(path, str) or not Path(path).is_absolute():
+        raise ValueError("Python site-packages binding is invalid")
+    return path
+
+
+def _python_binding_paths(binding: Mapping[str, Any]) -> tuple[Path, ...]:
+    """Return every raw Python/bootstrap path sealed by one private binding."""
+
+    paths: set[Path] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key in {"path", "launch_path"} and isinstance(child, str):
+                    candidate = Path(child)
+                    if candidate.is_absolute():
+                        paths.add(candidate)
+                else:
+                    collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(binding)
+    return tuple(sorted(paths, key=str))
+
+
+def _validate_isolated_python_process(
+    *,
+    python_executable: Path,
+    repository_root: Path,
+    binding: Mapping[str, Any] | None = None,
+    include_site_packages: bool,
+) -> dict[str, Any]:
+    """Reattest the hook-free process and its exact manually-built sys.path."""
+
+    observed = (
+        _python_entrypoint_binding(python_executable)
+        if binding is None
+        else dict(binding)
+    )
+    if binding is not None:
+        current = _python_entrypoint_binding(python_executable)
+        if not hmac.compare_digest(
+            _canonical_bytes(current),
+            _canonical_bytes(observed),
+        ):
+            raise ValueError("Python executable binding changed")
+    if (
+        sys.flags.isolated != 1
+        or sys.flags.no_site != 1
+        or sys.flags.ignore_environment != 1
+        or sys.flags.dont_write_bytecode != 1
+        or not sys.flags.safe_path
+        or Path(sys.executable) != python_executable
+    ):
+        raise ValueError("Python process is not isolated")
+    expected_sys_path = _bound_isolated_sys_path(observed)
+    source_root = repository_root / "src"
+    expected_sys_path.append(str(source_root))
+    if include_site_packages:
+        site_packages = _bound_site_packages(observed)
+        if site_packages is None:
+            raise ValueError(
+                "Isolated benchmark runner requires a bound virtual environment"
+            )
+        expected_sys_path.append(site_packages)
+    if sys.path != expected_sys_path or len(set(sys.path)) != len(sys.path):
+        raise ValueError("Python isolated sys.path binding mismatch")
+    return observed
 
 
 def _runtime_module_sources(repository_root: Path) -> tuple[Path, Path, Path]:
@@ -551,7 +1152,255 @@ def _verify_frozen_runtime_sources(
     return launchd_source, supervisor_source, benchmark_source
 
 
-def _manifest_binding(path: Path) -> tuple[str, str, str, str]:
+def _runtime_cache_file_binding(
+    path: Path,
+    *,
+    relative_path: str,
+) -> dict[str, Any]:
+    binding = _bounded_file_binding(
+        path,
+        label="runtime cache file",
+        maximum_bytes=_MAX_RUNTIME_CACHE_FILE_BYTES,
+        allowed_owners=frozenset({os.getuid()}),
+    )
+    binding.pop("path")
+    return {
+        "relative_path": relative_path,
+        "kind": "regular_file",
+        **binding,
+    }
+
+
+def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
+    """Bind the complete owner-only cache tree without exposing it publicly."""
+
+    root = _absolute(runtime_cache_dir, label="runtime cache directory")
+    if Path(os.path.normpath(str(root))) != root:
+        raise ValueError("Runtime cache directory must be normalized")
+    expected_paths = {
+        "root": root,
+        "matplotlib": root / "matplotlib",
+        "numba": root / "numba",
+        "xdg": root / "xdg",
+    }
+    directories = {
+        name: _directory_binding(
+            path,
+            label=f"runtime cache {name}",
+            exact_mode=0o700,
+        )
+        for name, path in expected_paths.items()
+    }
+    root_device = int(directories["root"]["device"])
+    if any(
+        identity["device"] != root_device
+        for identity in directories.values()
+    ):
+        raise ValueError("Runtime caches must share one dedicated filesystem")
+    try:
+        root_entries_before = sorted(entry.name for entry in root.iterdir())
+    except OSError:
+        raise ValueError("Runtime cache inventory is unavailable") from None
+    if root_entries_before != ["matplotlib", "numba", "xdg"]:
+        raise ValueError(
+            "Runtime cache root must contain only its three dedicated caches"
+        )
+
+    inventory: list[dict[str, Any]] = []
+    total_files = 0
+    total_bytes = 0
+    for cache_name in ("matplotlib", "numba", "xdg"):
+        cache_root = expected_paths[cache_name]
+        try:
+            descendants = sorted(
+                cache_root.rglob("*"),
+                key=lambda candidate: candidate.relative_to(root).as_posix(),
+            )
+        except OSError:
+            raise ValueError("Runtime cache inventory is unavailable") from None
+        for candidate in descendants:
+            relative = candidate.relative_to(root).as_posix()
+            if (
+                not relative
+                or len(relative.encode("utf-8")) > 4096
+                or relative.startswith("/")
+                or "\x00" in relative
+            ):
+                raise ValueError("Runtime cache inventory is invalid")
+            try:
+                metadata = candidate.lstat()
+            except OSError:
+                raise ValueError(
+                    "Runtime cache changed while inventorying"
+                ) from None
+            if stat.S_ISLNK(metadata.st_mode):
+                raise ValueError("Runtime cache must not contain symlinks")
+            if metadata.st_dev != root_device:
+                raise ValueError("Runtime cache must not cross filesystems")
+            if metadata.st_uid != os.getuid() or stat.S_IMODE(
+                metadata.st_mode
+            ) & 0o077:
+                raise ValueError(
+                    "Runtime cache descendants must be owner-only"
+                )
+            if len(inventory) >= _MAX_RUNTIME_CACHE_FILES:
+                raise ValueError("Runtime cache exceeds its attestation limit")
+            if stat.S_ISDIR(metadata.st_mode):
+                inventory.append(
+                    {
+                        "relative_path": relative,
+                        "kind": "directory",
+                        "device": metadata.st_dev,
+                        "inode": metadata.st_ino,
+                        "owner_uid": metadata.st_uid,
+                        "mode": f"{stat.S_IMODE(metadata.st_mode):04o}",
+                        "mtime_ns": metadata.st_mtime_ns,
+                    }
+                )
+                continue
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                raise ValueError(
+                    "Runtime cache contains an unsafe descendant"
+                )
+            total_files += 1
+            total_bytes += metadata.st_size
+            if (
+                total_files > _MAX_RUNTIME_CACHE_FILES
+                or total_bytes > _MAX_RUNTIME_CACHE_BYTES
+            ):
+                raise ValueError("Runtime cache exceeds its attestation limit")
+            inventory.append(
+                _runtime_cache_file_binding(
+                    candidate,
+                    relative_path=relative,
+                )
+            )
+    try:
+        root_entries_after = sorted(entry.name for entry in root.iterdir())
+    except OSError:
+        raise ValueError("Runtime cache inventory is unavailable") from None
+    if root_entries_after != root_entries_before:
+        raise ValueError("Runtime cache changed while inventorying")
+    observed_directories = {
+        name: _directory_binding(
+            path,
+            label=f"runtime cache {name}",
+            exact_mode=0o700,
+        )
+        for name, path in expected_paths.items()
+    }
+    if observed_directories != directories:
+        raise ValueError("Runtime cache changed while inventorying")
+    second_relative_paths: list[str] = []
+    for cache_name in ("matplotlib", "numba", "xdg"):
+        cache_root = expected_paths[cache_name]
+        try:
+            second_relative_paths.extend(
+                candidate.relative_to(root).as_posix()
+                for candidate in sorted(
+                    cache_root.rglob("*"),
+                    key=lambda item: item.relative_to(root).as_posix(),
+                )
+            )
+        except OSError:
+            raise ValueError(
+                "Runtime cache changed while inventorying"
+            ) from None
+    if second_relative_paths != [
+        item["relative_path"] for item in inventory
+    ]:
+        raise ValueError("Runtime cache changed while inventorying")
+    for item in inventory:
+        candidate = root / str(item["relative_path"])
+        if item["kind"] == "regular_file":
+            observed_item = _runtime_cache_file_binding(
+                candidate,
+                relative_path=str(item["relative_path"]),
+            )
+        else:
+            observed = candidate.lstat()
+            observed_item = {
+                "relative_path": item["relative_path"],
+                "kind": "directory",
+                "device": observed.st_dev,
+                "inode": observed.st_ino,
+                "owner_uid": observed.st_uid,
+                "mode": f"{stat.S_IMODE(observed.st_mode):04o}",
+                "mtime_ns": observed.st_mtime_ns,
+            }
+        if observed_item != item:
+            raise ValueError("Runtime cache changed while inventorying")
+    environment = {
+        "MPLBACKEND": "Agg",
+        "MPLCONFIGDIR": str(root / "matplotlib"),
+        "NUMBA_CACHE_DIR": str(root / "numba"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "STARSIM_INSTALL_FONTS": "0",
+        "XDG_CACHE_HOME": str(root / "xdg"),
+    }
+    return {
+        "schema_version": _RUNTIME_CACHE_CONTRACT_SCHEMA,
+        "environment": environment,
+        "directories": directories,
+        "inventory": inventory,
+        "inventory_file_count": total_files,
+        "inventory_file_bytes": total_bytes,
+    }
+
+
+def _paths_overlap(left: Path, right: Path) -> bool:
+    left = Path(os.path.normpath(str(left)))
+    right = Path(os.path.normpath(str(right)))
+    return (
+        left == right
+        or left in right.parents
+        or right in left.parents
+    )
+
+
+def _require_dedicated_runtime_cache(
+    cache_root: Path,
+    *,
+    protected_paths: Sequence[Path],
+) -> None:
+    for protected in protected_paths:
+        if _paths_overlap(cache_root, protected):
+            raise ValueError(
+                "Runtime cache must not overlap benchmark or credential state"
+            )
+
+
+def _validate_runtime_cache_binding(config: Mapping[str, Any]) -> None:
+    cache = config.get("runtime_cache_contract")
+    cache_sha256 = config.get("runtime_cache_contract_sha256")
+    if cache is None:
+        if cache_sha256 is not None:
+            raise ValueError("Invalid launch-agent runtime-cache binding")
+        return
+    root_path = (
+        cache.get("directories", {}).get("root", {}).get("path")
+        if isinstance(cache, dict)
+        else None
+    )
+    if (
+        not isinstance(root_path, str)
+        or not isinstance(cache_sha256, str)
+        or _component_sha256(cache) != cache_sha256
+        or _runtime_cache_contract(Path(root_path)) != cache
+    ):
+        raise ValueError("Launch-agent runtime cache changed")
+
+
+def _manifest_binding(
+    path: Path,
+) -> tuple[
+    str,
+    str,
+    str,
+    str,
+    str | None,
+    str | None,
+]:
     manifest = _read_bounded_json(
         path,
         maximum_bytes=64 * 1024 * 1024,
@@ -572,6 +1421,20 @@ def _manifest_binding(path: Path) -> tuple[str, str, str, str]:
         if isinstance(runtime_contract, dict)
         else None
     )
+    python_entrypoint_binding_sha256 = (
+        runtime_contract.get("python_executable_binding_sha256")
+        if isinstance(runtime_contract, dict)
+        else None
+    )
+    preparation_runtime_contract = manifest.get(
+        "preparation_runtime_contract"
+    )
+    runtime_cache_contract_sha256 = (
+        preparation_runtime_contract.get("runtime_cache_contract_sha256")
+        if isinstance(preparation_runtime_contract, dict)
+        else None
+    )
+    is_v16 = preparation_runtime_contract is not None
     if (
         not isinstance(panel_id, str)
         or not _SAFE_NAME.fullmatch(panel_id)
@@ -580,6 +1443,22 @@ def _manifest_binding(path: Path) -> tuple[str, str, str, str]:
         or not isinstance(python_executable_sha256, str)
         or not _SHA256.fullmatch(python_executable_sha256)
         or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
+        or is_v16
+        and (
+            not isinstance(python_entrypoint_binding_sha256, str)
+            or not _SHA256.fullmatch(python_entrypoint_binding_sha256)
+            or not isinstance(runtime_cache_contract_sha256, str)
+            or not _SHA256.fullmatch(runtime_cache_contract_sha256)
+            or not isinstance(preparation_runtime_contract, dict)
+            or preparation_runtime_contract.get("schema_version")
+            != "epiagentbench.bound_preparation_runtime.v1"
+            or isinstance(runtime_contract, dict)
+            and (
+                "python_executable" in runtime_contract
+                or "python_executable_binding" in runtime_contract
+            )
+            or "runtime_cache_contract" in preparation_runtime_contract
+        )
     ):
         raise ValueError("Public manifest lacks a valid panel binding")
     return (
@@ -587,6 +1466,16 @@ def _manifest_binding(path: Path) -> tuple[str, str, str, str]:
         precommitment,
         python_executable_sha256,
         str(python_entrypoint_kind),
+        (
+            str(python_entrypoint_binding_sha256)
+            if is_v16
+            else None
+        ),
+        (
+            str(runtime_cache_contract_sha256)
+            if is_v16
+            else None
+        ),
     )
 
 
@@ -605,7 +1494,11 @@ def _require_output_path(path: Path, *, label: str) -> None:
     _require_regular(path, label=label)
 
 
-def _safe_environment(repository_root: Path, path_environment: str | None) -> dict[str, str]:
+def _safe_environment(
+    repository_root: Path,
+    path_environment: str | None,
+    runtime_environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
     identity = pwd.getpwuid(os.getuid())
     path_value = path_environment if path_environment is not None else os.environ.get("PATH", "")
     if not path_value or "\x00" in path_value or any(
@@ -617,7 +1510,6 @@ def _safe_environment(repository_root: Path, path_environment: str | None) -> di
         "HOME": identity.pw_dir,
         "LOGNAME": identity.pw_name,
         "PATH": path_value,
-        "PYTHONPATH": str(repository_root / "src"),
         "SHELL": identity.pw_shell or "/bin/zsh",
         "TMPDIR": tempfile.gettempdir(),
         "USER": identity.pw_name,
@@ -626,6 +1518,16 @@ def _safe_environment(repository_root: Path, path_environment: str | None) -> di
         value = os.environ.get(key)
         if value and "\x00" not in value:
             environment[key] = value
+    if runtime_environment is not None:
+        if (
+            set(runtime_environment) != _RUNTIME_CACHE_ENVIRONMENT_KEYS
+            or any(
+                not isinstance(value, str) or not value or "\x00" in value
+                for value in runtime_environment.values()
+            )
+        ):
+            raise ValueError("Invalid sealed runtime-cache environment")
+        environment.update(runtime_environment)
     return environment
 
 
@@ -664,6 +1566,7 @@ def _worker_program_arguments(config: Mapping[str, Any]) -> list[str]:
         str(_CAFFEINATE),
         "-dimsu",
         str(config["python_executable"]),
+        *_ISOLATED_PYTHON_FLAGS,
         str(config["worker_script"]),
         "worker",
         "--config",
@@ -700,6 +1603,7 @@ def generate_launch_agent(
     cursor_keychain_account: str,
     public_preflight_path: Path | None = None,
     public_results_path: Path | None = None,
+    runtime_cache_dir: Path | None = None,
     path_environment: str | None = None,
     instance_token: str | None = None,
 ) -> dict[str, Any]:
@@ -750,6 +1654,9 @@ def generate_launch_agent(
     python_executable_sha256 = str(
         python_executable_binding["target"]["sha256"]
     )
+    python_executable_binding_sha256 = _component_sha256(
+        python_executable_binding
+    )
     worker_script = root / "examples" / "run_persistent_panel_supervisor.py"
     runner_script = root / "examples" / "run_development_matched_panel.py"
     _require_regular(worker_script, label="persistent worker script")
@@ -765,6 +1672,8 @@ def generate_launch_agent(
         precommitment_sha256,
         manifest_python_executable_sha256,
         manifest_python_entrypoint_kind,
+        manifest_python_executable_binding_sha256,
+        manifest_runtime_cache_contract_sha256,
     ) = _manifest_binding(public_manifest)
     python_entrypoint_kind = (
         "symlink_chain"
@@ -776,6 +1685,42 @@ def generate_launch_agent(
         or manifest_python_entrypoint_kind != python_entrypoint_kind
     ):
         raise ValueError("Python executable differs from the public manifest")
+    if (
+        manifest_python_executable_binding_sha256 is not None
+        and not hmac.compare_digest(
+            manifest_python_executable_binding_sha256,
+            python_executable_binding_sha256,
+        )
+    ):
+        raise ValueError("Python executable binding differs from the public manifest")
+    runtime_cache_contract: dict[str, Any] | None = None
+    manifest_runtime_environment: dict[str, str] | None = None
+    if manifest_runtime_cache_contract_sha256 is not None:
+        if runtime_cache_dir is None:
+            raise ValueError(
+                "V16 LaunchAgent requires the bound runtime cache directory"
+            )
+        supplied_runtime_cache = _absolute(
+            runtime_cache_dir, label="runtime cache directory"
+        )
+        runtime_cache_contract = _runtime_cache_contract(
+            supplied_runtime_cache
+        )
+        observed_runtime_cache_sha256 = _component_sha256(
+            runtime_cache_contract
+        )
+        if not hmac.compare_digest(
+            observed_runtime_cache_sha256,
+            manifest_runtime_cache_contract_sha256,
+        ):
+            raise ValueError("Runtime cache differs from the public manifest")
+        manifest_runtime_environment = dict(
+            runtime_cache_contract["environment"]
+        )
+    elif runtime_cache_dir is not None:
+        raise ValueError(
+            "Runtime cache directory is not bound by the public manifest"
+        )
     public_manifest_file_sha256 = _file_sha256(
         public_manifest,
         maximum_bytes=64 * 1024 * 1024,
@@ -874,6 +1819,25 @@ def generate_launch_agent(
     )
     output_path = public_preflight if public_preflight is not None else public_results
     assert output_path is not None
+    if runtime_cache_contract is not None:
+        supplied_runtime_cache = Path(
+            runtime_cache_contract["directories"]["root"]["path"]
+        )
+        _require_dedicated_runtime_cache(
+            supplied_runtime_cache,
+            protected_paths=(
+                runtime,
+                root,
+                *_python_binding_paths(python_executable_binding),
+                auth_key,
+                claude_storage,
+                codex_storage,
+                private_state,
+                public_manifest,
+                public_authentication,
+                output_path,
+            ),
+        )
     _require_output_path(output_path, label="public output")
     _require_regular(
         _CAFFEINATE,
@@ -906,6 +1870,14 @@ def generate_launch_agent(
             public_authentication_file_sha256
         ),
         "python_executable_sha256": python_executable_sha256,
+        "python_executable_binding_sha256": (
+            python_executable_binding_sha256
+        ),
+        "runtime_cache_contract_sha256": (
+            _component_sha256(runtime_cache_contract)
+            if runtime_cache_contract is not None
+            else None
+        ),
         "runner_source_sha256": runner_source_sha256,
         "worker_source_sha256": worker_source_sha256,
         "launchd_agent_source_sha256": launchd_agent_source_sha256,
@@ -921,6 +1893,7 @@ def generate_launch_agent(
         "repository_root": str(root),
         "python_executable": str(python),
         "python_executable_binding": python_executable_binding,
+        "runtime_cache_contract": runtime_cache_contract,
         "worker_script": str(worker_script),
         "runner_script": str(runner_script),
         "authentication_key_file": str(auth_key),
@@ -934,7 +1907,11 @@ def generate_launch_agent(
             "service": cursor_keychain_service,
             "account": cursor_keychain_account,
         },
-        "base_environment": _safe_environment(root, path_environment),
+        "base_environment": _safe_environment(
+            root,
+            path_environment,
+            runtime_environment=manifest_runtime_environment,
+        ),
     }
     config = _seal_payload(_CONFIG_AUTH_DOMAIN, unsigned_config, authentication_key)
     old_umask = os.umask(0o077)
@@ -995,6 +1972,8 @@ def _load_and_validate(
         "public_manifest_file_sha256",
         "public_authentication_file_sha256",
         "python_executable_sha256",
+        "python_executable_binding_sha256",
+        "runtime_cache_contract_sha256",
         "runner_source_sha256",
         "worker_source_sha256",
         "launchd_agent_source_sha256",
@@ -1006,6 +1985,7 @@ def _load_and_validate(
         "repository_root",
         "python_executable",
         "python_executable_binding",
+        "runtime_cache_contract",
         "worker_script",
         "runner_script",
         "authentication_key_file",
@@ -1050,6 +2030,7 @@ def _load_and_validate(
                 "public_manifest_file_sha256",
                 "public_authentication_file_sha256",
                 "python_executable_sha256",
+                "python_executable_binding_sha256",
                 "runner_source_sha256",
                 "worker_source_sha256",
                 "launchd_agent_source_sha256",
@@ -1078,7 +2059,7 @@ def _load_and_validate(
     if (
         not isinstance(environment, dict)
         or not set(environment).issubset(_SAFE_ENVIRONMENT_KEYS)
-        or not {"HOME", "LOGNAME", "PATH", "PYTHONPATH", "SHELL", "TMPDIR", "USER"}.issubset(environment)
+        or not {"HOME", "LOGNAME", "PATH", "SHELL", "TMPDIR", "USER"}.issubset(environment)
         or any(not isinstance(value, str) or not value or "\x00" in value for value in environment.values())
     ):
         raise ValueError("Invalid worker environment")
@@ -1100,6 +2081,38 @@ def _load_and_validate(
         raise ValueError("Launch-agent config contains a non-absolute path")
     _require_directory(Path(config["repository_root"]), label="repository root")
     _validate_python_entrypoint_binding(config)
+    configured_cache = config.get("runtime_cache_contract")
+    configured_cache_sha256 = config.get(
+        "runtime_cache_contract_sha256"
+    )
+    if configured_cache is None:
+        if configured_cache_sha256 is not None or bool(
+            set(environment) & _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        ):
+            raise ValueError("Invalid launch-agent runtime-cache binding")
+    elif (
+        not isinstance(configured_cache, dict)
+        or not isinstance(configured_cache_sha256, str)
+        or not _SHA256.fullmatch(configured_cache_sha256)
+        or _component_sha256(configured_cache)
+        != configured_cache_sha256
+    ):
+        raise ValueError("Invalid launch-agent runtime-cache binding")
+    else:
+        cache_root = configured_cache.get("directories", {}).get(
+            "root", {}
+        ).get("path")
+        if (
+            not isinstance(cache_root, str)
+            or _runtime_cache_contract(Path(cache_root))
+            != configured_cache
+            or any(
+                environment.get(name)
+                != configured_cache["environment"].get(name)
+                for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+            )
+        ):
+            raise ValueError("Launch-agent runtime cache changed")
     _require_regular(Path(config["worker_script"]), label="persistent worker script")
     _require_regular(Path(config["runner_script"]), label="frozen panel runner")
     repository_root = Path(config["repository_root"])
@@ -1119,11 +2132,34 @@ def _load_and_validate(
         Path(config["public_authentication_path"]),
         label="public authentication receipt",
     )
+    if configured_cache is not None:
+        _require_dedicated_runtime_cache(
+            Path(configured_cache["directories"]["root"]["path"]),
+            protected_paths=(
+                *_python_binding_paths(config["python_executable_binding"]),
+                *(
+                    Path(config[name])
+                    for name in (
+                        "runtime_dir",
+                        "repository_root",
+                        "authentication_key_file",
+                        "claude_secure_storage_dir",
+                        "codex_secure_storage_dir",
+                        "private_state_path",
+                        "public_manifest_path",
+                        "public_authentication_path",
+                        "public_output_path",
+                    )
+                ),
+            ),
+        )
     (
         observed_panel_id,
         observed_precommitment,
         observed_python_executable_sha256,
         observed_python_entrypoint_kind,
+        observed_python_executable_binding_sha256,
+        observed_runtime_cache_contract_sha256,
     ) = _manifest_binding(Path(config["public_manifest_path"]))
     if (
         observed_panel_id != config["panel_id"]
@@ -1135,6 +2171,22 @@ def _load_and_validate(
             "symlink_chain"
             if config["python_executable_binding"]["symlink_hops"]
             else "regular_file"
+        )
+        or observed_python_executable_binding_sha256 is not None
+        and not hmac.compare_digest(
+            observed_python_executable_binding_sha256,
+            config["python_executable_binding_sha256"],
+        )
+        or observed_runtime_cache_contract_sha256
+        != config["runtime_cache_contract_sha256"]
+        or observed_runtime_cache_contract_sha256 is None
+        and configured_cache is not None
+        or observed_runtime_cache_contract_sha256 is not None
+        and configured_cache is None
+        or configured_cache is not None
+        and not hmac.compare_digest(
+            _component_sha256(configured_cache),
+            observed_runtime_cache_contract_sha256,
         )
     ):
         raise ValueError("Launch-agent manifest binding mismatch")
@@ -1237,6 +2289,7 @@ def _runner_command(config: Mapping[str, Any]) -> list[str]:
     runner_operation = "preflight" if config["operation"] == "preflight" else "run"
     command = [
         str(config["python_executable"]),
+        *_ISOLATED_PYTHON_FLAGS,
         str(config["runner_script"]),
         runner_operation,
         "--authentication-key",
@@ -1424,6 +2477,13 @@ def _run_core_supervisor(
     """Narrow adapter to the durable supervisor implementation."""
 
     _validate_python_entrypoint_binding(config)
+    _validate_runtime_cache_binding(config)
+    _validate_isolated_python_process(
+        python_executable=Path(str(config["python_executable"])),
+        repository_root=Path(str(config["repository_root"])),
+        binding=config["python_executable_binding"],
+        include_site_packages=False,
+    )
     _, persistent_supervisor_source, _ = _verify_frozen_runtime_sources(config)
     import epiagentbench.persistent_supervisor as persistent_supervisor
 
@@ -1456,6 +2516,12 @@ def run_launch_agent_worker(
     config, _, authentication_key = _load_and_validate(config_file.parent)
     if config_file != Path(config["config_path"]):
         raise ValueError("Worker config path mismatch")
+    _validate_isolated_python_process(
+        python_executable=Path(str(config["python_executable"])),
+        repository_root=Path(str(config["repository_root"])),
+        binding=config["python_executable_binding"],
+        include_site_packages=False,
+    )
     runtime = Path(config["runtime_dir"])
     if (
         _read_start_marker(
@@ -1487,6 +2553,7 @@ def run_launch_agent_worker(
         # credential is retrieved.  This closes the validation-to-Keychain
         # window and fails without invoking ``security`` on mismatch.
         _validate_python_entrypoint_binding(config)
+        _validate_runtime_cache_binding(config)
         _verify_frozen_runtime_sources(config)
         try:
             cursor_key = _read_cursor_key(config, command_runner=keychain_runner)

@@ -1,3 +1,12 @@
+> [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V15 is permanently closed. Do not run any command below and do not create,
+> resume, repair, or reuse any V15 path, cohort, key, credential namespace,
+> state, runtime, supervisor, or public artifact. The authoritative audit record
+> is the [V15 supersession](../results/development-matched-50x6-v15.superseded.json);
+> use only the replacement [V16 runbook](V16_RUNBOOK.md).
+
 # EpiAgentBench V15 execution runbook
 
 V15 is the fresh replacement for the non-resumable V14 preflight. This

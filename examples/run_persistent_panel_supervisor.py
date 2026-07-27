@@ -10,14 +10,45 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
+
+def _require_isolated_main_process() -> None:
+    if (
+        sys.flags.isolated != 1
+        or sys.flags.no_site != 1
+        or sys.flags.ignore_environment != 1
+        or sys.flags.dont_write_bytecode != 1
+        or not sys.flags.safe_path
+    ):
+        raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    _require_isolated_main_process()
+
+
 # launchd intentionally supplies no PYTHONPATH or other environment.  Bootstrap
 # this checked-in script from its own immutable repository location before the
 # package import; the authenticated config later verifies the same root/path.
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+_IS_WORKER_BOOTSTRAP = len(sys.argv) > 1 and sys.argv[1] == "worker"
 if __package__ in {None, ""}:
-    _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
     _SOURCE_ROOT = str(_REPOSITORY_ROOT / "src")
     if _SOURCE_ROOT not in sys.path:
-        sys.path.insert(0, _SOURCE_ROOT)
+        sys.path.append(_SOURCE_ROOT)
+    if sys.flags.isolated and not _IS_WORKER_BOOTSTRAP:
+        _VENV_ROOT = Path(sys.executable).parent.parent
+        _SITE_PACKAGES = (
+            _VENV_ROOT
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
+        if (
+            not (_VENV_ROOT / "pyvenv.cfg").is_file()
+            or not _SITE_PACKAGES.is_dir()
+        ):
+            raise RuntimeError("V16 requires its bound virtual environment")
+        sys.path.append(str(_SITE_PACKAGES))
 
 from epiagentbench.launchd_agent import (
     LaunchAgentError,
@@ -28,7 +59,16 @@ from epiagentbench.launchd_agent import (
     run_launch_agent_worker,
     start_launch_agent,
     uninstall_launch_agent,
+    _validate_isolated_python_process,
 )
+
+if sys.flags.isolated:
+    _validate_isolated_python_process(
+        python_executable=Path(sys.executable),
+        repository_root=_REPOSITORY_ROOT,
+        binding=None,
+        include_site_packages=not _IS_WORKER_BOOTSTRAP,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -44,6 +84,7 @@ def _parser() -> argparse.ArgumentParser:
     generate.add_argument(
         "--python-executable", type=Path, default=Path(sys.executable)
     )
+    generate.add_argument("--runtime-cache-dir", required=True, type=Path)
     generate.add_argument("--authentication-key", required=True, type=Path)
     generate.add_argument("--claude-secure-storage-dir", required=True, type=Path)
     generate.add_argument("--codex-secure-storage-dir", required=True, type=Path)
@@ -81,6 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_dir=args.runtime_dir,
                 repository_root=args.repository_root,
                 python_executable=args.python_executable,
+                runtime_cache_dir=args.runtime_cache_dir,
                 authentication_key_file=args.authentication_key,
                 claude_secure_storage_dir=args.claude_secure_storage_dir,
                 codex_secure_storage_dir=args.codex_secure_storage_dir,
@@ -129,4 +171,5 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    _require_isolated_main_process()
     raise SystemExit(main())

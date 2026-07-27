@@ -159,8 +159,15 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "_attest_cursor_keychain",
         )
         self.mock_cursor_readiness = self.cursor_readiness.start()
+        self.isolated_process = patch.object(
+            launchd_agent,
+            "_validate_isolated_python_process",
+            return_value={},
+        )
+        self.mock_isolated_process = self.isolated_process.start()
 
     def tearDown(self) -> None:
+        self.isolated_process.stop()
         self.cursor_readiness.stop()
         self.durable_readiness.stop()
         self.authentication_readiness.stop()
@@ -186,6 +193,50 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         }
         arguments.update(changes)
         return generate_launch_agent(**arguments)
+
+    def _enable_v16_runtime_binding(
+        self,
+        *,
+        name: str = "v16-runtime-cache",
+    ) -> tuple[Path, dict[str, str]]:
+        cache_root = self.root / name
+        cache_root.mkdir(mode=0o700)
+        for child in ("matplotlib", "numba", "xdg"):
+            (cache_root / child).mkdir(mode=0o700)
+        environment = {
+            "MPLBACKEND": "Agg",
+            "MPLCONFIGDIR": str(cache_root / "matplotlib"),
+            "NUMBA_CACHE_DIR": str(cache_root / "numba"),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "STARSIM_INSTALL_FONTS": "0",
+            "XDG_CACHE_HOME": str(cache_root / "xdg"),
+        }
+
+        manifest = json.loads(
+            self.public_manifest.read_text(encoding="utf-8")
+        )
+        python_binding = launchd_agent._python_entrypoint_binding(
+            Path(sys.executable).resolve()
+        )
+        manifest["runtime_contract"][
+            "python_executable_binding_sha256"
+        ] = launchd_agent._component_sha256(python_binding)
+        cache_contract = launchd_agent._runtime_cache_contract(cache_root)
+        manifest["preparation_runtime_contract"] = {
+            "schema_version": "epiagentbench.bound_preparation_runtime.v1",
+            "runtime_cache_contract_sha256": (
+                launchd_agent._component_sha256(cache_contract)
+            ),
+        }
+        self.assertEqual(
+            cache_contract["environment"],
+            environment,
+        )
+        self.public_manifest.write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+        return cache_root, environment
 
     @staticmethod
     def _not_loaded_launchctl(arguments, **kwargs):
@@ -263,6 +314,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 "/usr/bin/caffeinate",
                 "-dimsu",
                 str(Path(sys.executable).resolve()),
+                "-I",
+                "-S",
+                "-B",
                 str(
                     self.repository
                     / "examples"
@@ -304,6 +358,211 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         config = json.loads(config_path.read_text(encoding="utf-8"))
         self.assertNotIn("cursor_api_key", config)
         self.assertNotIn("environment", config)
+
+    def test_v16_cli_bootstraps_work_with_site_hooks_disabled(self) -> None:
+        for relative_script in (
+            "examples/run_development_matched_panel.py",
+            "examples/run_persistent_panel_supervisor.py",
+        ):
+            completed = subprocess.run(
+                [
+                    str(Path(sys.executable)),
+                    "-I",
+                    "-S",
+                    "-B",
+                    str(self.repository / relative_script),
+                    "--help",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                cwd="/",
+                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+                timeout=30,
+            )
+            self.assertEqual(
+                completed.returncode,
+                0,
+                completed.stderr.decode("utf-8", errors="replace"),
+            )
+            direct = subprocess.run(
+                [
+                    str(Path(sys.executable)),
+                    str(self.repository / relative_script),
+                    "--help",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                cwd="/",
+                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+                timeout=30,
+            )
+            self.assertEqual(direct.returncode, 2)
+
+    def test_v16_generation_seals_exact_runtime_cache_environment(self) -> None:
+        cache_root, expected_environment = (
+            self._enable_v16_runtime_binding()
+        )
+
+        generated = self._generate(runtime_cache_dir=cache_root)
+        config, _ = self._config_and_key()
+        sealed_environment = {
+            name: config["base_environment"][name]
+            for name in launchd_agent._RUNTIME_CACHE_ENVIRONMENT_KEYS
+        }
+
+        self.assertEqual(sealed_environment, expected_environment)
+        self.assertEqual(
+            set(config["base_environment"])
+            & launchd_agent._RUNTIME_CACHE_ENVIRONMENT_KEYS,
+            set(expected_environment),
+        )
+        plist = plistlib.loads(Path(generated["plist_path"]).read_bytes())
+        self.assertNotIn("EnvironmentVariables", plist)
+
+    def test_v16_generation_requires_exact_bound_runtime_cache_root(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+
+        with self.assertRaises(LaunchAgentError):
+            self._generate()
+        self.assertFalse(self.runtime.exists())
+
+        wrong_cache = self.root / "wrong-v16-runtime-cache"
+        wrong_cache.mkdir(mode=0o700)
+        wrong_runtime = self.root / "wrong-cache-runtime"
+        with self.assertRaises(LaunchAgentError):
+            self._generate(
+                runtime_dir=wrong_runtime,
+                runtime_cache_dir=wrong_cache,
+                instance_token="wrong-cache-root",
+            )
+        self.assertFalse(wrong_runtime.exists())
+        self.assertTrue(cache_root.is_dir())
+
+    def test_v16_live_load_rejects_runtime_cache_inode_drift(self) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+        self._generate(runtime_cache_dir=cache_root)
+
+        original = cache_root / "numba"
+        original.rename(cache_root / "numba-original")
+        original.mkdir(mode=0o700)
+
+        with self.assertRaises(ValueError):
+            launchd_agent._load_and_validate(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+    def test_v16_live_load_rejects_runtime_cache_content_drift(self) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+        cached_file = cache_root / "numba" / "compiled.cache"
+        cached_file.write_bytes(b"reviewed-cache-bytes")
+        os.chmod(cached_file, 0o600)
+        manifest = json.loads(
+            self.public_manifest.read_text(encoding="utf-8")
+        )
+        cache_contract = launchd_agent._runtime_cache_contract(cache_root)
+        manifest["preparation_runtime_contract"][
+            "runtime_cache_contract_sha256"
+        ] = launchd_agent._component_sha256(cache_contract)
+        self.public_manifest.write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+        self._generate(runtime_cache_dir=cache_root)
+
+        cached_file.write_bytes(b"changed-cache-bytes")
+        os.chmod(cached_file, 0o600)
+
+        with self.assertRaises(ValueError):
+            launchd_agent._load_and_validate(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+    def test_v16_runtime_cache_must_be_dedicated_and_non_overlapping(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding(
+            name="claude-storage/runtime-cache",
+        )
+
+        with self.assertRaises(LaunchAgentError):
+            self._generate(runtime_cache_dir=cache_root)
+        self.assertFalse(self.runtime.exists())
+
+    def test_v16_runtime_cache_root_rejects_uncommitted_entries(self) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+        unexpected = cache_root / "ambient.txt"
+        unexpected.write_text("ambient", encoding="utf-8")
+        os.chmod(unexpected, 0o600)
+
+        with self.assertRaises(LaunchAgentError):
+            self._generate(runtime_cache_dir=cache_root)
+        self.assertFalse(self.runtime.exists())
+
+    def test_v16_live_load_rejects_sealed_cache_environment_drift(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+        generated = self._generate(runtime_cache_dir=cache_root)
+        config_path = Path(generated["config_path"])
+        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+        unsigned = launchd_agent._open_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            raw_config,
+            b"a" * 32,
+        )
+        unsigned["base_environment"]["MPLBACKEND"] = "TkAgg"
+        resealed = launchd_agent._seal_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            unsigned,
+            b"a" * 32,
+        )
+        config_path.write_text(
+            json.dumps(resealed),
+            encoding="utf-8",
+        )
+        os.chmod(config_path, 0o600)
+
+        with self.assertRaises(ValueError):
+            launchd_agent._load_and_validate(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+    def test_v16_generation_rejects_manifest_python_binding_hash_drift(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+        manifest = json.loads(
+            self.public_manifest.read_text(encoding="utf-8")
+        )
+        self.assertNotIn(
+            "python_executable_binding", manifest["runtime_contract"]
+        )
+        self.assertNotIn(
+            "runtime_cache_contract",
+            manifest["preparation_runtime_contract"],
+        )
+        manifest["runtime_contract"][
+            "python_executable_binding_sha256"
+        ] = "sha256:" + "f" * 64
+        self.public_manifest.write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+
+        with self.assertRaises(LaunchAgentError):
+            self._generate(
+                runtime_cache_dir=cache_root,
+            )
+        self.assertFalse(self.runtime.exists())
 
     def test_preflight_and_production_share_one_fixed_worker_boundary(self) -> None:
         production = self._generate(operation="production")
@@ -649,6 +908,34 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         for canary in _SECRET_CANARIES:
             self.assertNotIn(canary.encode(), persisted)
 
+    def test_worker_rejects_nonisolated_python_before_keychain_access(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        keychain_calls = 0
+
+        def forbidden_keychain(arguments, **kwargs):
+            nonlocal keychain_calls
+            keychain_calls += 1
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"must-not-be-read\n",
+                stderr=b"",
+            )
+
+        self.isolated_process.stop()
+        try:
+            with self.assertRaises(LaunchAgentError):
+                run_launch_agent_worker(
+                    Path(generated["config_path"]),
+                    keychain_runner=forbidden_keychain,
+                )
+        finally:
+            self.mock_isolated_process = self.isolated_process.start()
+        self.assertEqual(keychain_calls, 0)
+
     def test_config_hmac_and_manifest_binding_reject_tampering(self) -> None:
         generated = self._generate()
         config_path = Path(generated["config_path"])
@@ -718,6 +1005,70 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 self.runtime,
                 authentication_key_file=self.authentication_key,
             )
+
+    def test_python_isolated_bootstrap_binds_but_never_executes_pth(
+        self,
+    ) -> None:
+        venv = self.root / "isolated-venv"
+        binary_dir = venv / "bin"
+        site_packages = (
+            venv
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
+        binary_dir.mkdir(parents=True, mode=0o700)
+        site_packages.mkdir(parents=True, mode=0o700)
+        entrypoint = binary_dir / "python"
+        entrypoint.symlink_to(Path(sys.executable).resolve())
+        pyvenv = venv / "pyvenv.cfg"
+        pyvenv.write_text(
+            "\n".join(
+                (
+                    f"home = {Path(sys.base_prefix) / 'bin'}",
+                    "include-system-site-packages = false",
+                    (
+                        "version = "
+                        f"{sys.version_info.major}.{sys.version_info.minor}."
+                        f"{sys.version_info.micro}"
+                    ),
+                    f"executable = {Path(sys.executable).resolve()}",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(pyvenv, 0o600)
+        marker = self.root / "pth-executed"
+        pth = site_packages / "malicious.pth"
+        pth.write_text(
+            "import pathlib; "
+            f"pathlib.Path({str(marker)!r}).write_text('executed')\n",
+            encoding="utf-8",
+        )
+        os.chmod(pth, 0o600)
+
+        before = launchd_agent._python_entrypoint_binding(entrypoint)
+
+        self.assertFalse(marker.exists())
+        self.assertEqual(
+            before["bootstrap"]["venv"]["startup_hook_inventory"][0][
+                "relative_path"
+            ],
+            "malicious.pth",
+        )
+        self.assertEqual(
+            before["bootstrap"]["interpreter_flags"],
+            ["-I", "-S", "-B"],
+        )
+        pth.write_text("# changed without execution\n", encoding="utf-8")
+        os.chmod(pth, 0o600)
+        after = launchd_agent._python_entrypoint_binding(entrypoint)
+        self.assertFalse(marker.exists())
+        self.assertNotEqual(
+            launchd_agent._component_sha256(before),
+            launchd_agent._component_sha256(after),
+        )
 
     def test_python_entrypoint_must_match_public_runtime_digest(self) -> None:
         manifest = json.loads(self.public_manifest.read_text(encoding="utf-8"))
@@ -914,7 +1265,21 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
 
         command = list(observed["command"])
-        self.assertEqual(command[2], "run")
+        self.assertEqual(
+            command[:5],
+            [
+                str(Path(sys.executable).resolve()),
+                "-I",
+                "-S",
+                "-B",
+                str(
+                    self.repository
+                    / "examples"
+                    / "run_development_matched_panel.py"
+                ),
+            ],
+        )
+        self.assertEqual(command[5], "run")
         self.assertEqual(
             command[command.index("--supervisor-runtime") + 1],
             str(self.runtime),
@@ -1477,10 +1842,17 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(core_status.call_count, 1)
         sleep.assert_not_called()
 
-    def test_worker_script_self_bootstraps_without_pythonpath(self) -> None:
+    def test_worker_script_self_bootstraps_only_in_isolated_python(self) -> None:
         script = self.repository / "examples" / "run_persistent_panel_supervisor.py"
         completed = subprocess.run(
-            [str(Path(sys.executable).resolve()), str(script), "--help"],
+            [
+                str(Path(sys.executable)),
+                "-I",
+                "-S",
+                "-B",
+                str(script),
+                "--help",
+            ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1489,6 +1861,16 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr.decode("utf-8"))
+        direct = subprocess.run(
+            [str(Path(sys.executable)), str(script), "--help"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={},
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(direct.returncode, 2)
 
 
 if __name__ == "__main__":

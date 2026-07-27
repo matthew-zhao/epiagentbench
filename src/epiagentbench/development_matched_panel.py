@@ -14,6 +14,8 @@ from dataclasses import asdict, replace
 import fcntl
 import hashlib
 import hmac
+import importlib
+from importlib import metadata as importlib_metadata
 from itertools import combinations
 import json
 import math
@@ -70,22 +72,24 @@ from .trusted.cohort_freezer import (
     _RUNTIME_DISTRIBUTIONS,
     _distribution_identity,
     _existing_path_without_final_symlink,
-    _read_authentication_key,
+    _read_authentication_key as _read_authentication_key_unbound,
     compute_generator_fingerprint,
+    freeze_private_starsim_cohort,
 )
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v15"
+PANEL_ID = "development-matched-50x6-v16"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v15"
+SCHEMA_VERSION = "development_matched_panel_v16"
 BACKEND = "starsim-ltc-v3"
+REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
 EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v15 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v16 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $580 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -93,7 +97,30 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
     "v11 authentication bootstrap, the abandoned zero-model-call v12 "
     "precommitment, the abandoned zero-model-call v13 precommitment, the "
-    "failed v14 preflight, and the v15 preflight and production run."
+    "failed v14 preflight, the failed zero-model-call v15 pre-claim "
+    "preparation, and the v16 preflight and production run."
+)
+_PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
+    "epiagentbench.preparation_runtime_preflight.v2"
+)
+_BOUND_PREPARATION_RUNTIME_SCHEMA = (
+    "epiagentbench.bound_preparation_runtime.v1"
+)
+_PREPARATION_RUNTIME_SMOKE_SCHEMA = (
+    "epiagentbench.preparation_runtime_smoke.v1"
+)
+_PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
+    "sha256:"
+    "58561b5300cdb2ed566d7cead358ef0e98edc7c29d1c2f9ddff5d27034e4f112"
+)
+_RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v2"
+_RUNTIME_CACHE_ENVIRONMENT_KEYS = (
+    "MPLBACKEND",
+    "MPLCONFIGDIR",
+    "NUMBA_CACHE_DIR",
+    "PYTHONDONTWRITEBYTECODE",
+    "STARSIM_INSTALL_FONTS",
+    "XDG_CACHE_HOME",
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v2"
 _AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v2"
@@ -185,6 +212,55 @@ _EXTRA_SEQUENCES = (
 _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
+_COHORT_FREEZE_CLAIM_DOMAIN = (
+    b"EpiAgentBench authenticated create-once V16 cohort freeze claim v1\x00"
+)
+_COHORT_FREEZE_COMPLETION_DOMAIN = (
+    b"EpiAgentBench authenticated create-once V16 cohort freeze completion v1\x00"
+)
+_COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
+    b"EpiAgentBench V16 cohort freeze authentication key identity v1\x00"
+)
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v16_cohort_freeze_claim.v1"
+_COHORT_FREEZE_COMPLETION_SCHEMA = (
+    "epiagentbench.v16_cohort_freeze_completion.v1"
+)
+_COHORT_FREEZE_CLAIM_FILE = (
+    f".{PANEL_ID}.cohort-freeze-claim.v1.json"
+)
+_COHORT_FREEZE_COMPLETION_FILE = (
+    f".{PANEL_ID}.cohort-freeze-completion.v1.json"
+)
+_COHORT_FREEZE_CLAIM_KEYS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "panel_id",
+        "cohort_id",
+        "backend",
+        "episode_count",
+        "runtime_receipt_file_sha256",
+        "runtime_identity_sha256",
+        "expected_benchmark_base_commit",
+        "authentication_key_identity_commitment",
+        "canonical_cohort_destination",
+        "claimed_at_utc",
+    }
+)
+_COHORT_FREEZE_COMPLETION_KEYS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "panel_id",
+        "cohort_id",
+        "freeze_claim_sha256",
+        "canonical_cohort_destination",
+        "manifest_file_sha256",
+        "pack_set_commitment",
+        "generator_fingerprint",
+        "completed_at_utc",
+    }
+)
 _COHORT_PREPARATION_DOMAIN = (
     b"EpiAgentBench authenticated create-once cohort preparation v1\x00"
 )
@@ -704,6 +780,343 @@ def _create_private_json_once(path: Path, value: Any) -> bool:
                 pass
             else:
                 _fsync_directory(path.parent)
+
+
+def _cohort_freeze_key_identity(authentication_key: bytes) -> str:
+    return "hmac-sha256:" + hmac.new(
+        authentication_key,
+        _COHORT_FREEZE_KEY_IDENTITY_DOMAIN + PANEL_ID.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _cohort_freeze_claim_tag(
+    value: Mapping[str, Any], authentication_key: bytes
+) -> str:
+    return hmac.new(
+        authentication_key,
+        _COHORT_FREEZE_CLAIM_DOMAIN + _canonical_bytes(value),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _cohort_freeze_completion_tag(
+    value: Mapping[str, Any], authentication_key: bytes
+) -> str:
+    return hmac.new(
+        authentication_key,
+        _COHORT_FREEZE_COMPLETION_DOMAIN + _canonical_bytes(value),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _canonical_new_private_path(value: Path, *, label: str) -> Path:
+    raw = value.expanduser()
+    if not raw.is_absolute():
+        raw = Path.cwd() / raw
+    try:
+        parent = raw.parent.resolve(strict=True)
+    except OSError:
+        raise ValueError(f"{label} parent must already exist") from None
+    if not parent.is_dir() or parent.is_symlink() or raw.name in {"", ".", ".."}:
+        raise ValueError(f"{label} parent must be a real directory")
+    return parent / raw.name
+
+
+def _canonical_cohort_destination(value: Path) -> Path:
+    return _canonical_new_private_path(value, label="V16 cohort destination")
+
+
+def _cohort_freeze_claim_path(
+    authentication_key_path: Path,
+    requested_path: Path | None = None,
+) -> Path:
+    """Return the one V16 claim location paired with this owner-only key."""
+
+    expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
+    try:
+        parent_metadata = expected.parent.lstat()
+    except OSError:
+        raise ValueError(
+            "V16 authentication-key namespace is unavailable"
+        ) from None
+    if (
+        not stat.S_ISDIR(parent_metadata.st_mode)
+        or expected.parent.is_symlink()
+        or parent_metadata.st_uid != os.getuid()
+        or parent_metadata.st_mode & 0o077
+    ):
+        raise ValueError(
+            "V16 authentication-key namespace must be owner-only"
+        )
+    if requested_path is None:
+        return expected
+    supplied = _canonical_new_private_path(
+        requested_path, label="V16 cohort freeze claim"
+    )
+    if supplied != expected:
+        raise ValueError(
+            "V16 cohort freeze claim must use the canonical key-namespace path"
+        )
+    return expected
+
+
+def _cohort_freeze_completion_path(claim_path: Path) -> Path:
+    return claim_path.with_name(_COHORT_FREEZE_COMPLETION_FILE)
+
+
+def _load_cohort_freeze_claim(
+    path: Path, authentication_key: bytes
+) -> dict[str, Any]:
+    sealed = _load_json(path, private=True)
+    authentication = sealed.pop("authentication", None)
+    supplied = (
+        authentication.get("tag") if isinstance(authentication, dict) else None
+    )
+    expected = _cohort_freeze_claim_tag(sealed, authentication_key)
+    if (
+        set(sealed) != _COHORT_FREEZE_CLAIM_KEYS
+        or not isinstance(authentication, dict)
+        or set(authentication) != {"algorithm", "tag"}
+        or authentication.get("algorithm") != "hmac-sha256"
+        or not isinstance(supplied, str)
+        or not hmac.compare_digest(supplied, expected)
+        or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
+        or sealed.get("status") != "pending_create_once_freeze"
+    ):
+        raise ValueError("V16 cohort freeze claim authentication failed")
+    return sealed
+
+
+def _load_cohort_freeze_completion(
+    path: Path, authentication_key: bytes
+) -> dict[str, Any]:
+    sealed = _load_json(path, private=True)
+    authentication = sealed.pop("authentication", None)
+    supplied = (
+        authentication.get("tag") if isinstance(authentication, dict) else None
+    )
+    expected = _cohort_freeze_completion_tag(sealed, authentication_key)
+    if (
+        set(sealed) != _COHORT_FREEZE_COMPLETION_KEYS
+        or not isinstance(authentication, dict)
+        or set(authentication) != {"algorithm", "tag"}
+        or authentication.get("algorithm") != "hmac-sha256"
+        or not isinstance(supplied, str)
+        or not hmac.compare_digest(supplied, expected)
+        or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
+        or sealed.get("status") != "completed_create_once_freeze"
+    ):
+        raise ValueError("V16 cohort freeze completion authentication failed")
+    return sealed
+
+
+def _pending_cohort_freeze_claim(
+    *,
+    runtime_verification: Mapping[str, Any],
+    expected_benchmark_base_commit: str,
+    canonical_cohort_destination: Path,
+    authentication_key: bytes,
+) -> dict[str, Any]:
+    receipt_hash = runtime_verification.get(
+        "published_receipt_file_sha256"
+    )
+    runtime_identity = runtime_verification.get("runtime_identity_sha256")
+    verified_commit = runtime_verification.get(
+        "verified_benchmark_base_commit"
+    )
+    if (
+        not _is_sha256(receipt_hash)
+        or not _is_sha256(runtime_identity)
+        or verified_commit != expected_benchmark_base_commit
+    ):
+        raise RuntimeError(
+            "Verified V16 runtime receipt cannot bind a cohort freeze claim"
+        )
+    return {
+        "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
+        "status": "pending_create_once_freeze",
+        "panel_id": PANEL_ID,
+        "cohort_id": COHORT_ID,
+        "backend": BACKEND,
+        "episode_count": EPISODE_COUNT,
+        "runtime_receipt_file_sha256": receipt_hash,
+        "runtime_identity_sha256": runtime_identity,
+        "expected_benchmark_base_commit": expected_benchmark_base_commit,
+        "authentication_key_identity_commitment": (
+            _cohort_freeze_key_identity(authentication_key)
+        ),
+        "canonical_cohort_destination": str(
+            canonical_cohort_destination
+        ),
+        "claimed_at_utc": _utc_now(),
+    }
+
+
+def _create_pending_cohort_freeze_claim(
+    *,
+    claim_path: Path,
+    runtime_verification: Mapping[str, Any],
+    expected_benchmark_base_commit: str,
+    canonical_cohort_destination: Path,
+    authentication_key: bytes,
+) -> dict[str, Any]:
+    """Burn the only V16 freeze attempt before any cohort randomness."""
+
+    completion_path = _cohort_freeze_completion_path(claim_path)
+    if completion_path.exists() or completion_path.is_symlink():
+        raise FileExistsError(
+            "V16 cohort freeze completion already exists; never rerun freeze"
+        )
+    claim = _pending_cohort_freeze_claim(
+        runtime_verification=runtime_verification,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        canonical_cohort_destination=canonical_cohort_destination,
+        authentication_key=authentication_key,
+    )
+    sealed = {
+        **claim,
+        "authentication": {
+            "algorithm": "hmac-sha256",
+            "tag": _cohort_freeze_claim_tag(claim, authentication_key),
+        },
+    }
+    if not _create_private_json_once(claim_path, sealed):
+        raise FileExistsError(
+            "V16 cohort freeze already has a pending claim; interrupted "
+            "freezes are terminal and must never be retried"
+        )
+    if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
+        raise RuntimeError("V16 cohort freeze claim failed its durable reload")
+    return claim
+
+
+def _complete_cohort_freeze_claim(
+    *,
+    claim_path: Path,
+    claim: Mapping[str, Any],
+    manifest_path: Path,
+    manifest: PrivateEpisodeCohortManifest,
+    authentication_key: bytes,
+) -> dict[str, Any]:
+    """Append one authenticated completion without replacing the claim."""
+
+    canonical_manifest_path = _existing_path_without_final_symlink(
+        manifest_path
+    )
+    if canonical_manifest_path.name != "cohort.manifest":
+        raise ValueError("V16 cohort manifest must use its canonical filename")
+    completion = {
+        "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
+        "status": "completed_create_once_freeze",
+        "panel_id": PANEL_ID,
+        "cohort_id": COHORT_ID,
+        "freeze_claim_sha256": _component_hash(claim),
+        "canonical_cohort_destination": str(
+            canonical_manifest_path.parent
+        ),
+        "manifest_file_sha256": _fixed_file_sha256(
+            canonical_manifest_path, label="V16 frozen cohort manifest"
+        ),
+        "pack_set_commitment": manifest.pack_set_commitment,
+        "generator_fingerprint": manifest.generator_fingerprint,
+        "completed_at_utc": _utc_now(),
+    }
+    path = _cohort_freeze_completion_path(claim_path)
+    sealed = {
+        **completion,
+        "authentication": {
+            "algorithm": "hmac-sha256",
+            "tag": _cohort_freeze_completion_tag(
+                completion, authentication_key
+            ),
+        },
+    }
+    if not _create_private_json_once(path, sealed):
+        raise FileExistsError(
+            "V16 cohort freeze completion already exists; never replace it"
+        )
+    if _load_cohort_freeze_completion(path, authentication_key) != completion:
+        raise RuntimeError(
+            "V16 cohort freeze completion failed its durable reload"
+        )
+    return completion
+
+
+def _require_completed_cohort_freeze_claim(
+    *,
+    claim_path: Path,
+    manifest_path: Path,
+    runtime_receipt_file_sha256: str,
+    runtime_identity_sha256: str,
+    expected_benchmark_base_commit: str,
+    authentication_key: bytes,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Authenticate the immutable pending/completion pair for one cohort."""
+
+    if not claim_path.exists() and not claim_path.is_symlink():
+        raise ValueError(
+            "Frozen V16 cohort has no authenticated create-once freeze claim"
+        )
+    claim = _load_cohort_freeze_claim(claim_path, authentication_key)
+    completion_path = _cohort_freeze_completion_path(claim_path)
+    if not completion_path.exists() and not completion_path.is_symlink():
+        raise RuntimeError(
+            "V16 cohort freeze remains pending; interrupted freezes are "
+            "terminal and cannot be prepared or retried"
+        )
+    completion = _load_cohort_freeze_completion(
+        completion_path, authentication_key
+    )
+    canonical_destination = manifest_path.parent.resolve(strict=True)
+    if manifest_path.name != "cohort.manifest":
+        raise ValueError("V16 cohort manifest must use its canonical filename")
+    expected_claim = {
+        "panel_id": PANEL_ID,
+        "cohort_id": COHORT_ID,
+        "backend": BACKEND,
+        "episode_count": EPISODE_COUNT,
+        "runtime_receipt_file_sha256": runtime_receipt_file_sha256,
+        "runtime_identity_sha256": runtime_identity_sha256,
+        "expected_benchmark_base_commit": expected_benchmark_base_commit,
+        "authentication_key_identity_commitment": (
+            _cohort_freeze_key_identity(authentication_key)
+        ),
+        "canonical_cohort_destination": str(canonical_destination),
+    }
+    if any(claim.get(name) != value for name, value in expected_claim.items()):
+        raise ValueError("V16 cohort freeze claim belongs to another freeze")
+    if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
+        "claimed_at_utc"
+    ]:
+        raise ValueError("V16 cohort freeze claim has no claim time")
+
+    manifest = PrivateEpisodeCohortManifest.read(
+        manifest_path, authentication_key
+    )
+    expected_completion = {
+        "panel_id": PANEL_ID,
+        "cohort_id": COHORT_ID,
+        "freeze_claim_sha256": _component_hash(claim),
+        "canonical_cohort_destination": str(canonical_destination),
+        "manifest_file_sha256": _fixed_file_sha256(
+            manifest_path, label="V16 frozen cohort manifest"
+        ),
+        "pack_set_commitment": manifest.pack_set_commitment,
+        "generator_fingerprint": manifest.generator_fingerprint,
+    }
+    if any(
+        completion.get(name) != value
+        for name, value in expected_completion.items()
+    ):
+        raise ValueError(
+            "V16 cohort freeze completion differs from its manifest or claim"
+        )
+    if not isinstance(completion.get("completed_at_utc"), str) or not completion[
+        "completed_at_utc"
+    ]:
+        raise ValueError("V16 cohort freeze completion has no completion time")
+    return claim, completion
 
 
 def _cohort_preparation_path(cohort_manifest_path: Path) -> Path:
@@ -2544,6 +2957,47 @@ def _fixed_file_sha256(path: Path, *, label: str) -> str:
     return "sha256:" + digest.hexdigest()
 
 
+def _read_authentication_key(path: Path) -> bytes:
+    """Read the V16 key only when one stable inode owns its namespace."""
+
+    try:
+        before = path.lstat()
+    except OSError:
+        raise RuntimeError("V16 authentication key is unavailable") from None
+    stable_fields = (
+        "st_dev",
+        "st_ino",
+        "st_mode",
+        "st_uid",
+        "st_gid",
+        "st_nlink",
+        "st_size",
+        "st_mtime_ns",
+        "st_ctime_ns",
+    )
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != os.getuid()
+        or before.st_mode & 0o077
+        or before.st_nlink != 1
+    ):
+        raise RuntimeError(
+            "V16 authentication key must be an owner-only single-link file"
+        )
+    try:
+        key = _read_authentication_key_unbound(path)
+        after = path.lstat()
+    except (OSError, ValueError):
+        raise RuntimeError("V16 authentication key is unavailable") from None
+    if any(
+        getattr(after, field) != getattr(before, field)
+        for field in stable_fields
+    ):
+        raise RuntimeError("V16 authentication key changed while reading")
+    return key
+
+
 def _decode_unique_json(encoded: bytes, *, label: str) -> dict[str, Any]:
     def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         value: dict[str, Any] = {}
@@ -2564,10 +3018,14 @@ def _decode_unique_json(encoded: bytes, *, label: str) -> dict[str, Any]:
     return decoded
 
 
-def _read_root_owned_json(
-    path: Path, *, label: str, max_bytes: int = 64 * 1024
+def _read_owned_json(
+    path: Path,
+    *,
+    label: str,
+    owner_uid: int,
+    max_bytes: int = 64 * 1024,
 ) -> tuple[bytes, dict[str, Any]]:
-    """Read one bounded, root-owned JSON policy file with duplicate rejection."""
+    """Read one bounded owner-controlled JSON file through a stable descriptor."""
 
     try:
         metadata = path.lstat()
@@ -2576,7 +3034,7 @@ def _read_root_owned_json(
     if (
         not stat.S_ISREG(metadata.st_mode)
         or stat.S_ISLNK(metadata.st_mode)
-        or metadata.st_uid != 0
+        or metadata.st_uid != owner_uid
         or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
         or metadata.st_nlink != 1
         or not 1 <= metadata.st_size <= max_bytes
@@ -2636,6 +3094,17 @@ def _read_root_owned_json(
         if descriptor is not None:
             os.close(descriptor)
     return encoded, _decode_unique_json(encoded, label=label)
+
+
+def _read_root_owned_json(
+    path: Path, *, label: str, max_bytes: int = 64 * 1024
+) -> tuple[bytes, dict[str, Any]]:
+    return _read_owned_json(
+        path,
+        label=label,
+        owner_uid=0,
+        max_bytes=max_bytes,
+    )
 
 
 def _safe_glean_config() -> tuple[dict[str, Any], dict[str, Any]]:
@@ -3284,6 +3753,420 @@ def _glean_claude_oauth_client_id() -> str:
     return str(config["oauth"]["claude"]["client_id"])
 
 
+def _installed_distribution_content_identity(name: str) -> dict[str, Any]:
+    """Hash the installed bytes, not only the wheel RECORD declaration."""
+
+    try:
+        distribution = importlib_metadata.distribution(name)
+    except importlib_metadata.PackageNotFoundError:
+        return {
+            "installed_file_count": 0,
+            "installed_file_bytes": 0,
+            "installed_content_sha256": None,
+        }
+    files = distribution.files
+    if files is None or not 1 <= len(files) <= 100_000:
+        raise RuntimeError(
+            f"Unable to enumerate installed distribution bytes: {name}"
+        )
+    inventory: dict[str, dict[str, Any]] = {}
+    total_bytes = 0
+    for package_path in sorted(files, key=str):
+        relative = str(package_path)
+        if (
+            not relative
+            or "\x00" in relative
+            or relative in inventory
+        ):
+            raise RuntimeError(
+                f"Installed distribution has an invalid file inventory: {name}"
+            )
+        candidate = Path(distribution.locate_file(package_path))
+        try:
+            metadata = candidate.lstat()
+        except OSError:
+            raise RuntimeError(
+                f"Installed distribution file is unavailable: {name}"
+            ) from None
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_size < 0
+            or metadata.st_size > 512 * 1024 * 1024
+        ):
+            raise RuntimeError(
+                f"Installed distribution file is unsafe: {name}"
+            )
+        total_bytes += metadata.st_size
+        if total_bytes > 4 * 1024 * 1024 * 1024:
+            raise RuntimeError(
+                f"Installed distribution exceeds the attestation limit: {name}"
+            )
+        inventory[relative] = {
+            "size_bytes": metadata.st_size,
+            "sha256": _fixed_file_sha256(
+                candidate,
+                label=f"{name} installed file",
+            ),
+        }
+    return {
+        "installed_file_count": len(inventory),
+        "installed_file_bytes": total_bytes,
+        "installed_content_sha256": _component_hash(inventory),
+    }
+
+
+def _scientific_module_origin_identity(name: str) -> dict[str, str]:
+    """Prove the imported top-level module belongs to the bytes we hashed."""
+
+    module = importlib.import_module(name)
+    module_file = getattr(module, "__file__", None)
+    if not isinstance(module_file, str) or not module_file:
+        raise RuntimeError(
+            f"Scientific module has no regular origin: {name}"
+        )
+    try:
+        origin = Path(module_file).resolve(strict=True)
+        metadata = origin.lstat()
+    except (OSError, RuntimeError):
+        raise RuntimeError(
+            f"Scientific module origin is unavailable: {name}"
+        ) from None
+    if not stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        raise RuntimeError(
+            f"Scientific module origin is unsafe: {name}"
+        )
+    if name == "epiagentbench":
+        expected = Path(__file__).resolve(strict=True).parent / "__init__.py"
+        if origin != expected:
+            raise RuntimeError(
+                "EpiAgentBench imported from outside the tracked source tree"
+            )
+        return {
+            "origin_role": "tracked_repository_source",
+            "distribution_file": "src/epiagentbench/__init__.py",
+            "sha256": _fixed_file_sha256(
+                origin, label="EpiAgentBench package origin"
+            ),
+        }
+    try:
+        distribution = importlib_metadata.distribution(name)
+    except importlib_metadata.PackageNotFoundError:
+        raise RuntimeError(
+            f"Scientific distribution is unavailable: {name}"
+        ) from None
+    files = distribution.files
+    if files is None:
+        raise RuntimeError(
+            f"Scientific distribution inventory is unavailable: {name}"
+        )
+    matches = [
+        str(package_path)
+        for package_path in files
+        if Path(distribution.locate_file(package_path)).resolve(
+            strict=False
+        )
+        == origin
+    ]
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"Imported module is not uniquely owned by its distribution: {name}"
+        )
+    return {
+        "origin_role": "installed_distribution_file",
+        "distribution_file": matches[0],
+        "sha256": _fixed_file_sha256(
+            origin, label=f"{name} imported module origin"
+        ),
+    }
+
+
+def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
+    root = runtime_cache_dir.expanduser().absolute()
+    expected_environment = {
+        "MPLBACKEND": "Agg",
+        "MPLCONFIGDIR": str(root / "matplotlib"),
+        "NUMBA_CACHE_DIR": str(root / "numba"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "STARSIM_INSTALL_FONTS": "0",
+        "XDG_CACHE_HOME": str(root / "xdg"),
+    }
+    if any(
+        os.environ.get(name) != expected_environment[name]
+        for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+    ):
+        raise RuntimeError(
+            "V16 runtime-cache environment does not match the exact contract"
+        )
+    from .launchd_agent import (
+        _runtime_cache_contract as _private_runtime_cache_contract,
+    )
+
+    try:
+        contract = _private_runtime_cache_contract(root)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from None
+    if (
+        contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
+        or contract.get("environment") != expected_environment
+    ):
+        raise RuntimeError("V16 runtime-cache contract is inconsistent")
+    return contract
+
+
+def _runtime_cache_root_from_environment() -> Path:
+    matplotlib_path = os.environ.get("MPLCONFIGDIR")
+    if not isinstance(matplotlib_path, str) or not matplotlib_path:
+        raise RuntimeError("V16 runtime-cache environment is unavailable")
+    candidate = Path(matplotlib_path)
+    if candidate.name != "matplotlib":
+        raise RuntimeError("V16 runtime-cache environment is invalid")
+    root = candidate.parent
+    _runtime_cache_contract(root)
+    return root
+
+
+def _preparation_runtime_smoke() -> dict[str, Any]:
+    """Verify one fixed causal transmission/control result in real Starsim.
+
+    The no-action and contact-stop worlds share an identical trace, seed,
+    natural history, and random seed.  Each policy branch is executed twice.
+    The complete projected result must both reproduce exactly and match the
+    reviewed digest pinned in source; a merely successful Starsim import is
+    insufficient.
+    """
+
+    from .trusted.engine import EngineControl
+    from .trusted.institution_traces import (
+        InstitutionTrace,
+        TraceContact,
+        TracePerson,
+    )
+    from .trusted.starsim_ltc_v3 import (
+        CONTACT_REDUCTION_LEVEL,
+        DAY_MINUTES,
+        DESIGN_PLACEHOLDER,
+        PERSON_TO_PERSON,
+        RESIDENT,
+        STAFF,
+        LtcNorovirusNaturalHistory,
+        LtcNorovirusStarsimEngine,
+        LtcStarsimV3Config,
+        RoleInfectiousnessProfile,
+    )
+
+    trace = InstitutionTrace(
+        people=(
+            TracePerson(
+                "golden-index",
+                RESIDENT,
+                "golden-ward",
+                "golden-room-a",
+            ),
+            TracePerson(
+                "golden-contact",
+                STAFF,
+                "golden-ward",
+                None,
+            ),
+            TracePerson(
+                "golden-isolated",
+                RESIDENT,
+                "golden-ward",
+                "golden-room-b",
+            ),
+        ),
+        shifts=(),
+        meals=(),
+        entries=(),
+        contacts=(
+            TraceContact(
+                "golden-direct-care",
+                "golden-index",
+                "golden-contact",
+                0,
+                60,
+                "direct_care",
+                "golden-ward",
+            ),
+        ),
+        horizon_minutes=4 * DAY_MINUTES,
+    )
+    config = LtcStarsimV3Config(
+        random_seed=1601,
+        seed_person_ids=("golden-index",),
+        evidence_status=DESIGN_PLACEHOLDER,
+        horizon_days=4,
+        timestep_minutes=DAY_MINUTES,
+        natural_history=LtcNorovirusNaturalHistory(
+            contact_beta_per_day=1.0,
+            incubation_days=1.0,
+            infectious_days=3.0,
+            role_profiles=(
+                RoleInfectiousnessProfile(
+                    role=RESIDENT,
+                    symptomatic_probability=1.0,
+                    symptomatic_relative_infectiousness=1.0,
+                    asymptomatic_relative_infectiousness=0.1,
+                ),
+                RoleInfectiousnessProfile(
+                    role=STAFF,
+                    symptomatic_probability=1.0,
+                    symptomatic_relative_infectiousness=1.0,
+                    asymptomatic_relative_infectiousness=0.1,
+                ),
+            ),
+        ),
+    )
+
+    def summarize(snapshot: Any) -> dict[str, Any]:
+        return {
+            "minute": snapshot.minute,
+            "state_counts": dict(
+                sorted(Counter(person.state for person in snapshot.people).items())
+            ),
+            "transmission_counts_by_mechanism": dict(
+                sorted(
+                    Counter(
+                        event.mechanism
+                        for event in snapshot.transmission_events
+                    ).items()
+                )
+            ),
+            "applied_control_ids": list(snapshot.applied_control_ids),
+            "terminal": snapshot.terminal,
+        }
+
+    def run_branch(
+        *, apply_contact_stop: bool
+    ) -> tuple[dict[str, str], dict[str, Any]]:
+        engine = LtcNorovirusStarsimEngine(trace, config)
+        try:
+            if apply_contact_stop:
+                engine.apply_control(
+                    EngineControl(
+                        control_id="v16-stop-direct-care",
+                        kind=CONTACT_REDUCTION_LEVEL,
+                        effective_minute=DAY_MINUTES,
+                        magnitude=0.0,
+                    )
+                )
+            boundaries = [summarize(engine.private_snapshot())]
+            for day in range(1, 5):
+                engine.advance_to(day * DAY_MINUTES)
+                boundaries.append(summarize(engine.private_snapshot()))
+            return (
+                engine.public_descriptor,
+                {
+                    "boundaries": boundaries,
+                    "transmission_events": [
+                        asdict(event)
+                        for event in engine.private_snapshot().transmission_events
+                    ],
+                },
+            )
+        finally:
+            engine.close()
+
+    reproduced: dict[str, dict[str, Any]] = {}
+    engine_descriptor: dict[str, str] | None = None
+    for branch_name, apply_contact_stop in (
+        ("no_action", False),
+        ("contact_stop_action", True),
+    ):
+        first = run_branch(apply_contact_stop=apply_contact_stop)
+        second = run_branch(apply_contact_stop=apply_contact_stop)
+        if first != second:
+            raise RuntimeError(
+                f"V16 Starsim golden smoke is nondeterministic: {branch_name}"
+            )
+        descriptor, branch = first
+        if engine_descriptor is None:
+            engine_descriptor = descriptor
+        elif descriptor != engine_descriptor:
+            raise RuntimeError(
+                "V16 Starsim golden smoke changed engine descriptors"
+            )
+        reproduced[branch_name] = branch
+
+    no_action = reproduced["no_action"]
+    contact_stop_action = reproduced["contact_stop_action"]
+    no_action_secondary_count = sum(
+        event["mechanism"] == PERSON_TO_PERSON
+        for event in no_action["transmission_events"]
+    )
+    action_secondary_count = sum(
+        event["mechanism"] == PERSON_TO_PERSON
+        for event in contact_stop_action["transmission_events"]
+    )
+    paired_checks = {
+        "matched_opening": (
+            no_action["boundaries"][0]
+            == contact_stop_action["boundaries"][0]
+        ),
+        "matched_through_day_one": (
+            no_action["boundaries"][1]
+            == contact_stop_action["boundaries"][1]
+        ),
+        "no_action_person_to_person_secondary_count": (
+            no_action_secondary_count
+        ),
+        "action_person_to_person_secondary_count": action_secondary_count,
+        "prevented_person_to_person_secondary_count": (
+            no_action_secondary_count - action_secondary_count
+        ),
+        "known_branch_divergence": no_action != contact_stop_action,
+    }
+    expected_paired_checks = {
+        "matched_opening": True,
+        "matched_through_day_one": True,
+        "no_action_person_to_person_secondary_count": 1,
+        "action_person_to_person_secondary_count": 0,
+        "prevented_person_to_person_secondary_count": 1,
+        "known_branch_divergence": True,
+    }
+    if paired_checks != expected_paired_checks:
+        raise RuntimeError(
+            "V16 Starsim golden smoke lost its causal transmission/control "
+            "divergence"
+        )
+
+    projection = {
+        "engine_descriptor": engine_descriptor,
+        "scientific_scope": (
+            "deterministic_capability_smoke_not_calibration_evidence"
+        ),
+        "branch_runs_per_policy": 2,
+        "fixed_scenario": {
+            "population_by_role": {"resident": 2, "staff": 1},
+            "explicit_contact_edges": 1,
+            "index_seed_count": 1,
+            "horizon_days": 4,
+            "intervention": {
+                "kind": CONTACT_REDUCTION_LEVEL,
+                "effective_minute": DAY_MINUTES,
+                "magnitude": 0.0,
+            },
+        },
+        "no_action": no_action,
+        "contact_stop_action": contact_stop_action,
+        "paired_checks": paired_checks,
+    }
+    result_sha256 = _component_hash(projection)
+    if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
+        raise RuntimeError(
+            "V16 Starsim golden smoke result drifted from its reviewed digest"
+        )
+    return {
+        "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
+        "fixed_public_scenario": (
+            "v16_contact_transmission_with_matched_contact_stop"
+        ),
+        "result_sha256": result_sha256,
+        "result": projection,
+    }
+
+
 def _runtime_contract() -> dict[str, Any]:
     try:
         import starsim  # type: ignore
@@ -3293,11 +4176,27 @@ def _runtime_contract() -> dict[str, Any]:
         raise RuntimeError(
             "Starsim is required before the 50-episode panel can be prepared"
         ) from None
-    if starsim_version in {"", "unknown", "unavailable"}:
-        raise RuntimeError("Unable to pin the required Starsim runtime")
+    if starsim_version != REQUIRED_STARSIM_VERSION:
+        raise RuntimeError(
+            "V16 requires exact Starsim "
+            f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
+        )
     from .launchd_agent import _python_entrypoint_binding
 
     python_binding = _python_entrypoint_binding(Path(sys.executable))
+    launch_path = Path(str(python_binding["launch_path"]))
+    temporary_roots = {
+        Path("/tmp"),
+        Path("/private/tmp"),
+        Path("/var/folders"),
+        Path(gettempdir()).expanduser().resolve(),
+    }
+    if any(
+        launch_path == temporary
+        or temporary in launch_path.parents
+        for temporary in temporary_roots
+    ):
+        raise RuntimeError("V16 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -3308,14 +4207,357 @@ def _runtime_contract() -> dict[str, Any]:
             else "regular_file"
         ),
         "python_executable_sha256": python_binding["target"]["sha256"],
+        "python_executable_binding_sha256": _component_hash(
+            python_binding
+        ),
+        "python_executable_binding_policy": (
+            "full_path_symlink_inode_and_content_binding_private_only"
+        ),
         "starsim": starsim_version,
         "platform": platform.system(),
         "machine": platform.machine(),
         "scientific_distributions": {
-            name: dict(_distribution_identity(name))
+            name: {
+                **dict(_distribution_identity(name)),
+                **_installed_distribution_content_identity(name),
+            }
+            for name in _RUNTIME_DISTRIBUTIONS
+        },
+        "scientific_module_origins": {
+            name: _scientific_module_origin_identity(name)
             for name in _RUNTIME_DISTRIBUTIONS
         },
     }
+
+
+def _preparation_runtime_identity(receipt: Mapping[str, Any]) -> str:
+    return _component_hash(
+        {
+            "panel_id": receipt.get("panel_id"),
+            "required_starsim_version": receipt.get(
+                "required_starsim_version"
+            ),
+            "source_contract_sha256": receipt.get(
+                "source_contract_sha256"
+            ),
+            "cli_contract_sha256": receipt.get("cli_contract_sha256"),
+            "runtime_contract_sha256": receipt.get(
+                "runtime_contract_sha256"
+            ),
+            "runtime_cache_contract_sha256": receipt.get(
+                "runtime_cache_contract_sha256"
+            ),
+            "starsim_smoke_contract_sha256": receipt.get(
+                "starsim_smoke_contract_sha256"
+            ),
+        }
+    )
+
+
+def preflight_preparation_runtime(
+    *,
+    root: Path,
+    expected_benchmark_base_commit: str,
+    runtime_cache_dir: Path,
+) -> dict[str, Any]:
+    """Attest every public preparation dependency before private V16 creation."""
+
+    head_before = _git_output(root, "rev-parse", "HEAD")
+    if (
+        not isinstance(expected_benchmark_base_commit, str)
+        or len(expected_benchmark_base_commit) != 40
+        or any(
+            character not in "0123456789abcdef"
+            for character in expected_benchmark_base_commit
+        )
+        or not isinstance(head_before, str)
+        or len(head_before) != 40
+        or any(
+            character not in "0123456789abcdef"
+            for character in head_before
+        )
+        or not hmac.compare_digest(
+            head_before, expected_benchmark_base_commit
+        )
+    ):
+        raise RuntimeError(
+            "V16 runtime preflight is not at the expected pinned commit"
+        )
+    if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
+        raise RuntimeError(
+            "Commit and clean the matched-panel harness before runtime preflight"
+        )
+    source = _source_contract(root)
+    cli = _cli_contract()
+    cache_root = runtime_cache_dir.expanduser().absolute()
+    if _paths_overlap(cache_root, root.resolve(strict=True)):
+        raise RuntimeError(
+            "V16 runtime cache must be outside the repository"
+        )
+    runtime = _runtime_contract()
+    smoke = _preparation_runtime_smoke()
+    runtime_cache = _runtime_cache_contract(runtime_cache_dir)
+    head_after = _git_output(root, "rev-parse", "HEAD")
+    if (
+        not hmac.compare_digest(head_before, head_after)
+        or _git_output(
+            root, "status", "--porcelain", "--untracked-files=all"
+        )
+    ):
+        raise RuntimeError(
+            "V16 source changed during preparation runtime preflight"
+        )
+    receipt = {
+        "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
+        "panel_id": PANEL_ID,
+        "status": "passed",
+        "benchmark_base_commit": head_before,
+        "required_starsim_version": REQUIRED_STARSIM_VERSION,
+        "source_contract_sha256": _component_hash(source),
+        "cli_contract_sha256": _component_hash(cli),
+        "runtime_contract_sha256": _component_hash(runtime),
+        "runtime_cache_contract_sha256": _component_hash(runtime_cache),
+        "starsim_smoke_contract_sha256": _component_hash(smoke),
+        "runtime_contract": runtime,
+        "starsim_smoke_contract": smoke,
+        "provider_processes_started": 0,
+        "authentication_processes_started": 0,
+        "private_artifacts_required": False,
+    }
+    receipt["runtime_identity_sha256"] = _preparation_runtime_identity(
+        receipt
+    )
+    return receipt
+
+
+def _load_preparation_runtime_receipt(
+    *, root: Path, receipt_path: Path
+) -> tuple[dict[str, Any], str, str]:
+    relative = _relative_to_root(receipt_path, root)
+    if (
+        _git_output(root, "ls-files", "--error-unmatch", relative)
+        != relative
+    ):
+        raise RuntimeError(
+            "V16 preparation runtime receipt must already be committed"
+        )
+    try:
+        encoded, receipt = _read_owned_json(
+            receipt_path,
+            label="V16 preparation runtime receipt",
+            owner_uid=os.getuid(),
+            max_bytes=16 * 1024 * 1024,
+        )
+    except RuntimeError:
+        raise RuntimeError(
+            "V16 preparation runtime receipt is unavailable"
+        ) from None
+    expected_keys = {
+        "authentication_processes_started",
+        "benchmark_base_commit",
+        "cli_contract_sha256",
+        "panel_id",
+        "private_artifacts_required",
+        "provider_processes_started",
+        "required_starsim_version",
+        "runtime_cache_contract_sha256",
+        "runtime_contract",
+        "runtime_contract_sha256",
+        "runtime_identity_sha256",
+        "schema_version",
+        "source_contract_sha256",
+        "starsim_smoke_contract",
+        "starsim_smoke_contract_sha256",
+        "status",
+    }
+    if (
+        set(receipt) != expected_keys
+        or receipt.get("schema_version")
+        != _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA
+        or receipt.get("panel_id") != PANEL_ID
+        or receipt.get("status") != "passed"
+        or receipt.get("required_starsim_version")
+        != REQUIRED_STARSIM_VERSION
+        or receipt.get("provider_processes_started") != 0
+        or receipt.get("authentication_processes_started") != 0
+        or receipt.get("private_artifacts_required") is not False
+        or not isinstance(receipt.get("benchmark_base_commit"), str)
+        or len(str(receipt["benchmark_base_commit"])) != 40
+        or any(
+            character not in "0123456789abcdef"
+            for character in str(receipt["benchmark_base_commit"])
+        )
+        or any(
+            not _is_sha256(receipt.get(name))
+            for name in (
+                "source_contract_sha256",
+                "cli_contract_sha256",
+                "runtime_contract_sha256",
+                "runtime_cache_contract_sha256",
+                "starsim_smoke_contract_sha256",
+                "runtime_identity_sha256",
+            )
+        )
+        or type(receipt.get("provider_processes_started")) is not int
+        or type(receipt.get("authentication_processes_started")) is not int
+        or receipt.get("runtime_contract_sha256")
+        != _component_hash(receipt.get("runtime_contract"))
+        or receipt.get("starsim_smoke_contract_sha256")
+        != _component_hash(receipt.get("starsim_smoke_contract"))
+        or receipt.get("runtime_identity_sha256")
+        != _preparation_runtime_identity(receipt)
+    ):
+        raise RuntimeError(
+            "V16 preparation runtime receipt failed closed-schema validation"
+        )
+    return receipt, _sha256(encoded), relative
+
+
+def verify_preparation_runtime(
+    *,
+    root: Path,
+    receipt_path: Path,
+    expected_benchmark_base_commit: str,
+    runtime_cache_dir: Path,
+) -> dict[str, Any]:
+    """Re-attest and compare the tracked pre-private V16 runtime receipt."""
+
+    published, receipt_file_sha256, relative = (
+        _load_preparation_runtime_receipt(
+            root=root, receipt_path=receipt_path
+        )
+    )
+    current = preflight_preparation_runtime(
+        root=root,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        runtime_cache_dir=runtime_cache_dir,
+    )
+    current_runtime_cache = _runtime_cache_contract(runtime_cache_dir)
+    if current.get("runtime_cache_contract_sha256") != _component_hash(
+        current_runtime_cache
+    ):
+        raise RuntimeError(
+            "V16 runtime cache changed during receipt verification"
+        )
+    if not hmac.compare_digest(
+        str(published["runtime_identity_sha256"]),
+        str(current["runtime_identity_sha256"]),
+    ):
+        raise RuntimeError(
+            "V16 preparation runtime differs from the published receipt"
+        )
+    return {
+        "schema_version": "epiagentbench.preparation_runtime_verification.v1",
+        "panel_id": PANEL_ID,
+        "status": "passed",
+        "required_starsim_version": REQUIRED_STARSIM_VERSION,
+        "published_receipt_path": relative,
+        "published_receipt_file_sha256": receipt_file_sha256,
+        "published_benchmark_base_commit": published[
+            "benchmark_base_commit"
+        ],
+        "verified_benchmark_base_commit": current[
+            "benchmark_base_commit"
+        ],
+        "runtime_identity_sha256": current["runtime_identity_sha256"],
+        "source_contract_sha256": current["source_contract_sha256"],
+        "cli_contract_sha256": current["cli_contract_sha256"],
+        "runtime_contract_sha256": current["runtime_contract_sha256"],
+        "runtime_cache_contract_sha256": current[
+            "runtime_cache_contract_sha256"
+        ],
+        "starsim_smoke_contract_sha256": current[
+            "starsim_smoke_contract_sha256"
+        ],
+        "runtime_contract": current["runtime_contract"],
+        "runtime_cache_contract": current_runtime_cache,
+        "starsim_smoke_contract": current["starsim_smoke_contract"],
+        "provider_processes_started": 0,
+        "authentication_processes_started": 0,
+        "private_artifacts_required": False,
+    }
+
+
+def _validate_bound_preparation_runtime(
+    public: Mapping[str, Any], *, rerun_smoke: bool
+) -> dict[str, Any]:
+    bound = public.get("preparation_runtime_contract")
+    if (
+        not isinstance(bound, dict)
+        or set(bound)
+        != {
+            "cli_contract_sha256",
+            "panel_id",
+            "published_receipt_path",
+            "published_receipt_file_sha256",
+            "published_benchmark_base_commit",
+            "required_starsim_version",
+            "runtime_cache_contract_sha256",
+            "runtime_contract_sha256",
+            "runtime_identity_sha256",
+            "schema_version",
+            "source_contract_sha256",
+            "starsim_smoke_contract",
+            "starsim_smoke_contract_sha256",
+            "verified_benchmark_base_commit",
+        }
+        or bound.get("schema_version")
+        != _BOUND_PREPARATION_RUNTIME_SCHEMA
+        or bound.get("panel_id") != PANEL_ID
+        or bound.get("required_starsim_version")
+        != REQUIRED_STARSIM_VERSION
+        or any(
+            not _is_sha256(bound.get(name))
+            for name in (
+                "published_receipt_file_sha256",
+                "source_contract_sha256",
+                "cli_contract_sha256",
+                "runtime_contract_sha256",
+                "runtime_cache_contract_sha256",
+                "starsim_smoke_contract_sha256",
+                "runtime_identity_sha256",
+            )
+        )
+        or bound.get("published_receipt_path")
+        != f"results/{PANEL_ID}.runtime.json"
+        or any(
+            not isinstance(bound.get(name), str)
+            or len(str(bound[name])) != 40
+            or any(
+                character not in "0123456789abcdef"
+                for character in str(bound[name])
+            )
+            for name in (
+                "published_benchmark_base_commit",
+                "verified_benchmark_base_commit",
+            )
+        )
+        or bound.get("verified_benchmark_base_commit")
+        != public.get("benchmark_base_commit")
+        or bound.get("source_contract_sha256")
+        != _component_hash(public.get("source_contract"))
+        or bound.get("cli_contract_sha256")
+        != _component_hash(public.get("cli_contract"))
+        or bound.get("runtime_contract_sha256")
+        != _component_hash(public.get("runtime_contract"))
+        or bound.get("starsim_smoke_contract_sha256")
+        != _component_hash(bound.get("starsim_smoke_contract"))
+        or bound.get("runtime_identity_sha256")
+        != _preparation_runtime_identity(bound)
+    ):
+        raise ValueError("Bound V16 preparation runtime is invalid")
+    runtime_cache = _runtime_cache_contract(
+        _runtime_cache_root_from_environment()
+    )
+    if bound.get("runtime_cache_contract_sha256") != _component_hash(
+        runtime_cache
+    ):
+        raise ValueError("Bound V16 runtime cache changed")
+    if rerun_smoke and _preparation_runtime_smoke() != bound.get(
+        "starsim_smoke_contract"
+    ):
+        raise ValueError("Bound V16 Starsim smoke result changed")
+    return bound
 
 
 def _persistent_supervisor_contract() -> dict[str, Any]:
@@ -3342,6 +4584,9 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         ],
         "python_entrypoint": (
             "content_digest_plus_private_symlink_inode_topology"
+        ),
+        "scientific_runtime_environment": (
+            "manifest_bound_python_entrypoint_and_owner_only_cache_directories"
         ),
         "liveness": {
             "heartbeat_interval_seconds": 15,
@@ -3412,6 +4657,7 @@ def _attest_execution_contracts(
     """Revalidate only the public execution surfaces around a provider call."""
 
     try:
+        _validate_bound_preparation_runtime(public, rerun_smoke=False)
         fresh = {
             "source_contract": _source_contract(root),
             "cli_contract": _cli_contract(),
@@ -3665,8 +4911,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v15_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v15_authorization_breakdown": {
+        "claude_current_v16_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v16_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -3692,6 +4938,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v12_usd": 0.0,
             "v13_usd": 0.0,
             "v14_usd": 10.0,
+            "v15_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -3769,6 +5016,9 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v14_supersession": (
                 "results/development-matched-50x6-v14.superseded.json"
             ),
+            "v15_supersession": (
+                "results/development-matched-50x6-v15.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -3779,10 +5029,114 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     }
 
 
+def freeze_panel_cohort(
+    *,
+    root: Path,
+    preparation_runtime_receipt_path: Path,
+    expected_benchmark_base_commit: str,
+    runtime_cache_dir: Path,
+    authentication_key_file: Path,
+    output_directory: Path,
+    freeze_claim_path: Path | None = None,
+) -> dict[str, Any]:
+    """Claim and freeze V16 exactly once after runtime re-attestation."""
+
+    verification = verify_preparation_runtime(
+        root=root,
+        receipt_path=preparation_runtime_receipt_path,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        runtime_cache_dir=runtime_cache_dir,
+    )
+    key_path = _existing_path_without_final_symlink(
+        authentication_key_file
+    )
+    authentication_key = _read_authentication_key(key_path)
+    claim_path = _cohort_freeze_claim_path(key_path, freeze_claim_path)
+    completion_path = _cohort_freeze_completion_path(claim_path)
+    destination = _canonical_cohort_destination(output_directory)
+    _assert_distinct_paths(
+        preparation_runtime_receipt_path,
+        runtime_cache_dir,
+        key_path,
+        claim_path,
+        completion_path,
+        destination,
+    )
+    cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
+    for label, candidate in (
+        ("authentication key", key_path),
+        ("cohort freeze claim", claim_path),
+        ("cohort freeze completion", completion_path),
+        ("cohort output", destination),
+    ):
+        if _paths_overlap(
+            cache_root, candidate.expanduser().resolve(strict=False)
+        ):
+            raise ValueError(
+                f"V16 runtime cache must not overlap the {label}"
+            )
+    claim = _create_pending_cohort_freeze_claim(
+        claim_path=claim_path,
+        runtime_verification=verification,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        canonical_cohort_destination=destination,
+        authentication_key=authentication_key,
+    )
+    frozen = freeze_private_starsim_cohort(
+        cohort_id=COHORT_ID,
+        output_directory=destination,
+        authentication_key_file=key_path,
+        episodes=EPISODE_COUNT,
+        backend=BACKEND,
+    )
+    if (
+        frozen.public_descriptor.get("cohort_id") != COHORT_ID
+        or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
+        or frozen.public_descriptor.get("backend") != BACKEND
+    ):
+        raise RuntimeError("Frozen V16 cohort returned an invalid public receipt")
+    if (
+        frozen.cohort_directory != destination
+        or frozen.manifest_path != destination / "cohort.manifest"
+    ):
+        raise RuntimeError(
+            "Frozen V16 cohort returned a noncanonical artifact location"
+        )
+    manifest = PrivateEpisodeCohortManifest.read(
+        frozen.manifest_path, authentication_key
+    )
+    completion = _complete_cohort_freeze_claim(
+        claim_path=claim_path,
+        claim=claim,
+        manifest_path=frozen.manifest_path,
+        manifest=manifest,
+        authentication_key=authentication_key,
+    )
+    if completion["pack_set_commitment"] != manifest.pack_set_commitment:
+        raise RuntimeError("V16 cohort freeze completion commitment mismatch")
+    return {
+        "schema_version": "epiagentbench.v16_cohort_freeze.v2",
+        "panel_id": PANEL_ID,
+        "status": "frozen_claim_completed",
+        "backend": BACKEND,
+        "episode_count": EPISODE_COUNT,
+        "runtime_identity_sha256": verification[
+            "runtime_identity_sha256"
+        ],
+        "create_once_claim_status": "completed",
+        "provider_processes_started": 0,
+        "authentication_processes_started": 0,
+        "model_calls_started": 0,
+    }
+
+
 def _prepare_panel_locked(
     *,
     root: Path,
     cohort_manifest_path: Path,
+    preparation_runtime_receipt_path: Path,
+    expected_benchmark_base_commit: str,
+    runtime_cache_dir: Path,
     authentication_key_file: Path,
     claude_secure_storage_dir: Path,
     codex_secure_storage_dir: Path,
@@ -3790,6 +5144,7 @@ def _prepare_panel_locked(
     public_manifest_path: Path,
     timeout_seconds: int = 1800,
     claude_max_budget_usd: float = 5.0,
+    freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
     """Prepare while the host-global panel lease is held."""
 
@@ -3801,6 +5156,8 @@ def _prepare_panel_locked(
         raise RuntimeError("Commit and clean the matched-panel harness before prepare")
     _assert_distinct_paths(
         cohort_manifest_path,
+        preparation_runtime_receipt_path,
+        runtime_cache_dir,
         authentication_key_file,
         private_state_path,
         public_manifest_path,
@@ -3817,13 +5174,51 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V15 requires an exact 1800-second assignment timeout")
+        raise ValueError("V16 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V15 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V16 requires an exact $5 Claude per-call ceiling")
+
+    # Re-run the same public, provider-free preparation preflight before
+    # touching the cohort, authentication key, or any private artifact.  This
+    # makes a missing/drifted scientific runtime fail before the create-once
+    # preparation boundary, even if an operator skipped the runbook command.
+    runtime_verification = verify_preparation_runtime(
+        root=root,
+        receipt_path=preparation_runtime_receipt_path,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        runtime_cache_dir=runtime_cache_dir,
+    )
+    cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
+    for label, candidate in (
+        ("frozen cohort", cohort_manifest_path.parent),
+        ("authentication key", authentication_key_file),
+        ("Claude credential namespace", claude_secure_storage_dir),
+        ("Codex credential namespace", codex_secure_storage_dir),
+        ("private state", private_state_path),
+        ("public manifest", public_manifest_path),
+    ):
+        if _paths_overlap(
+            cache_root, candidate.expanduser().resolve(strict=False)
+        ):
+            raise ValueError(
+                f"V16 runtime cache must not overlap the {label}"
+            )
+    profiles = _profile_contract()
+    source = _source_contract(root)
+    cli = _cli_contract()
+    if (
+        _component_hash(source)
+        != runtime_verification["source_contract_sha256"]
+        or _component_hash(cli)
+        != runtime_verification["cli_contract_sha256"]
+    ):
+        raise RuntimeError(
+            "V16 source or CLI identity drifted after runtime verification"
+        )
 
     private_state_storage = _private_state_storage_binding(
         private_state_path,
@@ -3851,7 +5246,50 @@ def _prepare_panel_locked(
 
     key_path = _existing_path_without_final_symlink(authentication_key_file)
     key = _read_authentication_key(key_path)
+    resolved_freeze_claim_path = _cohort_freeze_claim_path(
+        key_path, freeze_claim_path
+    )
+    _assert_distinct_paths(
+        cohort_manifest_path,
+        preparation_runtime_receipt_path,
+        runtime_cache_dir,
+        key_path,
+        resolved_freeze_claim_path,
+        _cohort_freeze_completion_path(resolved_freeze_claim_path),
+        private_state_path,
+        public_manifest_path,
+        authentication_receipt_path,
+    )
+    for label, candidate in (
+        ("cohort freeze claim", resolved_freeze_claim_path),
+        (
+            "cohort freeze completion",
+            _cohort_freeze_completion_path(resolved_freeze_claim_path),
+        ),
+    ):
+        if _paths_overlap(
+            cache_root, candidate.expanduser().resolve(strict=False)
+        ):
+            raise ValueError(
+                f"V16 runtime cache must not overlap the {label}"
+            )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
+    freeze_claim, freeze_completion = (
+        _require_completed_cohort_freeze_claim(
+            claim_path=resolved_freeze_claim_path,
+            manifest_path=manifest_path,
+            runtime_receipt_file_sha256=runtime_verification[
+                "published_receipt_file_sha256"
+            ],
+            runtime_identity_sha256=runtime_verification[
+                "runtime_identity_sha256"
+            ],
+            expected_benchmark_base_commit=(
+                expected_benchmark_base_commit
+            ),
+            authentication_key=key,
+        )
+    )
     if _cohort_retirement_if_present(manifest_path, key) is not None:
         raise ValueError("Frozen cohort is retired and cannot be prepared again")
     preparation_claim_path = _cohort_preparation_path(manifest_path)
@@ -3896,9 +5334,6 @@ def _prepare_panel_locked(
             f"Matched schedule does not contain {ASSIGNMENT_COUNT} unique assignments"
         )
 
-    profiles = _profile_contract()
-    source = _source_contract(root)
-    cli = _cli_contract()
     claude_auth = _claude_auth_contract(
         resolved_claude_secure_storage_dir,
         claude_secure_storage_identity,
@@ -3923,7 +5358,47 @@ def _prepare_panel_locked(
             "namespace_skip_later_codex_and_continue_independent_profiles"
         ),
     }
-    runtime = _runtime_contract()
+    runtime = dict(runtime_verification["runtime_contract"])
+    preparation_runtime = {
+        "schema_version": _BOUND_PREPARATION_RUNTIME_SCHEMA,
+        "panel_id": PANEL_ID,
+        "required_starsim_version": runtime_verification[
+            "required_starsim_version"
+        ],
+        "published_receipt_path": runtime_verification[
+            "published_receipt_path"
+        ],
+        "published_receipt_file_sha256": runtime_verification[
+            "published_receipt_file_sha256"
+        ],
+        "published_benchmark_base_commit": runtime_verification[
+            "published_benchmark_base_commit"
+        ],
+        "verified_benchmark_base_commit": runtime_verification[
+            "verified_benchmark_base_commit"
+        ],
+        "runtime_identity_sha256": runtime_verification[
+            "runtime_identity_sha256"
+        ],
+        "source_contract_sha256": runtime_verification[
+            "source_contract_sha256"
+        ],
+        "cli_contract_sha256": runtime_verification[
+            "cli_contract_sha256"
+        ],
+        "runtime_contract_sha256": runtime_verification[
+            "runtime_contract_sha256"
+        ],
+        "runtime_cache_contract_sha256": runtime_verification[
+            "runtime_cache_contract_sha256"
+        ],
+        "starsim_smoke_contract_sha256": runtime_verification[
+            "starsim_smoke_contract_sha256"
+        ],
+        "starsim_smoke_contract": runtime_verification[
+            "starsim_smoke_contract"
+        ],
+    }
     replay = replay_trace_contract()
     supervisor = _persistent_supervisor_contract()
     _require_claude_credential_state(
@@ -3971,6 +5446,7 @@ def _prepare_panel_locked(
         "codex_auth_contract": codex_auth,
         "source_contract": source,
         "runtime_contract": runtime,
+        "preparation_runtime_contract": preparation_runtime,
         "replay_trace_contract": replay,
         "persistent_supervisor_contract": supervisor,
         "budget_contract": budgets,
@@ -3984,6 +5460,9 @@ def _prepare_panel_locked(
             "budgets_sha256": _component_hash(budgets),
             "timeouts_sha256": _component_hash(timeouts),
             "runtime_sha256": _component_hash(runtime),
+            "preparation_runtime_sha256": _component_hash(
+                preparation_runtime
+            ),
             "replay_sha256": _component_hash(replay),
             "supervisor_sha256": _component_hash(supervisor),
         },
@@ -4087,6 +5566,7 @@ def _prepare_panel_locked(
                     "source_contract",
                     "cli_contract",
                     "runtime_contract",
+                    "preparation_runtime_contract",
                     "replay_trace_contract",
                     "profiles",
                 ],
@@ -4160,6 +5640,11 @@ def _prepare_panel_locked(
         "private_state_storage": private_state_storage,
         "public_precommitment_sha256": public["precommitment_sha256"],
         "cohort_manifest_path": str(manifest_path.resolve()),
+        "cohort_freeze_claim_path": str(
+            resolved_freeze_claim_path.resolve(strict=False)
+        ),
+        "cohort_freeze_claim": freeze_claim,
+        "cohort_freeze_completion": freeze_completion,
         "claude_secure_storage_dir": str(resolved_claude_secure_storage_dir),
         "claude_secure_storage_identity": claude_secure_storage_identity,
         "claude_auth_commitment_key_hex": claude_auth_commitment_key.hex(),
@@ -4185,6 +5670,7 @@ def _prepare_panel_locked(
                     "codex_auth_sha256",
                     "budgets_sha256",
                     "runtime_sha256",
+                    "preparation_runtime_sha256",
                     "supervisor_sha256",
                 )
             },
@@ -4207,11 +5693,19 @@ def _prepare_panel_locked(
                 "budgets_sha256": public["contract_hashes"]["budgets_sha256"],
                 "timeouts_sha256": public["contract_hashes"]["timeouts_sha256"],
                 "runtime_sha256": public["contract_hashes"]["runtime_sha256"],
+                "preparation_runtime_sha256": public["contract_hashes"][
+                    "preparation_runtime_sha256"
+                ],
                 "replay_sha256": public["contract_hashes"]["replay_sha256"],
                 "supervisor_sha256": public["contract_hashes"][
                     "supervisor_sha256"
                 ],
             },
+        },
+        "preparation_runtime_private_contract": {
+            "runtime_cache_contract": runtime_verification[
+                "runtime_cache_contract"
+            ],
         },
         "assignments": [],
     }
@@ -4248,6 +5742,9 @@ def prepare_panel(
     *,
     root: Path,
     cohort_manifest_path: Path,
+    preparation_runtime_receipt_path: Path,
+    expected_benchmark_base_commit: str,
+    runtime_cache_dir: Path,
     authentication_key_file: Path,
     claude_secure_storage_dir: Path,
     codex_secure_storage_dir: Path,
@@ -4255,6 +5752,7 @@ def prepare_panel(
     public_manifest_path: Path,
     timeout_seconds: int = 1800,
     claude_max_budget_usd: float = 5.0,
+    freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
     """Bind one fresh cohort and publish one create-once precommitment pair."""
 
@@ -4262,6 +5760,13 @@ def prepare_panel(
         return _prepare_panel_locked(
             root=root,
             cohort_manifest_path=cohort_manifest_path,
+            preparation_runtime_receipt_path=(
+                preparation_runtime_receipt_path
+            ),
+            expected_benchmark_base_commit=(
+                expected_benchmark_base_commit
+            ),
+            runtime_cache_dir=runtime_cache_dir,
             authentication_key_file=authentication_key_file,
             claude_secure_storage_dir=claude_secure_storage_dir,
             codex_secure_storage_dir=codex_secure_storage_dir,
@@ -4269,6 +5774,7 @@ def prepare_panel(
             public_manifest_path=public_manifest_path,
             timeout_seconds=timeout_seconds,
             claude_max_budget_usd=claude_max_budget_usd,
+            freeze_claim_path=freeze_claim_path,
         )
 
 
@@ -4332,6 +5838,26 @@ def _validate_contracts(
         private=private,
         public=public,
     )
+    bound_preparation_runtime = _validate_bound_preparation_runtime(
+        public, rerun_smoke=revalidate_live_identity_contracts
+    )
+    private_preparation_runtime = private.get(
+        "preparation_runtime_private_contract"
+    )
+    if (
+        not isinstance(private_preparation_runtime, dict)
+        or set(private_preparation_runtime)
+        != {"runtime_cache_contract"}
+        or _component_hash(
+            private_preparation_runtime.get("runtime_cache_contract")
+        )
+        != bound_preparation_runtime.get(
+            "runtime_cache_contract_sha256"
+        )
+    ):
+        raise ValueError(
+            "Private V16 preparation runtime binding is invalid"
+        )
     expected_contracts = {
         "runtime_contract": _runtime_contract(),
         "replay_trace_contract": replay_trace_contract(),
@@ -4366,6 +5892,10 @@ def _validate_contracts(
             ("budgets_sha256", public["budget_contract"]),
             ("timeouts_sha256", public["timeout_contract"]),
             ("runtime_sha256", public["runtime_contract"]),
+            (
+                "preparation_runtime_sha256",
+                public["preparation_runtime_contract"],
+            ),
             ("replay_sha256", public["replay_trace_contract"]),
             (
                 "supervisor_sha256",
@@ -4390,6 +5920,41 @@ def _validate_contracts(
     manifest_path = _existing_path_without_final_symlink(
         str(private.get("cohort_manifest_path"))
     )
+    preparation_runtime_contract = public.get(
+        "preparation_runtime_contract"
+    )
+    if not isinstance(preparation_runtime_contract, Mapping):
+        raise ValueError("V16 preparation runtime contract is missing")
+    freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
+    freeze_claim, freeze_completion = (
+        _require_completed_cohort_freeze_claim(
+            claim_path=freeze_claim_path,
+            manifest_path=manifest_path,
+            runtime_receipt_file_sha256=str(
+                preparation_runtime_contract.get(
+                    "published_receipt_file_sha256"
+                )
+            ),
+            runtime_identity_sha256=str(
+                preparation_runtime_contract.get(
+                    "runtime_identity_sha256"
+                )
+            ),
+            expected_benchmark_base_commit=str(
+                preparation_runtime_contract.get(
+                    "verified_benchmark_base_commit"
+                )
+            ),
+            authentication_key=authentication_key,
+        )
+    )
+    if (
+        private.get("cohort_freeze_claim") != freeze_claim
+        or private.get("cohort_freeze_completion") != freeze_completion
+    ):
+        raise ValueError(
+            "Authenticated V16 cohort freeze claim differs from private state"
+        )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
         _cohort_preparation_path(manifest_path), authentication_key
@@ -4594,7 +6159,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V15 spend authorization contract mismatch")
+        raise ValueError("V16 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -4622,7 +6187,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v15 spend authorization receipt is required "
+            "A manifest-bound exact v16 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -4637,14 +6202,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v15 spend authorization receipt is required "
+            "A manifest-bound exact v16 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v15 spend authorization receipt is required "
+            "A manifest-bound exact v16 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -4666,7 +6231,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v15 $580 cumulative spend acknowledgement text is required"
+            "The exact v16 $580 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -4825,6 +6390,7 @@ def _authentication_contract_hashes(
         "codex_auth_sha256",
         "budgets_sha256",
         "runtime_sha256",
+        "preparation_runtime_sha256",
         "supervisor_sha256",
     )
     if not isinstance(hashes, Mapping) or any(
@@ -5560,7 +7126,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V15 panel cannot retry"
+                    "state; this V16 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -5590,7 +7156,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V15 panel "
+                "Authentication process state is ambiguous; this V16 panel "
                 "cannot retry"
             )
         if (
@@ -5624,7 +7190,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V15 panel cannot retry"
+                "state; this V16 panel cannot retry"
             ) from None
         _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
@@ -5750,7 +7316,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V15 panel cannot retry"
+                    "state; this V16 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -5824,7 +7390,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V15 panel cannot retry"
+                    "V16 panel cannot retry"
                 ) from None
 
         _attest_execution_contracts(root=root, public=public)
@@ -5851,7 +7417,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V15 panel cannot retry"
+                "state; this V16 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             private=private,
@@ -6015,6 +7581,7 @@ def _assert_environment_preflight(
             "budgets_sha256",
             "timeouts_sha256",
             "runtime_sha256",
+            "preparation_runtime_sha256",
             "replay_sha256",
             "supervisor_sha256",
         )
@@ -6856,6 +8423,7 @@ def _run_environment_preflight_core(
                 "budgets_sha256",
                 "timeouts_sha256",
                 "runtime_sha256",
+                "preparation_runtime_sha256",
                 "replay_sha256",
                 "supervisor_sha256",
             )

@@ -1,9 +1,11 @@
 # Persistent matched-panel runner protocol
 
-Status: versioned V15 persistent-supervisor contract schema v5. The source
-contract, panel/schema identifiers, spend accounting, path namespace, and
-[V15 runbook](V15_RUNBOOK.md) are defined, but no V15 cohort or manifest has
-been prepared and this document does not authorize a provider call.
+Status at control-plane publication: versioned V16 persistent-supervisor
+contract schema v5. The source contract, panel/schema identifiers, spend
+accounting, path namespace, and [V16 runbook](V16_RUNBOOK.md) are defined. The
+runtime receipt, cohort, and manifest are created only by the later runbook
+phases; this document does not itself authorize authentication, a provider
+process, spend, a supervisor start, or a model call.
 
 ## Purpose
 
@@ -40,6 +42,16 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
+8. No V16 key, cohort, credential namespace, schedule, private state, or
+   supervisor may exist until a provider-free scientific-runtime receipt has
+   been produced twice identically, committed and pushed through GitButler,
+   and re-attested from a fresh clean checkout at the receipt commit.
+9. The runtime-cache root contains only its three dedicated caches; receipt
+   bytes and operator summaries are staged separately. Its complete raw
+   topology stays authenticated-private behind an opaque public hash.
+10. The canonical key-namespace freeze claim is created once before cohort
+    randomness. A pending claim without its authenticated completion is
+    terminal and cannot be retried or prepared.
 
 ## Durable assignment phases and the current adapter
 
@@ -92,6 +104,94 @@ Byte changes, same-byte inode replacement, or symlink recreation/retargeting
 fail closed. This is drift attestation within the owner-scoped boundary, not a
 root-anchored pre-exec verifier: launchd necessarily starts Python before
 Python can perform its own validation.
+
+## Pre-private scientific-runtime receipt
+
+V16 adds a provider-free boundary before the private panel exists. One exact
+absolute interpreter,
+`/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python`, runs every
+V16 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
+starts with only the standard library, manually appends the attested
+repository `src` and V5 virtual-environment `site-packages` in that order, and
+does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. The
+preparation preflight runs twice at a clean pinned control-plane commit. Each
+pass:
+
+- requires exact Starsim 3.5.1;
+- hashes the actual installed regular-file bytes for every declared scientific
+  distribution, in addition to package metadata;
+- computes the complete Python entrypoint and hook-free bootstrap binding,
+  including the launch path, symlink chain, target topology, isolated
+  `sys.path`, and standard-library module origins;
+- executes a hardcoded three-person, four-day LTC scenario twice per policy
+  through the real Starsim-backed engine: the no-action branch has one
+  deterministic resident-to-staff transmission across the sole direct-care
+  edge, while the matched day-one contact stop prevents it;
+- binds the clean source and CLI contracts; and
+- binds the complete runtime-cache v2 tree: an absolute normalized,
+  current-user `0700` root containing only exact current-user `0700`
+  `matplotlib`, `numba`, and `xdg` subdirectories; below those children, the
+  closed, bounded, content-hashed inventory contains at most 10,000
+  descendants total (directories plus regular files), all owner-only,
+  nonsymlinked, and on the root filesystem, with single-link regular files
+  limited to 512 MiB each and 4 GiB of regular-file content in total.
+
+The fixed resident-to-staff/contact-stop result is a deterministic engine
+capability smoke. It is not calibration evidence, a biological effect
+estimate, or a benchmark score.
+
+The two closed-schema receipts must be byte-identical. The exact bytes are then
+committed and pushed through GitButler as
+`results/development-matched-50x6-v16.runtime.json`; they are never regenerated
+for publication. A fresh clean checkout at that second commit re-runs the same
+attestation and compares its runtime identity to the tracked receipt before
+the matched V16 freezer or `prepare` command can create or read a key, cohort,
+schedule, or private state.
+
+The operator stages the two receipts and every local verification/command
+summary in a separate owner-only directory. Nothing may be staged in the cache
+root because its only permitted root entries are `matplotlib`, `numba`, and
+`xdg`.
+
+The cache contract fixes exactly:
+
+```text
+MPLBACKEND=Agg
+MPLCONFIGDIR=<owner-only-cache>/matplotlib
+NUMBA_CACHE_DIR=<owner-only-cache>/numba
+PYTHONDONTWRITEBYTECODE=1
+STARSIM_INSTALL_FONTS=0
+XDG_CACHE_HOME=<owner-only-cache>/xdg
+```
+
+The public runtime receipt carries the original control-plane commit, runtime
+identity and contract hashes, Starsim smoke contract, path-free scientific
+module-origin identities, the Python target content hash and entrypoint kind,
+and opaque hashes of the complete Python and cache bindings. The later
+manifest additionally carries the tracked receipt path and file digest plus
+both the original control-plane commit and the receipt-bound verification
+commit. Neither artifact contains a raw absolute Python/cache path, Python
+symlink/bootstrap/module-origin topology, cache environment, cache inventory,
+or device/inode/UID metadata. The raw Python binding is transient during
+preflight and later recomputed into the authenticated owner-only LaunchAgent
+config. The full raw cache contract is retained in authenticated private panel
+state and later in that config.
+
+Cache relinking, replacement, permission drift, path drift, environment drift,
+inventory/content drift, Python/bootstrap drift, installed-byte drift, or
+smoke-result drift fails closed. These checks are provider-free runtime
+attestation; the receipt, matched freezer, and prepare command launch no
+provider process, authentication helper, or model call.
+
+Only after the code commit and then the byte-identical receipt commit have been
+published and the receipt re-attested may preparation create the fresh key and
+empty credential directories. The matched freezer then creates one canonical,
+HMAC-authenticated pending claim in the authentication-key namespace before
+any cohort randomness and appends a separate completion after the cohort is
+durable. Both `freeze` and `prepare` require that exact claim path. A pending
+claim without completion is a terminal, nonretryable interrupted freeze.
+Preparation may then create private state and the public manifest, publish only
+that manifest, and stop before authorization.
 
 ## Live-attestation failures and bounded snapshot retry
 
@@ -172,11 +272,11 @@ present.
 
 ## LaunchAgent boundary
 
-The public LaunchAgent property list contains no secret or provider command.
-It invokes only:
+The local owner-only LaunchAgent property list contains no secret or provider
+command. It invokes only:
 
 ```text
-/usr/bin/caffeinate -dimsu <python> <supervisor-cli> worker --config <private-config>
+/usr/bin/caffeinate -dimsu <python> -I -S -B <supervisor-cli> worker --config <private-config>
 ```
 
 The owner-only private config contains allowlisted paths and frozen command
@@ -185,6 +285,18 @@ service into its child environment in memory. The key is absent from the
 property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
+
+For V16, generation also requires the exact manifest-bound runtime-cache root.
+The LaunchAgent environment is a closed projection of the six variables in
+the recomputed private cache contract whose opaque hash appears in the tracked
+runtime receipt. Generation recomputes both full raw bindings, compares their
+opaque public hashes, and seals the raw Python/bootstrap and cache records only
+in the authenticated owner-only config. At config load, before Keychain
+access, and immediately before child launch, the worker revalidates the full
+Python entrypoint/bootstrap binding and the closed cache inventory, including
+paths, environment, owner, mode, device, inode, UID, and content identities.
+No ambient cache, PATH-selected interpreter, startup hook, or nonisolated
+Python process is accepted.
 
 The job is a one-shot supervised run, not an unconditional `KeepAlive` loop.
 After an in-flight crash, an automatic restart must not create another paid
@@ -233,7 +345,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V15 model call may start until all of the following pass through the
+No V16 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -264,6 +376,21 @@ same supervisor path intended for production:
   never retried;
 - Python-entrypoint byte, inode, and venv-symlink drift tests proving failure
   before Keychain access or child launch;
+- two real provider-free Starsim smoke passes proving the identical
+  resident-to-staff transmission and matched contact-stop counterfactual, plus
+  receipt-byte, installed-distribution-byte, cache environment/inventory,
+  cache inode/mode, and tracked-commit drift tests proving failure before any
+  private artifact or provider/authentication helper;
+- public-leakage tests proving the receipt and manifest contain only opaque
+  Python/cache binding hashes while the raw cache contract remains in
+  authenticated private state and the raw Python binding is sealed only in the
+  authenticated LaunchAgent config;
+- create-once freeze tests proving the canonical pending claim precedes cohort
+  randomness, both CLI phases require it, and pending-without-completion is
+  terminal and nonretryable;
+- LaunchAgent generation/load tests proving the exact receipt-bound cache
+  environment is sealed and that an alternate cache or interpreter is rejected
+  before Keychain access or child launch;
 - exact and adversarial `launchctl` state-parser tests proving that
   `not_running` still requires authenticated terminal state and that unknown or
   duplicate state lines never reach `bootout`;
@@ -279,14 +406,33 @@ reported `status_snapshot_unstable`. Its trace-free stopped preflight and
 supersession bind that terminal outcome. The create-once run is non-resumable,
 its cohort cannot be reused, and no V14 production assignment started.
 
-V15 now binds the new heartbeat-pair, retry, diagnostic, source, and operational
-contracts under panel/cohort `development-matched-50x6-v15`, top-level schema
-`development_matched_panel_v15`, the exact $580 acknowledgement, and fresh V15
-paths. This source versioning remains a pre-preparation state: it does not
-create a cohort or manifest, authorize spend, authenticate, create a
-supervisor, or invoke a provider. The prerequisite commit must first be
-published and pinned; preparation must then create a fresh cohort and manifest,
-after which the operator must separately supply the exact manifest-bound
-acknowledgement before authorization. Historical completed records and
-transport voids remain audit evidence only and are never mixed into the new
-estimand.
+V15 later stopped during provider-free preparation because its selected
+`python3` could not import Starsim. It created no cohort claim, private panel
+state, public manifest, authorization, authentication, supervisor, provider
+call, score, or trace. Its frozen cohort and private namespaces are
+non-resumable and forbidden for reuse.
+
+V16 now binds the new heartbeat-pair, retry, diagnostic, source, and operational
+contracts under panel/cohort `development-matched-50x6-v16`, top-level schema
+`development_matched_panel_v16`, the exact $580 acknowledgement, and fresh V16
+paths. Its two-commit provider-free runtime protocol must prove the exact V5
+Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
+scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
+capability smoke, the static provider/configuration identities, the clean
+pinned source tree, and the closed bounded owner-only runtime-cache v2
+inventory. The first commit publishes code; the two identical receipts are
+then generated and compared at that commit; the second commit publishes those
+exact receipt bytes. Only after a fresh checkout re-attests the second commit
+may preparation create the fresh key and empty credentials, burn and complete
+the canonical freeze claim, freeze the cohort, create private state, and
+prepare and publish the manifest. The same interpreter and cache contract are
+mandatory for matched cohort freeze, prepare, LaunchAgent generation,
+preflight, and production. The preparation phase makes no authentication,
+provider, or model call and stops before the operator separately supplies the
+exact manifest-bound acknowledgement.
+The current V16 panel's Claude ceiling is $510 (102 calls × $5); the exact
+acknowledgement's $580 cumulative ceiling adds the conservative $70 allowance
+for prior failed panels. Neither value is a claim about measured billing.
+Codex and Cursor remain unbounded.
+Historical completed records and transport voids remain audit evidence only
+and are never mixed into the new estimand.

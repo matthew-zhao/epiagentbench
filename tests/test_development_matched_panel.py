@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -27,7 +28,7 @@ from epiagentbench.development_matched_panel import (
     REQUIRED_SPEND_ACKNOWLEDGEMENT,
     aggregate_complete_results,
     authorize_panel_spend,
-    prepare_panel,
+    prepare_panel as _PREPARE_PANEL_API,
     run_environment_preflight,
     run_panel,
 )
@@ -93,9 +94,51 @@ RUNTIME_CONTRACT = {
     "python": "test-python",
     "python_entrypoint_kind": "regular_file",
     "python_executable_sha256": "sha256:" + "d" * 64,
+    "python_executable_binding_sha256": "sha256:" + "c" * 64,
+    "python_executable_binding_policy": (
+        "full_path_symlink_inode_and_content_binding_private_only"
+    ),
     "starsim": "3.5.1",
     "platform": "test-platform",
     "machine": "test-machine",
+}
+RUNTIME_CACHE_CONTRACT = {
+    "schema_version": "epiagentbench.runtime_cache_contract.v2",
+    "environment": {
+        "MPLBACKEND": "Agg",
+        "MPLCONFIGDIR": "/private/runtime-cache/matplotlib",
+        "NUMBA_CACHE_DIR": "/private/runtime-cache/numba",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "STARSIM_INSTALL_FONTS": "0",
+        "XDG_CACHE_HOME": "/private/runtime-cache/xdg",
+    },
+    "directories": {
+        name: {
+            "path": path,
+            "device": 1,
+            "inode": index,
+            "owner_uid": os.getuid(),
+            "mode": "0700",
+        }
+        for index, (name, path) in enumerate(
+            (
+                ("root", "/private/runtime-cache"),
+                ("matplotlib", "/private/runtime-cache/matplotlib"),
+                ("numba", "/private/runtime-cache/numba"),
+                ("xdg", "/private/runtime-cache/xdg"),
+            ),
+            start=1,
+        )
+    },
+    "inventory": [],
+    "inventory_file_count": 0,
+    "inventory_file_bytes": 0,
+}
+RUNTIME_SMOKE_CONTRACT = {
+    "schema_version": "epiagentbench.preparation_runtime_smoke.v1",
+    "fixed_public_scenario": "v16_four_person_ltc_one_day",
+    "result_sha256": "sha256:" + "e" * 64,
+    "result": {"test": "fixed-public-smoke"},
 }
 CLI_VERSIONS = {
     "claude": "claude-test",
@@ -111,6 +154,20 @@ CLI_VERSIONS = {
 _RUN_PANEL_API = run_panel
 _RUN_PREFLIGHT_API = run_environment_preflight
 _REAL_EVALUATOR = matched.evaluate_local_cli_agent
+
+
+def prepare_panel(**kwargs):
+    root = Path(kwargs["root"])
+    kwargs.setdefault(
+        "preparation_runtime_receipt_path",
+        root / "results" / "development-matched-50x6-v16.runtime.json",
+    )
+    kwargs.setdefault("expected_benchmark_base_commit", "d" * 40)
+    kwargs.setdefault(
+        "runtime_cache_dir",
+        root.parent / f".{root.name}-runtime-cache",
+    )
+    return _PREPARE_PANEL_API(**kwargs)
 
 
 def _offline_test_evaluator(*args, **kwargs):
@@ -179,6 +236,17 @@ class MatchedPanelTests(unittest.TestCase):
         self, count: int = EPISODE_COUNT, *, cohort_id: str = COHORT_ID
     ) -> Path:
         cohort = self.root / f"cohort-{count}-{cohort_id}"
+        return self._cohort_at(
+            cohort, count=count, cohort_id=cohort_id
+        )
+
+    def _cohort_at(
+        self,
+        cohort: Path,
+        *,
+        count: int = EPISODE_COUNT,
+        cohort_id: str = COHORT_ID,
+    ) -> Path:
         cohort.mkdir(mode=0o700)
         packs: list[PrivateEpisodePack] = []
         for index in range(count):
@@ -219,9 +287,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v15.authentication.json",
+            "results/development-matched-50x6-v16.authentication.json",
         ):
-            return "results/development-matched-50x6-v15.authentication.json"
+            return "results/development-matched-50x6-v16.authentication.json"
         return ""
 
     @staticmethod
@@ -296,6 +364,135 @@ class MatchedPanelTests(unittest.TestCase):
         if returned is not None:
             returned(0)
 
+    def _runtime_verification(
+        self,
+        *,
+        source_contract: Mapping[str, object] | None = None,
+        cli_contract: Mapping[str, object] | None = None,
+    ) -> dict:
+        source_contract = (
+            matched._source_contract(self.root)
+            if source_contract is None
+            else source_contract
+        )
+        cli_contract = (
+            matched._cli_contract()
+            if cli_contract is None
+            else cli_contract
+        )
+        return {
+            "schema_version": (
+                "epiagentbench.preparation_runtime_verification.v1"
+            ),
+            "panel_id": "development-matched-50x6-v16",
+            "status": "passed",
+            "published_receipt_path": (
+                "results/development-matched-50x6-v16.runtime.json"
+            ),
+            "published_receipt_file_sha256": "sha256:" + "f" * 64,
+            "published_benchmark_base_commit": "c" * 40,
+            "verified_benchmark_base_commit": "d" * 40,
+            "runtime_identity_sha256": "sha256:" + "a" * 64,
+            "required_starsim_version": "3.5.1",
+            "source_contract_sha256": matched._component_hash(
+                source_contract
+            ),
+            "cli_contract_sha256": matched._component_hash(cli_contract),
+            "runtime_contract_sha256": matched._component_hash(
+                RUNTIME_CONTRACT
+            ),
+            "runtime_cache_contract_sha256": matched._component_hash(
+                RUNTIME_CACHE_CONTRACT
+            ),
+            "starsim_smoke_contract_sha256": matched._component_hash(
+                RUNTIME_SMOKE_CONTRACT
+            ),
+            "runtime_contract": RUNTIME_CONTRACT,
+            "runtime_cache_contract": RUNTIME_CACHE_CONTRACT,
+            "starsim_smoke_contract": RUNTIME_SMOKE_CONTRACT,
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "private_artifacts_required": False,
+        }
+
+    @staticmethod
+    def _freeze_claim_fixture() -> tuple[dict, dict]:
+        return (
+            {
+                "schema_version": (
+                    "epiagentbench.v16_cohort_freeze_claim.v1"
+                ),
+                "status": "pending_create_once_freeze",
+                "fixture": True,
+            },
+            {
+                "schema_version": (
+                    "epiagentbench.v16_cohort_freeze_completion.v1"
+                ),
+                "status": "completed_create_once_freeze",
+                "fixture": True,
+            },
+        )
+
+    @staticmethod
+    def _preparation_runtime_receipt(
+        *,
+        benchmark_base_commit: str = "c" * 40,
+        runtime_contract: Mapping[str, object] = RUNTIME_CONTRACT,
+    ) -> dict:
+        receipt = {
+            "schema_version": (
+                "epiagentbench.preparation_runtime_preflight.v2"
+            ),
+            "panel_id": "development-matched-50x6-v16",
+            "status": "passed",
+            "benchmark_base_commit": benchmark_base_commit,
+            "required_starsim_version": "3.5.1",
+            "source_contract_sha256": matched._component_hash(
+                SOURCE_CONTRACT
+            ),
+            "cli_contract_sha256": matched._component_hash(CLI_CONTRACT),
+            "runtime_contract_sha256": matched._component_hash(
+                runtime_contract
+            ),
+            "runtime_cache_contract_sha256": matched._component_hash(
+                RUNTIME_CACHE_CONTRACT
+            ),
+            "starsim_smoke_contract_sha256": matched._component_hash(
+                RUNTIME_SMOKE_CONTRACT
+            ),
+            "runtime_contract": dict(runtime_contract),
+            "starsim_smoke_contract": copy.deepcopy(
+                RUNTIME_SMOKE_CONTRACT
+            ),
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "private_artifacts_required": False,
+        }
+        receipt["runtime_identity_sha256"] = (
+            matched._preparation_runtime_identity(receipt)
+        )
+        return receipt
+
+    def _runtime_cache_environment(
+        self, directory_name: str
+    ) -> tuple[Path, dict[str, str]]:
+        candidate = (self.root / directory_name).absolute()
+        candidate.mkdir(mode=0o700)
+        root = candidate.resolve(strict=True)
+        os.chmod(root, 0o700)
+        for name in ("matplotlib", "numba", "xdg"):
+            (root / name).mkdir(mode=0o700)
+            os.chmod(root / name, 0o700)
+        return root, {
+            "MPLBACKEND": "Agg",
+            "MPLCONFIGDIR": str(root / "matplotlib"),
+            "NUMBA_CACHE_DIR": str(root / "numba"),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "STARSIM_INSTALL_FONTS": "0",
+            "XDG_CACHE_HOME": str(root / "xdg"),
+        }
+
     @contextmanager
     def _contracts(self):
         with ExitStack() as stack:
@@ -334,6 +531,33 @@ class MatchedPanelTests(unittest.TestCase):
                 patch(
                     "epiagentbench.development_matched_panel._runtime_contract",
                     return_value=RUNTIME_CONTRACT,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "verify_preparation_runtime",
+                    side_effect=lambda **_kwargs: self._runtime_verification(),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_validate_bound_preparation_runtime",
+                    return_value={
+                        "runtime_cache_contract_sha256": (
+                            matched._component_hash(
+                                RUNTIME_CACHE_CONTRACT
+                            )
+                        )
+                    },
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_require_completed_cohort_freeze_claim",
+                    return_value=self._freeze_claim_fixture(),
                 )
             )
             stack.enter_context(
@@ -378,6 +602,1305 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             )
             yield
+
+    def test_preparation_runtime_preflight_is_public_and_provider_free(self):
+        commit = "a" * 40
+
+        def git_output(_root: Path, *arguments: str) -> str:
+            if arguments == ("status", "--porcelain", "--untracked-files=all"):
+                return ""
+            if arguments == ("rev-parse", "HEAD"):
+                return commit
+            raise AssertionError(f"unexpected git invocation: {arguments!r}")
+
+        with (
+            patch.object(matched, "_git_output", side_effect=git_output),
+            patch.object(
+                matched, "_source_contract", return_value=SOURCE_CONTRACT
+            ),
+            patch.object(matched, "_cli_contract", return_value=CLI_CONTRACT),
+            patch.object(
+                matched, "_runtime_contract", return_value=RUNTIME_CONTRACT
+            ),
+            patch.object(
+                matched,
+                "_runtime_cache_contract",
+                return_value=RUNTIME_CACHE_CONTRACT,
+            ),
+            patch.object(
+                matched,
+                "_preparation_runtime_smoke",
+                return_value=RUNTIME_SMOKE_CONTRACT,
+            ),
+        ):
+            receipt = matched.preflight_preparation_runtime(
+                root=self.root,
+                expected_benchmark_base_commit=commit,
+                runtime_cache_dir=self.root / "runtime-cache",
+            )
+
+        expected = {
+            "schema_version": (
+                "epiagentbench.preparation_runtime_preflight.v2"
+            ),
+            "panel_id": "development-matched-50x6-v16",
+            "status": "passed",
+            "benchmark_base_commit": commit,
+            "required_starsim_version": "3.5.1",
+            "source_contract_sha256": matched._component_hash(
+                SOURCE_CONTRACT
+            ),
+            "cli_contract_sha256": matched._component_hash(CLI_CONTRACT),
+            "runtime_contract_sha256": matched._component_hash(
+                RUNTIME_CONTRACT
+            ),
+            "runtime_cache_contract_sha256": matched._component_hash(
+                RUNTIME_CACHE_CONTRACT
+            ),
+            "starsim_smoke_contract_sha256": matched._component_hash(
+                RUNTIME_SMOKE_CONTRACT
+            ),
+            "runtime_contract": RUNTIME_CONTRACT,
+            "starsim_smoke_contract": RUNTIME_SMOKE_CONTRACT,
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "private_artifacts_required": False,
+        }
+        expected["runtime_identity_sha256"] = (
+            matched._preparation_runtime_identity(expected)
+        )
+        self.assertEqual(receipt, expected)
+        serialized = json.dumps(receipt, sort_keys=True)
+        self.assertNotIn(str(Path.home()), serialized)
+
+        def nested_keys(value: object) -> set[str]:
+            if isinstance(value, Mapping):
+                return {
+                    str(key)
+                    for key in value
+                } | {
+                    child
+                    for item in value.values()
+                    for child in nested_keys(item)
+                }
+            if isinstance(value, list):
+                return {
+                    child
+                    for item in value
+                    for child in nested_keys(item)
+                }
+            return set()
+
+        self.assertTrue(
+            {
+                "runtime_cache_contract",
+                "python_executable",
+                "python_executable_binding",
+                "device",
+                "inode",
+                "owner_uid",
+            }.isdisjoint(nested_keys(receipt))
+        )
+        for forbidden in (
+            "authentication_key",
+            "private_seed",
+            "private_schedule",
+            "episode_family",
+            "provider_output",
+            "oauth_state",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_real_runtime_receipt_redacts_home_cache_and_python_topology(self):
+        pinned_python = Path(
+            "/Users/matthew.zhao/.codex/"
+            "epiagentbench-50x6-v5-venv/bin/python"
+        )
+        if Path(sys.executable) != pinned_python:
+            self.skipTest("requires the pinned V5 scientific Python")
+
+        cache_root = (
+            self.claude_secure_storage_dir / "v16-runtime-receipt-cache"
+        )
+        cache_root.mkdir(mode=0o700)
+        for name in ("matplotlib", "numba", "xdg"):
+            (cache_root / name).mkdir(mode=0o700)
+        environment = {
+            "MPLBACKEND": "Agg",
+            "MPLCONFIGDIR": str(cache_root / "matplotlib"),
+            "NUMBA_CACHE_DIR": str(cache_root / "numba"),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "STARSIM_INSTALL_FONTS": "0",
+            "XDG_CACHE_HOME": str(cache_root / "xdg"),
+        }
+        commit = "a" * 40
+
+        def git_output(_root: Path, *arguments: str) -> str:
+            if arguments == ("status", "--porcelain", "--untracked-files=all"):
+                return ""
+            if arguments == ("rev-parse", "HEAD"):
+                return commit
+            raise AssertionError(f"unexpected git invocation: {arguments!r}")
+
+        previous_umask = os.umask(0o077)
+        try:
+            with (
+                patch.dict(os.environ, environment, clear=False),
+                patch.object(matched, "_git_output", side_effect=git_output),
+                patch.object(
+                    matched, "_source_contract", return_value=SOURCE_CONTRACT
+                ),
+                patch.object(
+                    matched, "_cli_contract", return_value=CLI_CONTRACT
+                ),
+                patch.object(
+                    matched,
+                    "_preparation_runtime_smoke",
+                    return_value=RUNTIME_SMOKE_CONTRACT,
+                ),
+            ):
+                receipt = matched.preflight_preparation_runtime(
+                    root=self.root,
+                    expected_benchmark_base_commit=commit,
+                    runtime_cache_dir=cache_root,
+                )
+        finally:
+            os.umask(previous_umask)
+
+        def nested_keys(value: object) -> set[str]:
+            if isinstance(value, Mapping):
+                return {
+                    str(key)
+                    for key in value
+                } | {
+                    child
+                    for item in value.values()
+                    for child in nested_keys(item)
+                }
+            if isinstance(value, list):
+                return {
+                    child
+                    for item in value
+                    for child in nested_keys(item)
+                }
+            return set()
+
+        serialized = json.dumps(receipt, sort_keys=True)
+        self.assertNotIn(str(Path.home()), serialized)
+        self.assertNotIn(str(cache_root), serialized)
+        self.assertTrue(
+            {
+                "runtime_cache_contract",
+                "environment",
+                "directories",
+                "path",
+                "device",
+                "inode",
+                "owner_uid",
+                "python_executable",
+                "python_executable_binding",
+                "launch_path",
+                "symlink_hops",
+                "target",
+            }.isdisjoint(nested_keys(receipt))
+        )
+        self.assertEqual(receipt["provider_processes_started"], 0)
+        self.assertEqual(receipt["authentication_processes_started"], 0)
+
+    def test_prepared_manifest_redacts_private_runtime_cache_binding(self):
+        cache_root, environment = self._runtime_cache_environment(
+            "private-v16-runtime-cache"
+        )
+        with patch.dict(os.environ, environment, clear=False):
+            cache_contract = matched._runtime_cache_contract(cache_root)
+        verification = self._runtime_verification(
+            source_contract=SOURCE_CONTRACT,
+            cli_contract=CLI_CONTRACT,
+        )
+        verification["runtime_cache_contract"] = cache_contract
+        verification["runtime_cache_contract_sha256"] = (
+            matched._component_hash(cache_contract)
+        )
+        manifest_path = self._cohort()
+        with (
+            self._contracts(),
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                return_value=verification,
+            ),
+            patch.object(matched.secrets, "token_bytes", return_value=b"s" * 32),
+        ):
+            public = prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                preparation_runtime_receipt_path=(
+                    self.root
+                    / "results"
+                    / "development-matched-50x6-v16.runtime.json"
+                ),
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=cache_root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+
+        def nested_keys(value: object) -> set[str]:
+            if isinstance(value, Mapping):
+                return {
+                    str(key)
+                    for key in value
+                } | {
+                    child
+                    for item in value.values()
+                    for child in nested_keys(item)
+                }
+            if isinstance(value, list):
+                return {
+                    child
+                    for item in value
+                    for child in nested_keys(item)
+                }
+            return set()
+
+        serialized_public = json.dumps(public, sort_keys=True)
+        self.assertNotIn(str(Path.home()), serialized_public)
+        self.assertNotIn(str(self.root), serialized_public)
+        self.assertNotIn(str(cache_root), serialized_public)
+        self.assertTrue(
+            {
+                "runtime_cache_contract",
+                "environment",
+                "directories",
+                "path",
+                "device",
+                "inode",
+                "owner_uid",
+                "python_executable",
+                "python_executable_binding",
+                "launch_path",
+                "symlink_hops",
+                "target",
+            }.isdisjoint(
+                nested_keys(
+                    {
+                        "runtime": public["runtime_contract"],
+                        "preparation": public[
+                            "preparation_runtime_contract"
+                        ],
+                    }
+                )
+            )
+        )
+
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(
+            private["preparation_runtime_private_contract"],
+            {"runtime_cache_contract": cache_contract},
+        )
+        serialized_private = json.dumps(private, sort_keys=True)
+        self.assertIn(str(cache_root), serialized_private)
+        for field in ("device", "inode", "owner_uid"):
+            self.assertIn(f'"{field}"', serialized_private)
+
+    def test_tracked_runtime_receipt_rejects_unsafe_links_and_permissions(self):
+        encoded = json.dumps(
+            self._preparation_runtime_receipt(), sort_keys=True
+        ).encode("utf-8")
+
+        def assert_rejected(receipt_path: Path) -> None:
+            relative = matched._relative_to_root(receipt_path, self.root)
+
+            def tracked_git_output(
+                _root: Path, *arguments: str
+            ) -> str:
+                if arguments == (
+                    "ls-files",
+                    "--error-unmatch",
+                    relative,
+                ):
+                    return relative
+                raise AssertionError(
+                    f"unexpected git invocation: {arguments!r}"
+                )
+
+            with (
+                patch.object(
+                    matched,
+                    "_git_output",
+                    side_effect=tracked_git_output,
+                ),
+                self.assertRaisesRegex(RuntimeError, "unavailable"),
+            ):
+                matched._load_preparation_runtime_receipt(
+                    root=self.root, receipt_path=receipt_path
+                )
+
+        symlink_root = self.root / "unsafe-receipt-symlink"
+        symlink_root.mkdir()
+        symlink_target = symlink_root / "target.json"
+        symlink_target.write_bytes(encoded)
+        symlink_path = symlink_root / "receipt.json"
+        symlink_path.symlink_to(symlink_target)
+        with self.subTest(case="symlink"):
+            assert_rejected(symlink_path)
+
+        hardlink_root = self.root / "unsafe-receipt-hardlink"
+        hardlink_root.mkdir()
+        hardlink_source = hardlink_root / "source.json"
+        hardlink_source.write_bytes(encoded)
+        hardlink_path = hardlink_root / "receipt.json"
+        os.link(hardlink_source, hardlink_path)
+        with self.subTest(case="hardlink"):
+            assert_rejected(hardlink_path)
+
+        for label, mode in (
+            ("group_writable", 0o620),
+            ("world_writable", 0o602),
+        ):
+            permission_root = self.root / f"unsafe-receipt-{label}"
+            permission_root.mkdir()
+            permission_path = permission_root / "receipt.json"
+            permission_path.write_bytes(encoded)
+            permission_path.chmod(mode)
+            with self.subTest(case=label):
+                assert_rejected(permission_path)
+
+    def test_tracked_runtime_receipt_rejects_descriptor_metadata_drift(self):
+        receipt_path = self.root / "descriptor-drift" / "receipt.json"
+        receipt_path.parent.mkdir()
+        receipt_path.write_text(
+            json.dumps(
+                self._preparation_runtime_receipt(), sort_keys=True
+            ),
+            encoding="utf-8",
+        )
+        receipt_path.chmod(0o600)
+        relative = receipt_path.relative_to(self.root).as_posix()
+
+        def tracked_git_output(_root: Path, *arguments: str) -> str:
+            if arguments == (
+                "ls-files",
+                "--error-unmatch",
+                relative,
+            ):
+                return relative
+            raise AssertionError(f"unexpected git invocation: {arguments!r}")
+
+        real_fstat = os.fstat
+        fstat_calls = 0
+
+        def drifting_fstat(descriptor: int):
+            nonlocal fstat_calls
+            fstat_calls += 1
+            metadata = real_fstat(descriptor)
+            if fstat_calls != 2:
+                return metadata
+            fields = {
+                name: getattr(metadata, name)
+                for name in (
+                    "st_dev",
+                    "st_ino",
+                    "st_mode",
+                    "st_uid",
+                    "st_nlink",
+                    "st_size",
+                    "st_mtime_ns",
+                    "st_ctime_ns",
+                )
+            }
+            fields["st_mtime_ns"] += 1
+            return SimpleNamespace(**fields)
+
+        with (
+            patch.object(
+                matched, "_git_output", side_effect=tracked_git_output
+            ),
+            patch.object(matched.os, "fstat", side_effect=drifting_fstat),
+            self.assertRaisesRegex(RuntimeError, "unavailable"),
+        ):
+            matched._load_preparation_runtime_receipt(
+                root=self.root, receipt_path=receipt_path
+            )
+        self.assertEqual(fstat_calls, 2)
+
+    def test_scientific_module_origin_rejects_shadow_outside_distribution(self):
+        installed_root = self.root / "installed-scientific-runtime"
+        installed_origin = installed_root / "numpy" / "__init__.py"
+        installed_origin.parent.mkdir(parents=True)
+        installed_origin.write_text("# installed numpy\n", encoding="utf-8")
+        shadow_origin = self.root / "shadow-import" / "numpy" / "__init__.py"
+        shadow_origin.parent.mkdir(parents=True)
+        shadow_origin.write_text("# shadow numpy\n", encoding="utf-8")
+
+        class DistributionFixture:
+            files = (Path("numpy") / "__init__.py",)
+
+            @staticmethod
+            def locate_file(package_path: Path) -> Path:
+                return installed_root / package_path
+
+        with (
+            patch.object(
+                matched.importlib,
+                "import_module",
+                return_value=SimpleNamespace(__file__=str(shadow_origin)),
+            ),
+            patch.object(
+                matched.importlib_metadata,
+                "distribution",
+                return_value=DistributionFixture(),
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "not uniquely owned by its distribution",
+            ),
+        ):
+            matched._scientific_module_origin_identity("numpy")
+
+    def test_runtime_contract_rejects_non_exact_starsim_version(self):
+        with (
+            patch.dict(
+                sys.modules,
+                {"starsim": SimpleNamespace(__version__="3.5.0")},
+            ),
+            self.assertRaisesRegex(
+                RuntimeError, "requires exact Starsim 3\\.5\\.1"
+            ),
+        ):
+            matched._runtime_contract()
+
+    def test_real_preparation_runtime_smoke_is_deterministic_twice(self):
+        try:
+            import starsim  # type: ignore
+        except ImportError:
+            self.skipTest("exact Starsim scientific runtime is unavailable")
+        if str(getattr(starsim, "__version__", "")) != "3.5.1":
+            self.skipTest("test requires the exact Starsim 3.5.1 runtime")
+
+        _, environment = self._runtime_cache_environment(
+            "deterministic-smoke-cache"
+        )
+        from epiagentbench.trusted import starsim_ltc_v3
+
+        with (
+            patch.dict(os.environ, environment, clear=False),
+            patch.object(
+                starsim_ltc_v3,
+                "LtcNorovirusStarsimEngine",
+                wraps=starsim_ltc_v3.LtcNorovirusStarsimEngine,
+            ) as engine_constructor,
+        ):
+            first = matched._preparation_runtime_smoke()
+            second = matched._preparation_runtime_smoke()
+
+        self.assertEqual(first, second)
+        self.assertEqual(engine_constructor.call_count, 8)
+        self.assertEqual(
+            first["schema_version"],
+            "epiagentbench.preparation_runtime_smoke.v1",
+        )
+        self.assertEqual(
+            first["fixed_public_scenario"],
+            "v16_contact_transmission_with_matched_contact_stop",
+        )
+        self.assertEqual(
+            first["result_sha256"],
+            "sha256:"
+            "58561b5300cdb2ed566d7cead358ef0e98edc7c29d1c2f9ddff5d27034e4f112",
+        )
+        self.assertEqual(
+            first["result_sha256"],
+            matched._component_hash(first["result"]),
+        )
+        self.assertEqual(first["result"]["branch_runs_per_policy"], 2)
+        self.assertEqual(
+            first["result"]["scientific_scope"],
+            "deterministic_capability_smoke_not_calibration_evidence",
+        )
+        self.assertEqual(
+            first["result"]["paired_checks"],
+            {
+                "matched_opening": True,
+                "matched_through_day_one": True,
+                "no_action_person_to_person_secondary_count": 1,
+                "action_person_to_person_secondary_count": 0,
+                "prevented_person_to_person_secondary_count": 1,
+                "known_branch_divergence": True,
+            },
+        )
+        self.assertEqual(
+            first["result"]["no_action"]["transmission_events"],
+            [
+                {
+                    "target_person_id": "golden-index",
+                    "source_person_id": None,
+                    "infection_minute": 0,
+                    "mechanism": "seed",
+                },
+                {
+                    "target_person_id": "golden-contact",
+                    "source_person_id": "golden-index",
+                    "infection_minute": 2 * 24 * 60,
+                    "mechanism": "person_to_person",
+                },
+            ],
+        )
+        self.assertEqual(
+            first["result"]["contact_stop_action"]["transmission_events"],
+            [
+                {
+                    "target_person_id": "golden-index",
+                    "source_person_id": None,
+                    "infection_minute": 0,
+                    "mechanism": "seed",
+                }
+            ],
+        )
+        self.assertEqual(
+            first["result"]["contact_stop_action"]["boundaries"][2][
+                "applied_control_ids"
+            ],
+            ["v16-stop-direct-care"],
+        )
+
+    def test_real_preparation_runtime_smoke_rejects_golden_digest_drift(self):
+        try:
+            import starsim  # type: ignore
+        except ImportError:
+            self.skipTest("exact Starsim scientific runtime is unavailable")
+        if str(getattr(starsim, "__version__", "")) != "3.5.1":
+            self.skipTest("test requires the exact Starsim 3.5.1 runtime")
+
+        _, environment = self._runtime_cache_environment(
+            "golden-smoke-drift-cache"
+        )
+        with (
+            patch.dict(os.environ, environment, clear=False),
+            patch.object(
+                matched,
+                "_PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256",
+                "sha256:" + "0" * 64,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError, "drifted from its reviewed digest"
+            ),
+        ):
+            matched._preparation_runtime_smoke()
+
+    def test_tracked_preparation_runtime_receipt_rejects_identity_drift(self):
+        receipt_path = (
+            self.root
+            / "results"
+            / "development-matched-50x6-v16.runtime.json"
+        )
+        receipt_path.parent.mkdir()
+        published = self._preparation_runtime_receipt()
+        receipt_path.write_text(
+            json.dumps(published, sort_keys=True), encoding="utf-8"
+        )
+        relative = receipt_path.relative_to(self.root).as_posix()
+
+        def tracked_git_output(_root: Path, *arguments: str) -> str:
+            if arguments == (
+                "ls-files",
+                "--error-unmatch",
+                relative,
+            ):
+                return relative
+            raise AssertionError(
+                f"unexpected git invocation: {arguments!r}"
+            )
+
+        current = copy.deepcopy(published)
+        current["benchmark_base_commit"] = "d" * 40
+        with (
+            patch.object(
+                matched, "_git_output", side_effect=tracked_git_output
+            ),
+            patch.object(
+                matched,
+                "preflight_preparation_runtime",
+                return_value=current,
+            ),
+            patch.object(
+                matched,
+                "_runtime_cache_contract",
+                return_value=RUNTIME_CACHE_CONTRACT,
+            ),
+        ):
+            verification = matched.verify_preparation_runtime(
+                root=self.root,
+                receipt_path=receipt_path,
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+            )
+        self.assertEqual(verification["status"], "passed")
+        self.assertEqual(
+            verification["runtime_identity_sha256"],
+            published["runtime_identity_sha256"],
+        )
+
+        drifted = copy.deepcopy(current)
+        drifted["runtime_contract"] = {
+            **dict(drifted["runtime_contract"]),
+            "starsim": "3.5.1-drift",
+        }
+        drifted["runtime_contract_sha256"] = matched._component_hash(
+            drifted["runtime_contract"]
+        )
+        drifted["runtime_identity_sha256"] = (
+            matched._preparation_runtime_identity(drifted)
+        )
+        with (
+            patch.object(
+                matched, "_git_output", side_effect=tracked_git_output
+            ),
+            patch.object(
+                matched,
+                "preflight_preparation_runtime",
+                return_value=drifted,
+            ),
+            patch.object(
+                matched,
+                "_runtime_cache_contract",
+                return_value=RUNTIME_CACHE_CONTRACT,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "differs from the published receipt",
+            ),
+        ):
+            matched.verify_preparation_runtime(
+                root=self.root,
+                receipt_path=receipt_path,
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+            )
+
+        with (
+            patch.object(matched, "_git_output", return_value=""),
+            self.assertRaisesRegex(
+                RuntimeError, "receipt must already be committed"
+            ),
+        ):
+            matched.verify_preparation_runtime(
+                root=self.root,
+                receipt_path=receipt_path,
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+            )
+
+    def test_freeze_verifies_runtime_before_key_cohort_or_randomness(self):
+        output_directory = self.root / "fresh-v16-cohort"
+        with (
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                side_effect=RuntimeError("runtime receipt drift"),
+            ) as verification,
+            patch.object(
+                matched, "freeze_private_starsim_cohort"
+            ) as freeze,
+            patch.object(matched, "_read_authentication_key") as read_key,
+            patch.object(matched.secrets, "token_bytes") as token_bytes,
+            self.assertRaisesRegex(RuntimeError, "runtime receipt drift"),
+        ):
+            matched.freeze_panel_cohort(
+                root=self.root,
+                preparation_runtime_receipt_path=(
+                    self.root / "results" / "runtime.json"
+                ),
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+                authentication_key_file=self.key_path,
+                output_directory=output_directory,
+            )
+
+        verification.assert_called_once_with(
+            root=self.root,
+            receipt_path=self.root / "results" / "runtime.json",
+            expected_benchmark_base_commit="d" * 40,
+            runtime_cache_dir=self.root / "runtime-cache",
+        )
+        freeze.assert_not_called()
+        read_key.assert_not_called()
+        token_bytes.assert_not_called()
+        self.assertFalse(output_directory.exists())
+
+    def test_freeze_key_namespace_rejects_hardlinks_and_shared_parents(self):
+        alternate_namespace = self.root / "alternate-key-namespace"
+        alternate_namespace.mkdir(mode=0o700)
+        os.link(
+            self.key_path,
+            alternate_namespace / "authentication.key",
+        )
+        with self.assertRaisesRegex(RuntimeError, "single-link"):
+            matched._read_authentication_key(self.key_path)
+
+        shared_namespace = self.root / "shared-key-namespace"
+        shared_namespace.mkdir(mode=0o755)
+        shared_namespace.chmod(0o755)
+        shared_key = shared_namespace / "authentication.key"
+        shared_key.write_bytes(AUTHENTICATION_KEY)
+        shared_key.chmod(0o600)
+        with self.assertRaisesRegex(ValueError, "namespace must be owner-only"):
+            matched._cohort_freeze_claim_path(shared_key)
+
+    def test_freeze_claim_is_pending_before_freezer_and_completed_once(self):
+        output_directory = self.root / "fresh-v16-cohort"
+        claim_path = matched._cohort_freeze_claim_path(self.key_path)
+        verification = self._runtime_verification(
+            source_contract=SOURCE_CONTRACT,
+            cli_contract=CLI_CONTRACT,
+        )
+
+        def freeze_fixture(**kwargs):
+            canonical_output = Path(kwargs["output_directory"])
+            self.assertEqual(
+                canonical_output, output_directory.resolve()
+            )
+            pending = matched._load_cohort_freeze_claim(
+                claim_path, AUTHENTICATION_KEY
+            )
+            self.assertEqual(
+                pending["status"], "pending_create_once_freeze"
+            )
+            self.assertFalse(
+                matched._cohort_freeze_completion_path(
+                    claim_path
+                ).exists()
+            )
+            manifest_path = self._cohort_at(canonical_output)
+            manifest = PrivateEpisodeCohortManifest.read(
+                manifest_path, AUTHENTICATION_KEY
+            )
+            return SimpleNamespace(
+                public_descriptor={
+                    "cohort_id": COHORT_ID,
+                    "episode_count": EPISODE_COUNT,
+                    "backend": "starsim-ltc-v3",
+                    "pack_set_commitment": (
+                        manifest.pack_set_commitment
+                    ),
+                },
+                cohort_directory=canonical_output,
+                manifest_path=manifest_path,
+                pack_paths=(),
+            )
+
+        with (
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                return_value=verification,
+            ),
+            patch.object(
+                matched,
+                "freeze_private_starsim_cohort",
+                side_effect=freeze_fixture,
+            ) as freezer,
+        ):
+            public = matched.freeze_panel_cohort(
+                root=self.root,
+                preparation_runtime_receipt_path=(
+                    self.root / "results" / "runtime.json"
+                ),
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+                authentication_key_file=self.key_path,
+                output_directory=output_directory,
+                freeze_claim_path=claim_path,
+            )
+            with self.assertRaisesRegex(
+                FileExistsError, "never rerun freeze"
+            ):
+                matched.freeze_panel_cohort(
+                    root=self.root,
+                    preparation_runtime_receipt_path=(
+                        self.root / "results" / "runtime.json"
+                    ),
+                    expected_benchmark_base_commit="d" * 40,
+                    runtime_cache_dir=self.root / "runtime-cache",
+                    authentication_key_file=self.key_path,
+                    output_directory=self.root / "reroll-v16-cohort",
+                    freeze_claim_path=claim_path,
+                )
+
+        self.assertEqual(freezer.call_count, 1)
+        pending = matched._load_cohort_freeze_claim(
+            claim_path, AUTHENTICATION_KEY
+        )
+        completion = matched._load_cohort_freeze_completion(
+            matched._cohort_freeze_completion_path(claim_path),
+            AUTHENTICATION_KEY,
+        )
+        self.assertEqual(
+            completion["freeze_claim_sha256"],
+            matched._component_hash(pending),
+        )
+        self.assertEqual(public["status"], "frozen_claim_completed")
+        serialized = json.dumps(public, sort_keys=True)
+        self.assertNotIn(str(self.key_path), serialized)
+        self.assertNotIn(str(claim_path), serialized)
+        self.assertNotIn(
+            pending["authentication_key_identity_commitment"], serialized
+        )
+
+    def test_interrupted_freeze_claim_is_terminal_and_nonretryable(self):
+        output_directory = self.root / "interrupted-v16-cohort"
+        claim_path = matched._cohort_freeze_claim_path(self.key_path)
+        verification = self._runtime_verification(
+            source_contract=SOURCE_CONTRACT,
+            cli_contract=CLI_CONTRACT,
+        )
+        with (
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                return_value=verification,
+            ),
+            patch.object(
+                matched,
+                "freeze_private_starsim_cohort",
+                side_effect=RuntimeError("simulated freezer interruption"),
+            ) as freezer,
+            self.assertRaisesRegex(
+                RuntimeError, "simulated freezer interruption"
+            ),
+        ):
+            matched.freeze_panel_cohort(
+                root=self.root,
+                preparation_runtime_receipt_path=(
+                    self.root / "results" / "runtime.json"
+                ),
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+                authentication_key_file=self.key_path,
+                output_directory=output_directory,
+                freeze_claim_path=claim_path,
+            )
+
+        self.assertTrue(claim_path.is_file())
+        self.assertFalse(
+            matched._cohort_freeze_completion_path(claim_path).exists()
+        )
+        with (
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                return_value=verification,
+            ),
+            patch.object(
+                matched, "freeze_private_starsim_cohort"
+            ) as second_freezer,
+            self.assertRaisesRegex(
+                FileExistsError, "interrupted freezes are terminal"
+            ),
+        ):
+            matched.freeze_panel_cohort(
+                root=self.root,
+                preparation_runtime_receipt_path=(
+                    self.root / "results" / "runtime.json"
+                ),
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+                authentication_key_file=self.key_path,
+                output_directory=self.root / "reroll-after-interruption",
+                freeze_claim_path=claim_path,
+            )
+        self.assertEqual(freezer.call_count, 1)
+        second_freezer.assert_not_called()
+
+    def test_prepare_rejects_generic_and_cherry_picked_v16_cohorts(self):
+        generic_manifest = self._cohort()
+        real_require = matched._require_completed_cohort_freeze_claim
+        with (
+            self._contracts(),
+            patch.object(
+                matched,
+                "_require_completed_cohort_freeze_claim",
+                wraps=real_require,
+            ),
+            patch.object(matched, "_load_frozen_cohort") as load_cohort,
+            patch.object(matched.secrets, "token_bytes") as token_bytes,
+            self.assertRaisesRegex(
+                ValueError, "no authenticated create-once freeze claim"
+            ),
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=generic_manifest,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        load_cohort.assert_not_called()
+        token_bytes.assert_not_called()
+
+        claim_path = matched._cohort_freeze_claim_path(self.key_path)
+        verification = self._runtime_verification(
+            source_contract=SOURCE_CONTRACT,
+            cli_contract=CLI_CONTRACT,
+        )
+        claim = matched._create_pending_cohort_freeze_claim(
+            claim_path=claim_path,
+            runtime_verification=verification,
+            expected_benchmark_base_commit="d" * 40,
+            canonical_cohort_destination=generic_manifest.parent.resolve(),
+            authentication_key=AUTHENTICATION_KEY,
+        )
+        manifest = PrivateEpisodeCohortManifest.read(
+            generic_manifest, AUTHENTICATION_KEY
+        )
+        matched._complete_cohort_freeze_claim(
+            claim_path=claim_path,
+            claim=claim,
+            manifest_path=generic_manifest,
+            manifest=manifest,
+            authentication_key=AUTHENTICATION_KEY,
+        )
+        cherry_picked_manifest = self._cohort_at(
+            self.root / "cherry-picked-v16-cohort"
+        )
+        with self.assertRaisesRegex(
+            ValueError, "belongs to another freeze"
+        ):
+            matched._require_completed_cohort_freeze_claim(
+                claim_path=claim_path,
+                manifest_path=cherry_picked_manifest,
+                runtime_receipt_file_sha256=verification[
+                    "published_receipt_file_sha256"
+                ],
+                runtime_identity_sha256=verification[
+                    "runtime_identity_sha256"
+                ],
+                expected_benchmark_base_commit="d" * 40,
+                authentication_key=AUTHENTICATION_KEY,
+            )
+
+    def test_prepare_rejects_pending_freeze_before_schedule_randomness(self):
+        manifest_path = self._cohort()
+        claim_path = matched._cohort_freeze_claim_path(self.key_path)
+        matched._create_pending_cohort_freeze_claim(
+            claim_path=claim_path,
+            runtime_verification=self._runtime_verification(
+                source_contract=SOURCE_CONTRACT,
+                cli_contract=CLI_CONTRACT,
+            ),
+            expected_benchmark_base_commit="d" * 40,
+            canonical_cohort_destination=manifest_path.parent.resolve(),
+            authentication_key=AUTHENTICATION_KEY,
+        )
+        real_require = matched._require_completed_cohort_freeze_claim
+        with (
+            self._contracts(),
+            patch.object(
+                matched,
+                "_require_completed_cohort_freeze_claim",
+                wraps=real_require,
+            ),
+            patch.object(matched.secrets, "token_bytes") as token_bytes,
+            patch.object(
+                matched, "_create_private_state_once"
+            ) as create_private,
+            self.assertRaisesRegex(
+                RuntimeError, "remains pending"
+            ),
+        ):
+            prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        token_bytes.assert_not_called()
+        create_private.assert_not_called()
+
+    def test_prepare_accepts_only_the_matching_completed_freeze_claim(self):
+        manifest_path = self._cohort()
+        claim_path = matched._cohort_freeze_claim_path(self.key_path)
+        verification = self._runtime_verification(
+            source_contract=SOURCE_CONTRACT,
+            cli_contract=CLI_CONTRACT,
+        )
+        claim = matched._create_pending_cohort_freeze_claim(
+            claim_path=claim_path,
+            runtime_verification=verification,
+            expected_benchmark_base_commit="d" * 40,
+            canonical_cohort_destination=manifest_path.parent.resolve(),
+            authentication_key=AUTHENTICATION_KEY,
+        )
+        manifest = PrivateEpisodeCohortManifest.read(
+            manifest_path, AUTHENTICATION_KEY
+        )
+        completion = matched._complete_cohort_freeze_claim(
+            claim_path=claim_path,
+            claim=claim,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            authentication_key=AUTHENTICATION_KEY,
+        )
+        real_require = matched._require_completed_cohort_freeze_claim
+        with (
+            self._contracts(),
+            patch.object(
+                matched,
+                "_require_completed_cohort_freeze_claim",
+                wraps=real_require,
+            ),
+            patch.object(
+                matched.secrets, "token_bytes", return_value=b"s" * 32
+            ),
+        ):
+            public = prepare_panel(
+                root=self.root,
+                cohort_manifest_path=manifest_path,
+                authentication_key_file=self.key_path,
+                freeze_claim_path=claim_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+            )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        self.assertEqual(private["cohort_freeze_claim"], claim)
+        self.assertEqual(private["cohort_freeze_completion"], completion)
+        serialized_public = json.dumps(public, sort_keys=True)
+        self.assertNotIn(str(claim_path), serialized_public)
+        self.assertNotIn(
+            claim["authentication_key_identity_commitment"],
+            serialized_public,
+        )
+
+    def test_public_prepare_runtime_failure_precedes_private_access(self):
+        @contextmanager
+        def host_lock(_path: Path):
+            yield
+
+        runtime_receipt = self.root / "results" / "runtime.json"
+        private_state = self.root / "private" / "state.json"
+        public_manifest = self.root / "results" / "manifest.json"
+        cohort_manifest = self.root / "cohort" / "cohort.manifest"
+        with (
+            patch.object(
+                matched, "_exclusive_run_lock", side_effect=host_lock
+            ) as lock,
+            patch.object(matched, "_validate_schedule_design"),
+            patch.object(matched, "_git_output", return_value=""),
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                side_effect=RuntimeError("scientific runtime unavailable"),
+            ) as verification,
+            patch.object(matched, "_read_authentication_key") as read_key,
+            patch.object(matched, "_load_frozen_cohort") as load_cohort,
+            patch.object(
+                matched, "_create_private_state_once"
+            ) as create_private,
+            patch.object(matched.secrets, "token_bytes") as token_bytes,
+            self.assertRaisesRegex(
+                RuntimeError, "scientific runtime unavailable"
+            ),
+        ):
+            matched.prepare_panel(
+                root=self.root,
+                cohort_manifest_path=cohort_manifest,
+                preparation_runtime_receipt_path=runtime_receipt,
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.root / "claude-auth",
+                codex_secure_storage_dir=self.root / "codex-auth",
+                private_state_path=private_state,
+                public_manifest_path=public_manifest,
+            )
+
+        lock.assert_called_once_with(private_state)
+        verification.assert_called_once_with(
+            root=self.root,
+            receipt_path=runtime_receipt,
+            expected_benchmark_base_commit="d" * 40,
+            runtime_cache_dir=self.root / "runtime-cache",
+        )
+        read_key.assert_not_called()
+        load_cohort.assert_not_called()
+        create_private.assert_not_called()
+        token_bytes.assert_not_called()
+        self.assertFalse(private_state.exists())
+        self.assertFalse(public_manifest.exists())
+
+    def test_real_runtime_preflight_never_starts_provider_or_auth_helpers(self):
+        pinned_python = Path(
+            "/Users/matthew.zhao/.codex/"
+            "epiagentbench-50x6-v5-venv/bin/python"
+        )
+        if Path(sys.executable) != pinned_python:
+            self.skipTest("requires the pinned V5 scientific Python")
+        try:
+            import starsim  # type: ignore
+        except ImportError:
+            self.skipTest("exact Starsim scientific runtime is unavailable")
+        self.assertEqual(str(getattr(starsim, "__version__", "")), "3.5.1")
+
+        repository_root = Path(matched.__file__).resolve().parents[2]
+        real_git_output = matched._git_output
+        expected_commit = real_git_output(
+            repository_root, "rev-parse", "HEAD"
+        )
+
+        def stable_git_output(root: Path, *arguments: str) -> str:
+            if arguments == ("rev-parse", "HEAD"):
+                return expected_commit
+            if arguments == (
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+            ):
+                return ""
+            return real_git_output(root, *arguments)
+
+        runtime_cache, environment = self._runtime_cache_environment(
+            "real-runtime-preflight-cache"
+        )
+        with patch.dict(os.environ, environment, clear=False):
+            for name in matched._MATCHED_PANEL_NETWORK_OVERRIDES:
+                os.environ.pop(name, None)
+            with (
+                patch.object(
+                    matched, "_git_output", side_effect=stable_git_output
+                ),
+                patch.object(
+                    matched,
+                    "_source_contract",
+                    wraps=matched._source_contract,
+                ) as source_contract,
+                patch.object(
+                    matched,
+                    "_cli_contract",
+                    wraps=matched._cli_contract,
+                ) as cli_contract,
+                patch.object(
+                    matched,
+                    "_runtime_cache_contract",
+                    wraps=matched._runtime_cache_contract,
+                ) as cache_contract,
+                patch.object(
+                    matched,
+                    "_runtime_contract",
+                    wraps=matched._runtime_contract,
+                ) as runtime_contract,
+                patch.object(
+                    matched,
+                    "_preparation_runtime_smoke",
+                    wraps=matched._preparation_runtime_smoke,
+                ) as smoke_contract,
+                patch.object(
+                    matched,
+                    "evaluate_local_cli_agent",
+                    side_effect=AssertionError(
+                        "runtime preflight attempted a provider model call"
+                    ),
+                ) as evaluator,
+                patch.object(
+                    matched,
+                    "_run_no_capture_process_group",
+                    side_effect=AssertionError(
+                        "runtime preflight attempted authentication"
+                    ),
+                ) as auth_process,
+                patch.object(
+                    matched,
+                    "_bootstrap_codex_credentials",
+                    side_effect=AssertionError(
+                        "runtime preflight attempted Codex authentication"
+                    ),
+                ) as codex_auth,
+                patch.object(
+                    matched,
+                    "_bootstrap_managed_glean_credentials",
+                    side_effect=AssertionError(
+                        "runtime preflight attempted Claude authentication"
+                    ),
+                ) as claude_auth,
+            ):
+                receipt = matched.preflight_preparation_runtime(
+                    root=repository_root,
+                    expected_benchmark_base_commit=expected_commit,
+                    runtime_cache_dir=runtime_cache,
+                )
+
+        source_contract.assert_called_once_with(repository_root)
+        cli_contract.assert_called_once_with()
+        cache_contract.assert_called_once_with(runtime_cache)
+        runtime_contract.assert_called_once_with()
+        smoke_contract.assert_called_once_with()
+        evaluator.assert_not_called()
+        auth_process.assert_not_called()
+        codex_auth.assert_not_called()
+        claude_auth.assert_not_called()
+        self.assertEqual(receipt["status"], "passed")
+        self.assertEqual(receipt["provider_processes_started"], 0)
+        self.assertEqual(receipt["authentication_processes_started"], 0)
+        self.assertFalse(receipt["private_artifacts_required"])
+        self.assertEqual(
+            receipt["runtime_identity_sha256"],
+            matched._preparation_runtime_identity(receipt),
+        )
+
+    def test_prepare_runtime_failure_precedes_private_or_cohort_access(self):
+        with (
+            patch.object(matched, "_git_output", return_value=""),
+            patch.object(
+                matched,
+                "verify_preparation_runtime",
+                side_effect=RuntimeError("scientific runtime unavailable"),
+            ) as verification,
+            patch.object(matched, "_read_authentication_key") as read_key,
+            patch.object(matched, "_load_frozen_cohort") as load_cohort,
+            patch.object(matched, "_create_private_state_once") as create_private,
+            patch.object(matched.secrets, "token_bytes") as token_bytes,
+            self.assertRaisesRegex(
+                RuntimeError, "scientific runtime unavailable"
+            ),
+        ):
+            matched._prepare_panel_locked(
+                root=self.root,
+                cohort_manifest_path=self.root / "cohort" / "cohort.manifest",
+                preparation_runtime_receipt_path=(
+                    self.root / "results" / "runtime.json"
+                ),
+                expected_benchmark_base_commit="d" * 40,
+                runtime_cache_dir=self.root / "runtime-cache",
+                authentication_key_file=self.root / "authentication.key",
+                claude_secure_storage_dir=self.root / "claude-auth",
+                codex_secure_storage_dir=self.root / "codex-auth",
+                private_state_path=self.root / "private" / "state.json",
+                public_manifest_path=self.root / "results" / "manifest.json",
+            )
+
+        verification.assert_called_once_with(
+            root=self.root,
+            receipt_path=self.root / "results" / "runtime.json",
+            expected_benchmark_base_commit="d" * 40,
+            runtime_cache_dir=self.root / "runtime-cache",
+        )
+        read_key.assert_not_called()
+        load_cohort.assert_not_called()
+        create_private.assert_not_called()
+        token_bytes.assert_not_called()
 
     def _prepare(
         self,
@@ -2273,7 +3796,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v15_authorization_breakdown"],
+            contract["claude_current_v16_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -2283,7 +3806,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v15_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v16_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -2301,6 +3824,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v12_usd": 0.0,
                 "v13_usd": 0.0,
                 "v14_usd": 10.0,
+                "v15_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -2337,6 +3861,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v14_authentication_receipt",
                 "v14_preflight_artifact",
                 "v14_supersession",
+                "v15_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -2344,25 +3869,35 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
-    def test_v15_acknowledgement_is_exact_and_accounts_for_v14(self):
+    def test_v16_acknowledgement_is_exact_and_accounts_for_v15(self):
         self.assertEqual(
             hashlib.sha256(
                 REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
             ).hexdigest(),
-            "bdfae06d7e74ba73f61b136a703b9487bec3018259b6864e0624b0c2803160cd",
+            "a65e4a7643a5ab1d277879ee55bcad2125571f95d7157803f50639efe6f5e37f",
         )
-        self.assertIn("six-call v15 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("six-call v16 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("$580 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("failed v14 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn(
+            "failed zero-model-call v15 pre-claim preparation",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
         runbook = (
-            Path(__file__).resolve().parents[1] / "docs" / "V15_RUNBOOK.md"
+            Path(__file__).resolve().parents[1] / "docs" / "V16_RUNBOOK.md"
         ).read_text(encoding="utf-8")
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, runbook)
-        self.assertIn("development-matched-50x6-v15", runbook)
-        self.assertIn("development_matched_panel_v15", runbook)
-        self.assertIn("epiagentbench-cursor-v15", runbook)
+        self.assertIn("development-matched-50x6-v16", runbook)
+        self.assertIn("development_matched_panel_v16", runbook)
+        self.assertIn("epiagentbench-cursor-v16", runbook)
         checkout_proof = runbook.index(
-            'git worktree add --detach'
+            "operator-approved GitButler-compatible"
+        )
+        runtime_preflight = runbook.index(
+            "preflight-preparation-runtime"
+        )
+        private_creation = runbook.index(
+            "openssl rand 32"
         )
         cohort_freeze = runbook.index("freeze-private-cohort")
         manifest_prepare = runbook.index(
@@ -2375,13 +3910,32 @@ class MatchedPanelTests(unittest.TestCase):
             "security add-generic-password"
         )
         supervisor_creation = runbook.index(
-            'mkdir "$HOME/.codex/epiagentbench-v15-supervisors"'
+            'mkdir "$HOME/.codex/epiagentbench-v16-supervisors"'
         )
+        self.assertLess(checkout_proof, runtime_preflight)
+        self.assertLess(runtime_preflight, private_creation)
         self.assertLess(checkout_proof, cohort_freeze)
         self.assertLess(cohort_freeze, manifest_prepare)
         self.assertLess(manifest_prepare, manifest_authorization)
         self.assertLess(manifest_authorization, cursor_credential)
         self.assertLess(manifest_authorization, supervisor_creation)
+        self.assertIn(
+            'V16_RUNTIME_CHECKOUT="${V16_RUNTIME_CHECKOUT:?',
+            runbook,
+        )
+        self.assertIn(
+            'V16_PREPARE_CHECKOUT="${V16_PREPARE_CHECKOUT:?',
+            runbook,
+        )
+        self.assertIn(
+            'test -z "$(git status --porcelain --untracked-files=all)"',
+            runbook,
+        )
+        self.assertIn(
+            'git ls-files --error-unmatch "$V16_PUBLIC_RUNTIME"',
+            runbook,
+        )
+        self.assertNotIn("git worktree add", runbook)
         self.assertIn("for candidate_path in \\", runbook)
         self.assertNotIn("for path in \\", runbook)
 
@@ -2471,7 +4025,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v15_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v16_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -2509,6 +4063,17 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(
             public["timeout_contract"]["seconds_per_assignment"], 1800
+        )
+        serialized_public = json.dumps(public, sort_keys=True)
+        self.assertNotIn(str(Path.home()), serialized_public)
+        self.assertNotIn(
+            "runtime_cache_contract",
+            public["preparation_runtime_contract"],
+        )
+        self.assertNotIn("python_executable", public["runtime_contract"])
+        self.assertNotIn(
+            "python_executable_binding",
+            public["runtime_contract"],
         )
         self.assertEqual(matched._load_json(self.public_path), public)
         self.assertEqual(
@@ -2855,8 +4420,20 @@ class MatchedPanelTests(unittest.TestCase):
             "prepare",
             "--cohort-manifest",
             "/private/cohort.manifest",
+            "--preparation-runtime-receipt",
+            "/public/runtime.json",
+            "--expected-benchmark-base-commit",
+            "d" * 40,
+            "--runtime-cache-dir",
+            "/private/runtime-cache",
             "--authentication-key",
             "/private/authentication.key",
+            "--freeze-claim",
+            (
+                "/private/"
+                ".development-matched-50x6-v16."
+                "cohort-freeze-claim.v1.json"
+            ),
             "--claude-secure-storage-dir",
             "/private/claude-auth",
             "--codex-secure-storage-dir",
@@ -2881,6 +4458,26 @@ class MatchedPanelTests(unittest.TestCase):
             matched_cli.main()
 
         self.assertEqual(prepare.call_args.kwargs["timeout_seconds"], 1800)
+        self.assertEqual(
+            prepare.call_args.kwargs["preparation_runtime_receipt_path"],
+            Path("/public/runtime.json"),
+        )
+        self.assertEqual(
+            prepare.call_args.kwargs["expected_benchmark_base_commit"],
+            "d" * 40,
+        )
+        self.assertEqual(
+            prepare.call_args.kwargs["runtime_cache_dir"],
+            Path("/private/runtime-cache"),
+        )
+        self.assertEqual(
+            prepare.call_args.kwargs["freeze_claim_path"],
+            Path(
+                "/private/"
+                ".development-matched-50x6-v16."
+                "cohort-freeze-claim.v1.json"
+            ),
+        )
 
     def test_prepare_rejects_any_non_five_dollar_claude_ceiling(self):
         manifest_path = self._cohort()
@@ -2907,8 +4504,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v15")
-        self.assertEqual(public["schema_version"], "development_matched_panel_v15")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v16")
+        self.assertEqual(public["schema_version"], "development_matched_panel_v16")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -3035,6 +4632,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "source_contract",
                     "cli_contract",
                     "runtime_contract",
+                    "preparation_runtime_contract",
                     "replay_trace_contract",
                     "profiles",
                 ],
@@ -3055,6 +4653,9 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertIn("replay_sha256", public["contract_hashes"])
+        self.assertIn(
+            "preparation_runtime_sha256", public["contract_hashes"]
+        )
         self.assertIn("supervisor_sha256", public["contract_hashes"])
         self.assertIn("claude_auth_sha256", public["contract_hashes"])
         self.assertIn("codex_auth_sha256", public["contract_hashes"])
@@ -5268,11 +6869,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v15_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v16_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v15", "six-call v10"
+            "six-call v16", "six-call v10"
         )
         with (
             patch(
@@ -5306,7 +6907,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_root_owned_regular_executable_identity"
             ) as wrapper_identity,
-            self.assertRaisesRegex(RuntimeError, "exact v15 \\$580"),
+            self.assertRaisesRegex(RuntimeError, "exact v16 \\$580"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -5627,7 +7228,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.authentication_dependency_freeze.v1"
             ),
             "status": "frozen",
-            "panel_id": "development-matched-50x6-v15",
+            "panel_id": "development-matched-50x6-v16",
             "public_precommitment_sha256": public["precommitment_sha256"],
             "static_cli_contract_sha256": public["contract_hashes"][
                 "cli_sha256"
@@ -5962,7 +7563,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v15"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v16"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -6009,7 +7610,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v15"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v16"),
         ):
             run_panel(
                 root=self.root,
@@ -7916,6 +9517,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "budgets_sha256",
                 "timeouts_sha256",
                 "runtime_sha256",
+                "preparation_runtime_sha256",
                 "replay_sha256",
                 "supervisor_sha256",
             },
@@ -8441,7 +10043,7 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v15_receipt(self):
+    def test_environment_preflight_gate_validates_full_v16_receipt(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-gate.json"
 
@@ -8987,7 +10589,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             authentication_receipt["panel_id"],
-            "development-matched-50x6-v15",
+            "development-matched-50x6-v16",
         )
         self.assertEqual(authentication_receipt["status"], "passed")
         self.assertIs(authentication_receipt["development_only"], True)
@@ -9645,7 +11247,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v15"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v16"),
         ):
             matched.authenticate_panel(
                 root=self.root,
