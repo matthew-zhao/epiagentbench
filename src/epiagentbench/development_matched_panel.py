@@ -113,7 +113,7 @@ _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
     "58561b5300cdb2ed566d7cead358ef0e98edc7c29d1c2f9ddff5d27034e4f112"
 )
-_RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v2"
+_RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
     "MPLBACKEND",
     "MPLCONFIGDIR",

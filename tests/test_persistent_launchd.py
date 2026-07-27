@@ -485,6 +485,33 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
+    def test_v16_runtime_cache_ignores_nested_directory_mtime_drift(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v16_runtime_binding()
+        compiled_directory = cache_root / "numba" / "compiled"
+        compiled_directory.mkdir(mode=0o700)
+        cached_file = compiled_directory / "artifact.cache"
+        cached_file.write_bytes(b"stable-cache-bytes")
+        os.chmod(cached_file, 0o600)
+        before = launchd_agent._runtime_cache_contract(cache_root)
+        metadata = compiled_directory.stat()
+
+        os.utime(
+            compiled_directory,
+            ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1_000_000),
+        )
+
+        after = launchd_agent._runtime_cache_contract(cache_root)
+        self.assertEqual(after, before)
+        nested_directory = next(
+            item
+            for item in after["inventory"]
+            if item["relative_path"] == "numba/compiled"
+        )
+        self.assertEqual(nested_directory["kind"], "directory")
+        self.assertNotIn("mtime_ns", nested_directory)
+
     def test_v16_runtime_cache_must_be_dedicated_and_non_overlapping(
         self,
     ) -> None:

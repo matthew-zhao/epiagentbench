@@ -128,7 +128,7 @@ pass:
   deterministic resident-to-staff transmission across the sole direct-care
   edge, while the matched day-one contact stop prevents it;
 - binds the clean source and CLI contracts; and
-- binds the complete runtime-cache v2 tree: an absolute normalized,
+- binds the complete runtime-cache v3 tree: an absolute normalized,
   current-user `0700` root containing only exact current-user `0700`
   `matplotlib`, `numba`, and `xdg` subdirectories; below those children, the
   closed, bounded, content-hashed inventory contains at most 10,000
@@ -419,7 +419,7 @@ paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
-pinned source tree, and the closed bounded owner-only runtime-cache v2
+pinned source tree, and the closed bounded owner-only runtime-cache v3
 inventory. The first commit publishes code; the two identical receipts are
 then generated and compared at that commit; the second commit publishes those
 exact receipt bytes. Only after a fresh checkout re-attests the second commit

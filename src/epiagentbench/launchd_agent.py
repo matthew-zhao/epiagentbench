@@ -95,7 +95,7 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = frozenset(
 _PYTHON_ENTRYPOINT_BINDING_SCHEMA = (
     "epiagentbench.python_entrypoint_binding.v2"
 )
-_RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v2"
+_RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _ISOLATED_PYTHON_FLAGS = ("-I", "-S", "-B")
 _LAUNCHD_AGENT_SOURCE = Path("src/epiagentbench/launchd_agent.py")
 _PERSISTENT_SUPERVISOR_SOURCE = Path(
@@ -1254,7 +1254,6 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
                         "inode": metadata.st_ino,
                         "owner_uid": metadata.st_uid,
                         "mode": f"{stat.S_IMODE(metadata.st_mode):04o}",
-                        "mtime_ns": metadata.st_mtime_ns,
                     }
                 )
                 continue
@@ -1326,7 +1325,6 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
                 "inode": observed.st_ino,
                 "owner_uid": observed.st_uid,
                 "mode": f"{stat.S_IMODE(observed.st_mode):04o}",
-                "mtime_ns": observed.st_mtime_ns,
             }
         if observed_item != item:
             raise ValueError("Runtime cache changed while inventorying")

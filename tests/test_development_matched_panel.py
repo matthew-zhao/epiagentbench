@@ -103,7 +103,7 @@ RUNTIME_CONTRACT = {
     "machine": "test-machine",
 }
 RUNTIME_CACHE_CONTRACT = {
-    "schema_version": "epiagentbench.runtime_cache_contract.v2",
+    "schema_version": "epiagentbench.runtime_cache_contract.v3",
     "environment": {
         "MPLBACKEND": "Agg",
         "MPLCONFIGDIR": "/private/runtime-cache/matplotlib",

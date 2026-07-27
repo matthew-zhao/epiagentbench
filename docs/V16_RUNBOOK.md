@@ -48,7 +48,7 @@ a benchmark score. The preflight also binds:
   isolated, hook-free bootstrap that appends only the attested repository
   `src` and V5 virtual-environment `site-packages` after the standard library;
 - the clean source and CLI contracts at the pinned commit;
-- a fresh runtime-cache v2 contract whose normalized, current-user `0700`
+- a fresh runtime-cache v3 contract whose normalized, current-user `0700`
   root contains only exact current-user `0700` children `matplotlib`, `numba`,
   and `xdg`; below them the closed inventory contains at most 10,000
   descendants total (directories plus regular files), with owner-only,
@@ -63,8 +63,9 @@ entrypoint/bootstrap binding. It exposes only an opaque hash of the full cache
 contract. The raw Python binding is transient during preflight and is later
 recomputed and sealed in the authenticated owner-only LaunchAgent config; it
 is never stored in a public artifact. The full cache paths, environment,
-device/inode/UID metadata, modes, mtimes, and inventory are retained in the
-authenticated private panel state and later in that config. Path-free
+device/inode/UID metadata, modes, top-level-directory and regular-file mtimes,
+and inventory are retained in the authenticated private panel state and later
+in that config. Path-free
 scientific module-origin identities are the narrower public exception: they
 contain only a distribution-relative file name and content hash, never an
 absolute path or filesystem topology.
@@ -173,7 +174,7 @@ test -z "$(git status --porcelain --untracked-files=all)"
 
 All five public outputs and all private V16 namespaces must be absent before
 the cache is created. The cache is runtime state, not a cohort or credential
-namespace. Its v2 contract permits exactly three children at the root:
+namespace. Its v3 contract permits exactly three children at the root:
 `matplotlib`, `numba`, and `xdg`. Receipt bytes, command summaries, and all
 other operator output therefore go into a distinct owner-only staging
 directory that never overlaps the cache.
@@ -300,6 +301,13 @@ explicit zero provider/authentication process counters. It contains no raw
 Python entrypoint/bootstrap binding, cache contract, absolute path,
 device/inode/UID metadata, seed, episode identifier, schedule, credential,
 prompt, observation, provider output, trace, or score.
+
+The private cache binding seals every relative path and every entry's owner,
+mode, device, and inode. It additionally seals every regular file's byte hash,
+size, link count, and modification time. Nested-directory modification times
+are intentionally excluded: Numba refreshes those timestamps while reading an
+otherwise byte-identical cache. Directory topology and identity remain
+sealed, and any cache-file byte or permission change still fails verification.
 
 ## 5. Commit and push the exact runtime receipt through GitButler
 

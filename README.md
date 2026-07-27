@@ -374,7 +374,7 @@ the pre-private scientific-runtime receipt. The exact V5 Python runs with
 `-I -S -B`; the isolated CLIs manually append only the attested repository
 source and V5 virtual-environment packages after the standard library, without
 executing `site`, `.pth`, or customization hooks. The worker requires the same
-full Python/bootstrap binding, closed owner-only runtime-cache v2 inventory,
+full Python/bootstrap binding, closed owner-only runtime-cache v3 inventory,
 exact six cache environment variables, installed scientific-distribution
 bytes, and fixed real Starsim smoke result committed before the cohort existed.
 For the complete Python and cache bindings, public receipts expose only opaque
@@ -507,7 +507,7 @@ effect estimate, or a benchmark score. The receipt binds that aggregate
 result, actual installed bytes of the declared scientific distributions, and
 the clean source and CLI contracts. It also commits opaque hashes for the full
 Python entrypoint/bootstrap binding and for a closed, bounded, current-user
-runtime-cache v2 tree. That tree has an exact current-user `0700` root whose
+runtime-cache v3 tree. That tree has an exact current-user `0700` root whose
 only entries are exact current-user `0700` directories named `matplotlib`,
 `numba`, and `xdg`; below those children it permits at most 10,000 total
 descendants (directories plus regular files), all owner-only, nonsymlinked,
