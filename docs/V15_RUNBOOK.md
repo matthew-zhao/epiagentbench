@@ -8,13 +8,16 @@ supervisor, or make a model call.
 The required order is:
 
 1. publish and pin the V15 code-and-runbook commit;
-2. create fresh V15-only private namespaces and cohort;
-3. prepare and publish the fresh V15 manifest;
-4. obtain the exact manifest-bound spend acknowledgement;
-5. authorize, authenticate in the foreground, and publish the sanitized
+2. materialize and prove the fresh checkout at that exact published commit;
+3. create only the fresh V15 private namespaces needed for preparation and
+   freeze the cohort from the proven checkout;
+4. prepare and publish the fresh V15 manifest;
+5. obtain the exact manifest-bound spend acknowledgement;
+6. authorize, authenticate in the foreground, and publish the sanitized
    authentication receipt;
-6. create and start the six-call preflight supervisor exactly once;
-7. only after all six profiles pass and the receipt is published, create and
+7. create the fresh Cursor credential and supervisor namespaces, then create
+   and start the six-call preflight supervisor exactly once;
+8. only after all six profiles pass and the receipt is published, create and
    start the 300-assignment production supervisor exactly once.
 
 No step may be retried after an ambiguous or durable start. A failed or
@@ -66,16 +69,48 @@ results/development-matched-50x6-v15.json
 ```
 
 The checkout must be pinned to the published V15 prerequisite commit and clean
-before preparation. The authentication key, private state, cohort, credentials,
-and supervisor directories must remain outside the repository and outside OS
-temporary storage.
+before any V15 private artifact is created. The authentication key, private
+state, cohort, credentials, and supervisor directories must remain outside the
+repository and outside OS temporary storage.
 
-## 1. Create fresh private prerequisites
+## 1. Materialize and prove the frozen checkout
+
+Set `V15_PREREQUISITE_COMMIT` to the published full commit hash. From the
+GitButler-managed primary checkout, prove the remote branch points at that
+exact commit, prove the destination has never existed, and create the detached
+worktree exactly once:
+
+```bash
+set -e
+: "${V15_PREREQUISITE_COMMIT:?set the published V15 prerequisite commit}"
+V15_REMOTE_REF=refs/heads/codex/v15-supervisor-snapshot-hardening
+test "$(git ls-remote origin "$V15_REMOTE_REF" | cut -f1)" = \
+  "$V15_PREREQUISITE_COMMIT"
+if [ -e "$HOME/.codex/epiagentbench-50x6-v15-prepare-worktree" ] || \
+   [ -L "$HOME/.codex/epiagentbench-50x6-v15-prepare-worktree" ]; then
+  echo "Refusing to reuse V15 prepare checkout" >&2
+  exit 1
+fi
+git worktree add --detach \
+  "$HOME/.codex/epiagentbench-50x6-v15-prepare-worktree" \
+  "$V15_PREREQUISITE_COMMIT"
+cd "$HOME/.codex/epiagentbench-50x6-v15-prepare-worktree"
+test "$(pwd -P)" = \
+  "$HOME/.codex/epiagentbench-50x6-v15-prepare-worktree"
+test "$(git rev-parse HEAD)" = "$V15_PREREQUISITE_COMMIT"
+test -z "$(git status --porcelain --untracked-files=all)"
+```
+
+Do not create the authentication key, cohort, private state, credential
+directories, or any supervisor runtime until all of these checks pass.
+
+## 2. Create fresh manifest-only private prerequisites
 
 Use a `077` umask. Create a new 32-byte authentication key and empty,
-current-user-only credential directories. Store the Cursor API key through the
-interactive Keychain prompt; never place it in a command line, environment
-file, plist, or repository.
+current-user-only Claude and Codex credential directories. Cursor credentials
+and supervisor directories are not consumed by `freeze-private-cohort` or
+`prepare`; defer them until after manifest-bound authorization and foreground
+authentication.
 
 ```bash
 set -e
@@ -85,24 +120,16 @@ for path in \
   "$HOME/.codex/epiagentbench-v15-secrets" \
   "$HOME/.codex/epiagentbench-v15-state" \
   "$HOME/.codex/epiagentbench-v15-credentials" \
-  "$HOME/.codex/epiagentbench-v15-supervisors" \
   "$HOME/.codex/epiagentbench-v15-cohort"; do
   if [ -e "$path" ] || [ -L "$path" ]; then
     echo "Refusing to reuse V15 path: $path" >&2
     exit 1
   fi
 done
-if security find-generic-password \
-  -a "$USER" \
-  -s epiagentbench-cursor-v15 >/dev/null 2>&1; then
-  echo "Refusing to reuse V15 Cursor Keychain service" >&2
-  exit 1
-fi
 mkdir \
   "$HOME/.codex/epiagentbench-v15-secrets" \
   "$HOME/.codex/epiagentbench-v15-state" \
-  "$HOME/.codex/epiagentbench-v15-credentials" \
-  "$HOME/.codex/epiagentbench-v15-supervisors"
+  "$HOME/.codex/epiagentbench-v15-credentials"
 mkdir \
   "$HOME/.codex/epiagentbench-v15-credentials/claude" \
   "$HOME/.codex/epiagentbench-v15-credentials/codex"
@@ -111,18 +138,14 @@ chmod 700 \
   "$HOME/.codex/epiagentbench-v15-state" \
   "$HOME/.codex/epiagentbench-v15-credentials" \
   "$HOME/.codex/epiagentbench-v15-credentials/claude" \
-  "$HOME/.codex/epiagentbench-v15-credentials/codex" \
-  "$HOME/.codex/epiagentbench-v15-supervisors"
+  "$HOME/.codex/epiagentbench-v15-credentials/codex"
 openssl rand 32 > \
   "$HOME/.codex/epiagentbench-v15-secrets/panel-auth.key"
 chmod 600 "$HOME/.codex/epiagentbench-v15-secrets/panel-auth.key"
-security add-generic-password \
-  -a "$USER" \
-  -s epiagentbench-cursor-v15 \
-  -w
 ```
 
-Freeze a new hidden cohort. The destination must not already exist:
+Freeze a new hidden cohort from the already proven checkout. The destination
+must not already exist:
 
 ```bash
 PYTHONPATH=src python3 -m epiagentbench.cli freeze-private-cohort \
@@ -136,11 +159,9 @@ PYTHONPATH=src python3 -m epiagentbench.cli freeze-private-cohort \
 
 Do not inspect or publish its packs, family map, seeds, or schedule.
 
-## 2. Prepare and publish the V15 manifest
+## 3. Prepare and publish the V15 manifest
 
-From the clean, pinned V15 checkout, set
-`V15_PREREQUISITE_COMMIT` to the published full commit hash and prove the exact
-checkout before preparation:
+Immediately prove the exact checkout again before preparation:
 
 ```bash
 : "${V15_PREREQUISITE_COMMIT:?set the published V15 prerequisite commit}"
@@ -174,7 +195,7 @@ Preparation must be provider-process-free. Validate and publish only the public
 manifest through GitButler. Keep the authenticated private state untracked.
 Stop if the manifest cannot be committed from an otherwise clean checkout.
 
-## 3. Obtain exact spend authorization
+## 4. Obtain exact spend authorization
 
 The preparation request and this runbook are not spend authorization. After the
 exact public manifest is committed, the operator must supply this sentence
@@ -211,7 +232,7 @@ PYTHONPATH=src python3 examples/run_development_matched_panel.py authorize \
 Authorization writes only the authenticated private receipt. It does not log in
 or call a model.
 
-## 4. Authenticate in the foreground
+## 5. Authenticate in the foreground
 
 Run from an operator-visible terminal:
 
@@ -234,7 +255,38 @@ Validate and publish only the sanitized authentication receipt. Never capture
 or publish tokens, OAuth state, provider output, or credential contents. The
 receipt must be committed before supervisor generation.
 
-## 5. Create and start preflight exactly once
+## 6. Create fresh runtime-only prerequisites
+
+Only after the manifest-bound acknowledgement, authorization, foreground
+authentication, and published authentication receipt may the operator create
+the V15 supervisor root and Cursor Keychain service. Both must still be fresh.
+Store the Cursor API key through the interactive Keychain prompt; never place
+it in a command line, environment file, plist, or repository.
+
+```bash
+set -e
+umask 077
+set -o noclobber
+if [ -e "$HOME/.codex/epiagentbench-v15-supervisors" ] || \
+   [ -L "$HOME/.codex/epiagentbench-v15-supervisors" ]; then
+  echo "Refusing to reuse V15 supervisor root" >&2
+  exit 1
+fi
+if security find-generic-password \
+  -a "$USER" \
+  -s epiagentbench-cursor-v15 >/dev/null 2>&1; then
+  echo "Refusing to reuse V15 Cursor Keychain service" >&2
+  exit 1
+fi
+mkdir "$HOME/.codex/epiagentbench-v15-supervisors"
+chmod 700 "$HOME/.codex/epiagentbench-v15-supervisors"
+security add-generic-password \
+  -a "$USER" \
+  -s epiagentbench-cursor-v15 \
+  -w
+```
+
+## 7. Create and start preflight exactly once
 
 Generate a new runtime directory exactly once, then install it. Before starting,
 authenticated status must show the expected panel and operation, an
@@ -297,7 +349,7 @@ PYTHONPATH=src python3 examples/run_persistent_panel_supervisor.py finalize \
 Do not run recovery finalization on an ordinary released run. Validate that all
 six profiles passed and publish the receipt before production.
 
-## 6. Create and start production exactly once
+## 8. Create and start production exactly once
 
 Production uses the same command sequence and safeguards, with these
 substitutions:

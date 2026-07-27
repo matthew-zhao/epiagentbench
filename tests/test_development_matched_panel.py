@@ -2361,6 +2361,27 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("development-matched-50x6-v15", runbook)
         self.assertIn("development_matched_panel_v15", runbook)
         self.assertIn("epiagentbench-cursor-v15", runbook)
+        checkout_proof = runbook.index(
+            'git worktree add --detach'
+        )
+        cohort_freeze = runbook.index("freeze-private-cohort")
+        manifest_prepare = runbook.index(
+            "examples/run_development_matched_panel.py prepare"
+        )
+        manifest_authorization = runbook.index(
+            "examples/run_development_matched_panel.py authorize"
+        )
+        cursor_credential = runbook.index(
+            "security add-generic-password"
+        )
+        supervisor_creation = runbook.index(
+            'mkdir "$HOME/.codex/epiagentbench-v15-supervisors"'
+        )
+        self.assertLess(checkout_proof, cohort_freeze)
+        self.assertLess(cohort_freeze, manifest_prepare)
+        self.assertLess(manifest_prepare, manifest_authorization)
+        self.assertLess(manifest_authorization, cursor_credential)
+        self.assertLess(manifest_authorization, supervisor_creation)
 
     def test_live_cli_execution_requires_manifest_bound_supervisor(self):
         public = {
