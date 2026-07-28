@@ -1,0 +1,37 @@
+{
+  "authentication_contract_hashes": {
+    "budgets_sha256": "sha256:aedf22f1e06b3a80be8493c0c82d76931f3b34672c0911b7969a93d3a9ffd3e7",
+    "claude_auth_sha256": "sha256:cf7fef9ddea30bddb8a343e8f13b110b987fa9d0b848d75c82892116e709fdf3",
+    "cli_sha256": "sha256:64a2ac850da448957534e9de494667c22f1856c19e355f6b89765b7e0653ff61",
+    "codex_auth_sha256": "sha256:b9db14b01b0d358c79172caec3f066bc855ebc997bd340a1f701c51429ca3334",
+    "preparation_runtime_sha256": "sha256:661f09aa0de2ffdaf9856f68dcb1f05e5f141bae9eb3a3b3aaa6d3f3ea88f75d",
+    "runtime_sha256": "sha256:8ad738b8169307fb14c621557924b32dc235794263728df98a70bcf7223e6384",
+    "source_sha256": "sha256:038abaf1fbfef0d13ba87059b3fe0ac735e9bc07d880183f2ef67066a30a062e",
+    "supervisor_sha256": "sha256:c7b3a066f9b0d5fcafd52254d6518705ee12214f742bc3d1b365f7aa30439f52"
+  },
+  "authentication_dependency_identity": {
+    "exact_bundle_identity_withheld": true,
+    "identity_sha256": "sha256:b8696677845b68513e6eddc995687a8f029e3d410a19dd93ace15f731f3e01a1",
+    "raw_machine_paths_published": false,
+    "raw_provider_output_published": false,
+    "root_owned_single_link_regular_executable_policy_attested": true,
+    "schema_version": "epiagentbench.authentication_dependency_freeze.v1"
+  },
+  "authentication_prerequisite": {
+    "codex": "passed_before_preflight",
+    "codex_method": "pinned_cli_device_auth",
+    "managed_glean": "passed_before_preflight",
+    "managed_glean_method": "pinned_managed_oauth_helper",
+    "model_calls": 0
+  },
+  "development_only": true,
+  "model_calls_started": 0,
+  "panel_id": "development-matched-50x6-v17",
+  "precommitment_sha256": "sha256:685856a4c9e55bc008ed264e37d5c9806ecf2776062854b764bc5758c9a686b1",
+  "production_episodes_consumed": 0,
+  "receipt_sha256": "sha256:5cdebe70f43fe2fa8f8fa193ce4a222fb9a2547289c7f288e004ca0d2bf37e8f",
+  "schema_version": "epiagentbench.authentication_receipt.v2",
+  "scores_reported": false,
+  "spend_authorization_receipt_sha256": "sha256:5f64464d974e1bc20660a98119eff20e196a4d0713008fc148406c1a355b2567",
+  "status": "passed"
+}
