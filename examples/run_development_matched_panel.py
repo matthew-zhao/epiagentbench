@@ -23,7 +23,7 @@ if __name__ == "__main__":
     _require_isolated_main_process()
 
 
-# V17 invokes this script with ``-I -S -B``.  Build the only permitted import
+# V18 invokes this script with ``-I -S -B``.  Build the only permitted import
 # path explicitly: standard library first, then the frozen repository, then
 # the bound virtual-environment packages.  Appending these directories does
 # not execute .pth, sitecustomize, or usercustomize.
@@ -35,7 +35,7 @@ if sys.flags.isolated:
         or sys.flags.dont_write_bytecode != 1
         or not sys.flags.safe_path
     ):
-        raise RuntimeError("Refusing a partially isolated V17 Python process")
+        raise RuntimeError("Refusing a partially isolated V18 Python process")
     _SOURCE_ROOT = _REPOSITORY_ROOT / "src"
     _VENV_ROOT = Path(sys.executable).parent.parent
     _SITE_PACKAGES = (
@@ -48,7 +48,7 @@ if sys.flags.isolated:
         not (_VENV_ROOT / "pyvenv.cfg").is_file()
         or not _SITE_PACKAGES.is_dir()
     ):
-        raise RuntimeError("V17 requires its bound virtual environment")
+        raise RuntimeError("V18 requires its bound virtual environment")
     sys.path.append(str(_SOURCE_ROOT))
     sys.path.append(str(_SITE_PACKAGES))
 
@@ -70,10 +70,12 @@ from epiagentbench.development_matched_panel import (
     authenticate_panel,
     authorize_panel_spend,
     bind_panel_receipt_commit,
+    create_provider_free_public_json_once,
     freeze_panel_cohort,
     panel_authentication_status,
     preflight_preparation_runtime,
     prepare_panel,
+    publish_provider_free_public_json_once,
     reconcile_terminal_receipt,
     run_environment_preflight,
     run_panel,
@@ -169,6 +171,20 @@ def main() -> int:
     preparation_preflight.add_argument(
         "--runtime-cache-dir", required=True, type=Path
     )
+    preparation_preflight.add_argument(
+        "--public-runtime-receipt", type=Path
+    )
+    provider_free_publish = commands.add_parser(
+        "publish-provider-free-json",
+        help=(
+            "Copy exact canonical public JSON through a create-once, "
+            "provider-free publication boundary"
+        ),
+    )
+    provider_free_publish.add_argument("--source", required=True, type=Path)
+    provider_free_publish.add_argument(
+        "--destination", required=True, type=Path
+    )
     preparation_verify = commands.add_parser(
         "verify-preparation-runtime",
         help="Re-attest against the committed pre-private runtime receipt",
@@ -182,9 +198,12 @@ def main() -> int:
     preparation_verify.add_argument(
         "--runtime-cache-dir", required=True, type=Path
     )
+    preparation_verify.add_argument(
+        "--public-verification-receipt", type=Path
+    )
     freeze = commands.add_parser(
         "freeze",
-        help="Freeze the one V17 cohort after runtime receipt verification",
+        help="Freeze the one V18 cohort after runtime receipt verification",
     )
     freeze.add_argument(
         "--preparation-runtime-receipt", required=True, type=Path
@@ -289,14 +308,40 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.command == "preflight-preparation-runtime":
+        payload = preflight_preparation_runtime(
+            root=root,
+            expected_benchmark_base_commit=(
+                args.expected_benchmark_base_commit
+            ),
+            runtime_cache_dir=args.runtime_cache_dir,
+        )
+        if args.public_runtime_receipt is None:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            create_provider_free_public_json_once(
+                args.public_runtime_receipt,
+                payload,
+            )
+            print(
+                json.dumps(
+                    {
+                        "panel_id": payload["panel_id"],
+                        "status": "published",
+                        "provider_processes_started": 0,
+                        "authentication_processes_started": 0,
+                        "model_calls_started": 0,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        return 0
+    if args.command == "publish-provider-free-json":
         print(
             json.dumps(
-                preflight_preparation_runtime(
-                    root=root,
-                    expected_benchmark_base_commit=(
-                        args.expected_benchmark_base_commit
-                    ),
-                    runtime_cache_dir=args.runtime_cache_dir,
+                publish_provider_free_public_json_once(
+                    source_path=args.source,
+                    destination_path=args.destination,
                 ),
                 indent=2,
                 sort_keys=True,
@@ -317,13 +362,32 @@ def main() -> int:
             for name, value in verification.items()
             if name != "runtime_cache_contract"
         }
-        print(
-            json.dumps(
-                public_verification,
-                indent=2,
-                sort_keys=True,
+        if args.public_verification_receipt is None:
+            print(
+                json.dumps(
+                    public_verification,
+                    indent=2,
+                    sort_keys=True,
+                )
             )
-        )
+        else:
+            create_provider_free_public_json_once(
+                args.public_verification_receipt,
+                public_verification,
+            )
+            print(
+                json.dumps(
+                    {
+                        "panel_id": public_verification["panel_id"],
+                        "status": "verified",
+                        "provider_processes_started": 0,
+                        "authentication_processes_started": 0,
+                        "model_calls_started": 0,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
         return 0
     if args.command == "freeze":
         print(

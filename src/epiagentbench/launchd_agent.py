@@ -13,6 +13,9 @@ status performs only a read-only ``launchctl print``.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from collections.abc import Iterator
+from functools import wraps
 import hashlib
 import hmac
 import json
@@ -30,10 +33,9 @@ from enum import StrEnum
 from pathlib import Path
 from secrets import token_hex
 from typing import Any, Callable, Mapping, Sequence
-from functools import wraps
 
 
-_SCHEMA = "epiagentbench.launchd_agent.v9"
+_SCHEMA = "epiagentbench.launchd_agent.v10"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v4"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -44,7 +46,7 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v9\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v10\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v4\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
@@ -61,7 +63,7 @@ _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
-_PROTOCOL_VERSION = "persistent-supervisor-v3"
+_PROTOCOL_VERSION = "persistent-supervisor-v4"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -1433,7 +1435,7 @@ def _manifest_binding(
         if isinstance(preparation_runtime_contract, dict)
         else None
     )
-    is_v17 = preparation_runtime_contract is not None
+    is_v18 = preparation_runtime_contract is not None
     if (
         not isinstance(panel_id, str)
         or not _SAFE_NAME.fullmatch(panel_id)
@@ -1442,7 +1444,7 @@ def _manifest_binding(
         or not isinstance(python_executable_sha256, str)
         or not _SHA256.fullmatch(python_executable_sha256)
         or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
-        or is_v17
+        or is_v18
         and (
             not isinstance(python_entrypoint_binding_sha256, str)
             or not _SHA256.fullmatch(python_entrypoint_binding_sha256)
@@ -1467,12 +1469,12 @@ def _manifest_binding(
         str(python_entrypoint_kind),
         (
             str(python_entrypoint_binding_sha256)
-            if is_v17
+            if is_v18
             else None
         ),
         (
             str(runtime_cache_contract_sha256)
-            if is_v17
+            if is_v18
             else None
         ),
     )
@@ -1584,6 +1586,101 @@ def _plist_payload(config: Mapping[str, Any]) -> dict[str, Any]:
         "StandardErrorPath": "/dev/null",
         "Umask": 0o077,
     }
+
+
+def _runtime_cache_environment_values(
+    runtime_cache_contract: object,
+    *,
+    base_environment: object,
+) -> dict[str, str]:
+    """Derive the exact six-variable environment from a sealed cache contract."""
+
+    if runtime_cache_contract is None:
+        if isinstance(base_environment, Mapping) and (
+            set(base_environment) & _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        ):
+            raise ValueError("Unexpected runtime-cache environment")
+        return {}
+    if not isinstance(runtime_cache_contract, Mapping):
+        raise ValueError("Invalid runtime-cache contract")
+    configured_environment = runtime_cache_contract.get("environment")
+    directories = runtime_cache_contract.get("directories")
+    root_binding = (
+        directories.get("root")
+        if isinstance(directories, Mapping)
+        else None
+    )
+    root_value = (
+        root_binding.get("path")
+        if isinstance(root_binding, Mapping)
+        else None
+    )
+    if (
+        runtime_cache_contract.get("schema_version")
+        != _RUNTIME_CACHE_CONTRACT_SCHEMA
+        or not isinstance(configured_environment, Mapping)
+        or set(configured_environment)
+        != _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        or not isinstance(base_environment, Mapping)
+        or not isinstance(root_value, str)
+        or not Path(root_value).is_absolute()
+        or Path(os.path.normpath(root_value)) != Path(root_value)
+    ):
+        raise ValueError("Invalid runtime-cache environment binding")
+    root = Path(root_value)
+    expected = {
+        "MPLBACKEND": "Agg",
+        "MPLCONFIGDIR": str(root / "matplotlib"),
+        "NUMBA_CACHE_DIR": str(root / "numba"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "STARSIM_INSTALL_FONTS": "0",
+        "XDG_CACHE_HOME": str(root / "xdg"),
+    }
+    if (
+        dict(configured_environment) != expected
+        or {
+            name: base_environment.get(name)
+            for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        }
+        != expected
+        or any(
+            not isinstance(value, str) or not value or "\x00" in value
+            for value in expected.values()
+        )
+    ):
+        raise ValueError("Runtime-cache environment binding changed")
+    return expected
+
+
+@contextmanager
+def _temporary_runtime_cache_environment(
+    runtime_cache_contract: object,
+    *,
+    base_environment: object,
+) -> Iterator[None]:
+    """Install the authenticated cache environment and restore the caller."""
+
+    expected = _runtime_cache_environment_values(
+        runtime_cache_contract,
+        base_environment=base_environment,
+    )
+    if not expected:
+        yield
+        return
+    missing = object()
+    previous: dict[str, object] = {
+        name: os.environ.get(name, missing) for name in expected
+    }
+    try:
+        for name, value in expected.items():
+            os.environ[name] = value
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is missing:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = str(value)
 
 
 @_public_errors
@@ -1709,7 +1806,7 @@ def generate_launch_agent(
     if manifest_runtime_cache_contract_sha256 is not None:
         if runtime_cache_dir is None:
             raise ValueError(
-                "V17 LaunchAgent requires the bound runtime cache directory"
+                "V18 LaunchAgent requires the bound runtime cache directory"
             )
         supplied_runtime_cache = _absolute(
             runtime_cache_dir, label="runtime cache directory"
@@ -1778,56 +1875,62 @@ def generate_launch_agent(
         maximum_bytes=4 * 1024 * 1024,
         label="matched-panel module source",
     )
-    import epiagentbench.development_matched_panel as matched_panel
-    import epiagentbench.persistent_supervisor as persistent_supervisor
-
-    _require_loaded_module_source(
-        matched_panel.__file__,
-        development_matched_panel_source,
-    )
-    _require_loaded_module_source(
-        persistent_supervisor.__file__,
-        persistent_supervisor_source,
-    )
-    matched_panel.assert_panel_authentication_ready(
-        root=root,
-        authentication_key_file=auth_key,
-        claude_secure_storage_dir=claude_storage,
-        codex_secure_storage_dir=codex_storage,
-        private_state_path=private_state,
-        public_manifest_path=public_manifest,
-        require_clean_checkout=True,
-    )
-    public_authentication_file_sha256 = _file_sha256(
-        public_authentication,
-        maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
-        label="public authentication receipt",
-    )
-    if (
-        public_authentication_file_sha256
-        != public_authentication_file_sha256_before
+    with _temporary_runtime_cache_environment(
+        runtime_cache_contract,
+        base_environment=manifest_runtime_environment,
     ):
-        raise ValueError(
-            "Public authentication receipt changed during readiness validation"
-        )
+        import epiagentbench.development_matched_panel as matched_panel
+        import epiagentbench.persistent_supervisor as persistent_supervisor
 
-    label = f"{_LABEL_PREFIX}.{os.getuid()}.{token}"
-    execution_context_sha256 = persistent_supervisor.compute_execution_context_sha256(
-        launchd_label=label,
-        operation=operation,
-        panel_id=panel_id,
-        protocol_version=_PROTOCOL_VERSION,
-        public_manifest_sha256=public_manifest_file_sha256,
-        python_executable_sha256=python_executable_sha256,
-        runner_source_sha256=runner_source_sha256,
-        launchd_agent_source_sha256=launchd_agent_source_sha256,
-        persistent_supervisor_source_sha256=(
-            persistent_supervisor_source_sha256
-        ),
-        development_matched_panel_source_sha256=(
-            development_matched_panel_source_sha256
-        ),
-    )
+        _require_loaded_module_source(
+            matched_panel.__file__,
+            development_matched_panel_source,
+        )
+        _require_loaded_module_source(
+            persistent_supervisor.__file__,
+            persistent_supervisor_source,
+        )
+        matched_panel.assert_panel_authentication_ready(
+            root=root,
+            authentication_key_file=auth_key,
+            claude_secure_storage_dir=claude_storage,
+            codex_secure_storage_dir=codex_storage,
+            private_state_path=private_state,
+            public_manifest_path=public_manifest,
+            require_clean_checkout=True,
+        )
+        public_authentication_file_sha256 = _file_sha256(
+            public_authentication,
+            maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
+            label="public authentication receipt",
+        )
+        if (
+            public_authentication_file_sha256
+            != public_authentication_file_sha256_before
+        ):
+            raise ValueError(
+                "Public authentication receipt changed during readiness validation"
+            )
+
+        label = f"{_LABEL_PREFIX}.{os.getuid()}.{token}"
+        execution_context_sha256 = (
+            persistent_supervisor.compute_execution_context_sha256(
+                launchd_label=label,
+                operation=operation,
+                panel_id=panel_id,
+                protocol_version=_PROTOCOL_VERSION,
+                public_manifest_sha256=public_manifest_file_sha256,
+                python_executable_sha256=python_executable_sha256,
+                runner_source_sha256=runner_source_sha256,
+                launchd_agent_source_sha256=launchd_agent_source_sha256,
+                persistent_supervisor_source_sha256=(
+                    persistent_supervisor_source_sha256
+                ),
+                development_matched_panel_source_sha256=(
+                    development_matched_panel_source_sha256
+                ),
+            )
+        )
     output_path = public_preflight if public_preflight is not None else public_results
     assert output_path is not None
     if runtime_cache_contract is not None:
@@ -1956,11 +2059,11 @@ def generate_launch_agent(
     }
 
 
-def _load_and_validate(
+def _read_authenticated_config(
     runtime_dir: Path,
     *,
     authentication_key_file: Path | None = None,
-) -> tuple[dict[str, Any], Path, bytes]:
+) -> tuple[Path, Path, dict[str, Any], bytes]:
     runtime = _absolute(runtime_dir, label="runtime directory")
     _require_directory(runtime, label="runtime directory", exact_mode=0o700)
     config_path = runtime / _CONFIG_NAME
@@ -2025,6 +2128,72 @@ def _load_and_validate(
             raise ValueError("Launch-agent authentication-key binding mismatch")
     authentication_key = _read_authentication_key(configured_key_path)
     config = _open_payload(_CONFIG_AUTH_DOMAIN, raw_config, authentication_key)
+    return runtime, config_path, config, authentication_key
+
+
+def _assert_authenticated_config_snapshot(
+    config: Mapping[str, Any],
+    *,
+    authentication_key: bytes,
+) -> str:
+    """Reopen and exact-compare the one config bound to the active environment."""
+
+    runtime = Path(config["runtime_dir"])
+    config_path = Path(config["config_path"])
+    (
+        observed_runtime,
+        observed_config_path,
+        observed_config,
+        observed_authentication_key,
+    ) = _read_authenticated_config(
+        runtime,
+        authentication_key_file=Path(config["authentication_key_file"]),
+    )
+    if (
+        observed_runtime != runtime
+        or observed_config_path != config_path
+        or not hmac.compare_digest(
+            observed_authentication_key,
+            authentication_key,
+        )
+        or not hmac.compare_digest(
+            _canonical_bytes(observed_config),
+            _canonical_bytes(config),
+        )
+    ):
+        raise ValueError("Launch-agent config changed after authentication")
+    expected_bytes = (
+        json.dumps(
+            _seal_payload(
+                _CONFIG_AUTH_DOMAIN,
+                observed_config,
+                observed_authentication_key,
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+    expected_sha256 = "sha256:" + hashlib.sha256(expected_bytes).hexdigest()
+    if not hmac.compare_digest(
+        _file_sha256(
+            observed_config_path,
+            maximum_bytes=_MAX_CONFIG_BYTES,
+            label="launch-agent config",
+        ),
+        expected_sha256,
+    ):
+        raise ValueError("Launch-agent config encoding changed")
+    return expected_sha256
+
+
+def _validate_authenticated_config(
+    *,
+    runtime: Path,
+    config_path: Path,
+    config: dict[str, Any],
+    authentication_key: bytes,
+) -> tuple[dict[str, Any], Path, bytes]:
     if config["schema_version"] != _SCHEMA or config["uid"] != os.getuid():
         raise ValueError("Launch-agent config identity mismatch")
     if config["operation"] not in _OPERATIONS:
@@ -2275,6 +2444,58 @@ def _load_and_validate(
     return config, plist_path, authentication_key
 
 
+def _load_and_validate(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path | None = None,
+) -> tuple[dict[str, Any], Path, bytes]:
+    """Validate a config without extending its environment beyond this call."""
+
+    runtime, config_path, config, authentication_key = (
+        _read_authenticated_config(
+            runtime_dir,
+            authentication_key_file=authentication_key_file,
+        )
+    )
+    return _validate_authenticated_config(
+        runtime=runtime,
+        config_path=config_path,
+        config=config,
+        authentication_key=authentication_key,
+    )
+
+
+@contextmanager
+def _load_in_authenticated_runtime_environment(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path | None = None,
+) -> Iterator[tuple[dict[str, Any], Path, bytes]]:
+    """Open one HMAC config and hold its exact cache environment while used."""
+
+    runtime, config_path, config, authentication_key = (
+        _read_authenticated_config(
+            runtime_dir,
+            authentication_key_file=authentication_key_file,
+        )
+    )
+    if (
+        config.get("schema_version") != _SCHEMA
+        or config.get("uid") != os.getuid()
+    ):
+        raise ValueError("Launch-agent config identity mismatch")
+    with _temporary_runtime_cache_environment(
+        config.get("runtime_cache_contract"),
+        base_environment=config.get("base_environment"),
+    ):
+        yield _validate_authenticated_config(
+            runtime=runtime,
+            config_path=config_path,
+            config=config,
+            authentication_key=authentication_key,
+        )
+
+
 @_public_errors
 def inspect_launch_agent(
     runtime_dir: Path,
@@ -2283,17 +2504,17 @@ def inspect_launch_agent(
 ) -> dict[str, Any]:
     """Validate generated artifacts and return a non-sensitive summary."""
 
-    config, plist_path, _ = _load_and_validate(
+    with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
-    )
-    return {
-        "configured": True,
-        "label": config["label"],
-        "runtime_mode": "0700",
-        "config_mode": "0600",
-        "plist_mode": "0600",
-    }
+    ) as (config, plist_path, _):
+        return {
+            "configured": True,
+            "label": config["label"],
+            "runtime_mode": "0700",
+            "config_mode": "0600",
+            "plist_mode": "0600",
+        }
 
 
 def _runner_command(config: Mapping[str, Any]) -> list[str]:
@@ -2553,16 +2774,15 @@ def _attest_handled_terminal_receipt(
     return attestation
 
 
-@_public_errors
-def run_launch_agent_worker(
-    config_path: Path,
+def _run_launch_agent_worker_validated(
+    config_file: Path,
     *,
+    config: Mapping[str, Any],
+    authentication_key: bytes,
     keychain_runner: CommandRunner = subprocess.run,
 ) -> int:
-    """Run the one-shot worker.  This is called only by the LaunchAgent."""
+    """Run one already-authenticated worker inside its sealed environment."""
 
-    config_file = _absolute(config_path, label="config path")
-    config, _, authentication_key = _load_and_validate(config_file.parent)
     if config_file != Path(config["config_path"]):
         raise ValueError("Worker config path mismatch")
     _validate_isolated_python_process(
@@ -2687,6 +2907,26 @@ def run_launch_agent_worker(
         os.umask(old_umask)
 
 
+@_public_errors
+def run_launch_agent_worker(
+    config_path: Path,
+    *,
+    keychain_runner: CommandRunner = subprocess.run,
+) -> int:
+    """Run the one-shot worker inside its authenticated cache environment."""
+
+    config_file = _absolute(config_path, label="config path")
+    with _load_in_authenticated_runtime_environment(
+        config_file.parent,
+    ) as (config, _, authentication_key):
+        return _run_launch_agent_worker_validated(
+            config_file,
+            config=config,
+            authentication_key=authentication_key,
+            keychain_runner=keychain_runner,
+        )
+
+
 def _launchctl(
     arguments: Sequence[str],
     *,
@@ -2808,30 +3048,28 @@ def install_launch_agent(
     authentication_key_file: Path,
     command_runner: CommandRunner = subprocess.run,
 ) -> dict[str, Any]:
-    config, plist_path, _ = _load_and_validate(
+    with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
-    )
-    result = _launchctl(
-        ["bootstrap", f"gui/{os.getuid()}", str(plist_path)],
-        command_runner=command_runner,
-    )
-    if _launchctl_outcome(result, allow_not_found=False) is not _LaunchctlOutcome.SUCCESS:
-        raise RuntimeError("Unable to install the owner-scoped LaunchAgent")
-    return {"label": config["label"], "state": "installed"}
+    ) as (config, plist_path, _):
+        result = _launchctl(
+            ["bootstrap", f"gui/{os.getuid()}", str(plist_path)],
+            command_runner=command_runner,
+        )
+        if (
+            _launchctl_outcome(result, allow_not_found=False)
+            is not _LaunchctlOutcome.SUCCESS
+        ):
+            raise RuntimeError("Unable to install the owner-scoped LaunchAgent")
+        return {"label": config["label"], "state": "installed"}
 
 
-@_public_errors
-def start_launch_agent(
-    runtime_dir: Path,
+def _start_launch_agent_validated(
+    config: Mapping[str, Any],
     *,
-    authentication_key_file: Path,
+    authentication_key: bytes,
     command_runner: CommandRunner = subprocess.run,
 ) -> dict[str, Any]:
-    config, _, authentication_key = _load_and_validate(
-        runtime_dir,
-        authentication_key_file=authentication_key_file,
-    )
     runtime = Path(config["runtime_dir"])
     target = f"gui/{os.getuid()}/{config['label']}"
     with _LaunchControlLock(runtime):
@@ -2910,6 +3148,26 @@ def start_launch_agent(
         if _launchctl_outcome(result, allow_not_found=False) is not _LaunchctlOutcome.SUCCESS:
             raise RuntimeError("Unable to start the one-shot LaunchAgent")
     return {"label": config["label"], "state": "start_requested"}
+
+
+@_public_errors
+def start_launch_agent(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path,
+    command_runner: CommandRunner = subprocess.run,
+) -> dict[str, Any]:
+    """Request one start using only the HMAC-bound runtime environment."""
+
+    with _load_in_authenticated_runtime_environment(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
+    ) as (config, _, authentication_key):
+        return _start_launch_agent_validated(
+            config,
+            authentication_key=authentication_key,
+            command_runner=command_runner,
+        )
 
 
 def _worker_status(
@@ -3153,22 +3411,21 @@ def launch_agent_status(
     authentication_key_file: Path,
     command_runner: CommandRunner = subprocess.run,
 ) -> dict[str, Any]:
-    config, _, authentication_key = _load_and_validate(
+    with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
-    )
-    return _status_snapshot(
-        config,
-        authentication_key=authentication_key,
-        command_runner=command_runner,
-    )
+    ) as (config, _, authentication_key):
+        return _status_snapshot(
+            config,
+            authentication_key=authentication_key,
+            command_runner=command_runner,
+        )
 
 
-@_public_errors
-def attest_live_launch_agent(
-    runtime_dir: Path,
+def _attest_live_launch_agent_validated(
+    config: Mapping[str, Any],
     *,
-    authentication_key_file: Path,
+    authentication_key: bytes,
     expected_operation: str,
     expected_panel_id: str,
     expected_precommitment_sha256: str,
@@ -3189,15 +3446,6 @@ def attest_live_launch_agent(
         raise LiveAttestationError(
             LiveAttestationFailureCode.INVALID_EXPECTATION
         )
-    try:
-        config, _, authentication_key = _load_and_validate(
-            runtime_dir,
-            authentication_key_file=authentication_key_file,
-        )
-    except Exception:
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CONFIG_INTEGRITY
-        ) from None
     if (
         config["operation"] != expected_operation
         or config["panel_id"] != expected_panel_id
@@ -3281,10 +3529,9 @@ def attest_live_launch_agent(
             LiveAttestationFailureCode.HEARTBEAT_STALE
         )
     try:
-        config_file_sha256 = _file_sha256(
-            Path(config["config_path"]),
-            maximum_bytes=_MAX_CONFIG_BYTES,
-            label="launch-agent config",
+        config_file_sha256 = _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
         )
     except Exception:
         raise LiveAttestationError(
@@ -3305,10 +3552,42 @@ def attest_live_launch_agent(
 
 
 @_public_errors
-def attest_completed_launch_agent(
+def attest_live_launch_agent(
     runtime_dir: Path,
     *,
     authentication_key_file: Path,
+    expected_operation: str,
+    expected_panel_id: str,
+    expected_precommitment_sha256: str,
+) -> dict[str, Any]:
+    """Attest live state inside the HMAC-bound runtime environment."""
+
+    try:
+        with _load_in_authenticated_runtime_environment(
+            runtime_dir,
+            authentication_key_file=authentication_key_file,
+        ) as (config, _, authentication_key):
+            return _attest_live_launch_agent_validated(
+                config,
+                authentication_key=authentication_key,
+                expected_operation=expected_operation,
+                expected_panel_id=expected_panel_id,
+                expected_precommitment_sha256=(
+                    expected_precommitment_sha256
+                ),
+            )
+    except LiveAttestationError:
+        raise
+    except Exception:
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CONFIG_INTEGRITY
+        ) from None
+
+
+def _attest_completed_launch_agent_validated(
+    config: Mapping[str, Any],
+    *,
+    authentication_key: bytes,
     expected_operation: str,
     expected_panel_id: str,
     expected_precommitment_sha256: str,
@@ -3328,10 +3607,6 @@ def attest_completed_launch_agent(
         or not _SHA256.fullmatch(expected_precommitment_sha256)
     ):
         raise ValueError("Invalid completed launch-agent attestation binding")
-    config, _, authentication_key = _load_and_validate(
-        runtime_dir,
-        authentication_key_file=authentication_key_file,
-    )
     if (
         config["operation"] != expected_operation
         or config["panel_id"] != expected_panel_id
@@ -3411,13 +3686,38 @@ def attest_completed_launch_agent(
         "panel_id": config["panel_id"],
         "precommitment_sha256": config["precommitment_sha256"],
         "execution_context_sha256": config["execution_context_sha256"],
-        "config_file_sha256": _file_sha256(
-            Path(config["config_path"]),
-            maximum_bytes=_MAX_CONFIG_BYTES,
-            label="launch-agent config",
+        "config_file_sha256": _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
         ),
         "assignment_phase": core["assignment_phase"],
     }
+
+
+@_public_errors
+def attest_completed_launch_agent(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path,
+    expected_operation: str,
+    expected_panel_id: str,
+    expected_precommitment_sha256: str,
+) -> dict[str, Any]:
+    """Authenticate terminal state inside the sealed runtime environment."""
+
+    with _load_in_authenticated_runtime_environment(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
+    ) as (config, _, authentication_key):
+        return _attest_completed_launch_agent_validated(
+            config,
+            authentication_key=authentication_key,
+            expected_operation=expected_operation,
+            expected_panel_id=expected_panel_id,
+            expected_precommitment_sha256=(
+                expected_precommitment_sha256
+            ),
+        )
 
 
 def _finalize_supervised_release(config: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -3443,11 +3743,10 @@ def _finalize_supervised_release(config: Mapping[str, Any]) -> Mapping[str, Any]
     return payload
 
 
-@_public_errors
-def finalize_launch_agent(
-    runtime_dir: Path,
+def _finalize_launch_agent_validated(
+    config: Mapping[str, Any],
     *,
-    authentication_key_file: Path,
+    authentication_key: bytes,
 ) -> dict[str, Any]:
     """Finalize one staged success without invoking a provider or Keychain.
 
@@ -3456,23 +3755,19 @@ def finalize_launch_agent(
     already reached ``completed``; it never restarts the worker or child.
     """
 
-    config, _, authentication_key = _load_and_validate(
-        runtime_dir,
-        authentication_key_file=authentication_key_file,
-    )
     runtime = Path(config["runtime_dir"])
     # Refuse an active, failed, or ambiguous core before changing worker state.
-    attest_completed_launch_agent(
-        runtime,
-        authentication_key_file=authentication_key_file,
+    _attest_completed_launch_agent_validated(
+        config,
+        authentication_key=authentication_key,
         expected_operation=str(config["operation"]),
         expected_panel_id=str(config["panel_id"]),
         expected_precommitment_sha256=str(config["precommitment_sha256"]),
     )
     with _LaunchControlLock(runtime):
-        config, _, authentication_key = _load_and_validate(
-            runtime,
-            authentication_key_file=authentication_key_file,
+        _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
         )
         worker = _worker_status(
             runtime,
@@ -3490,14 +3785,18 @@ def finalize_launch_agent(
             "reason"
         ) != "success":
             raise ValueError("Failed supervisor execution cannot be released")
-        attest_completed_launch_agent(
-            runtime,
-            authentication_key_file=authentication_key_file,
+        _attest_completed_launch_agent_validated(
+            config,
+            authentication_key=authentication_key,
             expected_operation=str(config["operation"]),
             expected_panel_id=str(config["panel_id"]),
             expected_precommitment_sha256=str(config["precommitment_sha256"]),
         )
         if worker.get("state") != "released":
+            _assert_authenticated_config_snapshot(
+                config,
+                authentication_key=authentication_key,
+            )
             _atomic_worker_status(
                 runtime,
                 config=config,
@@ -3515,6 +3814,10 @@ def finalize_launch_agent(
                 reason="release_validation_failed",
             )
             raise
+        _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
+        )
         reason = (
             "preflight_passed"
             if config["operation"] == "preflight"
@@ -3532,6 +3835,24 @@ def finalize_launch_agent(
         "operation": config["operation"],
         "state": "released",
     }
+
+
+@_public_errors
+def finalize_launch_agent(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path,
+) -> dict[str, Any]:
+    """Finalize one release inside the authenticated cache environment."""
+
+    with _load_in_authenticated_runtime_environment(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
+    ) as (config, _, authentication_key):
+        return _finalize_launch_agent_validated(
+            config,
+            authentication_key=authentication_key,
+        )
 
 
 def _authenticated_terminal(status: Mapping[str, Any]) -> bool:
@@ -3557,17 +3878,12 @@ def _authenticated_terminal(status: Mapping[str, Any]) -> bool:
     )
 
 
-@_public_errors
-def uninstall_launch_agent(
-    runtime_dir: Path,
+def _uninstall_launch_agent_validated(
+    config: Mapping[str, Any],
     *,
-    authentication_key_file: Path,
+    authentication_key: bytes,
     command_runner: CommandRunner = subprocess.run,
 ) -> dict[str, Any]:
-    config, _, authentication_key = _load_and_validate(
-        runtime_dir,
-        authentication_key_file=authentication_key_file,
-    )
     runtime = Path(config["runtime_dir"])
     target = f"gui/{os.getuid()}/{config['label']}"
     with _LaunchControlLock(runtime):
@@ -3587,6 +3903,26 @@ def uninstall_launch_agent(
         if outcome is _LaunchctlOutcome.FAILED:
             raise RuntimeError("Unable to uninstall the owner-scoped LaunchAgent")
     return {"label": config["label"], "state": "uninstalled"}
+
+
+@_public_errors
+def uninstall_launch_agent(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path,
+    command_runner: CommandRunner = subprocess.run,
+) -> dict[str, Any]:
+    """Uninstall terminal state inside the authenticated cache environment."""
+
+    with _load_in_authenticated_runtime_environment(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
+    ) as (config, _, authentication_key):
+        return _uninstall_launch_agent_validated(
+            config,
+            authentication_key=authentication_key,
+            command_runner=command_runner,
+        )
 
 
 __all__ = [

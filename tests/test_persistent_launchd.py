@@ -25,6 +25,7 @@ from epiagentbench.launchd_agent import (
     finalize_launch_agent,
     generate_launch_agent,
     inspect_launch_agent,
+    install_launch_agent,
     launch_agent_status,
     run_launch_agent_worker,
     start_launch_agent,
@@ -231,10 +232,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         arguments.update(changes)
         return generate_launch_agent(**arguments)
 
-    def _enable_v17_runtime_binding(
+    def _enable_v18_runtime_binding(
         self,
         *,
-        name: str = "v17-runtime-cache",
+        name: str = "v18-runtime-cache",
     ) -> tuple[Path, dict[str, str]]:
         cache_root = self.root / name
         cache_root.mkdir(mode=0o700)
@@ -420,7 +421,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     self._generate(**changes)
                 self.assertFalse(self.runtime.exists())
 
-    def test_v17_cli_bootstraps_work_with_site_hooks_disabled(self) -> None:
+    def test_v18_cli_bootstraps_work_with_site_hooks_disabled(self) -> None:
         for relative_script in (
             "examples/run_development_matched_panel.py",
             "examples/run_persistent_panel_supervisor.py",
@@ -463,9 +464,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
             self.assertEqual(direct.returncode, 2)
 
-    def test_v17_generation_seals_exact_runtime_cache_environment(self) -> None:
+    def test_v18_generation_seals_exact_runtime_cache_environment(self) -> None:
         cache_root, expected_environment = (
-            self._enable_v17_runtime_binding()
+            self._enable_v18_runtime_binding()
         )
 
         generated = self._generate(runtime_cache_dir=cache_root)
@@ -484,16 +485,298 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         plist = plistlib.loads(Path(generated["plist_path"]).read_bytes())
         self.assertNotIn("EnvironmentVariables", plist)
 
-    def test_v17_generation_requires_exact_bound_runtime_cache_root(
+    def test_v18_generation_overrides_and_restores_poisoned_ambient_cache_environment(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        poisoned = {
+            name: f"poisoned-{index}"
+            for index, name in enumerate(
+                launchd_agent._RUNTIME_CACHE_ENVIRONMENT_KEYS
+            )
+        }
+
+        def assert_sealed_environment(**_kwargs):
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                expected_environment,
+            )
+            return {"status": "passed", "model_calls_started": 0}
+
+        self.mock_authentication_readiness.side_effect = (
+            assert_sealed_environment
+        )
+        with patch.dict(os.environ, poisoned, clear=False):
+            before = {
+                name: os.environ.get(name) for name in expected_environment
+            }
+            self._generate(runtime_cache_dir=cache_root)
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                before,
+            )
+
+    def test_v18_start_self_bootstraps_and_restores_cache_environment(
+        self,
+    ) -> None:
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        self._generate(runtime_cache_dir=cache_root)
+        self.mock_provider_free_prelaunch.reset_mock()
+
+        def assert_sealed_environment(**_kwargs):
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                expected_environment,
+            )
+            return {
+                "panel_id": "development-matched-50x6-v9-test",
+                "operation": "production",
+                "status": "passed",
+                "provider_processes_started": 0,
+                "model_calls_started": 0,
+            }
+
+        self.mock_provider_free_prelaunch.side_effect = (
+            assert_sealed_environment
+        )
+        poisoned = {
+            name: f"wrong-{index}"
+            for index, name in enumerate(expected_environment)
+        }
+
+        def fake_launchctl(arguments, **_kwargs):
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with patch.dict(os.environ, poisoned, clear=False):
+            before = {
+                name: os.environ.get(name) for name in expected_environment
+            }
+            response = start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=fake_launchctl,
+            )
+            self.assertEqual(response["state"], "start_requested")
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                before,
+            )
+        self.assertTrue(
+            (self.runtime / "launchd-start-request.json").is_file()
+        )
+
+    def test_v18_prelaunch_refusal_restores_cache_environment_before_marker(
+        self,
+    ) -> None:
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        self._generate(runtime_cache_dir=cache_root)
+        calls: list[list[str]] = []
+
+        def refuse_after_environment_check(**_kwargs):
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                expected_environment,
+            )
+            raise RuntimeError("offline refusal")
+
+        self.mock_provider_free_prelaunch.side_effect = (
+            refuse_after_environment_check
+        )
+
+        def forbidden_launchctl(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        missing = object()
+        before = {
+            name: os.environ.get(name, missing)
+            for name in expected_environment
+        }
+        try:
+            for name in expected_environment:
+                os.environ.pop(name, None)
+            with self.assertRaises(LaunchAgentError):
+                start_launch_agent(
+                    self.runtime,
+                    authentication_key_file=self.authentication_key,
+                    command_runner=forbidden_launchctl,
+                )
+            self.assertTrue(
+                all(name not in os.environ for name in expected_environment)
+            )
+        finally:
+            for name, value in before.items():
+                if value is missing:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = str(value)
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertEqual(calls, [])
+        self.mock_cursor_readiness.assert_not_called()
+
+    def test_v18_all_config_controls_self_bootstrap_and_restore_environment(
+        self,
+    ) -> None:
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        self._generate(runtime_cache_dir=cache_root)
+        config, key = self._commit_start()
+        self._complete_core()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_exited",
+            reason="success",
+        )
+
+        def exercise(
+            operation: str,
+            *,
+            ambient: str,
+        ) -> None:
+            calls: list[list[str]] = []
+
+            def sealed_launchctl(arguments, **_kwargs):
+                self.assertEqual(
+                    {
+                        name: os.environ.get(name)
+                        for name in expected_environment
+                    },
+                    expected_environment,
+                )
+                calls.append(list(arguments))
+                if arguments[1] == "print":
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        stdout=b"state = not running\n",
+                        stderr=b"",
+                    )
+                return subprocess.CompletedProcess(
+                    arguments,
+                    0,
+                    stdout=b"",
+                    stderr=b"",
+                )
+
+            original = {
+                name: os.environ.get(name)
+                for name in expected_environment
+            }
+            missing = {
+                name for name in expected_environment
+                if name not in os.environ
+            }
+            try:
+                if ambient == "absent":
+                    for name in expected_environment:
+                        os.environ.pop(name, None)
+                    expected_after = {
+                        name: None for name in expected_environment
+                    }
+                else:
+                    poisoned = {
+                        name: f"{operation}-poison-{index}"
+                        for index, name in enumerate(expected_environment)
+                    }
+                    os.environ.update(poisoned)
+                    expected_after = dict(poisoned)
+
+                if operation == "inspect":
+                    response = inspect_launch_agent(
+                        self.runtime,
+                        authentication_key_file=self.authentication_key,
+                    )
+                    self.assertIs(response["configured"], True)
+                    self.assertEqual(calls, [])
+                elif operation == "install":
+                    response = install_launch_agent(
+                        self.runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=sealed_launchctl,
+                    )
+                    self.assertEqual(response["state"], "installed")
+                    self.assertEqual([call[1] for call in calls], ["bootstrap"])
+                elif operation == "status":
+                    response = launch_agent_status(
+                        self.runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=sealed_launchctl,
+                    )
+                    self.assertEqual(response["launchd_state"], "not_running")
+                    self.assertEqual([call[1] for call in calls], ["print"])
+                else:
+                    response = uninstall_launch_agent(
+                        self.runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=sealed_launchctl,
+                    )
+                    self.assertEqual(response["state"], "uninstalled")
+                    self.assertEqual(
+                        [call[1] for call in calls],
+                        ["print", "bootout"],
+                    )
+
+                self.assertEqual(
+                    {
+                        name: os.environ.get(name)
+                        for name in expected_environment
+                    },
+                    expected_after,
+                )
+            finally:
+                for name in expected_environment:
+                    if name in missing:
+                        os.environ.pop(name, None)
+                    else:
+                        value = original[name]
+                        if value is not None:
+                            os.environ[name] = value
+
+        for operation in ("inspect", "install", "status", "uninstall"):
+            for ambient in ("absent", "poisoned"):
+                with self.subTest(operation=operation, ambient=ambient):
+                    exercise(operation, ambient=ambient)
+
+    def test_v18_generation_requires_exact_bound_runtime_cache_root(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
 
         with self.assertRaises(LaunchAgentError):
             self._generate()
         self.assertFalse(self.runtime.exists())
 
-        wrong_cache = self.root / "wrong-v17-runtime-cache"
+        wrong_cache = self.root / "wrong-v18-runtime-cache"
         wrong_cache.mkdir(mode=0o700)
         wrong_runtime = self.root / "wrong-cache-runtime"
         with self.assertRaises(LaunchAgentError):
@@ -505,8 +788,36 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertFalse(wrong_runtime.exists())
         self.assertTrue(cache_root.is_dir())
 
-    def test_v17_live_load_rejects_runtime_cache_inode_drift(self) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+    def test_v18_runtime_environment_projection_is_exactly_six_keys(
+        self,
+    ) -> None:
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        contract = launchd_agent._runtime_cache_contract(cache_root)
+        cases: list[tuple[str, dict, dict]] = []
+        missing = json.loads(json.dumps(contract))
+        missing["environment"].pop("MPLBACKEND")
+        cases.append(("missing", missing, dict(expected_environment)))
+        extra = json.loads(json.dumps(contract))
+        extra["environment"]["EXTRA_CACHE_KEY"] = "forbidden"
+        cases.append(("extra", extra, dict(expected_environment)))
+        wrong = json.loads(json.dumps(contract))
+        wrong["environment"]["MPLBACKEND"] = "TkAgg"
+        cases.append(("wrong", wrong, dict(expected_environment)))
+        base_mismatch = dict(expected_environment)
+        base_mismatch["XDG_CACHE_HOME"] = "wrong"
+        cases.append(("base_mismatch", contract, base_mismatch))
+
+        for name, candidate, base_environment in cases:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                launchd_agent._runtime_cache_environment_values(
+                    candidate,
+                    base_environment=base_environment,
+                )
+
+    def test_v18_live_load_rejects_runtime_cache_inode_drift(self) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
         self._generate(runtime_cache_dir=cache_root)
 
         original = cache_root / "numba"
@@ -518,9 +829,28 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 self.runtime,
                 authentication_key_file=self.authentication_key,
             )
+        calls: list[list[str]] = []
 
-    def test_v17_live_load_rejects_runtime_cache_content_drift(self) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+        def forbidden_control(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_control,
+            )
+        self.assertEqual(calls, [])
+        self.mock_cursor_readiness.assert_not_called()
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+
+    def test_v18_live_load_rejects_runtime_cache_content_drift(self) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
         cached_file = cache_root / "numba" / "compiled.cache"
         cached_file.write_bytes(b"reviewed-cache-bytes")
         os.chmod(cached_file, 0o600)
@@ -546,10 +876,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v17_runtime_cache_ignores_nested_directory_mtime_drift(
+    def test_v18_runtime_cache_ignores_nested_directory_mtime_drift(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+        cache_root, _ = self._enable_v18_runtime_binding()
         compiled_directory = cache_root / "numba" / "compiled"
         compiled_directory.mkdir(mode=0o700)
         cached_file = compiled_directory / "artifact.cache"
@@ -573,10 +903,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(nested_directory["kind"], "directory")
         self.assertNotIn("mtime_ns", nested_directory)
 
-    def test_v17_runtime_cache_must_be_dedicated_and_non_overlapping(
+    def test_v18_runtime_cache_must_be_dedicated_and_non_overlapping(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding(
+        cache_root, _ = self._enable_v18_runtime_binding(
             name="claude-storage/runtime-cache",
         )
 
@@ -584,8 +914,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self._generate(runtime_cache_dir=cache_root)
         self.assertFalse(self.runtime.exists())
 
-    def test_v17_runtime_cache_root_rejects_uncommitted_entries(self) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+    def test_v18_runtime_cache_root_rejects_uncommitted_entries(self) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
         unexpected = cache_root / "ambient.txt"
         unexpected.write_text("ambient", encoding="utf-8")
         os.chmod(unexpected, 0o600)
@@ -594,10 +924,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self._generate(runtime_cache_dir=cache_root)
         self.assertFalse(self.runtime.exists())
 
-    def test_v17_live_load_rejects_sealed_cache_environment_drift(
+    def test_v18_live_load_rejects_sealed_cache_environment_drift(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+        cache_root, _ = self._enable_v18_runtime_binding()
         generated = self._generate(runtime_cache_dir=cache_root)
         config_path = Path(generated["config_path"])
         raw_config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -624,10 +954,49 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v17_generation_rejects_manifest_python_binding_hash_drift(
+    def test_v18_rejects_legacy_launchd_schema_before_control_action(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v17_runtime_binding()
+        generated = self._generate()
+        config_path = Path(generated["config_path"])
+        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+        unsigned = launchd_agent._open_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            raw_config,
+            b"a" * 32,
+        )
+        unsigned["schema_version"] = "epiagentbench.launchd_agent.v9"
+        resealed = launchd_agent._seal_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            unsigned,
+            b"a" * 32,
+        )
+        config_path.write_text(json.dumps(resealed), encoding="utf-8")
+        os.chmod(config_path, 0o600)
+        calls: list[list[str]] = []
+
+        def forbidden_control(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_control,
+            )
+        self.assertEqual(calls, [])
+        self.mock_cursor_readiness.assert_not_called()
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+
+    def test_v18_generation_rejects_manifest_python_binding_hash_drift(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
         manifest = json.loads(
             self.public_manifest.read_text(encoding="utf-8")
         )
@@ -1617,6 +1986,66 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             config["execution_context_sha256"],
         )
 
+    def test_v18_worker_self_bootstraps_child_and_restores_ambient_environment(
+        self,
+    ) -> None:
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        generated = self._generate(runtime_cache_dir=cache_root)
+        self._commit_start()
+
+        def fake_keychain(arguments, **_kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        def fake_supervised_command(**kwargs):
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                expected_environment,
+            )
+            self.assertEqual(
+                {
+                    name: kwargs["child_environment"].get(name)
+                    for name in expected_environment
+                },
+                expected_environment,
+            )
+            return 9
+
+        poisoned = {
+            name: f"worker-poison-{index}"
+            for index, name in enumerate(expected_environment)
+        }
+        with patch(
+            "epiagentbench.persistent_supervisor.run_supervised_command",
+            side_effect=fake_supervised_command,
+        ), patch.dict(os.environ, poisoned, clear=False):
+            before = {
+                name: os.environ.get(name) for name in expected_environment
+            }
+            self.assertEqual(
+                run_launch_agent_worker(
+                    Path(generated["config_path"]),
+                    keychain_runner=fake_keychain,
+                ),
+                9,
+            )
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                before,
+            )
+
     def test_keychain_timeout_fails_closed_with_authenticated_status(self) -> None:
         generated = self._generate()
         self._commit_start()
@@ -1724,6 +2153,105 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.assertEqual(status["worker_state"], "released")
         self.assertEqual(status["worker_reason"], "production_complete")
+
+    def test_v18_finalize_self_bootstraps_and_restores_cache_environment(
+        self,
+    ) -> None:
+        cache_root, expected_environment = (
+            self._enable_v18_runtime_binding()
+        )
+        self._generate(runtime_cache_dir=cache_root)
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        self._complete_core()
+
+        def assert_sealed_environment(_config):
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                expected_environment,
+            )
+            return {"status": "complete"}
+
+        poisoned = {
+            name: f"finalize-poison-{index}"
+            for index, name in enumerate(expected_environment)
+        }
+        with patch(
+            "epiagentbench.launchd_agent._finalize_supervised_release",
+            side_effect=assert_sealed_environment,
+        ), patch.dict(os.environ, poisoned, clear=False):
+            before = {
+                name: os.environ.get(name) for name in expected_environment
+            }
+            finalized = finalize_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+            self.assertEqual(finalized["state"], "released")
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in expected_environment
+                },
+                before,
+            )
+
+    def test_v18_finalize_refuses_alternating_authenticated_config_snapshot(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
+        self._generate(runtime_cache_dir=cache_root)
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        self._complete_core()
+        authenticated = launchd_agent._read_authenticated_config(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+        )
+        alternate = dict(authenticated[2])
+        alternate["label"] = alternate["label"] + ".alternate"
+        replacement = (
+            authenticated[0],
+            authenticated[1],
+            alternate,
+            authenticated[3],
+        )
+
+        with (
+            patch(
+                "epiagentbench.launchd_agent._read_authenticated_config",
+                side_effect=(authenticated, replacement),
+            ),
+            patch(
+                "epiagentbench.launchd_agent._finalize_supervised_release",
+            ) as release,
+            self.assertRaises(LaunchAgentError),
+        ):
+            finalize_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+        release.assert_not_called()
+        observed = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertEqual(observed["state"], "supervisor_running")
 
     @unittest.skipUnless(hasattr(os, "fork"), "hard-crash recovery requires fork")
     def test_hard_crash_during_release_leaves_manual_finalize_recoverable(self) -> None:

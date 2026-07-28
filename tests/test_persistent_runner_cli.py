@@ -15,7 +15,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v17",
+            "panel_id": "development-matched-50x6-v18",
             "status": "passed",
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
@@ -53,6 +53,82 @@ class PersistentRunnerCliTests(unittest.TestCase):
         )
         durable_paths.assert_not_called()
         self.assertEqual(json.loads(safe_print.call_args.args[0]), payload)
+
+    def test_preparation_runtime_verification_can_publish_create_once(self):
+        payload = {
+            "schema_version": (
+                "epiagentbench.preparation_runtime_verification.v2"
+            ),
+            "panel_id": "development-matched-50x6-v18",
+            "status": "passed",
+            "runtime_cache_contract": {"private": "must-not-publish"},
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "model_calls_started": 0,
+        }
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "run_development_matched_panel.py",
+                    "verify-preparation-runtime",
+                    "--preparation-runtime-receipt",
+                    "/public/runtime.json",
+                    "--expected-benchmark-base-commit",
+                    "d" * 40,
+                    "--runtime-cache-dir",
+                    "/private/runtime-cache",
+                    "--public-verification-receipt",
+                    "/private/verification.json",
+                ],
+            ),
+            patch.object(
+                matched_cli,
+                "verify_preparation_runtime",
+                return_value=payload,
+            ) as verify,
+            patch.object(
+                matched_cli,
+                "create_provider_free_public_json_once",
+            ) as create_once,
+            patch.object(
+                matched_cli, "assert_durable_live_execution_paths"
+            ) as durable_paths,
+            patch("builtins.print") as safe_print,
+        ):
+            self.assertEqual(matched_cli.main(), 0)
+
+        verify.assert_called_once_with(
+            root=Path(matched_cli.__file__).resolve().parents[1],
+            receipt_path=Path("/public/runtime.json"),
+            expected_benchmark_base_commit="d" * 40,
+            runtime_cache_dir=Path("/private/runtime-cache"),
+        )
+        create_once.assert_called_once_with(
+            Path("/private/verification.json"),
+            {
+                "schema_version": (
+                    "epiagentbench.preparation_runtime_verification.v2"
+                ),
+                "panel_id": "development-matched-50x6-v18",
+                "status": "passed",
+                "provider_processes_started": 0,
+                "authentication_processes_started": 0,
+                "model_calls_started": 0,
+            },
+        )
+        durable_paths.assert_not_called()
+        self.assertEqual(
+            json.loads(safe_print.call_args.args[0]),
+            {
+                "panel_id": "development-matched-50x6-v18",
+                "status": "verified",
+                "provider_processes_started": 0,
+                "authentication_processes_started": 0,
+                "model_calls_started": 0,
+            },
+        )
 
     def _authentication_arguments(
         self, operation: str = "authenticate"
@@ -125,7 +201,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     target,
                     return_value={
-                        "panel_id": "development-matched-50x6-v17",
+                        "panel_id": "development-matched-50x6-v18",
                         "status": status,
                     },
                 ) as invoked,
@@ -170,7 +246,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_authenticate_dispatches_only_to_foreground_authentication(self) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v17",
+            "panel_id": "development-matched-50x6-v18",
             "status": "passed",
             "providers": {
                 "codex": {"status": "passed"},
@@ -209,7 +285,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self.assertEqual(
             rendered,
             {
-                "panel_id": "development-matched-50x6-v17",
+                "panel_id": "development-matched-50x6-v18",
                 "status": "passed",
                 "authentication_ready": True,
                 "codex_status": "passed",
@@ -223,7 +299,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v17",
+            "panel_id": "development-matched-50x6-v18",
             "status": "retryable_failed",
             "providers": {
                 "codex": {"status": "retryable_failed"},
@@ -252,7 +328,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v17",
+            "panel_id": "development-matched-50x6-v18",
             "status": "required",
             "providers": {
                 "codex": {"status": "required"},

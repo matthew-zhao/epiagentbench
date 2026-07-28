@@ -1,8 +1,9 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V17 persistent-supervisor
-contract schema v6. The source contract, panel/schema identifiers, spend
-accounting, path namespace, and [V17 runbook](V17_RUNBOOK.md) are defined. The
+Status at control-plane publication: versioned V18 persistent-supervisor
+contract schema v7, execution-context protocol v4, and launchd config schema
+v10. The source contract, panel/schema identifiers, spend
+accounting, path namespace, and [V18 runbook](V18_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -42,7 +43,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V17 key, cohort, credential namespace, schedule, private state, or
+8. No V18 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -114,10 +115,10 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V17 adds a provider-free boundary before the private panel exists. One exact
+V18 adds a provider-free boundary before the private panel exists. One exact
 absolute interpreter,
 `/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python`, runs every
-V17 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
+V18 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order, and
 does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. The
@@ -149,10 +150,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v17.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v18.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V17 freezer or `prepare` command can create or read a key, cohort,
+the matched V18 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -228,8 +229,8 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. Persistent-supervisor contract schema v6 intentionally rejects
-schema-v5 manifests; a run must be freshly versioned, prepared, and authorized
+evaluator. Persistent-supervisor contract schema v7 intentionally rejects
+schema-v6 manifests; a run must be freshly versioned, prepared, and authorized
 under the new contract.
 
 The child reserves exit 64 only after a second read proves the public terminal
@@ -305,17 +306,26 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V17, generation also requires the exact manifest-bound runtime-cache root.
-The LaunchAgent environment is a closed projection of the six variables in
-the recomputed private cache contract whose opaque hash appears in the tracked
-runtime receipt. Generation recomputes both full raw bindings, compares their
+For V18, generation also requires the exact manifest-bound runtime-cache root.
+The scientific environment is an exact projection of the six variables in the
+recomputed private cache contract whose opaque hash appears in the tracked
+runtime receipt. Generation derives and installs those values before
+matched-panel imports. Every config-backed control, the launchd worker,
+handled-terminal path, and finalizer then derives them from the same
+HMAC-authenticated closed config, overwrites missing or conflicting caller
+values, and restores the caller's exact prior presence and values in
+`finally`. The six values never enter plist or argv. A control keeps one
+authenticated config/key snapshot for its entire action; finalization
+exact-compares a fresh authenticated read against that snapshot before state
+mutation and never validates a replacement config under the first config's
+environment. Generation recomputes both full raw bindings, compares their
 opaque public hashes, and seals the raw Python/bootstrap and cache records only
 in the authenticated owner-only config. At config load, before Keychain
 access, and immediately before child launch, the worker revalidates the full
 Python entrypoint/bootstrap binding and the closed cache inventory, including
 paths, environment, owner, mode, device, inode, UID, and content identities.
-No ambient cache, PATH-selected interpreter, startup hook, or nonisolated
-Python process is accepted.
+No ambient cache, PATH-selected interpreter, startup hook, legacy launchd
+config, or nonisolated Python process is accepted.
 
 The job is a one-shot supervised run, not an unconditional `KeepAlive` loop.
 After an in-flight crash, an automatic restart must not create another paid
@@ -364,7 +374,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V17 model call may start until all of the following pass through the
+No V18 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -447,28 +457,39 @@ artifact collapsed a handled evaluator failure into `supervisor_exception`;
 the offline audit showed that this label did not prove the supervisor itself
 crashed. V16 is non-resumable and no production assignment started.
 
-V17 now binds the finite provider-incident taxonomy, authenticated terminal-
-receipt exit, completion-checkpoint recovery, repository-relative receipt
-handoff, provider-free prelaunch attestation, nested launchd-state parser, and
-the existing heartbeat/retry/source contracts under panel/cohort
-`development-matched-50x6-v17`, top-level schema
-`development_matched_panel_v17`, the exact $585 acknowledgement, and fresh
-V17 paths. Its two-commit provider-free runtime protocol must prove the exact V5
+V17 completed preparation and foreground authentication. Its sole preflight
+`start` command omitted the six frozen runtime-cache environment values and
+was refused before the durable start marker. No worker, provider process,
+preflight profile, or model call started. V17 is terminal and its cohort,
+keys, credential/cache namespaces, supervisor, runtime, and Keychain service
+cannot be reused.
+
+V18 binds authenticated runtime-environment self-supply and exact restoration,
+atomic create-once staging/publication, the finite provider-incident taxonomy,
+authenticated terminal-receipt exit, completion-checkpoint recovery,
+repository-relative receipt handoff, provider-free prelaunch attestation,
+nested launchd-state parser, and the existing heartbeat/retry/source contracts
+under panel/cohort
+`development-matched-50x6-v18`, top-level schema
+`development_matched_panel_v18`, the exact $585 acknowledgement, and fresh
+V18 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
 pinned source tree, and the closed bounded owner-only runtime-cache v3
 inventory. The first commit publishes code; the two identical receipts are
-then generated and compared at that commit; the second commit publishes those
-exact receipt bytes. Only after a fresh checkout re-attests the second commit
+then generated through separate no-clobber destinations and compared at that
+commit; the second commit publishes those exact bytes through the same atomic
+create-once link boundary. Only after a fresh checkout re-attests the second commit
 may preparation create the fresh key and empty credentials, burn and complete
 the canonical freeze claim, freeze the cohort, create private state, and
-prepare and publish the manifest. The same interpreter and cache contract are
+prepare and publish the manifest through another no-clobber boundary. The same
+interpreter and cache contract are
 mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V17 panel's Claude ceiling is $510 (102 calls × $5); the exact
+The current V18 panel's Claude ceiling is $510 (102 calls × $5); the exact
 acknowledgement's $585 cumulative ceiling adds the conservative $75 allowance
 for prior failed panels. Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.

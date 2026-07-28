@@ -86,9 +86,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v17"
+PANEL_ID = "development-matched-50x6-v18"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v17"
+SCHEMA_VERSION = "development_matched_panel_v18"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -96,7 +96,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v17 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v18 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $585 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -105,7 +105,8 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "v11 authentication bootstrap, the abandoned zero-model-call v12 "
     "precommitment, the abandoned zero-model-call v13 precommitment, the "
     "failed v14 preflight, the failed zero-model-call v15 pre-claim "
-    "preparation, the failed v16 preflight, and the v17 preflight and "
+    "preparation, the failed v16 preflight, the failed zero-model-call v17 "
+    "pre-start runtime-cache-environment refusal, and the v18 preflight and "
     "production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
@@ -119,7 +120,7 @@ _PREPARATION_RUNTIME_SMOKE_SCHEMA = (
 )
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "66f64087374fd9e95b11f1ad0dde6adee66c7a60c3b22f7ffdb721e004266730"
+    "4b724cb8757efc98d2cc23676f6bc3d882e1c697ee230c8897325b3acb2083c9"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -234,17 +235,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V17 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V18 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V17 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V18 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V17 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V18 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v17_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v18_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v17_cohort_freeze_completion.v1"
+    "epiagentbench.v18_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -713,6 +714,99 @@ def _create_public_json_once(path: Path, value: Any) -> None:
                 pass
 
 
+def create_provider_free_public_json_once(path: Path, value: Any) -> None:
+    """Create and verify one canonical public JSON artifact without clobbering."""
+
+    _create_public_json_once(path, value)
+    if _load_json(path) != value:
+        raise RuntimeError("Create-once public artifact verification failed")
+
+
+def _read_canonical_public_json_bytes(path: Path) -> tuple[bytes, dict[str, Any]]:
+    """Read one stable, canonical public JSON object without following links."""
+
+    try:
+        metadata = path.lstat()
+    except OSError:
+        raise ValueError("Provider-free publication source is unavailable") from None
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_nlink != 1
+        or not 0 < metadata.st_size <= _MAX_PANEL_JSON_BYTES
+    ):
+        raise ValueError("Provider-free publication source is unsafe")
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+        with os.fdopen(descriptor, "rb", closefd=True) as stream:
+            opened = os.fstat(stream.fileno())
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != metadata.st_dev
+                or opened.st_ino != metadata.st_ino
+                or opened.st_uid != os.getuid()
+                or opened.st_nlink != 1
+                or opened.st_size != metadata.st_size
+            ):
+                raise ValueError(
+                    "Provider-free publication source changed while opening"
+                )
+            payload = stream.read(_MAX_PANEL_JSON_BYTES + 1)
+            after = os.fstat(stream.fileno())
+    except OSError:
+        raise ValueError("Provider-free publication source is unavailable") from None
+    if (
+        len(payload) != metadata.st_size
+        or after.st_dev != opened.st_dev
+        or after.st_ino != opened.st_ino
+        or after.st_size != opened.st_size
+        or after.st_mtime_ns != opened.st_mtime_ns
+    ):
+        raise ValueError("Provider-free publication source changed while reading")
+    try:
+        value = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=_unique_object,
+            parse_constant=_reject_constant,
+        )
+    except (UnicodeError, ValueError, RecursionError):
+        raise ValueError("Provider-free publication source is invalid") from None
+    if not isinstance(value, dict):
+        raise ValueError("Provider-free publication source must be an object")
+    canonical = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    if not hmac.compare_digest(payload, canonical):
+        raise ValueError("Provider-free publication source is not canonical")
+    return payload, value
+
+
+def publish_provider_free_public_json_once(
+    *,
+    source_path: Path,
+    destination_path: Path,
+) -> dict[str, Any]:
+    """Publish exact canonical JSON bytes through the create-once link boundary."""
+
+    if source_path.absolute() == destination_path.absolute():
+        raise ValueError("Provider-free source and destination must differ")
+    payload, value = _read_canonical_public_json_bytes(source_path)
+    create_provider_free_public_json_once(destination_path, value)
+    published, observed = _read_canonical_public_json_bytes(destination_path)
+    if observed != value or not hmac.compare_digest(payload, published):
+        raise RuntimeError("Provider-free publication bytes changed")
+    return {
+        "schema_version": "epiagentbench.provider_free_publication.v1",
+        "status": "published",
+        "provider_processes_started": 0,
+        "authentication_processes_started": 0,
+        "model_calls_started": 0,
+    }
+
+
 def _private_state_tag(value: Mapping[str, Any], key: bytes) -> str:
     return hmac.new(
         key,
@@ -907,21 +1001,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V17 cohort destination")
+    return _canonical_new_private_path(value, label="V18 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V17 claim location paired with this owner-only key."""
+    """Return the one V18 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V17 authentication-key namespace is unavailable"
+            "V18 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -930,16 +1024,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V17 authentication-key namespace must be owner-only"
+            "V18 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V17 cohort freeze claim"
+        requested_path, label="V18 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V17 cohort freeze claim must use the canonical key-namespace path"
+            "V18 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -967,7 +1061,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V17 cohort freeze claim authentication failed")
+        raise ValueError("V18 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -990,7 +1084,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V17 cohort freeze completion authentication failed")
+        raise ValueError("V18 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1014,7 +1108,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V17 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V18 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1044,12 +1138,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V17 freeze attempt before any cohort randomness."""
+    """Burn the only V18 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V17 cohort freeze completion already exists; never rerun freeze"
+            "V18 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1066,11 +1160,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V17 cohort freeze already has a pending claim; interrupted "
+            "V18 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V17 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V18 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1088,7 +1182,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V17 cohort manifest must use its canonical filename")
+        raise ValueError("V18 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1099,7 +1193,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V17 frozen cohort manifest"
+            canonical_manifest_path, label="V18 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1117,11 +1211,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V17 cohort freeze completion already exists; never replace it"
+            "V18 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V17 cohort freeze completion failed its durable reload"
+            "V18 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1139,13 +1233,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V17 cohort has no authenticated create-once freeze claim"
+            "Frozen V18 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V17 cohort freeze remains pending; interrupted freezes are "
+            "V18 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1153,7 +1247,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V17 cohort manifest must use its canonical filename")
+        raise ValueError("V18 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1168,11 +1262,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V17 cohort freeze claim belongs to another freeze")
+        raise ValueError("V18 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V17 cohort freeze claim has no claim time")
+        raise ValueError("V18 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1183,7 +1277,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V17 frozen cohort manifest"
+            manifest_path, label="V18 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1193,12 +1287,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V17 cohort freeze completion differs from its manifest or claim"
+            "V18 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V17 cohort freeze completion has no completion time")
+        raise ValueError("V18 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -3295,12 +3389,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V17 key only when one stable inode owns its namespace."""
+    """Read the V18 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V17 authentication key is unavailable") from None
+        raise RuntimeError("V18 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3320,18 +3414,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V17 authentication key must be an owner-only single-link file"
+            "V18 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V17 authentication key is unavailable") from None
+        raise RuntimeError("V18 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V17 authentication key changed while reading")
+        raise RuntimeError("V18 authentication key changed while reading")
     return key
 
 
@@ -4233,7 +4327,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V17 runtime-cache environment does not match the exact contract"
+            "V18 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4247,17 +4341,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V17 runtime-cache contract is inconsistent")
+        raise RuntimeError("V18 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V17 runtime-cache environment is unavailable")
+        raise RuntimeError("V18 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V17 runtime-cache environment is invalid")
+        raise RuntimeError("V18 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4382,7 +4476,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v17-stop-direct-care",
+                        control_id="v18-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4415,14 +4509,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V17 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V18 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V17 Starsim golden smoke changed engine descriptors"
+                "V18 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4464,7 +4558,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V17 Starsim golden smoke lost its causal transmission/control "
+            "V18 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4492,12 +4586,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V17 Starsim golden smoke result drifted from its reviewed digest"
+            "V18 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v17_contact_transmission_with_matched_contact_stop"
+            "v18_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -4515,7 +4609,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V17 requires exact Starsim "
+            "V18 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -4533,7 +4627,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V17 Python executable must not be temporary")
+        raise RuntimeError("V18 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -4597,7 +4691,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V17 creation."""
+    """Attest every public preparation dependency before private V18 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -4618,7 +4712,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V17 runtime preflight is not at the expected pinned commit"
+            "V18 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -4629,7 +4723,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().absolute()
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V17 runtime cache must be outside the repository"
+            "V18 runtime cache must be outside the repository"
         )
     runtime = _runtime_contract()
     smoke = _preparation_runtime_smoke()
@@ -4642,7 +4736,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V17 source changed during preparation runtime preflight"
+            "V18 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -4676,18 +4770,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V17 preparation runtime receipt must already be committed"
+            "V18 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V17 preparation runtime receipt",
+            label="V18 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V17 preparation runtime receipt is unavailable"
+            "V18 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -4745,7 +4839,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V17 preparation runtime receipt failed closed-schema validation"
+            "V18 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -4757,7 +4851,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V17 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V18 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -4774,14 +4868,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V17 runtime cache changed during receipt verification"
+            "V18 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V17 preparation runtime differs from the published receipt"
+            "V18 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v1",
@@ -4882,18 +4976,18 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V17 preparation runtime is invalid")
+        raise ValueError("Bound V18 preparation runtime is invalid")
     runtime_cache = _runtime_cache_contract(
         _runtime_cache_root_from_environment()
     )
     if bound.get("runtime_cache_contract_sha256") != _component_hash(
         runtime_cache
     ):
-        raise ValueError("Bound V17 runtime cache changed")
+        raise ValueError("Bound V18 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V17 Starsim smoke result changed")
+        raise ValueError("Bound V18 Starsim smoke result changed")
     return bound
 
 
@@ -4901,7 +4995,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v6",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v7",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -4940,6 +5034,17 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         "scientific_runtime_environment": (
             "manifest_bound_python_entrypoint_and_owner_only_cache_directories"
         ),
+        "runtime_cache_environment_bootstrap": {
+            "source": "hmac_authenticated_closed_launch_agent_config",
+            "keys": sorted(_RUNTIME_CACHE_ENVIRONMENT_KEYS),
+            "application": (
+                "exact_overwrite_before_generate_control_worker_and_finalize_"
+                "matched_panel_boundaries"
+            ),
+            "caller_ambient_values": "ignored",
+            "restoration": "exact_prior_presence_and_value_in_finally",
+            "plist_or_argv_disclosure": False,
+        },
         "liveness": {
             "heartbeat_interval_seconds": 15,
             "provider_activity_is_liveness": False,
@@ -5264,8 +5369,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v17_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v17_authorization_breakdown": {
+        "claude_current_v18_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v18_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -5293,6 +5398,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v14_usd": 10.0,
             "v15_usd": 0.0,
             "v16_usd": 5.0,
+            "v17_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -5385,6 +5491,18 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v16_supersession": (
                 "results/development-matched-50x6-v16.superseded.json"
             ),
+            "v17_runtime_receipt": (
+                "results/development-matched-50x6-v17.runtime.json"
+            ),
+            "v17_manifest": (
+                "results/development-matched-50x6-v17.manifest.json"
+            ),
+            "v17_authentication_receipt": (
+                "results/development-matched-50x6-v17.authentication.json"
+            ),
+            "v17_supersession": (
+                "results/development-matched-50x6-v17.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -5405,7 +5523,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V17 exactly once after runtime re-attestation."""
+    """Claim and freeze V18 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -5439,7 +5557,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V17 runtime cache must not overlap the {label}"
+                f"V18 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -5460,13 +5578,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V17 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V18 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V17 cohort returned a noncanonical artifact location"
+            "Frozen V18 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -5479,9 +5597,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V17 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V18 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v17_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v18_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -5540,13 +5658,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V17 requires an exact 1800-second assignment timeout")
+        raise ValueError("V18 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V17 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V18 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -5571,7 +5689,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V17 runtime cache must not overlap the {label}"
+                f"V18 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -5583,7 +5701,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V17 source or CLI identity drifted after runtime verification"
+            "V18 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -5637,7 +5755,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V17 runtime cache must not overlap the {label}"
+                f"V18 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -6243,7 +6361,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V17 preparation runtime binding is invalid"
+            "Private V18 preparation runtime binding is invalid"
         )
     expected_contracts = {
         "runtime_contract": _runtime_contract(),
@@ -6311,7 +6429,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V17 preparation runtime contract is missing")
+        raise ValueError("V18 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -6340,7 +6458,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V17 cohort freeze claim differs from private state"
+            "Authenticated V18 cohort freeze claim differs from private state"
         )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
@@ -6555,7 +6673,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V17 spend authorization contract mismatch")
+        raise ValueError("V18 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -6583,7 +6701,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v17 spend authorization receipt is required "
+            "A manifest-bound exact v18 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -6598,14 +6716,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v17 spend authorization receipt is required "
+            "A manifest-bound exact v18 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v17 spend authorization receipt is required "
+            "A manifest-bound exact v18 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -6627,7 +6745,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v17 $585 cumulative spend acknowledgement text is required"
+            "The exact v18 $585 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -7527,7 +7645,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V17 panel cannot retry"
+                    "state; this V18 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -7558,7 +7676,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V17 panel "
+                "Authentication process state is ambiguous; this V18 panel "
                 "cannot retry"
             )
         if (
@@ -7592,7 +7710,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V17 panel cannot retry"
+                "state; this V18 panel cannot retry"
             ) from None
         _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
@@ -7718,7 +7836,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V17 panel cannot retry"
+                    "state; this V18 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -7792,7 +7910,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V17 panel cannot retry"
+                    "V18 panel cannot retry"
                 ) from None
 
         _attest_execution_contracts(root=root, public=public)
@@ -7819,7 +7937,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V17 panel cannot retry"
+                "state; this V18 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,

@@ -207,7 +207,11 @@ class V16SupersessionTests(unittest.TestCase):
             self.assertIn(f"def {symbol}", source)
         self.assertIn("HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64", supervisor)
         self.assertIn(
-            '"schema_version": "epiagentbench.persistent_supervisor_contract.v6"',
+            "persistent_supervisor_contract_schema_v6",
+            requirements,
+        )
+        self.assertIn(
+            '"schema_version": "epiagentbench.persistent_supervisor_contract.v7"',
             source,
         )
 

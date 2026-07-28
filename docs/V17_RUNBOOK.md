@@ -1,3 +1,19 @@
+> [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V17 passed foreground authentication, then its sole preflight `start`
+> command was refused before the durable start marker because the operator
+> invocation omitted the six frozen runtime-cache environment variables.
+> No worker, provider process, or model call started.
+> Do not resume, repair, or reuse any V17 cohort, key, credential namespace,
+> private state, runtime cache,
+> supervisor, Keychain service, or path. The trace-free audit is
+> recorded in the
+> [V17 supersession receipt](../results/development-matched-50x6-v17.superseded.json);
+> use the [V18 runbook](V18_RUNBOOK.md) only after its provider-free
+> preparation is published and the operator supplies a fresh exact
+> authorization.
+
 # EpiAgentBench V17 execution runbook
 
 > [!CAUTION]
