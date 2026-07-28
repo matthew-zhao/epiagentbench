@@ -1,11 +1,15 @@
-# EpiAgentBench V16 execution runbook
-
 > [!CAUTION]
-> This runbook does not authorize authentication, a provider process, spend, a
-> supervisor start, or a model call. The current preparation milestone ends
-> after the public V16 manifest is validated, committed, pushed through
-> GitButler, and pinned. Do not run the authorization or execution sections
-> until the operator later supplies the exact manifest-bound acknowledgement.
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V16 stopped during its first preflight profile after one conservatively
+> chargeable Claude invocation. Do not resume, repair, or reuse any V16 cohort,
+> key, credential namespace, private state, supervisor, or path. The trace-free
+> audit is recorded in the
+> [V16 supersession receipt](../results/development-matched-50x6-v16.superseded.json);
+> use the [V17 runbook](V17_RUNBOOK.md) only after its provider-free preparation
+> is published and the operator supplies a fresh exact authorization.
+
+# EpiAgentBench V16 execution runbook
 
 V16 replaces the terminal, zero-model-call V15 preparation. V15 froze a
 cohort, but its selected bare `python3` could not import Starsim. V15 and every

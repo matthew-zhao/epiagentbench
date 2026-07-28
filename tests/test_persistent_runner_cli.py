@@ -15,7 +15,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v16",
+            "panel_id": "development-matched-50x6-v17",
             "status": "passed",
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
@@ -107,15 +107,15 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 0,
                 "run_environment_preflight",
             ),
-            ("preflight", "failed", 1, "run_environment_preflight"),
+            ("preflight", "failed", 64, "run_environment_preflight"),
             (
                 "run",
                 "complete_pending_supervisor_completion",
                 0,
                 "run_panel",
             ),
-            ("run", "stopped_transport_void", 1, "run_panel"),
-            ("run", "stopped_supervisor_incident", 1, "run_panel"),
+            ("run", "stopped_transport_void", 64, "run_panel"),
+            ("run", "stopped_supervisor_incident", 64, "run_panel"),
         )
         for operation, status, expected, target in cases:
             with (
@@ -125,13 +125,17 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     target,
                     return_value={
-                        "panel_id": "development-matched-50x6-v16",
+                        "panel_id": "development-matched-50x6-v17",
                         "status": status,
                     },
                 ) as invoked,
                 patch.object(
                     matched_cli, "assert_durable_live_execution_paths"
                 ) as durable_paths,
+                patch.object(
+                    matched_cli,
+                    "assert_terminal_receipt_ready_for_exit",
+                ) as terminal_receipt,
                 patch("builtins.print"),
             ):
                 self.assertEqual(matched_cli.main(), expected)
@@ -145,6 +149,10 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 invoked.call_args.kwargs["supervisor_runtime_dir"],
                 Path("/private/supervisor"),
             )
+            if expected == 64:
+                terminal_receipt.assert_called_once()
+            else:
+                terminal_receipt.assert_not_called()
 
     def test_disposable_execution_root_fails_before_runner_invocation(self) -> None:
         with (
@@ -162,7 +170,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_authenticate_dispatches_only_to_foreground_authentication(self) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v16",
+            "panel_id": "development-matched-50x6-v17",
             "status": "passed",
             "providers": {
                 "codex": {"status": "passed"},
@@ -201,7 +209,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self.assertEqual(
             rendered,
             {
-                "panel_id": "development-matched-50x6-v16",
+                "panel_id": "development-matched-50x6-v17",
                 "status": "passed",
                 "authentication_ready": True,
                 "codex_status": "passed",
@@ -215,7 +223,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v16",
+            "panel_id": "development-matched-50x6-v17",
             "status": "retryable_failed",
             "providers": {
                 "codex": {"status": "retryable_failed"},
@@ -244,7 +252,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v16",
+            "panel_id": "development-matched-50x6-v17",
             "status": "required",
             "providers": {
                 "codex": {"status": "required"},

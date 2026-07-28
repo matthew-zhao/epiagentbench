@@ -93,12 +93,21 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.claude_storage.mkdir(mode=0o700)
         self.codex_storage.mkdir(mode=0o700)
         self.private_state = self.root / "private.json"
-        self.public_manifest = self.root / "manifest.json"
+        self.public_manifest = (
+            self.root
+            / "development-matched-50x6-v9-test.manifest.json"
+        )
         self.public_authentication = (
             self.root
             / "development-matched-50x6-v9-test.authentication.json"
         )
-        self.public_results = self.root / "results.json"
+        self.public_preflight = (
+            self.root
+            / "development-matched-50x6-v9-test.preflight.json"
+        )
+        self.public_results = (
+            self.root / "development-matched-50x6-v9-test.json"
+        )
         self.private_state.write_text("{}", encoding="utf-8")
         self.public_manifest.write_text(
             json.dumps(
@@ -151,6 +160,32 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "assert_durable_live_execution_paths",
         )
         self.mock_durable_readiness = self.durable_readiness.start()
+        self.environment_preflight_readiness = patch.object(
+            development_matched_panel,
+            "assert_environment_preflight_ready",
+            return_value={
+                "panel_id": "development-matched-50x6-v9-test",
+                "status": "passed",
+                "artifact_kind": "preflight",
+            },
+        )
+        self.mock_environment_preflight_readiness = (
+            self.environment_preflight_readiness.start()
+        )
+        self.provider_free_prelaunch = patch.object(
+            development_matched_panel,
+            "attest_provider_free_prelaunch",
+            return_value={
+                "panel_id": "development-matched-50x6-v9-test",
+                "operation": "production",
+                "status": "passed",
+                "provider_processes_started": 0,
+                "model_calls_started": 0,
+            },
+        )
+        self.mock_provider_free_prelaunch = (
+            self.provider_free_prelaunch.start()
+        )
         self.real_cursor_attestation = (
             launchd_agent._attest_cursor_keychain
         )
@@ -169,6 +204,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.isolated_process.stop()
         self.cursor_readiness.stop()
+        self.provider_free_prelaunch.stop()
+        self.environment_preflight_readiness.stop()
         self.durable_readiness.stop()
         self.authentication_readiness.stop()
         self.temporary.cleanup()
@@ -194,10 +231,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         arguments.update(changes)
         return generate_launch_agent(**arguments)
 
-    def _enable_v16_runtime_binding(
+    def _enable_v17_runtime_binding(
         self,
         *,
-        name: str = "v16-runtime-cache",
+        name: str = "v17-runtime-cache",
     ) -> tuple[Path, dict[str, str]]:
         cache_root = self.root / name
         cache_root.mkdir(mode=0o700)
@@ -359,7 +396,31 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertNotIn("cursor_api_key", config)
         self.assertNotIn("environment", config)
 
-    def test_v16_cli_bootstraps_work_with_site_hooks_disabled(self) -> None:
+    def test_generation_rejects_noncanonical_public_output_before_runtime(
+        self,
+    ) -> None:
+        cases = (
+            {
+                "operation": "preflight",
+                "public_preflight_path": self.root / "typo-preflight.json",
+                "public_results_path": None,
+            },
+            {
+                "operation": "production",
+                "public_preflight_path": None,
+                "public_results_path": self.root / "typo-results.json",
+            },
+        )
+        for changes in cases:
+            with self.subTest(operation=changes["operation"]):
+                with self.assertRaisesRegex(
+                    LaunchAgentError,
+                    "failed safely",
+                ):
+                    self._generate(**changes)
+                self.assertFalse(self.runtime.exists())
+
+    def test_v17_cli_bootstraps_work_with_site_hooks_disabled(self) -> None:
         for relative_script in (
             "examples/run_development_matched_panel.py",
             "examples/run_persistent_panel_supervisor.py",
@@ -402,9 +463,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
             self.assertEqual(direct.returncode, 2)
 
-    def test_v16_generation_seals_exact_runtime_cache_environment(self) -> None:
+    def test_v17_generation_seals_exact_runtime_cache_environment(self) -> None:
         cache_root, expected_environment = (
-            self._enable_v16_runtime_binding()
+            self._enable_v17_runtime_binding()
         )
 
         generated = self._generate(runtime_cache_dir=cache_root)
@@ -423,16 +484,16 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         plist = plistlib.loads(Path(generated["plist_path"]).read_bytes())
         self.assertNotIn("EnvironmentVariables", plist)
 
-    def test_v16_generation_requires_exact_bound_runtime_cache_root(
+    def test_v17_generation_requires_exact_bound_runtime_cache_root(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+        cache_root, _ = self._enable_v17_runtime_binding()
 
         with self.assertRaises(LaunchAgentError):
             self._generate()
         self.assertFalse(self.runtime.exists())
 
-        wrong_cache = self.root / "wrong-v16-runtime-cache"
+        wrong_cache = self.root / "wrong-v17-runtime-cache"
         wrong_cache.mkdir(mode=0o700)
         wrong_runtime = self.root / "wrong-cache-runtime"
         with self.assertRaises(LaunchAgentError):
@@ -444,8 +505,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertFalse(wrong_runtime.exists())
         self.assertTrue(cache_root.is_dir())
 
-    def test_v16_live_load_rejects_runtime_cache_inode_drift(self) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+    def test_v17_live_load_rejects_runtime_cache_inode_drift(self) -> None:
+        cache_root, _ = self._enable_v17_runtime_binding()
         self._generate(runtime_cache_dir=cache_root)
 
         original = cache_root / "numba"
@@ -458,8 +519,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v16_live_load_rejects_runtime_cache_content_drift(self) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+    def test_v17_live_load_rejects_runtime_cache_content_drift(self) -> None:
+        cache_root, _ = self._enable_v17_runtime_binding()
         cached_file = cache_root / "numba" / "compiled.cache"
         cached_file.write_bytes(b"reviewed-cache-bytes")
         os.chmod(cached_file, 0o600)
@@ -485,10 +546,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v16_runtime_cache_ignores_nested_directory_mtime_drift(
+    def test_v17_runtime_cache_ignores_nested_directory_mtime_drift(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+        cache_root, _ = self._enable_v17_runtime_binding()
         compiled_directory = cache_root / "numba" / "compiled"
         compiled_directory.mkdir(mode=0o700)
         cached_file = compiled_directory / "artifact.cache"
@@ -512,10 +573,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(nested_directory["kind"], "directory")
         self.assertNotIn("mtime_ns", nested_directory)
 
-    def test_v16_runtime_cache_must_be_dedicated_and_non_overlapping(
+    def test_v17_runtime_cache_must_be_dedicated_and_non_overlapping(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding(
+        cache_root, _ = self._enable_v17_runtime_binding(
             name="claude-storage/runtime-cache",
         )
 
@@ -523,8 +584,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self._generate(runtime_cache_dir=cache_root)
         self.assertFalse(self.runtime.exists())
 
-    def test_v16_runtime_cache_root_rejects_uncommitted_entries(self) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+    def test_v17_runtime_cache_root_rejects_uncommitted_entries(self) -> None:
+        cache_root, _ = self._enable_v17_runtime_binding()
         unexpected = cache_root / "ambient.txt"
         unexpected.write_text("ambient", encoding="utf-8")
         os.chmod(unexpected, 0o600)
@@ -533,10 +594,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self._generate(runtime_cache_dir=cache_root)
         self.assertFalse(self.runtime.exists())
 
-    def test_v16_live_load_rejects_sealed_cache_environment_drift(
+    def test_v17_live_load_rejects_sealed_cache_environment_drift(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+        cache_root, _ = self._enable_v17_runtime_binding()
         generated = self._generate(runtime_cache_dir=cache_root)
         config_path = Path(generated["config_path"])
         raw_config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -563,10 +624,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v16_generation_rejects_manifest_python_binding_hash_drift(
+    def test_v17_generation_rejects_manifest_python_binding_hash_drift(
         self,
     ) -> None:
-        cache_root, _ = self._enable_v16_runtime_binding()
+        cache_root, _ = self._enable_v17_runtime_binding()
         manifest = json.loads(
             self.public_manifest.read_text(encoding="utf-8")
         )
@@ -605,7 +666,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         preflight = self._generate(
             runtime_dir=second_runtime,
             operation="preflight",
-            public_preflight_path=self.root / "preflight.json",
+            public_preflight_path=self.public_preflight,
             public_results_path=None,
             instance_token="2" * 24,
         )
@@ -840,6 +901,80 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(self.mock_authentication_readiness.call_count, 2)
         self.mock_cursor_readiness.assert_not_called()
 
+    def test_start_rechecks_preflight_before_keychain_and_start_marker(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_environment_preflight_readiness.side_effect = RuntimeError(
+            "preflight receipt binding changed"
+        )
+        calls: list[list[str]] = []
+
+        def should_not_run(arguments, **kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=should_not_run,
+            )
+
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertEqual(calls, [])
+        self.mock_environment_preflight_readiness.assert_called_once_with(
+            root=self.repository,
+            authentication_key_file=self.authentication_key,
+            private_state_path=self.private_state,
+            public_manifest_path=self.public_manifest,
+        )
+        self.mock_provider_free_prelaunch.assert_not_called()
+        self.mock_cursor_readiness.assert_not_called()
+
+    def test_start_rechecks_prelaunch_before_keychain_and_start_marker(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_provider_free_prelaunch.side_effect = RuntimeError(
+            "runtime source binding changed"
+        )
+        calls: list[list[str]] = []
+
+        def should_not_run(arguments, **kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=should_not_run,
+            )
+
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertEqual(calls, [])
+        self.mock_environment_preflight_readiness.assert_called_once_with(
+            root=self.repository,
+            authentication_key_file=self.authentication_key,
+            private_state_path=self.private_state,
+            public_manifest_path=self.public_manifest,
+        )
+        self.mock_provider_free_prelaunch.assert_called_once_with(
+            root=self.repository,
+            operation="production",
+            public_manifest_path=self.public_manifest,
+        )
+        self.mock_cursor_readiness.assert_not_called()
+
     def test_start_requires_cursor_keychain_before_irreversible_marker(
         self,
     ) -> None:
@@ -934,6 +1069,169 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         persisted = b"".join(path.read_bytes() for path in self.runtime.iterdir())
         for canary in _SECRET_CANARIES:
             self.assertNotIn(canary.encode(), persisted)
+
+    def test_worker_preserves_controlled_terminal_receipt_classification(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        config_path = Path(generated["config_path"])
+
+        def fake_keychain(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        with patch(
+            "epiagentbench.launchd_agent._run_core_supervisor",
+            return_value=(
+                persistent_supervisor.HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+            ),
+        ), patch(
+            "epiagentbench.launchd_agent._attest_handled_terminal_receipt",
+            return_value={
+                "schema_version": (
+                    "epiagentbench.terminal_receipt_attestation.v1"
+                ),
+                "panel_id": "development-matched-50x6-v9-test",
+                "operation": "production",
+                "status": "attested",
+                "provider_processes_started": 0,
+                "model_calls_started": 0,
+            },
+        ), patch(
+            "epiagentbench.launchd_agent.finalize_launch_agent",
+        ) as finalize:
+            return_code = run_launch_agent_worker(
+                config_path,
+                keychain_runner=fake_keychain,
+            )
+
+        self.assertEqual(
+            return_code,
+            persistent_supervisor.HANDLED_TERMINAL_RECEIPT_EXIT_CODE,
+        )
+        finalize.assert_not_called()
+        config, key = self._config_and_key()
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertIsNotNone(status)
+        self.assertEqual(status["state"], "supervisor_exited")
+        self.assertEqual(status["reason"], "benchmark_terminal_receipt")
+
+    def test_outer_terminal_attestation_binds_the_generated_config(
+        self,
+    ) -> None:
+        self._generate()
+        config, _ = self._config_and_key()
+        expected = {
+            "schema_version": (
+                "epiagentbench.terminal_receipt_attestation.v1"
+            ),
+            "panel_id": config["panel_id"],
+            "operation": config["operation"],
+            "status": "attested",
+            "provider_processes_started": 0,
+            "model_calls_started": 0,
+        }
+        with patch.object(
+            development_matched_panel,
+            "assert_terminal_receipt_ready_for_exit",
+            return_value=expected,
+        ) as attest:
+            self.assertEqual(
+                launchd_agent._attest_handled_terminal_receipt(config),
+                expected,
+            )
+        attest.assert_called_once_with(
+            root=Path(config["repository_root"]),
+            operation=config["operation"],
+            authentication_key_file=Path(
+                config["authentication_key_file"]
+            ),
+            private_state_path=Path(config["private_state_path"]),
+            public_manifest_path=Path(config["public_manifest_path"]),
+            public_output_path=Path(config["public_output_path"]),
+        )
+
+        with (
+            patch.object(
+                development_matched_panel,
+                "assert_terminal_receipt_ready_for_exit",
+                return_value={**expected, "model_calls_started": False},
+            ),
+            self.assertRaisesRegex(
+                RuntimeError, "Outer terminal receipt attestation is invalid"
+            ),
+        ):
+            launchd_agent._attest_handled_terminal_receipt(config)
+
+        for field, value in (
+            ("panel_id", "development-matched-50x6-wrong"),
+            ("operation", "preflight"),
+        ):
+            with (
+                self.subTest(field=field),
+                patch.object(
+                    development_matched_panel,
+                    "assert_terminal_receipt_ready_for_exit",
+                    return_value={**expected, field: value},
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "Outer terminal receipt attestation is invalid",
+                ),
+            ):
+                launchd_agent._attest_handled_terminal_receipt(config)
+
+    def test_worker_rejects_bare_reserved_exit_without_outer_receipt(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        config_path = Path(generated["config_path"])
+
+        def fake_keychain(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        with patch(
+            "epiagentbench.launchd_agent._run_core_supervisor",
+            return_value=(
+                persistent_supervisor.HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+            ),
+        ), patch(
+            "epiagentbench.launchd_agent._attest_handled_terminal_receipt",
+            side_effect=RuntimeError("offline missing receipt"),
+        ):
+            return_code = run_launch_agent_worker(
+                config_path,
+                keychain_runner=fake_keychain,
+            )
+
+        self.assertEqual(return_code, 70)
+        config, key = self._config_and_key()
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertIsNotNone(status)
+        self.assertEqual(status["state"], "terminal_incident")
+        self.assertEqual(
+            status["reason"],
+            "terminal_receipt_attestation_failed",
+        )
 
     def test_worker_rejects_nonisolated_python_before_keychain_access(
         self,
@@ -1127,7 +1425,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             with self.subTest(drift=suffix):
                 target = self.root / f"python-{suffix}"
                 shutil.copy2(Path(sys.executable).resolve(), target)
-                os.chmod(target, target.stat().st_mode | 0o100)
+                os.chmod(target, 0o700)
                 runtime = self.root / f"python-{suffix}-runtime"
                 self._generate(
                     python_executable=target,
@@ -1144,7 +1442,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
     def test_worker_rechecks_python_binding_before_keychain_access(self) -> None:
         target = self.root / "python-worker"
         shutil.copy2(Path(sys.executable).resolve(), target)
-        os.chmod(target, target.stat().st_mode | 0o100)
+        os.chmod(target, 0o700)
         generated = self._generate(python_executable=target)
         self._commit_start()
         target.write_bytes(target.read_bytes() + b"drift")
@@ -1600,6 +1898,17 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             b"\tstate\t=\twaiting\r\n": "waiting",
             b"state = exited\n": "exited",
             b"  state = not running  \n": "not_running",
+            (
+                b"state = waiting\n"
+                b"\tproperties = {\n"
+                b"\t\tstate = running\n"
+                b"\t}\n"
+            ): "waiting",
+            (
+                b"\tstate = exited\n"
+                b"\t\tstate = running\n"
+                b"\t\t\tstate = waiting\n"
+            ): "exited",
         }
         invalid = (
             b"",
@@ -1608,6 +1917,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             b"state = RUNNING\n",
             b"state = running\xff\n",
             b"state = waiting\nstate = running\n",
+            b"\tstate = waiting\n\tstate = running\n\t\tstate = exited\n",
         )
 
         for stdout, expected in valid.items():

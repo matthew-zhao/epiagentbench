@@ -29,7 +29,7 @@ import time
 from typing import Callable, Mapping, Protocol, Sequence, runtime_checkable
 
 
-SCHEMA_VERSION = "epiagentbench.persistent_supervisor.v1"
+SCHEMA_VERSION = "epiagentbench.persistent_supervisor.v2"
 LEASE_FILE = "lease.json"
 STATUS_FILE = "status.json"
 EVENT_FILE = "events.jsonl"
@@ -44,13 +44,14 @@ DEFAULT_MAX_EVENT_LOG_BYTES = 2_000_000
 MAX_JSON_BYTES = 32_768
 MAX_EVENT_LINE_BYTES = 4096
 MAX_KEY_BYTES = 4096
+HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64
 
-_RECORD_DOMAIN = b"epiagentbench:persistent-supervisor:record:v1\x00"
-_EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v1\x00"
-_EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v1\x00"
-_IDENTITY_DOMAIN = b"epiagentbench:persistent-supervisor:identity:v1\x00"
+_RECORD_DOMAIN = b"epiagentbench:persistent-supervisor:record:v2\x00"
+_EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v2\x00"
+_EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v2\x00"
+_IDENTITY_DOMAIN = b"epiagentbench:persistent-supervisor:identity:v2\x00"
 _EXECUTION_CONTEXT_DOMAIN = (
-    b"epiagentbench:persistent-supervisor:execution-context:v2\x00"
+    b"epiagentbench:persistent-supervisor:execution-context:v3\x00"
 )
 _ZERO_EVENT_HASH = "sha256:" + "0" * 64
 
@@ -85,6 +86,7 @@ class FailureCode(StrEnum):
     UNSAFE_RECOVERY = "unsafe_recovery"
     RUNNER_START = "runner_start_failed"
     RUNNER_EXIT = "runner_nonzero_exit"
+    RUNNER_RESERVED_TERMINAL_EXIT = "runner_reserved_terminal_exit"
     RUNNER_PROTOCOL = "runner_protocol_failure"
     SUSPEND_GAP = "suspend_gap"
     INTEGRITY = "integrity_failure"
@@ -1269,10 +1271,20 @@ class PersistentSupervisor:
         self._write_lease()
         return suspended
 
-    def _fail_closed(self, code: FailureCode, *, event: EventType = EventType.FAILED_CLOSED) -> None:
+    def _fail_closed(
+        self,
+        code: FailureCode,
+        *,
+        event: EventType = EventType.FAILED_CLOSED,
+        terminal_ambiguity: bool = True,
+    ) -> None:
         assert self._status is not None
         self._status["lifecycle"] = LifecyclePhase.FAILED_CLOSED.value
-        self._status["assignment_phase"] = AssignmentPhase.TERMINAL_AMBIGUITY.value
+        self._status["assignment_phase"] = (
+            AssignmentPhase.TERMINAL_AMBIGUITY.value
+            if terminal_ambiguity
+            else AssignmentPhase.TERMINAL.value
+        )
         self._status["failure_code"] = code.value
         self._status["active_assignment_ordinal"] = None
         self._status["heartbeat_wall_unix_seconds"] = int(self._wall_clock())
@@ -1494,8 +1506,23 @@ class PersistentSupervisor:
                         self._fail_closed(FailureCode.RUNNER_PROTOCOL)
                         raise RunnerFailedError("Running command returned an invalid result")
                     if return_code != 0:
-                        self._fail_closed(FailureCode.RUNNER_EXIT)
-                        raise RunnerFailedError("Runner exited unsuccessfully")
+                        handled_terminal_receipt = (
+                            return_code
+                            == HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+                        )
+                        self._fail_closed(
+                            (
+                                FailureCode.RUNNER_RESERVED_TERMINAL_EXIT
+                                if handled_terminal_receipt
+                                else FailureCode.RUNNER_EXIT
+                            ),
+                            terminal_ambiguity=not handled_terminal_receipt,
+                        )
+                        raise RunnerFailedError(
+                            "Runner used the reserved terminal exit pending outer attestation"
+                            if handled_terminal_receipt
+                            else "Runner exited unexpectedly"
+                        )
                     self._status["completed_assignments"] = ordinal
                     self._transition(
                         assignment_phase=AssignmentPhase.RESULT_COMMITTED,
@@ -1590,15 +1617,36 @@ def run_supervised_command(
     if operation not in {"preflight", "production"}:
         raise ValueError("Supervisor operation is invalid")
     directory = _ensure_private_directory(Path(runtime_dir), create=False)
-    status = run_supervised_panel(
-        runner_argv=command,
-        environment=child_environment,
-        runtime_dir=directory,
-        authentication_key=authentication_key,
-        execution_context_sha256=execution_context_sha256,
-        heartbeat_interval_seconds=heartbeat_interval_seconds,
-    )
-    return 0 if status.get("lifecycle") == LifecyclePhase.COMPLETED.value else 75
+    try:
+        status = run_supervised_panel(
+            runner_argv=command,
+            environment=child_environment,
+            runtime_dir=directory,
+            authentication_key=authentication_key,
+            execution_context_sha256=execution_context_sha256,
+            heartbeat_interval_seconds=heartbeat_interval_seconds,
+        )
+    except RunnerFailedError:
+        status = read_supervisor_status(
+            directory, authentication_key=authentication_key
+        )
+        if (
+            status.get("lifecycle")
+            == LifecyclePhase.FAILED_CLOSED.value
+            and status.get("assignment_phase")
+            == AssignmentPhase.TERMINAL.value
+            and status.get("failure_code")
+            == FailureCode.RUNNER_RESERVED_TERMINAL_EXIT.value
+        ):
+            return HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+        raise
+    if status.get("lifecycle") != LifecyclePhase.COMPLETED.value:
+        # This layer authenticates only that the child used the reserved exit.
+        # The launch worker must independently re-attest the benchmark receipt
+        # before it labels that exit as handled. A pause or any other ordinary
+        # non-completed return must not be relabeled as the reserved condition.
+        raise RunnerFailedError("Supervisor returned before completion")
+    return 0
 
 
 __all__ = [
@@ -1606,6 +1654,7 @@ __all__ = [
     "ClockSample",
     "CommandRunner",
     "FailureCode",
+    "HANDLED_TERMINAL_RECEIPT_EXIT_CODE",
     "IntegrityError",
     "LifecyclePhase",
     "PersistentSupervisor",

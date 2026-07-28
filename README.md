@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V16 is
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V17 is
 designed to run as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
@@ -369,7 +369,7 @@ retry loop. No semantic, heartbeat, process-identity, binding, authentication,
 or integrity failure is retried. The exact Python launch entrypoint is also
 bound by target content plus private symlink/inode topology, preserving normal
 virtual-environment launch semantics while detecting byte, inode, or symlink
-drift before credential access and child launch. V16 extends that binding to
+drift before credential access and child launch. V17 extends that binding to
 the pre-private scientific-runtime receipt. The exact V5 Python runs with
 `-I -S -B`; the isolated CLIs manually append only the attested repository
 source and V5 virtual-environment packages after the standard library, without
@@ -395,8 +395,8 @@ the frozen V9 and V14 source contracts.
 Stopped production watermarks now add only a finite, trace-free failure stage
 and, when applicable, the allowlisted live-attestation code. They reveal no
 prompt, provider output, trace, seed, schedule, family, episode identity, or
-score. Persistent-supervisor contract schema v5 is a deliberate precommitment
-boundary: schema-v4/V14 manifests are incompatible, so this hardening requires
+score. Persistent-supervisor contract schema v6 is a deliberate precommitment
+boundary: schema-v5/V16 manifests are incompatible, so this hardening requires
 a freshly versioned, prepared, and authorized run.
 
 V10 prepared a fresh cohort and public precommitment, but its sole
@@ -485,17 +485,39 @@ authorization, authentication, or any provider/helper process. The
 the exact published source and records that the V15 cohort, key, and empty
 credential namespaces are non-resumable and forbidden for reuse.
 
-V16 now versions the panel identifier, top-level schema, corrected $580
-cumulative acknowledgement, fresh path namespace, schema-v5 supervisor
-contract, and [execution runbook](docs/V16_RUNBOOK.md). V16 uses a two-commit
+V16 passed its foreground authentication ceremony, then stopped during the
+first Claude profile in its trace-free
+[preflight](results/development-matched-50x6-v16.preflight.json). Its
+[supersession receipt](results/development-matched-50x6-v16.superseded.json)
+records one started-but-not-finished, conservatively chargeable Claude call,
+zero production assignments, and no released result, score, or trace. The
+failure was in the control-plane terminal handoff rather than evidence of a
+provider-specific fault. V16 is terminal and non-resumable; its cohort, key,
+credential namespaces, and runtime cannot be reused.
+
+V17 now versions the panel identifier, top-level schema, corrected $585
+cumulative acknowledgement, fresh path namespace, supervisor contract
+`epiagentbench.persistent_supervisor_contract.v6`, and
+[execution runbook](docs/V17_RUNBOOK.md). V17 uses a two-commit
 provider-free preparation boundary: first publish the code commit; at that
 exact commit generate the scientific-runtime receipt twice under `-I -S -B`
 and compare it byte-for-byte; then publish the unchanged receipt as the second
 commit. Only a fresh checkout at that receipt commit may create the fresh key,
 empty credential directories, canonical freeze claim, cohort, private state,
 and public manifest. The manifest is then published separately and the phase
-stops before authorization. No V16 authentication, provider, or model call
+stops before authorization. No V17 authentication, provider, or model call
 occurs anywhere in this phase.
+
+V17 closes V16's terminal-handoff failure with a finite, trusted incident
+taxonomy and durable terminal receipts. A handled child may use reserved exit
+code 64 only after the evaluator has authenticated the receipt; the outer
+LaunchAgent worker then independently re-attests the frozen source, private
+state, repository-relative receipt binding (and its publishing commit when
+one exists), canonical public destination, and exact canonical receipt bytes
+before accepting that exit. Provider-free
+prelaunch checks run before credential access, and provider-free reconciliation
+may publish only a terminal receipt already proven by durable authenticated
+state; neither path can restart authentication, a provider, or the run.
 
 The runtime receipt proves exact Starsim 3.5.1 and executes a hardcoded
 three-person, four-day LTC scenario twice per branch through the real
@@ -521,7 +543,7 @@ environment, inventory, or device/inode/UID topology. It explicitly records
 zero provider and authentication processes and contains no private benchmark
 data. The same interpreter and cache bindings are mandatory for cohort
 freeze, prepare, preflight, and production. This versioning step itself does
-not prepare V16, authorize spend, authenticate a provider, create a supervisor,
+not prepare V17, authorize spend, authenticate a provider, create a supervisor,
 or make a model call.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
@@ -534,7 +556,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed V16 assignment is designed to record an evaluator-owned,
+Each completed V17 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -578,9 +600,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V16 first completes the foreground, zero-model
+Before production, V17 first completes the foreground, zero-model
 authentication ceremony described above. Only after its sanitized receipt is
-committed does V16 run a disposable six-call, unscored
+committed does V17 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -598,46 +620,37 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V16 current-run Claude ceiling is $510: two
+a $5 per-call runner ceiling. The V17 current-run Claude ceiling is $510: two
 Claude preflight calls plus 100 production calls, or 102 current-run Claude
-calls × $5. Prior failed panels contribute a conservative $70 ceiling: two v2
+calls × $5. Prior failed panels contribute a conservative $75 ceiling: two v2
 Claude preflight calls ($10), the ambiguous v5 attempt ($5), v7's two returned
 Claude preflight calls ($10), v8's two
 preflight plus one production Claude calls ($15), V9's two preflight plus
-two production Claude calls ($20), and V14's two returned Claude preflight
-calls ($10); v3, v4, v6, V10, V11, V12, V13, and V15 started no Claude model
-call.
-The exact acknowledgement's cumulative Claude ceiling is therefore $580
-($510 for V16 plus $70 for prior failed panels), not a claim about measured
+two production Claude calls ($20), V14's two returned Claude preflight
+calls ($10), and V16's one started-not-finished Claude preflight call ($5);
+v3, v4, v6, V10, V11, V12, V13, and V15 started no Claude model call.
+The exact acknowledgement's cumulative Claude ceiling is therefore $585
+($510 for V17 plus $75 for prior failed panels), not a claim about measured
 billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-A generic command-line acknowledgement is not sufficient to unlock V16. After
+A generic command-line acknowledgement is not sufficient to unlock V17. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v16 preflight and 300-assignment
-> production run, including unbounded Codex/Cursor provider spend and up to
-> $580 total Claude spend across the failed v2 preflight, failed v5 preflight,
-> failed v6 authentication bootstrap, failed v7 preflight, failed v8
-> production run, v9 preflight and failed production run, the abandoned
-> zero-model-call v10 precommitment, the failed zero-model-call v11
-> authentication bootstrap, the abandoned zero-model-call v12 precommitment,
-> the abandoned zero-model-call v13 precommitment, the failed v14 preflight,
-> the failed zero-model-call v15 pre-claim preparation, and the v16 preflight
-> and production run.
+> I acknowledge the replacement six-call v17 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $585 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, and the v17 preflight and production run.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, V16 panel identifier, final public
+private receipt bound to the exact text, V17 panel identifier, final public
 precommitment, budget-contract hash, exact Glean authentication-dependency
-identity, cumulative $580 Claude ceiling, and unbounded Codex/Cursor spend. A
+identity, cumulative $585 Claude ceiling, and unbounded Codex/Cursor spend. A
 missing receipt, a receipt copied from another manifest, or any altered field
 fails before either authentication bootstrap or model-bearing provider
 invocation. Preparation and authorization hash files without running them;
@@ -646,12 +659,12 @@ the `authenticate` subcommand in a
 foreground terminal with `--acknowledge-interactive-authentication`. It exposes
 sign-in instructions but never provider tokens, prompts, observations, traces,
 hidden episode data, or scores. Commit the resulting
-`results/development-matched-50x6-v16.authentication.json` before generating
+`results/development-matched-50x6-v17.authentication.json` before generating
 the one-shot preflight supervisor. The preflight and production commands still
 require `--acknowledge-unbounded-provider-spend` as an immediate execution
 guard.
 
-The V16 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V17 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -701,7 +714,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V16 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V17 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. Its tracked
 pre-private receipt hashes every enumerated regular file in each declared
@@ -709,7 +722,7 @@ scientific distribution rather than relying only on package name/version or
 `RECORD` metadata. The trusted computing base includes the root administrator
 and the installed Glean distribution; there is not yet an independently
 approved digest or cryptographic source-to-binary provenance for that helper
-bundle. V16 commits the exact installed helper bundle after acknowledgement and
+bundle. V17 commits the exact installed helper bundle after acknowledgement and
 detects persistent identity or ownership drift at every call boundary, but a
 malicious administrator capable of an ABA swap between attestation and
 execution is explicitly out of scope. Such an administrator could also
@@ -725,7 +738,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V16 detects the pipe-retaining form of that escape, but
+pipes; V17 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

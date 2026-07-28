@@ -46,8 +46,15 @@ from .development_pilot import (
 from .pilot import (
     CodexAuthenticationIncidentError,
     PilotRunResult,
+    ProviderCompletionPersistenceError,
     ProviderExecutionIsolationError,
+    ProviderInvocationPersistenceError,
+    ProviderOutputIsolationError,
     ProviderProcessIsolationError,
+    ProviderProgressPersistenceError,
+    ProviderQuarantinePersistenceError,
+    ProviderResultCheckpointPersistenceError,
+    ProviderSpawnIsolationError,
     ProviderStateIsolationError,
     _ProviderTemporaryDirectory,
     _attest_codex_auth_storage,
@@ -79,9 +86,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v16"
+PANEL_ID = "development-matched-50x6-v17"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v16"
+SCHEMA_VERSION = "development_matched_panel_v17"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -89,16 +96,17 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v16 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v17 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
-    "to $580 total Claude spend across the failed v2 preflight, failed v5 "
+    "to $585 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
     "failed v8 production run, v9 preflight and failed production run, the "
     "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
     "v11 authentication bootstrap, the abandoned zero-model-call v12 "
     "precommitment, the abandoned zero-model-call v13 precommitment, the "
     "failed v14 preflight, the failed zero-model-call v15 pre-claim "
-    "preparation, and the v16 preflight and production run."
+    "preparation, the failed v16 preflight, and the v17 preflight and "
+    "production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v2"
@@ -111,7 +119,7 @@ _PREPARATION_RUNTIME_SMOKE_SCHEMA = (
 )
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "58561b5300cdb2ed566d7cead358ef0e98edc7c29d1c2f9ddff5d27034e4f112"
+    "66f64087374fd9e95b11f1ad0dde6adee66c7a60c3b22f7ffdb721e004266730"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -125,14 +133,27 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v2"
 _AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v2"
 _AUTHENTICATION_RECEIPT_SCHEMA = "epiagentbench.authentication_receipt.v2"
+_PUBLIC_RECEIPT_BINDING_SCHEMA = (
+    "epiagentbench.repository_receipt_binding.v1"
+)
+_PUBLIC_RECEIPT_BINDING_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_kind",
+        "repository_relative_path",
+        "file_sha256",
+        "content_sha256",
+        "published_commit",
+    }
+)
 _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA = (
     "epiagentbench.authentication_dependency_freeze.v1"
 )
 _ROOT_MANAGED_EXECUTABLE_POLICY = (
     "root_owned_root_group_single_link_regular_nonwritable_executable"
 )
-_PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v1"
-_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 580.0
+_PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v2"
+_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 585.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
     "cursor": "unbounded",
@@ -213,17 +234,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V16 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V17 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V16 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V17 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V16 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V17 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v16_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v17_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v16_cohort_freeze_completion.v1"
+    "epiagentbench.v17_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -343,8 +364,70 @@ _PERSISTENT_ATTESTATION_FAILURE_CODES = frozenset(
 _PROVIDER_ISOLATION_FAILURE_CLASSES = frozenset(
     {
         "ProviderExecutionIsolationError",
+        "ProviderCompletionPersistenceError",
+        "ProviderInvocationPersistenceError",
+        "ProviderOutputIsolationError",
         "ProviderProcessIsolationError",
+        "ProviderProgressPersistenceError",
+        "ProviderQuarantinePersistenceError",
+        "ProviderResultCheckpointPersistenceError",
+        "ProviderSpawnIsolationError",
         "ProviderStateIsolationError",
+    }
+)
+_PROVIDER_INCIDENT_CODES = frozenset(
+    {
+        "credential_attestation_failed",
+        "evaluator_return_contract_failed",
+        "provider_adapter_execution_failed",
+        "provider_completion_marker_persist_failed",
+        "provider_execution_isolation_failed",
+        "provider_invocation_marker_persist_failed",
+        "provider_output_isolation_failed",
+        "provider_process_isolation_failed",
+        "provider_progress_checkpoint_persist_failed",
+        "provider_quarantine_checkpoint_persist_failed",
+        "provider_result_checkpoint_persist_failed",
+        "provider_interrupted_after_durable_start",
+        "provider_result_processing_failed",
+        "provider_spawn_failed",
+        "provider_state_isolation_failed",
+        "supervisor_boundary_attestation_failed",
+        "unexpected_control_path_failure",
+    }
+)
+_PREFLIGHT_FAILURE_STAGES = frozenset(
+    {
+        "codex_quarantine_checkpoint",
+        "credential_attestation",
+        "durable_attempt_marker",
+        "execution_contract_after_harness",
+        "execution_contract_before_harness",
+        "glean_dependency_after_harness",
+        "glean_dependency_before_harness",
+        "harness_startup_contract",
+        "progress_validation",
+        "provider_completion_marker",
+        "provider_contract",
+        "provider_execution",
+        "provider_invocation_marker",
+        "provider_progress_checkpoint",
+        "provider_result_checkpoint",
+        "result_contract",
+        "supervisor_attestation_after_harness",
+        "supervisor_attestation_before_harness",
+        "supervisor_attestation_final_completion",
+        "trace_validation",
+    }
+)
+_PRODUCTION_PUBLIC_FAILURE_STAGES = frozenset(
+    {
+        "provider_isolation_after_provider",
+        "provider_isolation_before_provider",
+        "provider_isolation_final_completion",
+        "supervisor_attestation_after_provider",
+        "supervisor_attestation_before_provider",
+        "supervisor_attestation_final_completion",
     }
 )
 _SNAPSHOT_ATTESTATION_DEADLINE_SECONDS = 0.25
@@ -824,21 +907,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V16 cohort destination")
+    return _canonical_new_private_path(value, label="V17 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V16 claim location paired with this owner-only key."""
+    """Return the one V17 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V16 authentication-key namespace is unavailable"
+            "V17 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -847,16 +930,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V16 authentication-key namespace must be owner-only"
+            "V17 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V16 cohort freeze claim"
+        requested_path, label="V17 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V16 cohort freeze claim must use the canonical key-namespace path"
+            "V17 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -884,7 +967,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V16 cohort freeze claim authentication failed")
+        raise ValueError("V17 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -907,7 +990,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V16 cohort freeze completion authentication failed")
+        raise ValueError("V17 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -931,7 +1014,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V16 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V17 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -961,12 +1044,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V16 freeze attempt before any cohort randomness."""
+    """Burn the only V17 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V16 cohort freeze completion already exists; never rerun freeze"
+            "V17 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -983,11 +1066,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V16 cohort freeze already has a pending claim; interrupted "
+            "V17 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V16 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V17 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1005,7 +1088,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V16 cohort manifest must use its canonical filename")
+        raise ValueError("V17 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1016,7 +1099,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V16 frozen cohort manifest"
+            canonical_manifest_path, label="V17 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1034,11 +1117,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V16 cohort freeze completion already exists; never replace it"
+            "V17 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V16 cohort freeze completion failed its durable reload"
+            "V17 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1056,13 +1139,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V16 cohort has no authenticated create-once freeze claim"
+            "Frozen V17 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V16 cohort freeze remains pending; interrupted freezes are "
+            "V17 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1070,7 +1153,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V16 cohort manifest must use its canonical filename")
+        raise ValueError("V17 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1085,11 +1168,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V16 cohort freeze claim belongs to another freeze")
+        raise ValueError("V17 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V16 cohort freeze claim has no claim time")
+        raise ValueError("V17 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1100,7 +1183,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V16 frozen cohort manifest"
+            manifest_path, label="V17 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1110,12 +1193,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V16 cohort freeze completion differs from its manifest or claim"
+            "V17 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V16 cohort freeze completion has no completion time")
+        raise ValueError("V17 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -1454,6 +1537,199 @@ def _authentication_receipt_path(public_manifest_path: Path) -> Path:
     return public_manifest_path.with_name(f"{PANEL_ID}.authentication.json")
 
 
+def _preflight_receipt_path(public_manifest_path: Path) -> Path:
+    return public_manifest_path.with_name(f"{PANEL_ID}.preflight.json")
+
+
+def _canonical_public_output_path(
+    public_manifest_path: Path,
+    *,
+    operation: str,
+) -> Path:
+    if operation == "preflight":
+        return _preflight_receipt_path(public_manifest_path)
+    if operation == "production":
+        return public_manifest_path.with_name(f"{PANEL_ID}.json")
+    raise ValueError("Public output operation is invalid")
+
+
+def _assert_canonical_public_output_path(
+    public_manifest_path: Path,
+    public_output_path: Path,
+    *,
+    operation: str,
+) -> Path:
+    expected = _canonical_public_output_path(
+        public_manifest_path,
+        operation=operation,
+    )
+    if Path(os.path.abspath(public_output_path)) != Path(
+        os.path.abspath(expected)
+    ):
+        raise RuntimeError(
+            f"Live {operation} public output path is not canonical"
+        )
+    return expected
+
+
+def _public_json_file_sha256(value: Mapping[str, Any]) -> str:
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    return _sha256(payload)
+
+
+def _assert_exact_public_json_bytes(
+    path: Path,
+    payload: Mapping[str, Any],
+    *,
+    label: str,
+) -> str:
+    expected = _public_json_file_sha256(payload)
+    observed = _fixed_file_sha256(
+        path,
+        label=label,
+        maximum_bytes=_MAX_PANEL_JSON_BYTES,
+    )
+    if not hmac.compare_digest(observed, expected):
+        raise RuntimeError(f"Required {label} bytes are not canonical")
+    return observed
+
+
+def _repository_receipt_binding(
+    *,
+    root: Path,
+    path: Path,
+    artifact_kind: str,
+    content_sha256: str,
+    payload: Mapping[str, Any],
+    published_commit: str | None = None,
+) -> dict[str, Any]:
+    if artifact_kind not in {"authentication", "preflight"}:
+        raise ValueError("Public receipt binding kind is invalid")
+    relative = _relative_to_root(path, root)
+    if (
+        not isinstance(content_sha256, str)
+        or not content_sha256.startswith("sha256:")
+        or len(content_sha256) != 71
+    ):
+        raise ValueError("Public receipt content digest is invalid")
+    if published_commit is not None and (
+        len(published_commit) != 40
+        or any(character not in "0123456789abcdef" for character in published_commit)
+    ):
+        raise ValueError("Public receipt publishing commit is invalid")
+    return {
+        "schema_version": _PUBLIC_RECEIPT_BINDING_SCHEMA,
+        "artifact_kind": artifact_kind,
+        "repository_relative_path": relative,
+        "file_sha256": _public_json_file_sha256(payload),
+        "content_sha256": content_sha256,
+        "published_commit": published_commit,
+    }
+
+
+def _git_blob_sha256(root: Path, commit: str, relative: str) -> str:
+    try:
+        size = int(_git_output(root, "cat-file", "-s", f"{commit}:{relative}"))
+    except (RuntimeError, ValueError):
+        raise RuntimeError("Committed public receipt blob is unavailable") from None
+    if not 0 < size <= _MAX_PANEL_JSON_BYTES:
+        raise RuntimeError("Committed public receipt blob has an invalid size")
+    process = subprocess.run(
+        ["git", "cat-file", "blob", f"{commit}:{relative}"],
+        cwd=root,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        timeout=20,
+    )
+    if process.returncode != 0 or len(process.stdout) != size:
+        raise RuntimeError("Committed public receipt blob is unavailable")
+    return _sha256(process.stdout)
+
+
+def _validate_repository_receipt_binding(
+    binding: Any,
+    *,
+    root: Path,
+    path: Path,
+    artifact_kind: str,
+    content_sha256: str,
+    payload: Mapping[str, Any],
+    require_published_commit: bool,
+) -> dict[str, Any]:
+    expected = _repository_receipt_binding(
+        root=root,
+        path=path,
+        artifact_kind=artifact_kind,
+        content_sha256=content_sha256,
+        payload=payload,
+        published_commit=None,
+    )
+    if (
+        not isinstance(binding, dict)
+        or set(binding) != _PUBLIC_RECEIPT_BINDING_KEYS
+        or any(
+            binding.get(name) != value
+            for name, value in expected.items()
+            if name != "published_commit"
+        )
+    ):
+        raise RuntimeError("Public receipt repository binding changed")
+    commit = binding.get("published_commit")
+    if commit is None:
+        if require_published_commit:
+            raise RuntimeError(
+                "Public receipt has not been bound to its publishing commit"
+            )
+        return binding
+    if (
+        not isinstance(commit, str)
+        or len(commit) != 40
+        or any(character not in "0123456789abcdef" for character in commit)
+    ):
+        raise RuntimeError("Public receipt publishing commit is invalid")
+    relative = str(binding["repository_relative_path"])
+    _git_output(root, "merge-base", "--is-ancestor", commit, "HEAD")
+    if _git_blob_sha256(root, commit, relative) != binding["file_sha256"]:
+        raise RuntimeError("Committed public receipt bytes changed")
+    return binding
+
+
+def _receipt_path_from_binding(
+    root: Path,
+    binding: Any,
+    *,
+    artifact_kind: str,
+) -> Path:
+    if not isinstance(binding, Mapping):
+        raise RuntimeError("Public receipt repository binding is missing")
+    relative = binding.get("repository_relative_path")
+    if (
+        binding.get("artifact_kind") != artifact_kind
+        or not isinstance(relative, str)
+        or not relative
+    ):
+        raise RuntimeError("Public receipt repository binding is invalid")
+    path = root / relative
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved_path = path.resolve(strict=True)
+        resolved_path.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError):
+        raise RuntimeError("Public receipt repository binding is invalid") from None
+    expected_name = (
+        f"{PANEL_ID}.authentication.json"
+        if artifact_kind == "authentication"
+        else f"{PANEL_ID}.preflight.json"
+    )
+    if resolved_path.name != expected_name:
+        raise RuntimeError("Public receipt repository binding is invalid")
+    return resolved_path
+
+
 def _path_is_within(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
@@ -1571,7 +1847,47 @@ def _private_state_storage_binding(
         "schema_version": _PRIVATE_STATE_STORAGE_SCHEMA,
         "storage_class": storage_class,
         "canonical_path": str(canonical_path),
-        "repository_root": str(resolved_root),
+        "parent_device": int(parent_metadata.st_dev),
+        "parent_inode": int(parent_metadata.st_ino),
+    }
+
+
+def _private_state_storage_identity(path: Path) -> dict[str, Any]:
+    """Revalidate one private file without binding it to a checkout path."""
+
+    candidate = path.expanduser()
+    if not candidate.is_absolute():
+        raise ValueError("Private matched-panel state path must be absolute")
+    try:
+        resolved_parent = candidate.parent.resolve(strict=True)
+        parent_metadata = candidate.parent.lstat()
+    except (OSError, RuntimeError):
+        raise ValueError(
+            "Private matched-panel state parent must already exist"
+        ) from None
+    if (
+        not stat.S_ISDIR(parent_metadata.st_mode)
+        or stat.S_ISLNK(parent_metadata.st_mode)
+        or parent_metadata.st_uid != os.getuid()
+    ):
+        raise ValueError(
+            "Private matched-panel state parent must be a current-user real directory"
+        )
+    if candidate.exists() or candidate.is_symlink():
+        metadata = candidate.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise ValueError(
+                "Private matched-panel state must be a current-user, "
+                "single-link 0600 regular file"
+            )
+    return {
+        "canonical_path": str(resolved_parent / candidate.name),
         "parent_device": int(parent_metadata.st_dev),
         "parent_inode": int(parent_metadata.st_ino),
     }
@@ -1585,7 +1901,6 @@ def _validate_bound_private_state_storage(
         "schema_version",
         "storage_class",
         "canonical_path",
-        "repository_root",
         "parent_device",
         "parent_inode",
     }
@@ -1596,15 +1911,28 @@ def _validate_bound_private_state_storage(
         or binding.get("storage_class")
         not in {"durable_external", "temporary_offline_test"}
         or not isinstance(binding.get("canonical_path"), str)
-        or not isinstance(binding.get("repository_root"), str)
         or type(binding.get("parent_device")) is not int
         or type(binding.get("parent_inode")) is not int
     ):
         raise ValueError("Invalid private matched-panel state storage binding")
-    observed = _private_state_storage_binding(
-        path,
-        root=Path(str(binding["repository_root"])),
-    )
+    identity = _private_state_storage_identity(path)
+    observed = {
+        "schema_version": _PRIVATE_STATE_STORAGE_SCHEMA,
+        "storage_class": binding["storage_class"],
+        **identity,
+    }
+    parent = Path(str(identity["canonical_path"])).parent
+    parent_metadata = parent.lstat()
+    if (
+        binding["storage_class"] == "durable_external"
+        and (
+            _is_temporary_storage_path(parent)
+            or stat.S_IMODE(parent_metadata.st_mode) != 0o700
+        )
+        or binding["storage_class"] == "temporary_offline_test"
+        and not _is_temporary_storage_path(parent)
+    ):
+        raise ValueError("Private matched-panel state storage class changed")
     if not hmac.compare_digest(
         _canonical_bytes(dict(binding)), _canonical_bytes(observed)
     ):
@@ -2895,7 +3223,12 @@ def _read_cli_identity(executable: str) -> dict[str, str]:
     }
 
 
-def _fixed_file_sha256(path: Path, *, label: str) -> str:
+def _fixed_file_sha256(
+    path: Path,
+    *,
+    label: str,
+    maximum_bytes: int | None = None,
+) -> str:
     """Hash one stable nonsymlink file through an attested descriptor."""
 
     descriptor: int | None = None
@@ -2907,6 +3240,10 @@ def _fixed_file_sha256(path: Path, *, label: str) -> str:
         not stat.S_ISREG(metadata.st_mode)
         or stat.S_ISLNK(metadata.st_mode)
         or metadata.st_nlink < 1
+        or (
+            maximum_bytes is not None
+            and not 0 < metadata.st_size <= maximum_bytes
+        )
     ):
         raise RuntimeError(f"Required {label} must be a regular file")
     stable_fields = (
@@ -2958,12 +3295,12 @@ def _fixed_file_sha256(path: Path, *, label: str) -> str:
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V16 key only when one stable inode owns its namespace."""
+    """Read the V17 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V16 authentication key is unavailable") from None
+        raise RuntimeError("V17 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -2983,18 +3320,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V16 authentication key must be an owner-only single-link file"
+            "V17 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V16 authentication key is unavailable") from None
+        raise RuntimeError("V17 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V16 authentication key changed while reading")
+        raise RuntimeError("V17 authentication key changed while reading")
     return key
 
 
@@ -3896,7 +4233,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V16 runtime-cache environment does not match the exact contract"
+            "V17 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -3910,17 +4247,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V16 runtime-cache contract is inconsistent")
+        raise RuntimeError("V17 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V16 runtime-cache environment is unavailable")
+        raise RuntimeError("V17 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V16 runtime-cache environment is invalid")
+        raise RuntimeError("V17 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4045,7 +4382,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v16-stop-direct-care",
+                        control_id="v17-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4078,14 +4415,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V16 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V17 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V16 Starsim golden smoke changed engine descriptors"
+                "V17 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4127,7 +4464,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V16 Starsim golden smoke lost its causal transmission/control "
+            "V17 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4155,12 +4492,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V16 Starsim golden smoke result drifted from its reviewed digest"
+            "V17 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v16_contact_transmission_with_matched_contact_stop"
+            "v17_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -4178,7 +4515,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V16 requires exact Starsim "
+            "V17 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -4196,7 +4533,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V16 Python executable must not be temporary")
+        raise RuntimeError("V17 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -4260,7 +4597,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V16 creation."""
+    """Attest every public preparation dependency before private V17 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -4281,7 +4618,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V16 runtime preflight is not at the expected pinned commit"
+            "V17 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -4292,7 +4629,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().absolute()
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V16 runtime cache must be outside the repository"
+            "V17 runtime cache must be outside the repository"
         )
     runtime = _runtime_contract()
     smoke = _preparation_runtime_smoke()
@@ -4305,7 +4642,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V16 source changed during preparation runtime preflight"
+            "V17 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -4339,18 +4676,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V16 preparation runtime receipt must already be committed"
+            "V17 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V16 preparation runtime receipt",
+            label="V17 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V16 preparation runtime receipt is unavailable"
+            "V17 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -4408,7 +4745,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V16 preparation runtime receipt failed closed-schema validation"
+            "V17 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -4420,7 +4757,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V16 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V17 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -4437,14 +4774,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V16 runtime cache changed during receipt verification"
+            "V17 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V16 preparation runtime differs from the published receipt"
+            "V17 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v1",
@@ -4545,18 +4882,18 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V16 preparation runtime is invalid")
+        raise ValueError("Bound V17 preparation runtime is invalid")
     runtime_cache = _runtime_cache_contract(
         _runtime_cache_root_from_environment()
     )
     if bound.get("runtime_cache_contract_sha256") != _component_hash(
         runtime_cache
     ):
-        raise ValueError("Bound V16 runtime cache changed")
+        raise ValueError("Bound V17 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V16 Starsim smoke result changed")
+        raise ValueError("Bound V17 Starsim smoke result changed")
     return bound
 
 
@@ -4564,7 +4901,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v5",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v6",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -4573,6 +4910,21 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "authenticated_inner_evaluator_checkpoint_and_panel_lock"
         ),
         "automatic_outer_crash_recovery": False,
+        "handled_terminal_receipt_exit": {
+            "exit_code": 64,
+            "child_gate": (
+                "exact_authenticated_private_candidate_and_public_receipt"
+            ),
+            "supervisor_failure_code": (
+                "runner_reserved_terminal_exit"
+            ),
+            "outer_worker_gate": (
+                "independent_provider_free_terminal_receipt_reattestation"
+            ),
+            "unexpected_nonzero_policy": "terminal_ambiguity",
+        },
+        "provider_free_prelaunch_attestation": True,
+        "provider_free_terminal_receipt_reconciliation": True,
         "stdout_stderr": "discarded",
         "cursor_key_source": "macos_keychain_in_memory_only",
         "private_config": "owner_only_hmac_authenticated_closed_schema",
@@ -4617,16 +4969,11 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             ],
             "provider_call_retry": "forbidden",
             "public_incident_projection": {
-                "failure_stages": [
-                    "provider_isolation_after_provider",
-                    "provider_isolation_before_provider",
-                    "provider_isolation_final_completion",
-                    "supervisor_attestation_after_harness",
-                    "supervisor_attestation_after_provider",
-                    "supervisor_attestation_before_harness",
-                    "supervisor_attestation_before_provider",
-                    "supervisor_attestation_final_completion",
-                ],
+                "incident_codes": sorted(_PROVIDER_INCIDENT_CODES),
+                "failure_stages": sorted(
+                    _PREFLIGHT_FAILURE_STAGES
+                    | _PRODUCTION_PUBLIC_FAILURE_STAGES
+                ),
                 "attestation_failure_code": "allowlisted_when_present",
                 "provider_output": "forbidden",
                 "benchmark_data": "forbidden",
@@ -4890,7 +5237,13 @@ def _private_state_storage_contract() -> dict[str, Any]:
         "location": "outside_repository_and_os_temporary_storage",
         "parent": "pre_existing_current_user_0700_real_directory",
         "state_file": "current_user_single_link_0600_regular_file",
-        "private_binding": "canonical_path_and_parent_device_inode_hmac_authenticated",
+        "private_binding": (
+            "canonical_private_path_and_parent_device_inode_hmac_"
+            "authenticated_without_checkout_path"
+        ),
+        "checkout_separation": (
+            "revalidated_against_current_repository_root_at_every_live_boundary"
+        ),
         "write_validation": "before_and_after_every_authenticated_atomic_write",
         "read_validation": "metadata_during_open_then_binding_after_authentication",
         "public_paths_or_filesystem_identifiers": False,
@@ -4907,12 +5260,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
     )
-    prior_ceiling = 70.0
+    prior_ceiling = 75.0
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v16_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v16_authorization_breakdown": {
+        "claude_current_v17_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v17_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -4939,6 +5292,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v13_usd": 0.0,
             "v14_usd": 10.0,
             "v15_usd": 0.0,
+            "v16_usd": 5.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -5019,6 +5373,18 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v15_supersession": (
                 "results/development-matched-50x6-v15.superseded.json"
             ),
+            "v16_manifest": (
+                "results/development-matched-50x6-v16.manifest.json"
+            ),
+            "v16_authentication_receipt": (
+                "results/development-matched-50x6-v16.authentication.json"
+            ),
+            "v16_preflight_artifact": (
+                "results/development-matched-50x6-v16.preflight.json"
+            ),
+            "v16_supersession": (
+                "results/development-matched-50x6-v16.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -5039,7 +5405,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V16 exactly once after runtime re-attestation."""
+    """Claim and freeze V17 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -5073,7 +5439,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V16 runtime cache must not overlap the {label}"
+                f"V17 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -5094,13 +5460,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V16 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V17 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V16 cohort returned a noncanonical artifact location"
+            "Frozen V17 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -5113,9 +5479,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V16 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V17 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v16_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v17_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -5174,13 +5540,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V16 requires an exact 1800-second assignment timeout")
+        raise ValueError("V17 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V16 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V17 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -5205,7 +5571,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V16 runtime cache must not overlap the {label}"
+                f"V17 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -5217,7 +5583,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V16 source or CLI identity drifted after runtime verification"
+            "V17 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -5271,7 +5637,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V16 runtime cache must not overlap the {label}"
+                f"V17 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -5785,6 +6151,27 @@ def _validate_public_hash(public: Mapping[str, Any]) -> None:
         raise ValueError("Public matched-panel precommitment is invalid")
 
 
+def _assert_private_public_panel_binding(
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> None:
+    """Bind a minimal authenticated private state to one public panel."""
+
+    if (
+        private.get("schema_version") != SCHEMA_VERSION
+        or private.get("panel_id") != PANEL_ID
+        or public.get("schema_version") != SCHEMA_VERSION
+        or public.get("panel_id") != PANEL_ID
+        or public.get("status") != "precommitted"
+        or not isinstance(public.get("precommitment_sha256"), str)
+        or private.get("public_precommitment_sha256")
+        != public.get("precommitment_sha256")
+    ):
+        raise RuntimeError(
+            "Authenticated private state is not bound to the public panel"
+        )
+
+
 def _validate_contracts(
     *,
     root: Path,
@@ -5856,7 +6243,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V16 preparation runtime binding is invalid"
+            "Private V17 preparation runtime binding is invalid"
         )
     expected_contracts = {
         "runtime_contract": _runtime_contract(),
@@ -5924,7 +6311,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V16 preparation runtime contract is missing")
+        raise ValueError("V17 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -5953,7 +6340,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V16 cohort freeze claim differs from private state"
+            "Authenticated V17 cohort freeze claim differs from private state"
         )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
@@ -6076,6 +6463,11 @@ def _validate_contracts(
             if isinstance(incident, dict)
             else None
         )
+        incident_code = (
+            incident.get("incident_code")
+            if isinstance(incident, dict)
+            else None
+        )
         ordinary_void = (
             isinstance(incident, dict)
             and type(incident.get("assignment_index")) is int
@@ -6101,6 +6493,10 @@ def _validate_contracts(
             or incident.get("status") != "terminal"
             or not isinstance(incident.get("failure_class"), str)
             or not incident["failure_class"]
+            or (
+                incident_name == "execution_incident"
+                and incident_code not in _PROVIDER_INCIDENT_CODES
+            )
             or (
                 attestation_failure_code is not None
                 and attestation_failure_code
@@ -6159,7 +6555,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V16 spend authorization contract mismatch")
+        raise ValueError("V17 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -6187,7 +6583,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v16 spend authorization receipt is required "
+            "A manifest-bound exact v17 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -6202,14 +6598,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v16 spend authorization receipt is required "
+            "A manifest-bound exact v17 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v16 spend authorization receipt is required "
+            "A manifest-bound exact v17 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -6231,7 +6627,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v16 $580 cumulative spend acknowledgement text is required"
+            "The exact v17 $585 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -6961,6 +7357,7 @@ def _finish_authentication_provider_attempt(
 
 def _publish_authentication_receipt(
     *,
+    root: Path,
     private: dict[str, Any],
     public: Mapping[str, Any],
     private_state_path: Path,
@@ -6974,8 +7371,6 @@ def _publish_authentication_receipt(
         candidate = setup.get("pending_public_receipt")
         if candidate is None:
             setup["pending_public_receipt"] = expected
-            setup["public_receipt_path"] = str(receipt_path.resolve())
-            setup["public_receipt_sha256"] = expected["receipt_sha256"]
             _write_private_state(
                 private_state_path, private, authentication_key
             )
@@ -7003,7 +7398,13 @@ def _publish_authentication_receipt(
     if setup.get("status") != "passed":
         setup.pop("pending_public_receipt", None)
         setup["status"] = "passed"
-        setup["public_receipt_path"] = str(receipt_path.resolve())
+        setup["public_receipt_binding"] = _repository_receipt_binding(
+            root=root,
+            path=receipt_path,
+            artifact_kind="authentication",
+            content_sha256=str(observed["receipt_sha256"]),
+            payload=observed,
+        )
         setup["public_receipt_sha256"] = observed["receipt_sha256"]
         _write_private_state(private_state_path, private, authentication_key)
     return observed
@@ -7126,7 +7527,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V16 panel cannot retry"
+                    "state; this V17 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -7139,6 +7540,7 @@ def authenticate_panel(
                     public_manifest_path=public_manifest_path,
                 )
             _publish_authentication_receipt(
+                root=root,
                 private=private,
                 public=public,
                 private_state_path=private_state_path,
@@ -7156,7 +7558,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V16 panel "
+                "Authentication process state is ambiguous; this V17 panel "
                 "cannot retry"
             )
         if (
@@ -7190,7 +7592,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V16 panel cannot retry"
+                "state; this V17 panel cannot retry"
             ) from None
         _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
@@ -7316,7 +7718,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V16 panel cannot retry"
+                    "state; this V17 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -7390,7 +7792,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V16 panel cannot retry"
+                    "V17 panel cannot retry"
                 ) from None
 
         _attest_execution_contracts(root=root, public=public)
@@ -7417,9 +7819,10 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V16 panel cannot retry"
+                "state; this V17 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
+            root=root,
             private=private,
             public=public,
             private_state_path=private_state_path,
@@ -7542,11 +7945,17 @@ def assert_panel_authentication_ready(
     _validate_authentication_receipt(
         receipt, private=private, public=public
     )
-    if (
-        setup.get("public_receipt_path") != str(receipt_path.resolve())
-        or setup.get("public_receipt_sha256") != receipt.get("receipt_sha256")
-    ):
+    if setup.get("public_receipt_sha256") != receipt.get("receipt_sha256"):
         raise RuntimeError("Authentication receipt binding changed")
+    _validate_repository_receipt_binding(
+        setup.get("public_receipt_binding"),
+        root=root,
+        path=receipt_path,
+        artifact_kind="authentication",
+        content_sha256=str(receipt["receipt_sha256"]),
+        payload=receipt,
+        require_published_commit=True,
+    )
     if require_clean_checkout:
         _assert_authorization_worktree(
             root=root,
@@ -7566,8 +7975,579 @@ def assert_panel_authentication_ready(
     return receipt
 
 
+def bind_panel_receipt_commit(
+    *,
+    root: Path,
+    operation: str,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+) -> dict[str, Any]:
+    """Bind one already-published receipt to exact tracked bytes and commit.
+
+    This provider-free step is deliberately separate from receipt publication:
+    the receipt must first be committed, after which the authenticated private
+    state records that immutable commit exactly once. Later clean descendant
+    checkouts may move without changing the binding.
+    """
+
+    if operation not in {"authentication", "preflight"}:
+        raise ValueError("Public receipt binding operation is invalid")
+    assert_durable_live_execution_paths(
+        root=root, private_state_path=private_state_path
+    )
+    authentication_key = _read_authentication_key(
+        _existing_path_without_final_symlink(authentication_key_file)
+    )
+    with _exclusive_run_lock(private_state_path):
+        private = _load_private_state(private_state_path, authentication_key)
+        public = _load_json(public_manifest_path)
+        resolved_claude = _validate_claude_secure_storage_dir(
+            claude_secure_storage_dir, root=root
+        )
+        resolved_codex = _validate_codex_secure_storage_dir(
+            codex_secure_storage_dir, root=root
+        )
+        setup = _validate_authentication_contracts(
+            root=root,
+            private=private,
+            public=public,
+            public_manifest_path=public_manifest_path,
+            claude_secure_storage_dir=resolved_claude,
+            codex_secure_storage_dir=resolved_codex,
+            revalidate_live_identity_contracts=False,
+        )
+        _assert_spend_authorization(private, public)
+        if setup.get("status") != "passed":
+            raise RuntimeError(
+                "Authentication receipt must pass before commit binding"
+            )
+        authentication_receipt_path = _authentication_receipt_path(
+            public_manifest_path
+        )
+        authentication_receipt = _load_json(authentication_receipt_path)
+        _validate_authentication_receipt(
+            authentication_receipt, private=private, public=public
+        )
+        _validate_repository_receipt_binding(
+            setup.get("public_receipt_binding"),
+            root=root,
+            path=authentication_receipt_path,
+            artifact_kind="authentication",
+            content_sha256=str(authentication_receipt["receipt_sha256"]),
+            payload=authentication_receipt,
+            require_published_commit=operation == "preflight",
+        )
+
+        if operation == "authentication":
+            state = setup
+            path = authentication_receipt_path
+            payload = authentication_receipt
+            content_sha256 = str(authentication_receipt["receipt_sha256"])
+        else:
+            _assert_environment_preflight(
+                root,
+                private,
+                public,
+                require_published_commit=False,
+            )
+            preflight = private.get("environment_preflight")
+            if not isinstance(preflight, dict):
+                raise RuntimeError("Environment preflight state is invalid")
+            state = preflight
+            path = _receipt_path_from_binding(
+                root,
+                state.get("public_receipt_binding"),
+                artifact_kind="preflight",
+            )
+            payload = _load_json(path)
+            content_sha256 = str(state["public_receipt_sha256"])
+
+        binding = _validate_repository_receipt_binding(
+            state.get("public_receipt_binding"),
+            root=root,
+            path=path,
+            artifact_kind=operation,
+            content_sha256=content_sha256,
+            payload=payload,
+            require_published_commit=False,
+        )
+        head = _assert_authorization_worktree(
+            root=root,
+            private_state_path=private_state_path,
+            public_manifest_path=public_manifest_path,
+        )
+        relative = str(binding["repository_relative_path"])
+        if (
+            _git_output(root, "ls-files", "--error-unmatch", relative)
+            != relative
+            or _git_blob_sha256(root, head, relative)
+            != binding["file_sha256"]
+        ):
+            raise RuntimeError(
+                "Public receipt must be committed with its exact bytes"
+            )
+        existing_commit = binding.get("published_commit")
+        if existing_commit is None:
+            state["public_receipt_binding"] = {
+                **binding,
+                "published_commit": head,
+            }
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
+            published_commit = head
+        else:
+            _validate_repository_receipt_binding(
+                binding,
+                root=root,
+                path=path,
+                artifact_kind=operation,
+                content_sha256=content_sha256,
+                payload=payload,
+                require_published_commit=True,
+            )
+            published_commit = str(existing_commit)
+        return {
+            "schema_version": "epiagentbench.receipt_commit_binding.v1",
+            "panel_id": PANEL_ID,
+            "artifact_kind": operation,
+            "status": "bound",
+            "published_commit": published_commit,
+            "file_sha256": binding["file_sha256"],
+        }
+
+
+def assert_environment_preflight_ready(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+) -> dict[str, Any]:
+    """Attest the passed preflight receipt without invoking any provider."""
+
+    authentication_key = _read_authentication_key(
+        _existing_path_without_final_symlink(authentication_key_file)
+    )
+    private = _load_private_state(private_state_path, authentication_key)
+    public = _load_json(public_manifest_path)
+    _assert_environment_preflight(root, private, public)
+    preflight = private["environment_preflight"]
+    binding = preflight["public_receipt_binding"]
+    return {
+        "panel_id": PANEL_ID,
+        "status": "passed",
+        "artifact_kind": "preflight",
+        "published_commit": binding["published_commit"],
+        "file_sha256": binding["file_sha256"],
+    }
+
+
+def _terminal_preflight_candidate(
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], dict[str, Any]]:
+    preflight = private.get("environment_preflight")
+    candidate = (
+        preflight.get("terminal_public_receipt")
+        if isinstance(preflight, Mapping)
+        else None
+    )
+    if (
+        not isinstance(preflight, Mapping)
+        or preflight.get("status") != "failed"
+        or not isinstance(candidate, dict)
+        or candidate.get("schema_version") != SCHEMA_VERSION
+        or candidate.get("panel_id") != PANEL_ID
+        or candidate.get("status")
+        not in {"failed", "stopped_supervisor_incident"}
+        or candidate.get("development_only") is not True
+        or type(candidate.get("production_episodes_consumed")) is not int
+        or candidate.get("production_episodes_consumed") != 0
+        or candidate.get("scores_reported") is not False
+        or candidate.get("precommitment_sha256")
+        != public.get("precommitment_sha256")
+        or preflight.get("public_receipt_sha256")
+        != _component_hash(candidate)
+    ):
+        raise RuntimeError(
+            "Authenticated terminal preflight candidate is invalid"
+        )
+    incident_code = candidate.get("incident_code")
+    if (
+        (
+            incident_code is not None
+            and incident_code not in _PROVIDER_INCIDENT_CODES
+        )
+        or (
+            candidate.get("status") == "stopped_supervisor_incident"
+            and incident_code != "supervisor_boundary_attestation_failed"
+        )
+        or (
+            candidate.get("failure_reason") == "terminal_abort"
+            and incident_code not in _PROVIDER_INCIDENT_CODES
+        )
+    ):
+        raise RuntimeError(
+            "Terminal preflight receipt incident code is invalid"
+        )
+    failure_stage = candidate.get("failure_stage")
+    if (
+        (
+            failure_stage is not None
+            and failure_stage not in _PREFLIGHT_FAILURE_STAGES
+        )
+        or (
+            candidate.get("failure_reason") == "terminal_abort"
+            and failure_stage not in _PREFLIGHT_FAILURE_STAGES
+        )
+    ):
+        raise RuntimeError(
+            "Terminal preflight receipt failure stage is invalid"
+        )
+    return preflight, candidate
+
+
+def assert_terminal_receipt_ready_for_exit(
+    *,
+    root: Path,
+    operation: str,
+    authentication_key_file: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_output_path: Path,
+) -> dict[str, Any]:
+    """Prove that exit 64 refers to one authenticated terminal receipt.
+
+    This is a provider-free child-process boundary.  The reserved exit code is
+    emitted only after the public artifact is reloaded and matched exactly to
+    authenticated durable state.  A missing, torn, or inconsistent receipt
+    therefore becomes an unexpected process failure rather than a falsely
+    classified benchmark outcome.
+    """
+
+    if operation not in {"preflight", "production"}:
+        raise ValueError("Terminal receipt operation is invalid")
+    authentication_key = _read_authentication_key(
+        _existing_path_without_final_symlink(authentication_key_file)
+    )
+    with _exclusive_run_lock(private_state_path):
+        private = _load_private_state(private_state_path, authentication_key)
+        public = _load_json(public_manifest_path)
+        _validate_public_hash(public)
+        _assert_private_public_panel_binding(private, public)
+        _assert_canonical_public_output_path(
+            public_manifest_path,
+            public_output_path,
+            operation=operation,
+        )
+        observed = _load_json(public_output_path)
+
+        if operation == "preflight":
+            preflight, candidate = _terminal_preflight_candidate(
+                private,
+                public,
+            )
+            if candidate != observed:
+                raise RuntimeError(
+                    "Authenticated terminal preflight receipt is inconsistent"
+                )
+            binding = _validate_repository_receipt_binding(
+                preflight.get("public_receipt_binding"),
+                root=root,
+                path=public_output_path,
+                artifact_kind="preflight",
+                content_sha256=str(preflight["public_receipt_sha256"]),
+                payload=candidate,
+                require_published_commit=False,
+            )
+            observed_file_sha256 = _assert_exact_public_json_bytes(
+                public_output_path,
+                candidate,
+                label="terminal preflight receipt",
+            )
+            if not hmac.compare_digest(
+                observed_file_sha256,
+                str(binding["file_sha256"]),
+            ):
+                raise RuntimeError(
+                    "Terminal preflight receipt bytes changed"
+                )
+            return {
+                "schema_version": (
+                    "epiagentbench.terminal_receipt_attestation.v1"
+                ),
+                "panel_id": PANEL_ID,
+                "operation": operation,
+                "status": "attested",
+                "terminal_status": str(candidate["status"]),
+                "file_sha256": str(binding["file_sha256"]),
+                "provider_processes_started": 0,
+                "model_calls_started": 0,
+            }
+
+        status = observed.get("status")
+        if status not in {
+            "stopped_supervisor_incident",
+            "stopped_transport_void",
+        }:
+            raise RuntimeError(
+                "Production child did not publish a terminal stop receipt"
+            )
+        execution_incident = private.get("execution_incident")
+        codex_auth_incident = private.get("codex_auth_incident")
+        if execution_incident is None and codex_auth_incident is None:
+            raise RuntimeError(
+                "Production terminal receipt has no durable incident"
+            )
+        assignments = private.get("assignments")
+        if not isinstance(assignments, list):
+            raise RuntimeError(
+                "Production terminal receipt assignments are invalid"
+            )
+        if execution_incident is not None:
+            if (
+                not isinstance(execution_incident, Mapping)
+                or execution_incident.get("status") != "terminal"
+                or execution_incident.get("incident_code")
+                not in _PROVIDER_INCIDENT_CODES
+                or not isinstance(
+                    execution_incident.get("failure_class"), str
+                )
+                or not execution_incident["failure_class"]
+            ):
+                raise RuntimeError(
+                    "Production execution incident is invalid"
+                )
+            failure_class = execution_incident["failure_class"]
+            failure_code = execution_incident.get(
+                "attestation_failure_code"
+            )
+            supervisor_incident = (
+                execution_incident.get("boundary")
+                in {"clean_before_assignment", "final_completion"}
+                or failure_code in _PERSISTENT_ATTESTATION_FAILURE_CODES
+                or (
+                    "boundary" not in execution_incident
+                    and failure_class
+                    in _PROVIDER_ISOLATION_FAILURE_CLASSES
+                )
+            )
+            if supervisor_incident != (
+                status == "stopped_supervisor_incident"
+            ):
+                raise RuntimeError(
+                    "Production terminal incident classification changed"
+                )
+        elif status == "stopped_supervisor_incident":
+            raise RuntimeError(
+                "Production supervisor receipt has no execution incident"
+            )
+        if status == "stopped_supervisor_incident":
+            # This validates the finite failure class/code and its assignment
+            # or clean-boundary relationship without exposing private content.
+            _public_supervisor_incident_fields(private)
+        else:
+            for incident in (execution_incident, codex_auth_incident):
+                if incident is None:
+                    continue
+                assignment_index = (
+                    incident.get("assignment_index")
+                    if isinstance(incident, Mapping)
+                    else None
+                )
+                if (
+                    not isinstance(incident, Mapping)
+                    or incident.get("status") != "terminal"
+                    or "boundary" in incident
+                    or type(assignment_index) is not int
+                    or not 0 <= assignment_index < len(assignments)
+                    or assignments[assignment_index].get("status")
+                    != "transport_void"
+                ):
+                    raise RuntimeError(
+                        "Production transport incident is inconsistent"
+                    )
+        expected = _public_running(public, private, status=str(status))
+        if (
+            observed != expected
+            or observed.get("scores_reported") is not None
+            and observed.get("scores_reported") is not False
+        ):
+            raise RuntimeError(
+                "Authenticated terminal production receipt is inconsistent"
+            )
+        _assert_exact_public_json_bytes(
+            public_output_path,
+            expected,
+            label="terminal production receipt",
+        )
+        return {
+            "schema_version": "epiagentbench.terminal_receipt_attestation.v1",
+            "panel_id": PANEL_ID,
+            "operation": operation,
+            "status": "attested",
+            "terminal_status": str(status),
+            "terminal_assignments": int(observed["terminal_assignments"]),
+            "provider_processes_started": 0,
+            "model_calls_started": 0,
+        }
+
+
+def reconcile_terminal_receipt(
+    *,
+    root: Path,
+    operation: str,
+    authentication_key_file: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_output_path: Path,
+) -> dict[str, Any]:
+    """Publish only a durable authenticated terminal candidate, provider-free.
+
+    This is the recovery path for a crash after private terminal state became
+    durable but before its trace-free public receipt was written.  It never
+    resumes an evaluator and never replaces a conflicting preflight receipt.
+    """
+
+    if operation not in {"preflight", "production"}:
+        raise ValueError("Terminal receipt operation is invalid")
+    assert_durable_live_execution_paths(
+        root=root, private_state_path=private_state_path
+    )
+    authentication_key = _read_authentication_key(
+        _existing_path_without_final_symlink(authentication_key_file)
+    )
+    with _exclusive_run_lock(private_state_path):
+        private = _load_private_state(private_state_path, authentication_key)
+        public = _load_json(public_manifest_path)
+        _validate_public_hash(public)
+        _assert_private_public_panel_binding(private, public)
+        _assert_canonical_public_output_path(
+            public_manifest_path,
+            public_output_path,
+            operation=operation,
+        )
+
+        if operation == "preflight":
+            preflight, candidate = _terminal_preflight_candidate(
+                private,
+                public,
+            )
+            binding = _validate_repository_receipt_binding(
+                preflight.get("public_receipt_binding"),
+                root=root,
+                path=public_output_path,
+                artifact_kind="preflight",
+                content_sha256=str(preflight["public_receipt_sha256"]),
+                payload=candidate,
+                require_published_commit=False,
+            )
+            if public_output_path.exists() or public_output_path.is_symlink():
+                if _load_json(public_output_path) != candidate:
+                    raise RuntimeError(
+                        "Refusing to replace a conflicting terminal receipt"
+                    )
+                _assert_exact_public_json_bytes(
+                    public_output_path,
+                    candidate,
+                    label="terminal preflight receipt",
+                )
+            else:
+                _create_public_json_once(public_output_path, candidate)
+            if _load_json(public_output_path) != candidate:
+                raise RuntimeError(
+                    "Terminal preflight receipt failed durable reload"
+                )
+            observed_file_sha256 = _assert_exact_public_json_bytes(
+                public_output_path,
+                candidate,
+                label="terminal preflight receipt",
+            )
+            if not hmac.compare_digest(
+                observed_file_sha256,
+                str(binding["file_sha256"]),
+            ):
+                raise RuntimeError(
+                    "Terminal preflight receipt bytes changed"
+                )
+            return {
+                "schema_version": (
+                    "epiagentbench.terminal_receipt_reconciliation.v1"
+                ),
+                "panel_id": PANEL_ID,
+                "operation": operation,
+                "status": "reconciled",
+                "terminal_status": str(candidate["status"]),
+                "file_sha256": str(binding["file_sha256"]),
+                "provider_processes_started": 0,
+                "model_calls_started": 0,
+            }
+
+        candidate = _reconcile_terminal_incident_public_progress(
+            root=root,
+            public_manifest=public,
+            private=private,
+            public_results_path=public_output_path,
+        )
+        _assert_exact_public_json_bytes(
+            public_output_path,
+            candidate,
+            label="terminal production receipt",
+        )
+        return {
+            "schema_version": (
+                "epiagentbench.terminal_receipt_reconciliation.v1"
+            ),
+            "panel_id": PANEL_ID,
+            "operation": operation,
+            "status": "reconciled",
+            "terminal_status": str(candidate["status"]),
+            "terminal_assignments": int(candidate["terminal_assignments"]),
+            "provider_processes_started": 0,
+            "model_calls_started": 0,
+        }
+
+
+def attest_provider_free_prelaunch(
+    *,
+    root: Path,
+    operation: str,
+    public_manifest_path: Path,
+) -> dict[str, Any]:
+    """Recheck executable/runtime plumbing before the durable start marker."""
+
+    if operation not in {"preflight", "production"}:
+        raise ValueError("Provider-free prelaunch operation is invalid")
+    public = _load_json(public_manifest_path)
+    _validate_public_hash(public)
+    _attest_execution_contracts(root=root, public=public)
+    hashes = public.get("contract_hashes")
+    if not isinstance(hashes, Mapping):
+        raise ValueError("Provider-free prelaunch contract is invalid")
+    return {
+        "schema_version": "epiagentbench.provider_free_prelaunch.v1",
+        "panel_id": PANEL_ID,
+        "operation": operation,
+        "status": "passed",
+        "source_sha256": hashes["source_sha256"],
+        "cli_sha256": hashes["cli_sha256"],
+        "runtime_sha256": hashes["runtime_sha256"],
+        "supervisor_sha256": hashes["supervisor_sha256"],
+        "provider_processes_started": 0,
+        "model_calls_started": 0,
+    }
+
+
 def _assert_environment_preflight(
-    root: Path, private: Mapping[str, Any], public: Mapping[str, Any]
+    root: Path,
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+    *,
+    require_published_commit: bool = True,
 ) -> None:
     preflight = private.get("environment_preflight")
     expected = {
@@ -7628,13 +8608,10 @@ def _assert_environment_preflight(
             "A disposable six-profile environment preflight bound to the current "
             "contracts must pass before any production episode is launched"
         )
-    receipt_path = Path(str(preflight.get("public_receipt_path", "")))
-    receipt_relative = _relative_to_root(receipt_path, root)
-    if (
-        _git_output(root, "ls-files", "--error-unmatch", receipt_relative)
-        != receipt_relative
-    ):
-        raise RuntimeError("The passed environment preflight receipt is not committed")
+    binding = preflight.get("public_receipt_binding")
+    receipt_path = _receipt_path_from_binding(
+        root, binding, artifact_kind="preflight"
+    )
     receipt = _load_json(receipt_path)
     profile_receipts = receipt.get("profiles")
 
@@ -7745,6 +8722,15 @@ def _assert_environment_preflight(
         or preflight.get("public_receipt_sha256") != _component_hash(receipt)
     ):
         raise RuntimeError("The committed environment preflight receipt is invalid")
+    _validate_repository_receipt_binding(
+        binding,
+        root=root,
+        path=receipt_path,
+        artifact_kind="preflight",
+        content_sha256=str(preflight["public_receipt_sha256"]),
+        payload=receipt,
+        require_published_commit=require_published_commit,
+    )
 
 
 def _durable_provider_invocation_state(marker: Mapping[str, Any]) -> str:
@@ -8018,9 +9004,57 @@ def _persistent_attestation_error(
 
 def _attestation_incident_fields(error: BaseException) -> dict[str, str]:
     failure_code = getattr(error, "attestation_failure_code", None)
-    if failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES:
+    if (
+        not isinstance(error, ProviderExecutionIsolationError)
+        or failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES
+    ):
         return {}
     return {"attestation_failure_code": str(failure_code)}
+
+
+def _provider_incident_code(
+    error: BaseException,
+    *,
+    fallback: str,
+) -> str:
+    """Project an exception onto one finite, content-free incident code."""
+
+    if fallback not in _PROVIDER_INCIDENT_CODES:
+        fallback = "unexpected_control_path_failure"
+    trusted_types = (
+        (
+            ProviderCompletionPersistenceError,
+            "provider_completion_marker_persist_failed",
+        ),
+        (
+            ProviderInvocationPersistenceError,
+            "provider_invocation_marker_persist_failed",
+        ),
+        (
+            ProviderProgressPersistenceError,
+            "provider_progress_checkpoint_persist_failed",
+        ),
+        (
+            ProviderQuarantinePersistenceError,
+            "provider_quarantine_checkpoint_persist_failed",
+        ),
+        (
+            ProviderResultCheckpointPersistenceError,
+            "provider_result_checkpoint_persist_failed",
+        ),
+        (ProviderSpawnIsolationError, "provider_spawn_failed"),
+        (ProviderOutputIsolationError, "provider_output_isolation_failed"),
+        (ProviderProcessIsolationError, "provider_process_isolation_failed"),
+        (ProviderStateIsolationError, "provider_state_isolation_failed"),
+        (
+            ProviderExecutionIsolationError,
+            "provider_execution_isolation_failed",
+        ),
+    )
+    for error_type, code in trusted_types:
+        if isinstance(error, error_type):
+            return code
+    return fallback
 
 
 def _attest_with_transient_snapshot_retry(
@@ -8262,6 +9296,12 @@ def _run_environment_preflight_core(
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError(
             "Explicit acknowledgement of unbounded preflight provider spend is required"
+        )
+    if require_persistent_supervisor:
+        _assert_canonical_public_output_path(
+            public_manifest_path,
+            public_preflight_path,
+            operation="preflight",
         )
     evaluator = _execution_evaluator(
         require_persistent_supervisor=require_persistent_supervisor,
@@ -8506,15 +9546,25 @@ def _run_environment_preflight_core(
                 "status": "started",
                 "started_at_utc": _utc_now(),
             }
+            attempt_index = len(attempts)
             attempts.append(marker)
-            _write_private_state(private_state_path, private, authentication_key)
-            failure_stage = "provider_launch"
+            failure_stage = "durable_attempt_marker"
+            incident_code = "provider_invocation_marker_persist_failed"
             result: PilotRunResult | None = None
             try:
+                try:
+                    _write_private_state(
+                        private_state_path, private, authentication_key
+                    )
+                except Exception:
+                    raise ProviderInvocationPersistenceError(
+                        "Provider attempt marker could not be persisted"
+                    ) from None
                 managed_glean_state_before: str | None = None
                 codex_credentials_state_before: str | None = None
                 if profile["system"] == "claude":
                     failure_stage = "credential_attestation"
+                    incident_code = "credential_attestation_failed"
                     _require_claude_credential_state(
                         resolved_claude_secure_storage_dir,
                         root=root,
@@ -8526,9 +9576,11 @@ def _run_environment_preflight_core(
                         managed_glean_auth_file_identity,
                     )
                     managed_glean_state_before = "present"
-                    failure_stage = "provider_launch"
+                    failure_stage = "provider_execution"
+                    incident_code = "provider_adapter_execution_failed"
                 if profile["system"] == "codex":
                     failure_stage = "credential_attestation"
+                    incident_code = "credential_attestation_failed"
                     _require_codex_credential_state(
                         resolved_codex_secure_storage_dir,
                         root=root,
@@ -8540,7 +9592,8 @@ def _run_environment_preflight_core(
                         codex_auth_file_identity,
                     )
                     codex_credentials_state_before = "present"
-                    failure_stage = "provider_launch"
+                    failure_stage = "provider_execution"
+                    incident_code = "provider_adapter_execution_failed"
                 provider_auth_kwargs = (
                     {
                         "claude_secure_storage_dir": (
@@ -8562,28 +9615,53 @@ def _run_environment_preflight_core(
                     )
                 )
                 failure_stage = "supervisor_attestation_before_harness"
+                incident_code = "supervisor_boundary_attestation_failed"
                 attest_preflight_supervisor_boundary()
                 failure_stage = "execution_contract_before_harness"
                 _attest_execution_contracts(root=root, public=public)
                 failure_stage = "glean_dependency_before_harness"
                 _attest_frozen_glean_auth_dependencies(private, public)
-                failure_stage = "provider_launch"
+                failure_stage = "provider_invocation_marker"
+                incident_code = "provider_invocation_marker_persist_failed"
                 marker["provider_invocation"] = {
                     "status": "started",
                     "started_at_utc": _utc_now(),
                 }
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
-
-                def persist_progress(snapshot: Mapping[str, Any]) -> None:
-                    marker["progress_telemetry"] = (
-                        _safe_live_provider_progress(snapshot)
-                    )
+                try:
                     _write_private_state(
                         private_state_path, private, authentication_key
                     )
+                except Exception:
+                    raise ProviderInvocationPersistenceError(
+                        "Provider invocation marker could not be persisted"
+                    ) from None
 
+                def persist_progress(snapshot: Mapping[str, Any]) -> None:
+                    nonlocal failure_stage, incident_code
+                    failure_stage = "provider_progress_checkpoint"
+                    incident_code = (
+                        "provider_progress_checkpoint_persist_failed"
+                    )
+                    try:
+                        marker["progress_telemetry"] = (
+                            _safe_live_provider_progress(snapshot)
+                        )
+                        _write_private_state(
+                            private_state_path,
+                            private,
+                            authentication_key,
+                        )
+                    except ProviderProgressPersistenceError:
+                        raise
+                    except Exception:
+                        raise ProviderProgressPersistenceError(
+                            "Provider progress checkpoint could not be persisted"
+                        ) from None
+                    failure_stage = "provider_execution"
+                    incident_code = "provider_adapter_execution_failed"
+
+                failure_stage = "provider_execution"
+                incident_code = "provider_adapter_execution_failed"
                 result = evaluator(
                     str(profile["system"]),
                     seed=int.from_bytes(shared_digest[:6], "big"),
@@ -8605,15 +9683,23 @@ def _run_environment_preflight_core(
                     progress_callback=persist_progress,
                     **provider_auth_kwargs,
                 )
+                failure_stage = "provider_completion_marker"
+                incident_code = "provider_completion_marker_persist_failed"
                 marker["provider_invocation"] = {
                     **marker["provider_invocation"],
                     "status": "finished",
                     "finished_at_utc": _utc_now(),
                 }
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
+                try:
+                    _write_private_state(
+                        private_state_path, private, authentication_key
+                    )
+                except Exception:
+                    raise ProviderCompletionPersistenceError(
+                        "Provider completion marker could not be persisted"
+                    ) from None
                 failure_stage = "supervisor_attestation_after_harness"
+                incident_code = "supervisor_boundary_attestation_failed"
                 attest_preflight_supervisor_boundary()
                 failure_stage = "execution_contract_after_harness"
                 _attest_execution_contracts(root=root, public=public)
@@ -8621,6 +9707,7 @@ def _run_environment_preflight_core(
                 _attest_frozen_glean_auth_dependencies(private, public)
                 if profile["system"] == "claude":
                     failure_stage = "credential_attestation"
+                    incident_code = "credential_attestation_failed"
                     _require_claude_credential_state(
                         resolved_claude_secure_storage_dir,
                         root=root,
@@ -8633,6 +9720,7 @@ def _run_environment_preflight_core(
                     )
                 if profile["system"] == "codex":
                     failure_stage = "credential_attestation"
+                    incident_code = "credential_attestation_failed"
                     _require_codex_credential_state(
                         resolved_codex_secure_storage_dir,
                         root=root,
@@ -8644,6 +9732,7 @@ def _run_environment_preflight_core(
                         codex_auth_file_identity,
                     )
                 failure_stage = "result_contract"
+                incident_code = "evaluator_return_contract_failed"
                 if (
                     result.system != profile["system"]
                     or result.requested_model != profile["requested_model"]
@@ -8659,6 +9748,7 @@ def _run_environment_preflight_core(
                     profile, result.observed_models
                 )
                 failure_stage = "trace_validation"
+                incident_code = "provider_result_processing_failed"
                 try:
                     validate_replay_trace(result.replay_trace)
                 except (TypeError, ValueError) as error:
@@ -8672,6 +9762,7 @@ def _run_environment_preflight_core(
                 failure_stage = "harness_startup_contract"
                 _raise_on_harness_startup_failure(result)
                 failure_stage = "provider_contract"
+                incident_code = "provider_result_processing_failed"
                 if timed_out:
                     ordinary_failure_reason = "timeout"
                 elif result.returncode != 0 and ordinary_failure_reason is None:
@@ -8680,6 +9771,10 @@ def _run_environment_preflight_core(
                     ordinary_failure_reason = "model_receipt_failure"
                 raw_hash = _component_hash(asdict(result))
                 if timed_out and profile["system"] == "codex":
+                    failure_stage = "codex_quarantine_checkpoint"
+                    incident_code = (
+                        "provider_quarantine_checkpoint_persist_failed"
+                    )
                     private["environment_preflight"][
                         "codex_auth_quarantine"
                     ] = {
@@ -8688,9 +9783,16 @@ def _run_environment_preflight_core(
                         "profile_id": profile_id,
                         "quarantined_at_utc": _utc_now(),
                     }
-                    _write_private_state(
-                        private_state_path, private, authentication_key
-                    )
+                    try:
+                        _write_private_state(
+                            private_state_path,
+                            private,
+                            authentication_key,
+                        )
+                    except Exception:
+                        raise ProviderQuarantinePersistenceError(
+                            "Provider quarantine checkpoint could not be persisted"
+                        ) from None
                 passed = ordinary_failure_reason is None
                 marker.update(
                     {
@@ -8747,9 +9849,76 @@ def _run_environment_preflight_core(
                             "refresh_persistence_attested": True,
                         }
                     )
+                failure_stage = "provider_result_checkpoint"
+                incident_code = (
+                    "provider_result_checkpoint_persist_failed"
+                )
+                try:
+                    _write_private_state(
+                        private_state_path, private, authentication_key
+                    )
+                except Exception:
+                    raise ProviderResultCheckpointPersistenceError(
+                        "Provider result checkpoint could not be persisted"
+                    ) from None
                 public_attempts.append(public_attempt)
-                _write_private_state(private_state_path, private, authentication_key)
             except Exception as error:
+                # Durable state, not the mutated in-memory marker, is the sole
+                # authority for chargeability and finished-vs-ambiguous state.
+                durable_private = _load_private_state(
+                    private_state_path, authentication_key
+                )
+                durable_preflight = durable_private.get(
+                    "environment_preflight"
+                )
+                durable_attempts = (
+                    durable_preflight.get("attempts")
+                    if isinstance(durable_preflight, dict)
+                    else None
+                )
+                if (
+                    not isinstance(durable_attempts, list)
+                    or len(durable_attempts) not in {
+                        attempt_index,
+                        attempt_index + 1,
+                    }
+                ):
+                    raise ProviderStateIsolationError(
+                        "Durable preflight attempt state changed"
+                    ) from None
+                if len(durable_attempts) == attempt_index:
+                    durable_marker = {
+                        "profile_id": profile_id,
+                        "status": "started",
+                        "started_at_utc": marker["started_at_utc"],
+                    }
+                    durable_attempts.append(durable_marker)
+                else:
+                    observed_marker = durable_attempts[attempt_index]
+                    if (
+                        not isinstance(observed_marker, dict)
+                        or observed_marker.get("profile_id") != profile_id
+                    ):
+                        raise ProviderStateIsolationError(
+                            "Durable preflight attempt state changed"
+                        ) from None
+                    durable_marker = observed_marker
+                private = durable_private
+                attempts = durable_attempts
+                marker = durable_marker
+                if isinstance(
+                    error, ProviderQuarantinePersistenceError
+                ):
+                    private["environment_preflight"][
+                        "codex_auth_quarantine"
+                    ] = {
+                        "status": "quarantined",
+                        "reason": (
+                            "quarantine_checkpoint_persist_failed"
+                        ),
+                        "profile_id": profile_id,
+                        "quarantined_at_utc": _utc_now(),
+                    }
                 if isinstance(
                     error,
                     (CodexAuthenticationIncidentError, ProviderStateIsolationError),
@@ -8761,6 +9930,9 @@ def _run_environment_preflight_core(
                         "finished_at_utc": _utc_now(),
                         "failure_class": type(error).__name__,
                         "failure_stage": failure_stage,
+                        "incident_code": _provider_incident_code(
+                            error, fallback=incident_code
+                        ),
                         **_attestation_incident_fields(error),
                     }
                 )
@@ -8778,6 +9950,9 @@ def _run_environment_preflight_core(
                     {
                         "failure_reason": "terminal_abort",
                         "failure_stage": failure_stage,
+                        "incident_code": _provider_incident_code(
+                            error, fallback=incident_code
+                        ),
                         **_attestation_incident_fields(error),
                         "scored": False,
                         "infrastructure_handshake_passed": False,
@@ -8837,6 +10012,9 @@ def _run_environment_preflight_core(
                     ),
                     "failure_reason": "terminal_abort",
                     "failure_stage": failure_stage,
+                    "incident_code": _provider_incident_code(
+                        error, fallback=incident_code
+                    ),
                     **_attestation_incident_fields(error),
                     "timed_out": timed_out,
                     "scores_reported": False,
@@ -8845,15 +10023,18 @@ def _run_environment_preflight_core(
                     **private["environment_preflight"],
                     "status": "failed",
                     "finished_at_utc": _utc_now(),
+                    "terminal_public_receipt": failed,
+                    "public_receipt_binding": _repository_receipt_binding(
+                        root=root,
+                        path=public_preflight_path,
+                        artifact_kind="preflight",
+                        content_sha256=_component_hash(failed),
+                        payload=failed,
+                    ),
+                    "public_receipt_sha256": _component_hash(failed),
                 }
-                _atomic_json(public_preflight_path, failed)
-                private["environment_preflight"]["public_receipt_path"] = str(
-                    public_preflight_path.resolve()
-                )
-                private["environment_preflight"]["public_receipt_sha256"] = (
-                    _component_hash(failed)
-                )
                 _write_private_state(private_state_path, private, authentication_key)
+                _atomic_json(public_preflight_path, failed)
                 return failed
 
         profile_failures = [
@@ -8896,6 +10077,29 @@ def _run_environment_preflight_core(
             "scores_reported": False,
             "completed_at_utc": _utc_now(),
         }
+        if profile_failures:
+            private["environment_preflight"] = {
+                **private["environment_preflight"],
+                "status": "failed",
+                "finished_at_utc": receipt["completed_at_utc"],
+                "terminal_public_receipt": receipt,
+                "public_receipt_binding": _repository_receipt_binding(
+                    root=root,
+                    path=public_preflight_path,
+                    artifact_kind="preflight",
+                    content_sha256=_component_hash(receipt),
+                    payload=receipt,
+                ),
+                "public_receipt_sha256": _component_hash(receipt),
+            }
+            # The authenticated terminal candidate is always durable before
+            # the public receipt.  A public-write failure can therefore be
+            # reconciled without another provider invocation.
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
+            _atomic_json(public_preflight_path, receipt)
+            return receipt
         if not profile_failures:
             try:
                 attest_preflight_supervisor_boundary()
@@ -8914,6 +10118,9 @@ def _run_environment_preflight_core(
                     "failure_stage": (
                         "supervisor_attestation_final_completion"
                     ),
+                    "incident_code": (
+                        "supervisor_boundary_attestation_failed"
+                    ),
                     **_attestation_incident_fields(error),
                     "scores_reported": False,
                 }
@@ -8921,10 +10128,22 @@ def _run_environment_preflight_core(
                     **private["environment_preflight"],
                     "status": "failed",
                     "finished_at_utc": receipt["completed_at_utc"],
+                    "terminal_public_receipt": stopped,
+                    "public_receipt_binding": _repository_receipt_binding(
+                        root=root,
+                        path=public_preflight_path,
+                        artifact_kind="preflight",
+                        content_sha256=_component_hash(stopped),
+                        payload=stopped,
+                    ),
+                    "public_receipt_sha256": _component_hash(stopped),
                     "supervisor_incident": {
                         "status": "terminal",
                         "failure_class": type(error).__name__,
                         "boundary": "final_completion",
+                        "incident_code": (
+                            "supervisor_boundary_attestation_failed"
+                        ),
                         **_attestation_incident_fields(error),
                     },
                 }
@@ -8954,12 +10173,17 @@ def _run_environment_preflight_core(
             _write_private_state(private_state_path, private, authentication_key)
             _atomic_json(public_preflight_path, pending)
             return pending
-        _atomic_json(public_preflight_path, receipt)
         private["environment_preflight"] = {
             **private["environment_preflight"],
             "status": receipt["status"],
             "finished_at_utc": receipt["completed_at_utc"],
-            "public_receipt_path": str(public_preflight_path.resolve()),
+            "public_receipt_binding": _repository_receipt_binding(
+                root=root,
+                path=public_preflight_path,
+                artifact_kind="preflight",
+                content_sha256=_component_hash(receipt),
+                payload=receipt,
+            ),
             "public_receipt_sha256": _component_hash(receipt),
         }
         if not profile_failures:
@@ -8967,6 +10191,7 @@ def _run_environment_preflight_core(
                 "passed_contract_hashes"
             ] = contract_hashes
         _write_private_state(private_state_path, private, authentication_key)
+        _atomic_json(public_preflight_path, receipt)
         return receipt
 
 
@@ -9139,11 +10364,14 @@ def _public_supervisor_incident_fields(
     assignment_index = incident.get("assignment_index")
     boundary = incident.get("boundary")
     failure_code = incident.get("attestation_failure_code")
+    incident_code = incident.get("incident_code")
     if (
+        incident_code not in _PROVIDER_INCIDENT_CODES
+        or
         failure_code is not None
         and failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES
     ):
-        raise ValueError("Stopped supervisor artifact has an unsafe failure code")
+        raise ValueError("Stopped supervisor artifact has an unsafe incident code")
     if boundary == "clean_before_assignment":
         if (
             type(assignment_index) is not int
@@ -9180,7 +10408,10 @@ def _public_supervisor_incident_fields(
             failure_stage = "supervisor_attestation_after_provider"
         else:
             failure_stage = "provider_isolation_after_provider"
-    fields = {"failure_stage": failure_stage}
+    fields = {
+        "failure_stage": failure_stage,
+        "incident_code": str(incident_code),
+    }
     if failure_code is not None:
         fields["attestation_failure_code"] = str(failure_code)
     return fields
@@ -9220,6 +10451,9 @@ def _reconcile_terminal_incident_public_progress(
     """Repair only a trace-free public watermark after a durable incident."""
 
     execution_incident = private.get("execution_incident")
+    codex_auth_incident = private.get("codex_auth_incident")
+    if execution_incident is None and codex_auth_incident is None:
+        raise ValueError("No durable terminal incident is available")
     if execution_incident is not None:
         assignments = private.get("assignments")
         assignment_index = (
@@ -9234,6 +10468,8 @@ def _reconcile_terminal_incident_public_progress(
                 execution_incident.get("failure_class"), str
             )
             or not execution_incident["failure_class"]
+            or execution_incident.get("incident_code")
+            not in _PROVIDER_INCIDENT_CODES
             or type(assignment_index) is not int
             or not isinstance(assignments, list)
         ):
@@ -9244,7 +10480,6 @@ def _reconcile_terminal_incident_public_progress(
             != "transport_void"
         ):
             raise ValueError("Terminal execution incident state is invalid")
-    codex_auth_incident = private.get("codex_auth_incident")
     if codex_auth_incident is not None:
         assignments = private.get("assignments")
         assignment_index = (
@@ -9378,6 +10613,10 @@ def _reconcile_terminal_incident_public_progress(
             return expected
 
     _atomic_json(public_results_path, expected)
+    if _load_json(public_results_path) != expected:
+        raise RuntimeError(
+            "Terminal-incident public progress failed durable reload"
+        )
     return expected
 
 
@@ -9858,6 +11097,11 @@ def finalize_supervised_release(
 
     if operation not in {"preflight", "production"}:
         raise ValueError("Supervised release operation is invalid")
+    _assert_canonical_public_output_path(
+        public_manifest_path,
+        public_output_path,
+        operation=operation,
+    )
     assert_durable_live_execution_paths(
         root=root,
         private_state_path=private_state_path,
@@ -9931,17 +11175,86 @@ def finalize_supervised_release(
                 raise ProviderExecutionIsolationError(
                     "Pending preflight release candidate is invalid"
                 )
+            candidate_sha256 = _component_hash(candidate)
+            release = preflight.get(_PUBLIC_RELEASE_KEY)
+            expected_release_status = (
+                "released"
+                if preflight.get("status") == "passed"
+                else "pending_supervisor_completion"
+            )
+            if (
+                not isinstance(release, Mapping)
+                or dict(release)
+                != {
+                    "status": expected_release_status,
+                    "operation": "preflight",
+                }
+            ):
+                raise ProviderExecutionIsolationError(
+                    "Pending preflight release state is invalid"
+                )
             expected_pending = _public_preflight_pending(public, candidate)
             existing = _load_json(public_output_path)
             if existing != expected_pending and existing != candidate:
                 raise ProviderExecutionIsolationError(
                     "Public preflight path differs from its staged candidate"
                 )
+            if preflight.get("status") == "passed":
+                binding = preflight.get("public_receipt_binding")
+                published_commit = (
+                    binding.get("published_commit")
+                    if isinstance(binding, Mapping)
+                    else None
+                )
+                if preflight.get("public_receipt_sha256") != candidate_sha256:
+                    raise ProviderExecutionIsolationError(
+                        "Released preflight receipt digest changed"
+                    )
+                _validate_repository_receipt_binding(
+                    binding,
+                    root=root,
+                    path=public_output_path,
+                    artifact_kind="preflight",
+                    content_sha256=candidate_sha256,
+                    payload=candidate,
+                    require_published_commit=published_commit is not None,
+                )
+                if existing == expected_pending:
+                    if published_commit is not None:
+                        raise ProviderExecutionIsolationError(
+                            "A committed preflight receipt cannot regress "
+                            "to its pending watermark"
+                        )
+                    _atomic_json(public_output_path, candidate)
+                else:
+                    _assert_exact_public_json_bytes(
+                        public_output_path,
+                        candidate,
+                        label="preflight receipt",
+                    )
+                # Once released, finalization is a pure reconciliation step.
+                # In particular, never reconstruct the binding: doing so
+                # would erase a later create-once publishing commit.
+                return candidate
+            if existing == candidate:
+                _assert_exact_public_json_bytes(
+                    public_output_path,
+                    candidate,
+                    label="preflight receipt",
+                )
             preflight.update(
                 {
                     "status": "passed",
-                    "public_receipt_path": str(public_output_path.resolve()),
-                    "public_receipt_sha256": _component_hash(candidate),
+                    "public_receipt_binding": (
+                        _repository_receipt_binding(
+                            root=root,
+                            path=public_output_path,
+                            artifact_kind="preflight",
+                            content_sha256=candidate_sha256,
+                            payload=candidate,
+                        )
+                    ),
+                    "public_receipt_sha256": candidate_sha256,
                     _PUBLIC_RELEASE_KEY: {
                         "status": "released",
                         "operation": "preflight",
@@ -10028,6 +11341,12 @@ def _run_panel_locked(
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError("Explicit acknowledgement of unbounded provider spend is required")
+    if require_persistent_supervisor:
+        _assert_canonical_public_output_path(
+            public_manifest_path,
+            public_results_path,
+            operation="production",
+        )
     evaluator = _execution_evaluator(
         require_persistent_supervisor=require_persistent_supervisor,
         offline_test_evaluator=offline_test_evaluator,
@@ -10218,6 +11537,7 @@ def _run_panel_locked(
             "status": "terminal",
             "assignment_index": len(assignments) - 1,
             "failure_class": "interrupted_after_durable_start",
+            "incident_code": "provider_interrupted_after_durable_start",
         }
         if _PROFILE_BY_ID[interrupted_profile_id]["system"] == "codex":
             private["codex_auth_incident"] = {
@@ -10339,6 +11659,7 @@ def _run_panel_locked(
                 "status": "terminal",
                 "assignment_index": len(assignments),
                 "failure_class": type(error).__name__,
+                "incident_code": "supervisor_boundary_attestation_failed",
                 "boundary": "clean_before_assignment",
                 "profile_id": profile_id,
                 **_attestation_incident_fields(error),
@@ -10365,14 +11686,25 @@ def _run_panel_locked(
         _write_private_state(private_state_path, private, authentication_key)
         _atomic_json(public_results_path, _public_running(public_manifest, private))
         codex_auth_ambiguous = False
+        incident_code = "provider_adapter_execution_failed"
         try:
             def persist_progress(snapshot: Mapping[str, Any]) -> None:
-                marker["progress_telemetry"] = _safe_live_provider_progress(
-                    snapshot
-                )
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
+                nonlocal incident_code
+                incident_code = "provider_progress_checkpoint_persist_failed"
+                try:
+                    marker["progress_telemetry"] = (
+                        _safe_live_provider_progress(snapshot)
+                    )
+                    _write_private_state(
+                        private_state_path, private, authentication_key
+                    )
+                except ProviderProgressPersistenceError:
+                    raise
+                except Exception:
+                    raise ProviderProgressPersistenceError(
+                        "Provider progress checkpoint could not be persisted"
+                    ) from None
+                incident_code = "provider_adapter_execution_failed"
 
             provider_auth_kwargs = (
                 {
@@ -10394,6 +11726,7 @@ def _run_panel_locked(
                     else {}
                 )
             )
+            incident_code = "provider_adapter_execution_failed"
             result = evaluator(
                 str(profile["system"]),
                 **launch_kwargs,
@@ -10412,8 +11745,10 @@ def _run_panel_locked(
                 progress_callback=persist_progress,
                 **provider_auth_kwargs,
             )
+            incident_code = "supervisor_boundary_attestation_failed"
             attest_full_provider_boundary()
             if profile["system"] == "claude":
+                incident_code = "credential_attestation_failed"
                 try:
                     _require_claude_credential_state(
                         resolved_claude_secure_storage_dir,
@@ -10430,6 +11765,7 @@ def _run_panel_locked(
                         "Claude credential persistence isolation failed"
                     ) from None
             if profile["system"] == "codex":
+                incident_code = "credential_attestation_failed"
                 assert codex_auth_file_identity is not None
                 try:
                     _require_codex_credential_state(
@@ -10445,6 +11781,7 @@ def _run_panel_locked(
                 except (OSError, RuntimeError, ValueError):
                     codex_auth_ambiguous = True
                     raise
+            incident_code = "evaluator_return_contract_failed"
             marker["raw_result"] = asdict(result)
             fixed_denominator_timeout = _result_timed_out(result)
             if profile["system"] == "codex" and fixed_denominator_timeout:
@@ -10467,6 +11804,7 @@ def _run_panel_locked(
                 or result.requested_model != profile["requested_model"]
             ):
                 raise RuntimeError("Provider result differs from its pinned profile")
+            incident_code = "provider_result_processing_failed"
             finished = _utc_now()
             sanitized = _sanitize_result(
                 episode=episode,
@@ -10486,6 +11824,9 @@ def _run_panel_locked(
                     "status": "terminal",
                     "assignment_index": len(assignments) - 1,
                     "failure_class": type(error).__name__,
+                    "incident_code": _provider_incident_code(
+                        error, fallback=incident_code
+                    ),
                     **_attestation_incident_fields(error),
                 }
                 if profile["system"] == "codex":
@@ -10530,7 +11871,68 @@ def _run_panel_locked(
         marker["status"] = "complete"
         marker["finished_at_utc"] = finished
         marker["public_result"] = sanitized
-        _write_private_state(private_state_path, private, authentication_key)
+        try:
+            _write_private_state(
+                private_state_path, private, authentication_key
+            )
+        except Exception:
+            # The in-memory marker is not evidence that completion reached
+            # durable storage. Reload the authenticated checkpoint and
+            # terminalize that still-started assignment without another
+            # provider invocation.
+            durable_private = _load_private_state(
+                private_state_path, authentication_key
+            )
+            durable_assignments = durable_private.get("assignments")
+            assignment_index = len(assignments) - 1
+            if (
+                not isinstance(durable_assignments, list)
+                or len(durable_assignments) != len(assignments)
+                or not 0 <= assignment_index < len(durable_assignments)
+            ):
+                raise ProviderStateIsolationError(
+                    "Durable assignment state changed after provider return"
+                ) from None
+            durable_marker = durable_assignments[assignment_index]
+            if (
+                not isinstance(durable_marker, dict)
+                or durable_marker.get("episode_ref") != ref
+                or durable_marker.get("profile_id") != profile_id
+                or durable_marker.get("status") != "started"
+            ):
+                raise ProviderStateIsolationError(
+                    "Durable assignment state changed after provider return"
+                ) from None
+            completion_error = ProviderCompletionPersistenceError(
+                "Provider completion checkpoint could not be persisted"
+            )
+            durable_marker.update(
+                {
+                    "status": "transport_void",
+                    "finished_at_utc": _utc_now(),
+                    "void_reason": type(completion_error).__name__,
+                }
+            )
+            durable_private["execution_incident"] = {
+                "status": "terminal",
+                "assignment_index": assignment_index,
+                "failure_class": type(completion_error).__name__,
+                "incident_code": _provider_incident_code(
+                    completion_error,
+                    fallback="provider_completion_marker_persist_failed",
+                ),
+            }
+            durable_private["status"] = "running"
+            _write_private_state(
+                private_state_path, durable_private, authentication_key
+            )
+            stopped = _public_running(
+                public_manifest,
+                durable_private,
+                status="stopped_supervisor_incident",
+            )
+            _atomic_json(public_results_path, stopped)
+            return stopped
         _atomic_json(public_results_path, _public_running(public_manifest, private))
 
     if len(assignments) != ASSIGNMENT_COUNT or any(
@@ -10547,6 +11949,7 @@ def _run_panel_locked(
             "status": "terminal",
             "assignment_index": len(assignments),
             "failure_class": type(error).__name__,
+            "incident_code": "supervisor_boundary_attestation_failed",
             "boundary": "final_completion",
             **_attestation_incident_fields(error),
         }

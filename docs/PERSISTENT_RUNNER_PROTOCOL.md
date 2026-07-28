@@ -1,8 +1,8 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V16 persistent-supervisor
-contract schema v5. The source contract, panel/schema identifiers, spend
-accounting, path namespace, and [V16 runbook](V16_RUNBOOK.md) are defined. The
+Status at control-plane publication: versioned V17 persistent-supervisor
+contract schema v6. The source contract, panel/schema identifiers, spend
+accounting, path namespace, and [V17 runbook](V17_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -42,7 +42,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V16 key, cohort, credential namespace, schedule, private state, or
+8. No V17 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -52,6 +52,13 @@ terminate that job.
 10. The canonical key-namespace freeze claim is created once before cohort
     randomness. A pending claim without its authenticated completion is
     terminal and cannot be retried or prepared.
+11. Authentication and passed-preflight receipts are bound by repository-
+    relative path, exact bytes, semantic hash, and a create-once publishing
+    commit. A later clean descendant checkout may move paths without weakening
+    the binding; unrelated history, dirty bytes, or rebinding fail closed.
+12. Exit code 64 has one meaning: the evaluator CLI reloaded an exact public
+    terminal receipt that matches authenticated private state. Every other
+    nonzero or ambiguous child exit remains a supervisor terminal ambiguity.
 
 ## Durable assignment phases and the current adapter
 
@@ -107,10 +114,10 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V16 adds a provider-free boundary before the private panel exists. One exact
+V17 adds a provider-free boundary before the private panel exists. One exact
 absolute interpreter,
 `/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python`, runs every
-V16 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
+V17 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order, and
 does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. The
@@ -142,10 +149,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v16.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v17.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V16 freezer or `prepare` command can create or read a key, cohort,
+the matched V17 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -219,9 +226,21 @@ If production stops at a provider boundary, its public watermark includes only
 a finite failure stage and, for live-attestation failures, the allowlisted
 failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
-data. Persistent-supervisor contract schema v5 intentionally rejects schema-v4
-manifests; a run must be freshly versioned, prepared, and authorized under the
-new contract.
+data. The same provider-free recovery can publish a privately sealed terminal
+preflight candidate after a public-write failure, but it can never resume an
+evaluator. Persistent-supervisor contract schema v6 intentionally rejects
+schema-v5 manifests; a run must be freshly versioned, prepared, and authorized
+under the new contract.
+
+The child reserves exit 64 only after a second read proves the public terminal
+receipt is byte-for-byte and semantically identical to its HMAC-authenticated
+private candidate. The supervisor records only the weaker fact
+`runner_reserved_terminal_exit` with a terminal (not ambiguous) phase. The
+outer launch worker then independently re-reads the authenticated private
+state and exact canonical public bytes before it records
+`benchmark_terminal_receipt`. A bare exit 64, missing or torn receipt, failed
+outer re-attestation, pause, or ordinary nonzero remains fail-closed and
+nonretryable.
 
 ## Two-phase success and public release
 
@@ -286,7 +305,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V16, generation also requires the exact manifest-bound runtime-cache root.
+For V17, generation also requires the exact manifest-bound runtime-cache root.
 The LaunchAgent environment is a closed projection of the six variables in
 the recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation recomputes both full raw bindings, compares their
@@ -345,7 +364,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V16 model call may start until all of the following pass through the
+No V17 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -392,8 +411,17 @@ same supervisor path intended for production:
   environment is sealed and that an alternate cache or interpreter is rejected
   before Keychain access or child launch;
 - exact and adversarial `launchctl` state-parser tests proving that
-  `not_running` still requires authenticated terminal state and that unknown or
-  duplicate state lines never reach `bootout`;
+  `not_running` still requires authenticated terminal state, deeper nested
+  `state =` fields cannot shadow the job state, and unknown or duplicate
+  top-level state lines never reach `bootout`;
+- terminal-receipt boundary tests proving that exit 64 requires an exact
+  authenticated private/public pair, unexpected nonzero exits remain terminal
+  ambiguities, completion-checkpoint write failures use the last durable
+  `started` marker, and provider-controlled text cannot select incident codes;
+- checkout-handoff tests proving repository-relative authentication and
+  preflight receipt bindings survive a clean descendant checkout while
+  rejecting unrelated history, dirty or tampered bytes, rebinding, and private
+  state moved into the checkout;
 - the existing cohort-retirement, no-partial-release, evaluator-tampering,
   metadata-leakage, and prompt-injection suites.
 
@@ -412,10 +440,20 @@ state, public manifest, authorization, authentication, supervisor, provider
 call, score, or trace. Its frozen cohort and private namespaces are
 non-resumable and forbidden for reuse.
 
-V16 now binds the new heartbeat-pair, retry, diagnostic, source, and operational
-contracts under panel/cohort `development-matched-50x6-v16`, top-level schema
-`development_matched_panel_v16`, the exact $580 acknowledgement, and fresh V16
-paths. Its two-commit provider-free runtime protocol must prove the exact V5
+V16 passed foreground authentication, then stopped during the first Claude
+preflight call. Its public receipt conservatively records one chargeable call,
+no completed preflight, zero production episodes, and no scores. The original
+artifact collapsed a handled evaluator failure into `supervisor_exception`;
+the offline audit showed that this label did not prove the supervisor itself
+crashed. V16 is non-resumable and no production assignment started.
+
+V17 now binds the finite provider-incident taxonomy, authenticated terminal-
+receipt exit, completion-checkpoint recovery, repository-relative receipt
+handoff, provider-free prelaunch attestation, nested launchd-state parser, and
+the existing heartbeat/retry/source contracts under panel/cohort
+`development-matched-50x6-v17`, top-level schema
+`development_matched_panel_v17`, the exact $585 acknowledgement, and fresh
+V17 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
@@ -430,8 +468,8 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V16 panel's Claude ceiling is $510 (102 calls × $5); the exact
-acknowledgement's $580 cumulative ceiling adds the conservative $70 allowance
+The current V17 panel's Claude ceiling is $510 (102 calls × $5); the exact
+acknowledgement's $585 cumulative ceiling adds the conservative $75 allowance
 for prior failed panels. Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only

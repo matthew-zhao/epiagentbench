@@ -23,7 +23,7 @@ if __name__ == "__main__":
     _require_isolated_main_process()
 
 
-# V16 invokes this script with ``-I -S -B``.  Build the only permitted import
+# V17 invokes this script with ``-I -S -B``.  Build the only permitted import
 # path explicitly: standard library first, then the frozen repository, then
 # the bound virtual-environment packages.  Appending these directories does
 # not execute .pth, sitecustomize, or usercustomize.
@@ -35,7 +35,7 @@ if sys.flags.isolated:
         or sys.flags.dont_write_bytecode != 1
         or not sys.flags.safe_path
     ):
-        raise RuntimeError("Refusing a partially isolated V16 Python process")
+        raise RuntimeError("Refusing a partially isolated V17 Python process")
     _SOURCE_ROOT = _REPOSITORY_ROOT / "src"
     _VENV_ROOT = Path(sys.executable).parent.parent
     _SITE_PACKAGES = (
@@ -48,7 +48,7 @@ if sys.flags.isolated:
         not (_VENV_ROOT / "pyvenv.cfg").is_file()
         or not _SITE_PACKAGES.is_dir()
     ):
-        raise RuntimeError("V16 requires its bound virtual environment")
+        raise RuntimeError("V17 requires its bound virtual environment")
     sys.path.append(str(_SOURCE_ROOT))
     sys.path.append(str(_SITE_PACKAGES))
 
@@ -66,15 +66,21 @@ if sys.flags.isolated:
 from epiagentbench.development_matched_panel import (
     PANEL_ID,
     assert_durable_live_execution_paths,
+    assert_terminal_receipt_ready_for_exit,
     authenticate_panel,
     authorize_panel_spend,
+    bind_panel_receipt_commit,
     freeze_panel_cohort,
     panel_authentication_status,
     preflight_preparation_runtime,
     prepare_panel,
+    reconcile_terminal_receipt,
     run_environment_preflight,
     run_panel,
     verify_preparation_runtime,
+)
+from epiagentbench.persistent_supervisor import (
+    HANDLED_TERMINAL_RECEIPT_EXIT_CODE,
 )
 
 _AUTHENTICATION_STATUSES = frozenset(
@@ -178,7 +184,7 @@ def main() -> int:
     )
     freeze = commands.add_parser(
         "freeze",
-        help="Freeze the one V16 cohort after runtime receipt verification",
+        help="Freeze the one V17 cohort after runtime receipt verification",
     )
     freeze.add_argument(
         "--preparation-runtime-receipt", required=True, type=Path
@@ -229,6 +235,43 @@ def main() -> int:
         help="Read the sanitized authentication state without invoking a provider",
     )
     _add_panel_state_arguments(authentication_status)
+    bind_receipt = commands.add_parser(
+        "bind-receipt",
+        help=(
+            "Bind an already-committed authentication or preflight receipt "
+            "to exact repository bytes without invoking a provider"
+        ),
+    )
+    _add_panel_state_arguments(bind_receipt)
+    bind_receipt.add_argument(
+        "--operation",
+        required=True,
+        choices=("authentication", "preflight"),
+    )
+    reconcile_terminal = commands.add_parser(
+        "reconcile-terminal-receipt",
+        help=(
+            "Publish an authenticated terminal receipt after a public-write "
+            "failure without invoking any provider"
+        ),
+    )
+    reconcile_terminal.add_argument(
+        "--operation",
+        required=True,
+        choices=("preflight", "production"),
+    )
+    reconcile_terminal.add_argument(
+        "--authentication-key", required=True, type=Path
+    )
+    reconcile_terminal.add_argument(
+        "--private-state", required=True, type=Path
+    )
+    reconcile_terminal.add_argument(
+        "--public-manifest", required=True, type=Path
+    )
+    reconcile_terminal.add_argument(
+        "--public-output", required=True, type=Path
+    )
     preflight = commands.add_parser("preflight")
     _add_panel_state_arguments(preflight)
     preflight.add_argument("--public-preflight", required=True, type=Path)
@@ -358,6 +401,25 @@ def main() -> int:
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
         )
+    elif args.command == "bind-receipt":
+        payload = bind_panel_receipt_commit(
+            root=root,
+            operation=args.operation,
+            authentication_key_file=args.authentication_key,
+            claude_secure_storage_dir=args.claude_secure_storage_dir,
+            codex_secure_storage_dir=args.codex_secure_storage_dir,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+        )
+    elif args.command == "reconcile-terminal-receipt":
+        payload = reconcile_terminal_receipt(
+            root=root,
+            operation=args.operation,
+            authentication_key_file=args.authentication_key,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+            public_output_path=args.public_output,
+        )
     elif args.command == "preflight":
         payload = run_environment_preflight(
             root=root,
@@ -411,19 +473,29 @@ def main() -> int:
     if args.command == "authenticate":
         return 0 if payload.get("status") == "passed" else 1
     if args.command == "preflight":
-        return (
-            0
-            if payload["status"]
-            == "passed_pending_supervisor_completion"
-            else 1
+        if payload["status"] == "passed_pending_supervisor_completion":
+            return 0
+        assert_terminal_receipt_ready_for_exit(
+            root=root,
+            operation="preflight",
+            authentication_key_file=args.authentication_key,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+            public_output_path=args.public_preflight,
         )
+        return HANDLED_TERMINAL_RECEIPT_EXIT_CODE
     if args.command == "run":
-        return (
-            0
-            if payload["status"]
-            == "complete_pending_supervisor_completion"
-            else 1
+        if payload["status"] == "complete_pending_supervisor_completion":
+            return 0
+        assert_terminal_receipt_ready_for_exit(
+            root=root,
+            operation="production",
+            authentication_key_file=args.authentication_key,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+            public_output_path=args.public_results,
         )
+        return HANDLED_TERMINAL_RECEIPT_EXIT_CODE
     return 0
 
 

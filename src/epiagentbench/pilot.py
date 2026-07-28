@@ -895,13 +895,61 @@ class CodexAuthenticationIncidentError(RuntimeError):
 class ProviderExecutionIsolationError(RuntimeError):
     """Raised when provider execution isolation becomes ambiguous."""
 
+    incident_code = "provider_execution_isolation_failed"
+
 
 class ProviderProcessIsolationError(ProviderExecutionIsolationError):
     """Raised when the provider's original process group cannot be quiesced."""
 
+    incident_code = "provider_process_isolation_failed"
+
 
 class ProviderStateIsolationError(ProviderExecutionIsolationError):
     """Raised when provider state-persistence isolation becomes ambiguous."""
+
+    incident_code = "provider_state_isolation_failed"
+
+
+class ProviderSpawnIsolationError(ProviderProcessIsolationError):
+    """Raised when an isolated provider process cannot be created."""
+
+    incident_code = "provider_spawn_failed"
+
+
+class ProviderOutputIsolationError(ProviderProcessIsolationError):
+    """Raised when bounded provider output capture becomes ambiguous."""
+
+    incident_code = "provider_output_isolation_failed"
+
+
+class ProviderProgressPersistenceError(ProviderStateIsolationError):
+    """Raised when a content-free progress checkpoint cannot be persisted."""
+
+    incident_code = "provider_progress_checkpoint_persist_failed"
+
+
+class ProviderInvocationPersistenceError(ProviderStateIsolationError):
+    """Raised when the durable provider-start marker cannot be persisted."""
+
+    incident_code = "provider_invocation_marker_persist_failed"
+
+
+class ProviderCompletionPersistenceError(ProviderStateIsolationError):
+    """Raised when the durable provider-finished marker cannot be persisted."""
+
+    incident_code = "provider_completion_marker_persist_failed"
+
+
+class ProviderResultCheckpointPersistenceError(ProviderStateIsolationError):
+    """Raised when a validated provider-result checkpoint cannot be persisted."""
+
+    incident_code = "provider_result_checkpoint_persist_failed"
+
+
+class ProviderQuarantinePersistenceError(ProviderStateIsolationError):
+    """Raised when a terminal provider quarantine cannot be persisted."""
+
+    incident_code = "provider_quarantine_checkpoint_persist_failed"
 
 
 class ProviderOutputOverflowError(RuntimeError):
@@ -1355,7 +1403,7 @@ def _run_provider_process_group(
                 umask=umask,
             )
         except OSError:
-            raise ProviderProcessIsolationError(
+            raise ProviderSpawnIsolationError(
                 "Provider process could not be started in an isolated group"
             ) from None
         streams = {
@@ -1363,7 +1411,7 @@ def _run_provider_process_group(
             "stderr": process.stderr,
         }
         if any(stream is None for stream in streams.values()):
-            raise ProviderProcessIsolationError(
+            raise ProviderOutputIsolationError(
                 "Provider output capture could not be established"
             )
         for name, stream in streams.items():
@@ -1372,7 +1420,7 @@ def _run_provider_process_group(
                 os.set_blocking(stream.fileno(), False)
                 selector.register(stream.fileno(), selectors.EVENT_READ, name)
             except (OSError, ValueError):
-                raise ProviderProcessIsolationError(
+                raise ProviderOutputIsolationError(
                     "Provider output capture could not be initialized"
                 ) from None
         if progress is not None:
@@ -1404,7 +1452,7 @@ def _run_provider_process_group(
                 try:
                     selector_empty = not selector.get_map()
                 except (OSError, ValueError):
-                    raise ProviderProcessIsolationError(
+                    raise ProviderOutputIsolationError(
                         "Provider output selector failed"
                     ) from None
                 if selector_empty:
@@ -1414,7 +1462,7 @@ def _run_provider_process_group(
                 and drain_deadline is not None
                 and time.monotonic() >= drain_deadline
             ):
-                raise ProviderProcessIsolationError(
+                raise ProviderOutputIsolationError(
                     "Provider output pipes remained open after process-group "
                     "termination"
                 )
@@ -1427,7 +1475,7 @@ def _run_provider_process_group(
             try:
                 ready = selector.select(wait_seconds)
             except (OSError, ValueError):
-                raise ProviderProcessIsolationError(
+                raise ProviderOutputIsolationError(
                     "Provider output selector failed"
                 ) from None
             if progress is not None:
@@ -1435,7 +1483,7 @@ def _run_provider_process_group(
             for key, _ in ready:
                 name = str(key.data)
                 if name not in captures:
-                    raise ProviderProcessIsolationError(
+                    raise ProviderOutputIsolationError(
                         "Provider output selector failed"
                     )
                 try:
@@ -1443,7 +1491,7 @@ def _run_provider_process_group(
                 except BlockingIOError:
                     continue
                 except (OSError, TypeError, ValueError):
-                    raise ProviderProcessIsolationError(
+                    raise ProviderOutputIsolationError(
                         "Provider output capture failed"
                     ) from None
                 if not chunk:
@@ -1452,7 +1500,7 @@ def _run_provider_process_group(
                     except (KeyError, ValueError):
                         pass
                     except OSError:
-                        raise ProviderProcessIsolationError(
+                        raise ProviderOutputIsolationError(
                             "Provider output selector failed"
                         ) from None
                     continue
@@ -1506,13 +1554,13 @@ def _run_provider_process_group(
         )
     finally:
         active_error = sys.exception()
-        selector_cleanup_error: ProviderProcessIsolationError | None = None
+        selector_cleanup_error: ProviderOutputIsolationError | None = None
         process_cleanup_error: ProviderProcessIsolationError | None = None
-        stream_cleanup_error: ProviderProcessIsolationError | None = None
+        stream_cleanup_error: ProviderOutputIsolationError | None = None
         try:
             selector.close()
         except BaseException:
-            selector_cleanup_error = ProviderProcessIsolationError(
+            selector_cleanup_error = ProviderOutputIsolationError(
                 "Provider output selector could not be closed"
             )
         try:
@@ -1547,7 +1595,7 @@ def _run_provider_process_group(
                     try:
                         stream.close()
                     except BaseException:
-                        stream_cleanup_error = ProviderProcessIsolationError(
+                        stream_cleanup_error = ProviderOutputIsolationError(
                             "Provider output stream could not be closed"
                         )
         if not isinstance(active_error, ProviderExecutionIsolationError):
@@ -2657,7 +2705,7 @@ def evaluate_local_cli_agent(
                     except ProviderExecutionIsolationError:
                         raise
                     except Exception:
-                        raise ProviderStateIsolationError(
+                        raise ProviderProgressPersistenceError(
                             "Provider progress checkpoint could not be persisted"
                         ) from None
 

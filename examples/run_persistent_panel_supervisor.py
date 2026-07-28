@@ -47,7 +47,7 @@ if __package__ in {None, ""}:
             not (_VENV_ROOT / "pyvenv.cfg").is_file()
             or not _SITE_PACKAGES.is_dir()
         ):
-            raise RuntimeError("V16 requires its bound virtual environment")
+            raise RuntimeError("V17 requires its bound virtual environment")
         sys.path.append(str(_SITE_PACKAGES))
 
 from epiagentbench.launchd_agent import (

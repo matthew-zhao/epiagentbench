@@ -33,8 +33,8 @@ from typing import Any, Callable, Mapping, Sequence
 from functools import wraps
 
 
-_SCHEMA = "epiagentbench.launchd_agent.v8"
-_WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v3"
+_SCHEMA = "epiagentbench.launchd_agent.v9"
+_WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v4"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
 _CAFFEINATE = Path("/usr/bin/caffeinate")
@@ -44,8 +44,8 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v8\x00"
-_WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v3\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v9\x00"
+_WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v4\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
 _MAX_CONFIG_BYTES = 8 * 1024 * 1024
@@ -61,7 +61,7 @@ _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
-_PROTOCOL_VERSION = "persistent-supervisor-v2"
+_PROTOCOL_VERSION = "persistent-supervisor-v3"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -104,6 +104,7 @@ _PERSISTENT_SUPERVISOR_SOURCE = Path(
 _DEVELOPMENT_MATCHED_PANEL_SOURCE = Path(
     "src/epiagentbench/development_matched_panel.py"
 )
+_HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64
 
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[bytes]]
@@ -1432,7 +1433,7 @@ def _manifest_binding(
         if isinstance(preparation_runtime_contract, dict)
         else None
     )
-    is_v16 = preparation_runtime_contract is not None
+    is_v17 = preparation_runtime_contract is not None
     if (
         not isinstance(panel_id, str)
         or not _SAFE_NAME.fullmatch(panel_id)
@@ -1441,7 +1442,7 @@ def _manifest_binding(
         or not isinstance(python_executable_sha256, str)
         or not _SHA256.fullmatch(python_executable_sha256)
         or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
-        or is_v16
+        or is_v17
         and (
             not isinstance(python_entrypoint_binding_sha256, str)
             or not _SHA256.fullmatch(python_entrypoint_binding_sha256)
@@ -1466,12 +1467,12 @@ def _manifest_binding(
         str(python_entrypoint_kind),
         (
             str(python_entrypoint_binding_sha256)
-            if is_v16
+            if is_v17
             else None
         ),
         (
             str(runtime_cache_contract_sha256)
-            if is_v16
+            if is_v17
             else None
         ),
     )
@@ -1673,6 +1674,18 @@ def generate_launch_agent(
         manifest_python_executable_binding_sha256,
         manifest_runtime_cache_contract_sha256,
     ) = _manifest_binding(public_manifest)
+    expected_output = public_manifest.with_name(
+        (
+            f"{panel_id}.preflight.json"
+            if operation == "preflight"
+            else f"{panel_id}.json"
+        )
+    )
+    supplied_output = (
+        public_preflight if operation == "preflight" else public_results
+    )
+    if supplied_output != expected_output:
+        raise ValueError("Public output path is not canonical for the panel")
     python_entrypoint_kind = (
         "symlink_chain"
         if python_executable_binding["symlink_hops"]
@@ -1696,7 +1709,7 @@ def generate_launch_agent(
     if manifest_runtime_cache_contract_sha256 is not None:
         if runtime_cache_dir is None:
             raise ValueError(
-                "V16 LaunchAgent requires the bound runtime cache directory"
+                "V17 LaunchAgent requires the bound runtime cache directory"
             )
         supplied_runtime_cache = _absolute(
             runtime_cache_dir, label="runtime cache directory"
@@ -2502,6 +2515,44 @@ def _run_core_supervisor(
     )
 
 
+def _attest_handled_terminal_receipt(
+    config: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Re-attest reserved exit 64 outside the child/supervisor boundary."""
+
+    _, _, matched_panel_source = _verify_frozen_runtime_sources(config)
+    import epiagentbench.development_matched_panel as matched_panel
+
+    _require_loaded_module_source(
+        matched_panel.__file__,
+        matched_panel_source,
+    )
+    attestation = matched_panel.assert_terminal_receipt_ready_for_exit(
+        root=Path(str(config["repository_root"])),
+        operation=str(config["operation"]),
+        authentication_key_file=Path(
+            str(config["authentication_key_file"])
+        ),
+        private_state_path=Path(str(config["private_state_path"])),
+        public_manifest_path=Path(str(config["public_manifest_path"])),
+        public_output_path=Path(str(config["public_output_path"])),
+    )
+    if (
+        not isinstance(attestation, Mapping)
+        or attestation.get("schema_version")
+        != "epiagentbench.terminal_receipt_attestation.v1"
+        or attestation.get("panel_id") != config["panel_id"]
+        or attestation.get("operation") != config["operation"]
+        or attestation.get("status") != "attested"
+        or attestation.get("provider_processes_started") != 0
+        or type(attestation.get("provider_processes_started")) is not int
+        or attestation.get("model_calls_started") != 0
+        or type(attestation.get("model_calls_started")) is not int
+    ):
+        raise RuntimeError("Outer terminal receipt attestation is invalid")
+    return attestation
+
+
 @_public_errors
 def run_launch_agent_worker(
     config_path: Path,
@@ -2608,12 +2659,28 @@ def run_launch_agent_worker(
                 )
                 return 70
             return 0
+        if return_code == _HANDLED_TERMINAL_RECEIPT_EXIT_CODE:
+            try:
+                _attest_handled_terminal_receipt(config)
+            except Exception:
+                _atomic_worker_status(
+                    runtime,
+                    config=config,
+                    authentication_key=authentication_key,
+                    state="terminal_incident",
+                    reason="terminal_receipt_attestation_failed",
+                )
+                return 70
         _atomic_worker_status(
             runtime,
             config=config,
             authentication_key=authentication_key,
             state="supervisor_exited",
-            reason="failure",
+            reason=(
+                "benchmark_terminal_receipt"
+                if return_code == _HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+                else "failure"
+            ),
         )
         return return_code
     finally:
@@ -2707,17 +2774,31 @@ def _launchd_state(
     if outcome is _LaunchctlOutcome.FAILED:
         raise RuntimeError("Unable to query the owner-scoped LaunchAgent")
     matches = re.findall(
-        rb"(?m)^[ \t]*state[ \t]*=[ \t]*([^\r\n]*?)[ \t]*\r?$",
+        rb"(?m)^([ \t]*)state[ \t]*=[ \t]*([^\r\n]*?)[ \t]*\r?$",
         result.stdout,
     )
-    if len(matches) != 1:
+    if not matches:
+        return "unknown"
+    # ``launchctl print`` may include nested objects with their own ``state``
+    # fields. Only the unique least-indented state belongs to the queried job;
+    # duplicate peers remain ambiguous and fail closed.
+    def indentation_width(raw: bytes) -> int:
+        return sum(8 if character == 0x09 else 1 for character in raw)
+
+    minimum = min(indentation_width(indent) for indent, _ in matches)
+    top_level = [
+        value
+        for indent, value in matches
+        if indentation_width(indent) == minimum
+    ]
+    if len(top_level) != 1:
         return "unknown"
     return {
         b"running": "running",
         b"waiting": "waiting",
         b"exited": "exited",
         b"not running": "not_running",
-    }.get(matches[0], "unknown")
+    }.get(top_level[0], "unknown")
 
 
 @_public_errors
@@ -2800,6 +2881,20 @@ def start_launch_agent(
             public_manifest_path=Path(config["public_manifest_path"]),
             require_clean_checkout=True,
         )
+        if config["operation"] == "production":
+            matched_panel.assert_environment_preflight_ready(
+                root=Path(config["repository_root"]),
+                authentication_key_file=Path(
+                    config["authentication_key_file"]
+                ),
+                private_state_path=Path(config["private_state_path"]),
+                public_manifest_path=Path(config["public_manifest_path"]),
+            )
+        matched_panel.attest_provider_free_prelaunch(
+            root=Path(config["repository_root"]),
+            operation=str(config["operation"]),
+            public_manifest_path=Path(config["public_manifest_path"]),
+        )
         _attest_cursor_keychain(config, command_runner=command_runner)
         # This durable HMAC marker is the launch commitment for launchctl.  It
         # is written and directory-fsynced before kickstart, and intentionally
@@ -2862,9 +2957,11 @@ def _worker_status(
         or frozenset(payload)
         not in {frozenset(base_keys), frozenset(base_keys | {"reason"})}
         or ("reason" in payload and reason not in {
+            "benchmark_terminal_receipt",
             "cursor_keychain_unavailable",
             "supervisor_exception",
             "release_validation_failed",
+            "terminal_receipt_attestation_failed",
             "success",
             "failure",
             "preflight_passed",
@@ -2878,7 +2975,11 @@ def _worker_status(
             state == "released"
             and reason not in {"preflight_passed", "production_complete"}
         )
-        or (state == "supervisor_exited" and reason not in {"success", "failure"})
+        or (
+            state == "supervisor_exited"
+            and reason
+            not in {"success", "failure", "benchmark_terminal_receipt"}
+        )
         or (
             state == "terminal_incident"
             and reason
@@ -2886,6 +2987,7 @@ def _worker_status(
                 "cursor_keychain_unavailable",
                 "supervisor_exception",
                 "release_validation_failed",
+                "terminal_receipt_attestation_failed",
             }
         )
         or payload.get("label") != config["label"]
