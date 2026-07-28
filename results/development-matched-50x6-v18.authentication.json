@@ -1,0 +1,37 @@
+{
+  "authentication_contract_hashes": {
+    "budgets_sha256": "sha256:0d7ed8804ecbe3f296f2de0ab652d7270333d12b9777b2d5ba0444f12a466149",
+    "claude_auth_sha256": "sha256:e057fa998dd496789cf6b73470dc946cbaa72ee26f0224bf86bf4ce540e30687",
+    "cli_sha256": "sha256:64a2ac850da448957534e9de494667c22f1856c19e355f6b89765b7e0653ff61",
+    "codex_auth_sha256": "sha256:c0c6020ba7d558fd82bb24bddb2d85057bb734ea3e00a933e83b13ffb2573748",
+    "preparation_runtime_sha256": "sha256:d30c73df6c38c5263c38f23e4e49ee02f646b0ae1a915e20951a574397230399",
+    "runtime_sha256": "sha256:8ad738b8169307fb14c621557924b32dc235794263728df98a70bcf7223e6384",
+    "source_sha256": "sha256:36a95a3b964d5bc0abd2cf36e7b92f96cac8685d29bb80904cc6eb5af5aab4c6",
+    "supervisor_sha256": "sha256:2db24cddb419c730b5d131dd10a8a57609594be4026109d3e26b750ac7d5c670"
+  },
+  "authentication_dependency_identity": {
+    "exact_bundle_identity_withheld": true,
+    "identity_sha256": "sha256:b8696677845b68513e6eddc995687a8f029e3d410a19dd93ace15f731f3e01a1",
+    "raw_machine_paths_published": false,
+    "raw_provider_output_published": false,
+    "root_owned_single_link_regular_executable_policy_attested": true,
+    "schema_version": "epiagentbench.authentication_dependency_freeze.v1"
+  },
+  "authentication_prerequisite": {
+    "codex": "passed_before_preflight",
+    "codex_method": "pinned_cli_device_auth",
+    "managed_glean": "passed_before_preflight",
+    "managed_glean_method": "pinned_managed_oauth_helper",
+    "model_calls": 0
+  },
+  "development_only": true,
+  "model_calls_started": 0,
+  "panel_id": "development-matched-50x6-v18",
+  "precommitment_sha256": "sha256:abc48694b8fd480668bc3689d1910da387fc371ce2fcce920c431c8b1dac90c0",
+  "production_episodes_consumed": 0,
+  "receipt_sha256": "sha256:0f43685469fa2c20ac9364d4087059996b9bfdb3b579d13dc05193347152b9ac",
+  "schema_version": "epiagentbench.authentication_receipt.v2",
+  "scores_reported": false,
+  "spend_authorization_receipt_sha256": "sha256:a328cc1924d82cbd0321c56eb5df9940f0744acd2d5153a3c38fce6f3e67deec",
+  "status": "passed"
+}
