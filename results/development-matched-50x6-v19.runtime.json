@@ -1,0 +1,348 @@
+{
+  "authentication_processes_started": 0,
+  "benchmark_base_commit": "f56d218ce91e14506f7fad0a51bdc55c282b0000",
+  "cli_contract_sha256": "sha256:64a2ac850da448957534e9de494667c22f1856c19e355f6b89765b7e0653ff61",
+  "panel_id": "development-matched-50x6-v19",
+  "private_artifacts_required": false,
+  "provider_processes_started": 0,
+  "required_starsim_version": "3.5.1",
+  "runtime_cache_contract_sha256": "sha256:cbfe011087a17fc40e1d2d4fe540b6cb25c51975a870b6fe128fefe9808d0bb3",
+  "runtime_contract": {
+    "machine": "arm64",
+    "platform": "Darwin",
+    "python": "3.13.7",
+    "python_cache_tag": "cpython-313",
+    "python_entrypoint_kind": "symlink_chain",
+    "python_executable_binding_policy": "full_path_symlink_inode_and_content_binding_private_only",
+    "python_executable_binding_sha256": "sha256:e064c64c5d18f50a2ced56589c3a0a2672037410460ef705468401d7ce6e2a91",
+    "python_executable_sha256": "sha256:406d73d07e33e164d986326fde00b85c2b8f4ed2c33278142c8431588fe2df14",
+    "python_implementation": "cpython",
+    "scientific_distributions": {
+      "epiagentbench": {
+        "installed_content_sha256": null,
+        "installed_file_bytes": 0,
+        "installed_file_count": 0,
+        "record_sha256": null,
+        "version": null
+      },
+      "matplotlib": {
+        "installed_content_sha256": "sha256:5f6906ad32265c05ad9d58cdd82f931551c28cc464539789794f921a23d90aca",
+        "installed_file_bytes": 34003872,
+        "installed_file_count": 893,
+        "record_sha256": "b7dacc50ee73dcd366c19b36ee01a62a69cbcc2c7dccddf2c37f2bf5fb246a72",
+        "version": "3.11.0"
+      },
+      "networkx": {
+        "installed_content_sha256": "sha256:2d291d4b7a4f6c1711474db7aa83357cc27d424f42b965025ead6501bbe046ad",
+        "installed_file_bytes": 15494397,
+        "installed_file_count": 1183,
+        "record_sha256": "81f72e5704a737a5a8771b4c872c9a083a8a12ee54448f8245ac4ea2f97681b8",
+        "version": "3.6.1"
+      },
+      "numba": {
+        "installed_content_sha256": "sha256:1e8a12abf68a4c4aed6010dc6835df33fd87fb3807028fdd437cb9d53b843a1c",
+        "installed_file_bytes": 27361163,
+        "installed_file_count": 1547,
+        "record_sha256": "d459dc1a3bd39d2ac20149ab2814b4579dc2926099ba8a4c8d18b11d56453bed",
+        "version": "0.66.0"
+      },
+      "numpy": {
+        "installed_content_sha256": "sha256:2687994300851db78b6d7886388949bdcc1a1b9c054d32eeac1fbdb8dad836de",
+        "installed_file_bytes": 31067262,
+        "installed_file_count": 1322,
+        "record_sha256": "c202ded1a2e806542b127b221af2a9a61f2a481abdb7bc72c2b6a810e23d01cc",
+        "version": "2.4.6"
+      },
+      "pandas": {
+        "installed_content_sha256": "sha256:4c622050079d78e3254885d9c2d7d28926232c2f9f501281854f9bfb57659146",
+        "installed_file_bytes": 66899171,
+        "installed_file_count": 2944,
+        "record_sha256": "f0d32b26211982a59943a3765759761bb2c73ab70495ef32deb811866b55fc19",
+        "version": "3.0.3"
+      },
+      "scipy": {
+        "installed_content_sha256": "sha256:7f77ce26297901092bd34726b1ba3de35dc11b367e0f9e0048ff1b858aca47f7",
+        "installed_file_bytes": 96647959,
+        "installed_file_count": 2419,
+        "record_sha256": "1cb4a32f540f0975fdeed14de9c2ed3cd5cba6108d78fa916f1f2eb1d393d529",
+        "version": "1.18.0"
+      },
+      "sciris": {
+        "installed_content_sha256": "sha256:b04c789674eb2ce040f81ec32911b84913704034be3b41dd2c72b75602efd67b",
+        "installed_file_bytes": 1874826,
+        "installed_file_count": 51,
+        "record_sha256": "528e74b584fb1333da1e529b283e789bcb1da69b3210b11f3c2719b05cff1c39",
+        "version": "3.2.9"
+      },
+      "seaborn": {
+        "installed_content_sha256": "sha256:2ac1363167a9a434a8c2ec5e092528d35c0fe5e401d5253fa36eba0c35330ad6",
+        "installed_file_bytes": 2210166,
+        "installed_file_count": 114,
+        "record_sha256": "1ef69e4b614c4ec7986d7a66ef62b258802b4e6e1df88f607e8ace4a089c3472",
+        "version": "0.13.2"
+      },
+      "starsim": {
+        "installed_content_sha256": "sha256:58f6a7925b31b313271aa0da1ed8a915fc3d0037b2d3d3736997c2a71181d52d",
+        "installed_file_bytes": 3375786,
+        "installed_file_count": 102,
+        "record_sha256": "4a1c8e937b5d30cc8cbdaed153bda0ef54f7b79312da5688a51aa8837c3517dd",
+        "version": "3.5.1"
+      }
+    },
+    "scientific_module_origins": {
+      "epiagentbench": {
+        "distribution_file": "src/epiagentbench/__init__.py",
+        "origin_role": "tracked_repository_source",
+        "sha256": "sha256:74579e1549d7c1095ef8e6372f7656ba199c5173464ce6f4dc729e506066d31b"
+      },
+      "matplotlib": {
+        "distribution_file": "matplotlib/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:5b9d9dbfb0cd52e0ee4185f1c46f17f8c105a442e2d3367dfa7186c421952a1c"
+      },
+      "networkx": {
+        "distribution_file": "networkx/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:39537c0bec78e0b81e25629c6fbeeff96c1f315ec462a89e69f92841d9409791"
+      },
+      "numba": {
+        "distribution_file": "numba/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:3cf4989d0de4bdcc2627fc4be07e5989ade72acad47e6551771b016bb8819b05"
+      },
+      "numpy": {
+        "distribution_file": "numpy/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:92a46f791e453926d3292af2582b89995a289475f0eaaea71a949823200b838a"
+      },
+      "pandas": {
+        "distribution_file": "pandas/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:742f85c135ee654bff1203efcee7664bf82fc7305ac3912ff304a063f5f7ea3c"
+      },
+      "scipy": {
+        "distribution_file": "scipy/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:39ccae300a4739cc53719bd3b39ce3f8f66e736c6eb672006e338a4c5cc3dc76"
+      },
+      "sciris": {
+        "distribution_file": "sciris/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:cd731179407a24e6f926062a9a962c7a99ae526ca63c57400b78f62ebc2522f7"
+      },
+      "seaborn": {
+        "distribution_file": "seaborn/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:3d276ab16e9d9edd73e73f7747a3f637a586833f6c0d90d12863f9dfd1bbeff4"
+      },
+      "starsim": {
+        "distribution_file": "starsim/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:499d694f78c013b63534ce4ccfe1f3576e67edc78ddc7821ad53ea75dae80236"
+      }
+    },
+    "starsim": "3.5.1"
+  },
+  "runtime_contract_sha256": "sha256:8ad738b8169307fb14c621557924b32dc235794263728df98a70bcf7223e6384",
+  "runtime_identity_sha256": "sha256:706f0eaff240a8836c4f2d24a15637fecc49046bddb58e513b2e78c6a814e87a",
+  "schema_version": "epiagentbench.preparation_runtime_preflight.v2",
+  "source_contract_sha256": "sha256:4e09f9e20bda0ba5106cb66df4c72149c28022a3cce46b77a3747c8abf299873",
+  "starsim_smoke_contract": {
+    "fixed_public_scenario": "v19_contact_transmission_with_matched_contact_stop",
+    "result": {
+      "branch_runs_per_policy": 2,
+      "contact_stop_action": {
+        "boundaries": [
+          {
+            "applied_control_ids": [],
+            "minute": 0,
+            "state_counts": {
+              "exposed_incubating": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 1440,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [
+              "v19-stop-direct-care"
+            ],
+            "minute": 2880,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [
+              "v19-stop-direct-care"
+            ],
+            "minute": 4320,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [
+              "v19-stop-direct-care"
+            ],
+            "minute": 5760,
+            "state_counts": {
+              "recovered": 1,
+              "susceptible": 2
+            },
+            "terminal": true,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          }
+        ],
+        "transmission_events": [
+          {
+            "infection_minute": 0,
+            "mechanism": "seed",
+            "source_person_id": null,
+            "target_person_id": "golden-index"
+          }
+        ]
+      },
+      "engine_descriptor": {
+        "engine_family": "institutional_disease_simulator",
+        "model_status": "development_only_not_calibrated"
+      },
+      "fixed_scenario": {
+        "explicit_contact_edges": 1,
+        "horizon_days": 4,
+        "index_seed_count": 1,
+        "intervention": {
+          "effective_minute": 1440,
+          "kind": "ltc_contact_reduction_level",
+          "magnitude": 0.0
+        },
+        "population_by_role": {
+          "resident": 2,
+          "staff": 1
+        }
+      },
+      "no_action": {
+        "boundaries": [
+          {
+            "applied_control_ids": [],
+            "minute": 0,
+            "state_counts": {
+              "exposed_incubating": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 1440,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 2880,
+            "state_counts": {
+              "exposed_incubating": 1,
+              "infectious_symptomatic": 1,
+              "susceptible": 1
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "person_to_person": 1,
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 4320,
+            "state_counts": {
+              "infectious_symptomatic": 2,
+              "susceptible": 1
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "person_to_person": 1,
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 5760,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "recovered": 1,
+              "susceptible": 1
+            },
+            "terminal": true,
+            "transmission_counts_by_mechanism": {
+              "person_to_person": 1,
+              "seed": 1
+            }
+          }
+        ],
+        "transmission_events": [
+          {
+            "infection_minute": 0,
+            "mechanism": "seed",
+            "source_person_id": null,
+            "target_person_id": "golden-index"
+          },
+          {
+            "infection_minute": 2880,
+            "mechanism": "person_to_person",
+            "source_person_id": "golden-index",
+            "target_person_id": "golden-contact"
+          }
+        ]
+      },
+      "paired_checks": {
+        "action_person_to_person_secondary_count": 0,
+        "known_branch_divergence": true,
+        "matched_opening": true,
+        "matched_through_day_one": true,
+        "no_action_person_to_person_secondary_count": 1,
+        "prevented_person_to_person_secondary_count": 1
+      },
+      "scientific_scope": "deterministic_capability_smoke_not_calibration_evidence"
+    },
+    "result_sha256": "sha256:fad38877b79d2be90fbb136702878fb1c10f5547f0d0170a5ebcab6c9e776d12",
+    "schema_version": "epiagentbench.preparation_runtime_smoke.v1"
+  },
+  "starsim_smoke_contract_sha256": "sha256:1e1c913e278ab4139643789d1219c182040168e7303e00ff6f676fa8dc6d9b66",
+  "status": "passed"
+}
