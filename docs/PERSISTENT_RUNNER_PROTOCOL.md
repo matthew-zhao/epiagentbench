@@ -1,9 +1,9 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V18 persistent-supervisor
-contract schema v7, execution-context protocol v4, and launchd config schema
-v10. The source contract, panel/schema identifiers, spend
-accounting, path namespace, and [V18 runbook](V18_RUNBOOK.md) are defined. The
+Status at control-plane publication: versioned V19 persistent-supervisor
+contract schema v8, execution-context protocol v5, and launchd config schema
+v11. The source contract, panel/schema identifiers, spend
+accounting, path namespace, and [V19 runbook](V19_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -43,7 +43,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V18 key, cohort, credential namespace, schedule, private state, or
+8. No V19 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -68,21 +68,39 @@ assignment phases:
 
 - `clean_boundary`: the preceding assignment is terminal and the next paid
   invocation has not been reserved.
-- `reserved_not_launched`: the next assignment is durably reserved and the
-  evaluator can prove that no provider process was started.
-- `launch_committed`: the evaluator has durably crossed the at-most-once
-  boundary immediately before provider process creation.
-- `provider_returned`: the original provider process returned and its process
-  group and output pipes were proven quiescent.
+- `reserved_not_launched`: the next assignment is durably reserved, but no
+  model-invocation marker exists; non-model readiness may run here.
+- `launch_committed`: the evaluator has durably persisted
+  `model_invocation.started` in the callback immediately before model-bearing
+  provider process creation.
+- `provider_returned`: the original model-bearing provider process returned,
+  and its process group and output pipes were proven quiescent.
 - `result_committed`: the sanitized result and terminal assignment state are
   durable.
 
-A crash at `clean_boundary` or a provably unlaunched reservation is eligible
-for evaluator-adjudicated recovery. A crash at or after `launch_committed`
-cannot replay that assignment. Without a provider idempotency key or durable
-remote job handle, transparent recovery from an in-flight host failure and
-strict at-most-once execution are mutually incompatible. The benchmark
-chooses at-most-once execution and fails closed.
+A provably unlaunched reservation can be adjudicated as nonchargeable, but its
+durable assignment is still consumed and never replayed. A crash at or after
+`launch_committed` is conservatively chargeable and also cannot replay that
+assignment. Without a provider idempotency key or durable remote job handle,
+transparent recovery from an in-flight host failure and strict at-most-once
+execution are mutually incompatible. The benchmark chooses at-most-once
+execution and fails closed.
+
+V19 separates attempt accounting from model-invocation accounting. Non-model
+CLI readiness probes occur before `model_invocation.started`. A
+typed `provider_cli_readiness_timeout` with
+`model_invocation_state = "not_started"` contributes zero conservatively
+chargeable model invocations and is never retried. It ends preflight; in
+production it consumes one fixed-denominator assignment with finite reason
+`provider_cli_readiness_timeout`, publishes `provider_cli_readiness` as both
+failure and timeout stage, and the same one-shot worker continues. Failure to
+persist the marker prevents the spawn. Once the marker is durable, an
+interrupted or ambiguous launch remains conservatively chargeable. A Codex
+authentication incident requires either that durable marker or an explicit
+Codex credential-state incident; a generic pre-marker control failure records
+only its execution incident. Preflight and production share this boundary. The
+V18 public receipt keeps its legacy early-marker projection and one-call
+conservative accounting; it is not retroactively rewritten.
 
 The initial macOS adapter supervises one complete evaluator command, not 300
 individual provider commands. Its own `prepared`, `launch_committed`,
@@ -115,10 +133,10 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V18 adds a provider-free boundary before the private panel exists. One exact
+V19 retains the provider-free boundary before the private panel exists. One exact
 absolute interpreter,
 `/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python`, runs every
-V18 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
+V19 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order, and
 does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. The
@@ -150,10 +168,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v18.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v19.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V18 freezer or `prepare` command can create or read a key, cohort,
+the matched V19 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -229,7 +247,7 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. Persistent-supervisor contract schema v7 intentionally rejects
+evaluator. Persistent-supervisor contract schema v8 intentionally rejects
 schema-v6 manifests; a run must be freshly versioned, prepared, and authorized
 under the new contract.
 
@@ -306,7 +324,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V18, generation also requires the exact manifest-bound runtime-cache root.
+For V19, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -374,7 +392,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V18 model call may start until all of the following pass through the
+No V19 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -464,15 +482,26 @@ preflight profile, or model call started. V17 is terminal and its cohort,
 keys, credential/cache namespaces, supervisor, runtime, and Keychain service
 cannot be reused.
 
-V18 binds authenticated runtime-environment self-supply and exact restoration,
+V18 completed provider-free preparation and foreground authentication, then
+stopped during its first Claude preflight profile. Its immutable public receipt
+uses the legacy `provider_execution` /
+`provider_adapter_execution_failed` projection and records one
+`started_not_finished` invocation. An offline control-path audit strongly
+indicates that the non-model Claude CLI readiness probe timed out before
+the model-bearing process was spawned, but the legacy early marker cannot
+prove zero billing. V18 therefore retains one conservatively chargeable call.
+No production assignment, result, score, or trace was released. V18 is
+terminal, non-resumable, and forbidden for namespace or cohort reuse.
+
+V19 binds authenticated runtime-environment self-supply and exact restoration,
 atomic create-once staging/publication, the finite provider-incident taxonomy,
 authenticated terminal-receipt exit, completion-checkpoint recovery,
 repository-relative receipt handoff, provider-free prelaunch attestation,
 nested launchd-state parser, and the existing heartbeat/retry/source contracts
 under panel/cohort
-`development-matched-50x6-v18`, top-level schema
-`development_matched_panel_v18`, the exact $585 acknowledgement, and fresh
-V18 paths. Its two-commit provider-free runtime protocol must prove the exact V5
+`development-matched-50x6-v19`, top-level schema
+`development_matched_panel_v19`, the exact $590 acknowledgement, and fresh
+V19 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
@@ -489,9 +518,10 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V18 panel's Claude ceiling is $510 (102 calls × $5); the exact
-acknowledgement's $585 cumulative ceiling adds the conservative $75 allowance
-for prior failed panels. Neither value is a claim about measured billing.
+The current V19 panel's Claude ceiling is $510 (102 calls × $5); the exact
+acknowledgement's $590 cumulative ceiling adds the conservative $80 allowance
+for prior failed panels, including V18's retained $5 legacy-marker call.
+Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only
 and are never mixed into the new estimand.

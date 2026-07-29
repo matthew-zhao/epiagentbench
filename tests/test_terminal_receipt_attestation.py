@@ -160,6 +160,78 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 observed=None,
             )
 
+    def test_late_readiness_timeout_preserves_prior_chargeable_profile(
+        self,
+    ) -> None:
+        private, public, candidate = self._preflight_fixture()
+        profiles: list[dict[str, object]] = []
+        for index, profile in enumerate(matched.PROFILES):
+            if index == 0:
+                profiles.append(
+                    {
+                        "profile_id": profile["profile_id"],
+                        "model_invocation_state": "finished",
+                        "outcome": "passed",
+                        "timed_out": False,
+                        "timeout_stage": None,
+                        "conservative_chargeable": True,
+                    }
+                )
+            elif index == 1:
+                profiles.append(
+                    {
+                        "profile_id": profile["profile_id"],
+                        "model_invocation_state": "not_started",
+                        "outcome": (
+                            "failed_provider_cli_readiness_timeout"
+                        ),
+                        "timed_out": True,
+                        "timeout_stage": "provider_cli_readiness",
+                        "conservative_chargeable": False,
+                    }
+                )
+            else:
+                profiles.append(
+                    {
+                        "profile_id": profile["profile_id"],
+                        "model_invocation_state": "not_started",
+                        "outcome": "not_started_terminal_abort",
+                        "timed_out": False,
+                        "timeout_stage": None,
+                        "conservative_chargeable": False,
+                    }
+                )
+        candidate.update(
+            {
+                "failure_reason": "provider_cli_readiness_timeout",
+                "failure_stage": "provider_cli_readiness",
+                "incident_code": "provider_cli_readiness_timeout",
+                "failed_profile_id": matched.PROFILES[1]["profile_id"],
+                "failed_model_invocation_state": "not_started",
+                "model_invocations_conservatively_chargeable": 1,
+                "timed_out": True,
+                "timeout_stages": ["provider_cli_readiness"],
+                "profiles": profiles,
+            }
+        )
+        private["environment_preflight"]["terminal_public_receipt"] = (
+            candidate
+        )
+        private["environment_preflight"]["public_receipt_sha256"] = (
+            matched._component_hash(candidate)
+        )
+
+        attestation = self._attest_preflight(
+            private=private,
+            public=public,
+            observed=candidate,
+        )
+
+        self.assertEqual(attestation["status"], "attested")
+        self.assertEqual(
+            candidate["model_invocations_conservatively_chargeable"], 1
+        )
+
     def test_spoofed_incident_code_cannot_cross_terminal_boundary(self) -> None:
         private, public, candidate = self._preflight_fixture()
         candidate["incident_code"] = "provider_said_everything_is_fine"
@@ -365,7 +437,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             "status": "terminal",
             "assignment_index": 0,
             "failure_class": "interrupted_after_durable_start",
-            "incident_code": "provider_interrupted_after_durable_start",
+            "incident_code": "provider_interrupted_after_durable_attempt",
         }
         with (
             patch.object(matched, "_read_authentication_key", return_value=b"k"),
@@ -553,7 +625,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             "status": "terminal",
             "assignment_index": 0,
             "failure_class": "interrupted_after_durable_start",
-            "incident_code": "provider_interrupted_after_durable_start",
+            "incident_code": "provider_interrupted_after_durable_attempt",
         }
         self.public_results.unlink()
         original_load_json = matched._load_json

@@ -15,7 +15,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
@@ -59,7 +59,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_verification.v2"
             ),
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
             "runtime_cache_contract": {"private": "must-not-publish"},
             "provider_processes_started": 0,
@@ -111,7 +111,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 "schema_version": (
                     "epiagentbench.preparation_runtime_verification.v2"
                 ),
-                "panel_id": "development-matched-50x6-v18",
+                "panel_id": matched_cli.PANEL_ID,
                 "status": "passed",
                 "provider_processes_started": 0,
                 "authentication_processes_started": 0,
@@ -122,7 +122,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self.assertEqual(
             json.loads(safe_print.call_args.args[0]),
             {
-                "panel_id": "development-matched-50x6-v18",
+                "panel_id": matched_cli.PANEL_ID,
                 "status": "verified",
                 "provider_processes_started": 0,
                 "authentication_processes_started": 0,
@@ -246,7 +246,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_authenticate_dispatches_only_to_foreground_authentication(self) -> None:
         payload = {
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
             "providers": {
                 "codex": {"status": "passed"},
@@ -285,7 +285,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self.assertEqual(
             rendered,
             {
-                "panel_id": "development-matched-50x6-v18",
+                "panel_id": matched_cli.PANEL_ID,
                 "status": "passed",
                 "authentication_ready": True,
                 "codex_status": "passed",

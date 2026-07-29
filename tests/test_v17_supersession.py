@@ -168,10 +168,10 @@ class V17SupersessionTests(unittest.TestCase):
             self.root / "src/epiagentbench/development_matched_panel.py"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            '_SCHEMA = "epiagentbench.launchd_agent.v10"', launcher
+            '_SCHEMA = "epiagentbench.launchd_agent.v11"', launcher
         )
         self.assertIn(
-            '_PROTOCOL_VERSION = "persistent-supervisor-v4"', launcher
+            '_PROTOCOL_VERSION = "persistent-supervisor-v5"', launcher
         )
         self.assertIn(
             "def _load_in_authenticated_runtime_environment", launcher
@@ -180,7 +180,7 @@ class V17SupersessionTests(unittest.TestCase):
             "def _assert_authenticated_config_snapshot", launcher
         )
         self.assertIn(
-            '"schema_version": "epiagentbench.persistent_supervisor_contract.v7"',
+            '"schema_version": "epiagentbench.persistent_supervisor_contract.v8"',
             panel,
         )
 

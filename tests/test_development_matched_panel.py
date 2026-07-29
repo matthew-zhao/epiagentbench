@@ -35,8 +35,10 @@ from epiagentbench.development_matched_panel import (
 from epiagentbench.pilot import (
     CodexAuthenticationIncidentError,
     PilotRunResult,
+    ProviderCLIReadinessTimeoutError,
     ProviderExecutionIsolationError,
     ProviderProcessIsolationError,
+    ProviderSpawnIsolationError,
     ProviderStateIsolationError,
 )
 from epiagentbench.replay_trace import replay_trace_sha256
@@ -136,7 +138,7 @@ RUNTIME_CACHE_CONTRACT = {
 }
 RUNTIME_SMOKE_CONTRACT = {
     "schema_version": "epiagentbench.preparation_runtime_smoke.v1",
-    "fixed_public_scenario": "v18_four_person_ltc_one_day",
+    "fixed_public_scenario": "v19_four_person_ltc_one_day",
     "result_sha256": "sha256:" + "e" * 64,
     "result": {"test": "fixed-public-smoke"},
 }
@@ -160,7 +162,7 @@ def prepare_panel(**kwargs):
     root = Path(kwargs["root"])
     kwargs.setdefault(
         "preparation_runtime_receipt_path",
-        root / "results" / "development-matched-50x6-v18.runtime.json",
+        root / "results" / "development-matched-50x6-v19.runtime.json",
     )
     kwargs.setdefault("expected_benchmark_base_commit", "d" * 40)
     kwargs.setdefault(
@@ -170,11 +172,57 @@ def prepare_panel(**kwargs):
     return _PREPARE_PANEL_API(**kwargs)
 
 
+def _adapt_model_bearing_test_evaluator(evaluator):
+    def adapted(*args, **kwargs):
+        callback = kwargs.get("model_invocation_start_callback")
+        if not callable(callback):
+            raise AssertionError(
+                "test evaluator did not receive a model invocation callback"
+            )
+        callback_count = 0
+
+        def tracked_callback() -> None:
+            nonlocal callback_count
+            callback_count += 1
+            if callback_count != 1:
+                raise AssertionError(
+                    "test evaluator invoked the model callback more than once"
+                )
+            callback()
+
+        kwargs["model_invocation_start_callback"] = tracked_callback
+        progress_callback = kwargs.get("progress_callback")
+        if callable(progress_callback):
+            def tracked_progress(snapshot) -> None:
+                if callback_count == 0:
+                    tracked_callback()
+                progress_callback(snapshot)
+
+            kwargs["progress_callback"] = tracked_progress
+        try:
+            result = evaluator(*args, **kwargs)
+        except ProviderCLIReadinessTimeoutError:
+            if callback_count != 0:
+                raise AssertionError(
+                    "readiness timeout crossed the model invocation boundary"
+                ) from None
+            raise
+        except Exception:
+            if callback_count == 0:
+                tracked_callback()
+            raise
+        if callback_count == 0:
+            tracked_callback()
+        return result
+
+    return adapted
+
+
 def _offline_test_evaluator(*args, **kwargs):
     evaluator = matched.evaluate_local_cli_agent
     if evaluator is _REAL_EVALUATOR:
         raise AssertionError("offline test attempted to invoke the real evaluator")
-    return evaluator(*args, **kwargs)
+    return _adapt_model_bearing_test_evaluator(evaluator)(*args, **kwargs)
 
 
 def run_panel(**kwargs):
@@ -183,8 +231,18 @@ def run_panel(**kwargs):
     if supervised:
         if evaluator is not None and evaluator is not _offline_test_evaluator:
             raise AssertionError("supervised test cannot inject an evaluator")
-        return _RUN_PANEL_API(**kwargs)
+        live_evaluator = matched.evaluate_local_cli_agent
+        if live_evaluator is _REAL_EVALUATOR:
+            return _RUN_PANEL_API(**kwargs)
+        with patch.object(
+            matched,
+            "evaluate_local_cli_agent",
+            _adapt_model_bearing_test_evaluator(live_evaluator),
+        ):
+            return _RUN_PANEL_API(**kwargs)
     kwargs.pop("supervisor_runtime_dir", None)
+    if evaluator is not _offline_test_evaluator:
+        evaluator = _adapt_model_bearing_test_evaluator(evaluator)
     return matched._run_panel_for_offline_test(
         **kwargs,
         offline_test_evaluator=evaluator,
@@ -197,8 +255,18 @@ def run_environment_preflight(**kwargs):
     if supervised:
         if evaluator is not None and evaluator is not _offline_test_evaluator:
             raise AssertionError("supervised test cannot inject an evaluator")
-        return _RUN_PREFLIGHT_API(**kwargs)
+        live_evaluator = matched.evaluate_local_cli_agent
+        if live_evaluator is _REAL_EVALUATOR:
+            return _RUN_PREFLIGHT_API(**kwargs)
+        with patch.object(
+            matched,
+            "evaluate_local_cli_agent",
+            _adapt_model_bearing_test_evaluator(live_evaluator),
+        ):
+            return _RUN_PREFLIGHT_API(**kwargs)
     kwargs.pop("supervisor_runtime_dir", None)
+    if evaluator is not _offline_test_evaluator:
+        evaluator = _adapt_model_bearing_test_evaluator(evaluator)
     return matched._run_environment_preflight_for_offline_test(
         **kwargs,
         offline_test_evaluator=evaluator,
@@ -289,9 +357,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v18.authentication.json",
+            "results/development-matched-50x6-v19.authentication.json",
         ):
-            return "results/development-matched-50x6-v18.authentication.json"
+            return "results/development-matched-50x6-v19.authentication.json"
         return ""
 
     @staticmethod
@@ -386,10 +454,10 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_verification.v1"
             ),
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": "development-matched-50x6-v19",
             "status": "passed",
             "published_receipt_path": (
-                "results/development-matched-50x6-v18.runtime.json"
+                "results/development-matched-50x6-v19.runtime.json"
             ),
             "published_receipt_file_sha256": "sha256:" + "f" * 64,
             "published_benchmark_base_commit": "c" * 40,
@@ -422,14 +490,14 @@ class MatchedPanelTests(unittest.TestCase):
         return (
             {
                 "schema_version": (
-                    "epiagentbench.v18_cohort_freeze_claim.v1"
+                    "epiagentbench.v19_cohort_freeze_claim.v1"
                 ),
                 "status": "pending_create_once_freeze",
                 "fixture": True,
             },
             {
                 "schema_version": (
-                    "epiagentbench.v18_cohort_freeze_completion.v1"
+                    "epiagentbench.v19_cohort_freeze_completion.v1"
                 ),
                 "status": "completed_create_once_freeze",
                 "fixture": True,
@@ -446,7 +514,7 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": "development-matched-50x6-v19",
             "status": "passed",
             "benchmark_base_commit": benchmark_base_commit,
             "required_starsim_version": "3.5.1",
@@ -655,7 +723,7 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": "development-matched-50x6-v19",
             "status": "passed",
             "benchmark_base_commit": commit,
             "required_starsim_version": "3.5.1",
@@ -732,7 +800,7 @@ class MatchedPanelTests(unittest.TestCase):
             self.skipTest("requires the pinned V5 scientific Python")
 
         cache_root = (
-            self.claude_secure_storage_dir / "v18-runtime-receipt-cache"
+            self.claude_secure_storage_dir / "v19-runtime-receipt-cache"
         )
         cache_root.mkdir(mode=0o700)
         for name in ("matplotlib", "numba", "xdg"):
@@ -821,7 +889,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_prepared_manifest_redacts_private_runtime_cache_binding(self):
         cache_root, environment = self._runtime_cache_environment(
-            "private-v18-runtime-cache"
+            "private-v19-runtime-cache"
         )
         with patch.dict(os.environ, environment, clear=False):
             cache_contract = matched._runtime_cache_contract(cache_root)
@@ -849,7 +917,7 @@ class MatchedPanelTests(unittest.TestCase):
                 preparation_runtime_receipt_path=(
                     self.root
                     / "results"
-                    / "development-matched-50x6-v18.runtime.json"
+                    / "development-matched-50x6-v19.runtime.json"
                 ),
                 expected_benchmark_base_commit="d" * 40,
                 runtime_cache_dir=cache_root,
@@ -1119,12 +1187,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             first["fixed_public_scenario"],
-            "v18_contact_transmission_with_matched_contact_stop",
+            "v19_contact_transmission_with_matched_contact_stop",
         )
         self.assertEqual(
             first["result_sha256"],
             "sha256:"
-            "4b724cb8757efc98d2cc23676f6bc3d882e1c697ee230c8897325b3acb2083c9",
+            "fad38877b79d2be90fbb136702878fb1c10f5547f0d0170a5ebcab6c9e776d12",
         )
         self.assertEqual(
             first["result_sha256"],
@@ -1178,7 +1246,7 @@ class MatchedPanelTests(unittest.TestCase):
             first["result"]["contact_stop_action"]["boundaries"][2][
                 "applied_control_ids"
             ],
-            ["v18-stop-direct-care"],
+            ["v19-stop-direct-care"],
         )
 
     def test_real_preparation_runtime_smoke_rejects_golden_digest_drift(self):
@@ -1209,7 +1277,7 @@ class MatchedPanelTests(unittest.TestCase):
         receipt_path = (
             self.root
             / "results"
-            / "development-matched-50x6-v18.runtime.json"
+            / "development-matched-50x6-v19.runtime.json"
         )
         receipt_path.parent.mkdir()
         published = self._preparation_runtime_receipt()
@@ -1309,7 +1377,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
     def test_freeze_verifies_runtime_before_key_cohort_or_randomness(self):
-        output_directory = self.root / "fresh-v18-cohort"
+        output_directory = self.root / "fresh-v19-cohort"
         with (
             patch.object(
                 matched,
@@ -1365,7 +1433,7 @@ class MatchedPanelTests(unittest.TestCase):
             matched._cohort_freeze_claim_path(shared_key)
 
     def test_freeze_claim_is_pending_before_freezer_and_completed_once(self):
-        output_directory = self.root / "fresh-v18-cohort"
+        output_directory = self.root / "fresh-v19-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -1440,7 +1508,7 @@ class MatchedPanelTests(unittest.TestCase):
                     expected_benchmark_base_commit="d" * 40,
                     runtime_cache_dir=self.root / "runtime-cache",
                     authentication_key_file=self.key_path,
-                    output_directory=self.root / "reroll-v18-cohort",
+                    output_directory=self.root / "reroll-v19-cohort",
                     freeze_claim_path=claim_path,
                 )
 
@@ -1465,7 +1533,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
 
     def test_interrupted_freeze_claim_is_terminal_and_nonretryable(self):
-        output_directory = self.root / "interrupted-v18-cohort"
+        output_directory = self.root / "interrupted-v19-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -1529,7 +1597,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(freezer.call_count, 1)
         second_freezer.assert_not_called()
 
-    def test_prepare_rejects_generic_and_cherry_picked_v18_cohorts(self):
+    def test_prepare_rejects_generic_and_cherry_picked_v19_cohorts(self):
         generic_manifest = self._cohort()
         real_require = matched._require_completed_cohort_freeze_claim
         with (
@@ -1580,7 +1648,7 @@ class MatchedPanelTests(unittest.TestCase):
             authentication_key=AUTHENTICATION_KEY,
         )
         cherry_picked_manifest = self._cohort_at(
-            self.root / "cherry-picked-v18-cohort"
+            self.root / "cherry-picked-v19-cohort"
         )
         with self.assertRaisesRegex(
             ValueError, "belongs to another freeze"
@@ -2578,7 +2646,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "status": "transport_void",
                 "started_at_utc": "test-assignment-start",
                 "finished_at_utc": "test-assignment-finish",
-                "void_reason": "test_prefix_checkpoint",
+                "void_reason": "provider_adapter_execution_failed",
             }
             for episode_ref, profile_id in keys[:count]
         ]
@@ -2596,8 +2664,11 @@ class MatchedPanelTests(unittest.TestCase):
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
-        private["assignments"][0]["void_reason"] = str(
-            incident["failure_class"]
+        incident_code = str(incident["incident_code"])
+        private["assignments"][0]["void_reason"] = (
+            incident_code
+            if incident_code in matched._PROVIDER_INCIDENT_CODES
+            else "provider_adapter_execution_failed"
         )
         private["execution_incident"] = dict(incident)
         matched._write_private_state(
@@ -2606,6 +2677,25 @@ class MatchedPanelTests(unittest.TestCase):
         running = matched._public_running(public, private)
         matched._atomic_json(self.results_path, running)
         return running
+
+    def _stage_transport_void_for_system(
+        self, system: str
+    ) -> tuple[dict, dict, int]:
+        public = self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        keys = matched._assignment_keys(private["schedule"])
+        assignment_index = next(
+            index
+            for index, (_episode_ref, profile_id) in enumerate(keys)
+            if matched._PROFILE_BY_ID[profile_id]["system"] == system
+        )
+        self._set_terminal_assignment_prefix(assignment_index + 1)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        return public, private, assignment_index
 
     def _assert_signed_isolation_incident_refused(
         self,
@@ -3035,6 +3125,7 @@ class MatchedPanelTests(unittest.TestCase):
         def evaluate(system: str, **kwargs):
             nonlocal calls
             calls += 1
+            kwargs["model_invocation_start_callback"]()
             result = self._result(
                 system,
                 kwargs["model"],
@@ -3585,12 +3676,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                profile["invocation_state"] == "not_started"
+                profile["model_invocation_state"] == "not_started"
                 for profile in failed["profiles"][1:]
             )
         )
         self.assertEqual(
-            failed["provider_calls_conservatively_chargeable"],
+            failed["model_invocations_conservatively_chargeable"],
             1,
         )
         self.assertNotIn("raw_result", json.dumps(failed))
@@ -3741,7 +3832,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(stopped["profiles_terminal"], len(PROFILES))
         self.assertEqual(
-            stopped["provider_calls_conservatively_chargeable"],
+            stopped["model_invocations_conservatively_chargeable"],
             len(PROFILES),
         )
         self.assertEqual(
@@ -4010,14 +4101,16 @@ class MatchedPanelTests(unittest.TestCase):
             + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
         )
         self.assertEqual(
-            [item["invocation_state"] for item in receipt["profiles"]],
+            [item["model_invocation_state"] for item in receipt["profiles"]],
             ["finished"] + ["not_started"] * (len(PROFILES) - 1),
         )
         self.assertEqual(
             [item["conservative_chargeable"] for item in receipt["profiles"]],
             [True] + [False] * (len(PROFILES) - 1),
         )
-        self.assertEqual(receipt["provider_calls_conservatively_chargeable"], 1)
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 1
+        )
         self.assertFalse(receipt["scores_reported"])
 
     def _assert_non_codex_timeout_is_fixed_zero(self, system: str) -> None:
@@ -4067,7 +4160,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v18_authorization_breakdown"],
+            contract["claude_current_v19_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -4077,7 +4170,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v18_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v19_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -4098,14 +4191,15 @@ class MatchedPanelTests(unittest.TestCase):
                 "v15_usd": 0.0,
                 "v16_usd": 5.0,
                 "v17_usd": 0.0,
+                "v18_usd": 5.0,
             },
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_conservative_ceiling_usd"],
-            75.0,
+            80.0,
         )
         self.assertEqual(
-            contract["claude_cumulative_authorization_ceiling_usd"], 585.0
+            contract["claude_cumulative_authorization_ceiling_usd"], 590.0
         )
         self.assertEqual(
             set(contract["prior_public_audit_references"]),
@@ -4143,6 +4237,11 @@ class MatchedPanelTests(unittest.TestCase):
                 "v17_manifest",
                 "v17_authentication_receipt",
                 "v17_supersession",
+                "v18_runtime_receipt",
+                "v18_manifest",
+                "v18_authentication_receipt",
+                "v18_preflight_artifact",
+                "v18_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -4150,15 +4249,15 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
-    def test_v18_acknowledgement_is_exact_and_accounts_through_v17(self):
+    def test_v19_acknowledgement_is_exact_and_accounts_through_v18(self):
         self.assertEqual(
             hashlib.sha256(
                 REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
             ).hexdigest(),
-            "86edc43a7916777940c4f6156bc4914dc572301b554bbd47ecbdc5c81e85fbaa",
+            "1d60c684287f542b212e02004ac6f434058d5a49dd6c46f035bb450bc279e344",
         )
-        self.assertIn("six-call v18 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
-        self.assertIn("$585 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("six-call v19 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("$590 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("failed v14 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn(
             "failed zero-model-call v15 pre-claim preparation",
@@ -4170,17 +4269,18 @@ class MatchedPanelTests(unittest.TestCase):
             "runtime-cache-environment refusal",
             REQUIRED_SPEND_ACKNOWLEDGEMENT,
         )
+        self.assertIn("failed v18 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         runbook = (
-            Path(__file__).resolve().parents[1] / "docs" / "V18_RUNBOOK.md"
+            Path(__file__).resolve().parents[1] / "docs" / "V19_RUNBOOK.md"
         ).read_text(encoding="utf-8")
         readme = (
             Path(__file__).resolve().parents[1] / "README.md"
         ).read_text(encoding="utf-8")
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, runbook)
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, readme)
-        self.assertIn("development-matched-50x6-v18", runbook)
-        self.assertIn("development_matched_panel_v18", runbook)
-        self.assertIn("epiagentbench-cursor-v18", runbook)
+        self.assertIn("development-matched-50x6-v19", runbook)
+        self.assertIn("development_matched_panel_v19", runbook)
+        self.assertIn("epiagentbench-cursor-v19", runbook)
         checkout_proof = runbook.index(
             "operator-approved GitButler-compatible"
         )
@@ -4201,7 +4301,7 @@ class MatchedPanelTests(unittest.TestCase):
             "security add-generic-password"
         )
         supervisor_creation = runbook.index(
-            'mkdir "$HOME/.codex/epiagentbench-v18-supervisors"'
+            'mkdir "$HOME/.codex/epiagentbench-v19-supervisors"'
         )
         self.assertLess(checkout_proof, runtime_preflight)
         self.assertLess(runtime_preflight, private_creation)
@@ -4211,11 +4311,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertLess(manifest_authorization, cursor_credential)
         self.assertLess(manifest_authorization, supervisor_creation)
         self.assertIn(
-            'V18_RUNTIME_CHECKOUT="${V18_RUNTIME_CHECKOUT:?',
+            'V19_RUNTIME_CHECKOUT="${V19_RUNTIME_CHECKOUT:?',
             runbook,
         )
         self.assertIn(
-            'V18_PREPARE_CHECKOUT="${V18_PREPARE_CHECKOUT:?',
+            'V19_PREPARE_CHECKOUT="${V19_PREPARE_CHECKOUT:?',
             runbook,
         )
         self.assertIn(
@@ -4223,15 +4323,15 @@ class MatchedPanelTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            'git ls-files --error-unmatch "$V18_PUBLIC_RUNTIME"',
+            'git ls-files --error-unmatch "$V19_PUBLIC_RUNTIME"',
             runbook,
         )
         self.assertNotIn("git worktree add", runbook)
         self.assertIn("for candidate_path in \\", runbook)
         self.assertNotIn("for path in \\", runbook)
         self.assertEqual(runbook.count("reconcile-terminal-receipt"), 2)
-        self.assertIn("V18_PREFLIGHT_TERMINAL_CHECKOUT", runbook)
-        self.assertIn("V18_PRODUCTION_TERMINAL_CHECKOUT", runbook)
+        self.assertIn("V19_PREFLIGHT_TERMINAL_CHECKOUT", runbook)
+        self.assertIn("V19_PRODUCTION_TERMINAL_CHECKOUT", runbook)
         self.assertIn("--public-runtime-receipt", runbook)
         self.assertIn("--public-verification-receipt", runbook)
         self.assertIn("publish-provider-free-json", runbook)
@@ -4240,26 +4340,26 @@ class MatchedPanelTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            """test "$(stat -f '%Lp' "$V18_RUNTIME_ONE")" = 644""",
+            """test "$(stat -f '%Lp' "$V19_RUNTIME_ONE")" = 644""",
             runbook,
         )
         self.assertIn(
-            """test "$(stat -f '%Lp' "$V18_VERIFICATION_OUTPUT")" = 644""",
+            """test "$(stat -f '%Lp' "$V19_VERIFICATION_OUTPUT")" = 644""",
             runbook,
         )
-        self.assertNotIn('> "$V18_RUNTIME_ONE"', runbook)
-        self.assertNotIn('> "$V18_RUNTIME_TWO"', runbook)
-        self.assertNotIn('> "$V18_VERIFICATION_OUTPUT"', runbook)
-        self.assertNotIn('cp "$V18_RUNTIME_ONE"', runbook)
+        self.assertNotIn('> "$V19_RUNTIME_ONE"', runbook)
+        self.assertNotIn('> "$V19_RUNTIME_TWO"', runbook)
+        self.assertNotIn('> "$V19_VERIFICATION_OUTPUT"', runbook)
+        self.assertNotIn('cp "$V19_RUNTIME_ONE"', runbook)
         self.assertNotIn(
-            'cp "$V18_PREPARE_CHECKOUT/$V18_PUBLIC_MANIFEST"',
+            'cp "$V19_PREPARE_CHECKOUT/$V19_PUBLIC_MANIFEST"',
             runbook,
         )
 
         supervisor = matched._persistent_supervisor_contract()
         self.assertEqual(
             supervisor["schema_version"],
-            "epiagentbench.persistent_supervisor_contract.v7",
+            "epiagentbench.persistent_supervisor_contract.v8",
         )
         bootstrap = supervisor["runtime_cache_environment_bootstrap"]
         self.assertEqual(
@@ -4378,7 +4478,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v18_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v19_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -4825,7 +4925,7 @@ class MatchedPanelTests(unittest.TestCase):
             "--freeze-claim",
             (
                 "/private/"
-                ".development-matched-50x6-v18."
+                ".development-matched-50x6-v19."
                 "cohort-freeze-claim.v1.json"
             ),
             "--claude-secure-storage-dir",
@@ -4868,7 +4968,7 @@ class MatchedPanelTests(unittest.TestCase):
             prepare.call_args.kwargs["freeze_claim_path"],
             Path(
                 "/private/"
-                ".development-matched-50x6-v18."
+                ".development-matched-50x6-v19."
                 "cohort-freeze-claim.v1.json"
             ),
         )
@@ -4898,8 +4998,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v18")
-        self.assertEqual(public["schema_version"], "development_matched_panel_v18")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v19")
+        self.assertEqual(public["schema_version"], "development_matched_panel_v19")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -4928,7 +5028,7 @@ class MatchedPanelTests(unittest.TestCase):
             private["spend_authorization"][
                 "claude_cumulative_authorization_ceiling_usd"
             ],
-            585.0,
+            590.0,
         )
         self.assertEqual(
             private["spend_authorization"]["unbounded_provider_spend"],
@@ -4952,7 +5052,10 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(
             public["run_contract"]["terminal_incident_policy"],
             {
-                "crash_after_durable_start": {
+                "crash_after_durable_attempt_before_model_invocation": {
+                    "all_profiles": ["execution_incident"],
+                },
+                "crash_after_model_invocation_start": {
                     "non_codex": ["execution_incident"],
                     "codex": [
                         "execution_incident",
@@ -4961,21 +5064,37 @@ class MatchedPanelTests(unittest.TestCase):
                 },
                 "provider_process_or_output_pipe_isolation_failure": {
                     "non_codex": ["execution_incident"],
-                    "codex": [
+                    "codex_before_model_invocation": [
+                        "execution_incident",
+                    ],
+                    "codex_after_model_invocation_start": [
                         "execution_incident",
                         "codex_auth_incident",
                     ],
                 },
                 "provider_state_persistence_guard_failure": {
                     "non_codex": ["execution_incident"],
-                    "codex": [
+                    "codex_before_model_invocation": [
+                        "execution_incident",
+                    ],
+                    "codex_after_model_invocation_start": [
                         "execution_incident",
                         "codex_auth_incident",
                     ],
+                    "post_quiescence_result_checkpoint": [
+                        "execution_incident",
+                    ],
+                    "post_quiescence_codex_authentication_state": (
+                        "not ambiguous after successful provider-process, "
+                        "supervisor-boundary, and credential attestations"
+                    ),
                 },
                 "episode_service_cleanup_failure": {
                     "non_codex": ["execution_incident"],
-                    "codex": [
+                    "codex_before_model_invocation": [
+                        "execution_incident",
+                    ],
+                    "codex_after_model_invocation_start": [
                         "execution_incident",
                         "codex_auth_incident",
                     ],
@@ -4983,6 +5102,10 @@ class MatchedPanelTests(unittest.TestCase):
                 "codex_timeout_or_post_launch_credential_link_drift": [
                     "codex_auth_incident"
                 ],
+                "codex_authentication_boundary": (
+                    "record only after durable model_invocation start or an "
+                    "explicit Codex credential-state incident"
+                ),
                 "effects": (
                     "seal the current assignment as transport_void; never "
                     "retry; call no later provider; block cohort retirement, "
@@ -7263,11 +7386,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v18_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v19_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v18", "six-call v10"
+            "six-call v19", "six-call v10"
         )
         with (
             patch(
@@ -7301,7 +7424,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_root_owned_regular_executable_identity"
             ) as wrapper_identity,
-            self.assertRaisesRegex(RuntimeError, "exact v18 \\$585"),
+            self.assertRaisesRegex(RuntimeError, "exact v19 \\$590"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -7622,7 +7745,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.authentication_dependency_freeze.v1"
             ),
             "status": "frozen",
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": "development-matched-50x6-v19",
             "public_precommitment_sha256": public["precommitment_sha256"],
             "static_cli_contract_sha256": public["contract_hashes"][
                 "cli_sha256"
@@ -7957,7 +8080,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v18"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v19"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -8004,7 +8127,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v18"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v19"),
         ):
             run_panel(
                 root=self.root,
@@ -8409,13 +8532,22 @@ class MatchedPanelTests(unittest.TestCase):
         private_after = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
+        self.assertNotIn("codex_auth_incident", private_after)
         self.assertEqual(
-            private_after["codex_auth_incident"],
+            private_after["execution_incident"],
             {
                 "status": "terminal",
                 "assignment_index": orphan_index,
-                "failure_class": "interrupted_after_durable_start",
+                "failure_class": "interrupted_after_durable_attempt",
+                "incident_code": "provider_interrupted_after_durable_attempt",
             },
+        )
+        self.assertEqual(
+            private_after["assignments"][-1]["model_invocation_state"],
+            "not_started",
+        )
+        self.assertFalse(
+            private_after["assignments"][-1]["conservative_chargeable"]
         )
         with self.assertRaisesRegex(RuntimeError, "non-resumable"):
             self._run_with(
@@ -8423,6 +8555,205 @@ class MatchedPanelTests(unittest.TestCase):
                     "Codex orphan must make the remaining panel non-resumable"
                 )
             )
+
+    def test_crash_interrupted_codex_model_invocation_is_chargeable(self):
+        self._prepare()
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        keys = matched._assignment_keys(private["schedule"])
+        orphan_index = next(
+            index
+            for index, (_ref, profile_id) in enumerate(keys)
+            if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
+        )
+        self._set_terminal_assignment_prefix(orphan_index)
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        orphan_ref, orphan_profile = keys[orphan_index]
+        private["assignments"].append(
+            {
+                "episode_ref": orphan_ref,
+                "profile_id": orphan_profile,
+                "status": "started",
+                "started_at_utc": "before-crash",
+                "model_invocation": {
+                    "status": "started",
+                    "started_at_utc": "before-model-crash",
+                },
+            }
+        )
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+
+        stopped, invoked = self._run_with(
+            lambda *_args, **_kwargs: self.fail("orphan must not be retried")
+        )
+
+        invoked.assert_not_called()
+        self.assertEqual(stopped["status"], "stopped_transport_void")
+        self.assertEqual(
+            stopped["model_invocations_conservatively_chargeable"], 1
+        )
+        private_after = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        assignment = private_after["assignments"][-1]
+        self.assertEqual(assignment["status"], "transport_void")
+        self.assertEqual(
+            assignment["model_invocation_state"],
+            "started_not_finished",
+        )
+        self.assertTrue(assignment["conservative_chargeable"])
+        self.assertEqual(
+            private_after["execution_incident"]["incident_code"],
+            "provider_interrupted_after_durable_attempt",
+        )
+        self.assertEqual(
+            private_after["codex_auth_incident"],
+            {
+                "status": "terminal",
+                "assignment_index": orphan_index,
+                "failure_class": (
+                    "interrupted_after_model_invocation_start"
+                ),
+            },
+        )
+
+    def test_codex_auth_incident_rejects_non_codex_assignment(self):
+        public, private, assignment_index = (
+            self._stage_transport_void_for_system("claude")
+        )
+        private["codex_auth_incident"] = {
+            "status": "terminal",
+            "assignment_index": assignment_index,
+            "failure_class": "CodexAuthenticationIncidentError",
+        }
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+
+        with self._contracts(), self.assertRaisesRegex(
+            ValueError, "Codex authentication incident is invalid"
+        ):
+            matched._reconcile_terminal_incident_public_progress(
+                root=self.root,
+                public_manifest=public,
+                private=private,
+                public_results_path=(
+                    self.root / "results" / "non-codex-incident.json"
+                ),
+            )
+
+    def test_codex_auth_incident_rejects_generic_pre_marker_failure(self):
+        public, private, assignment_index = (
+            self._stage_transport_void_for_system("codex")
+        )
+        private["codex_auth_incident"] = {
+            "status": "terminal",
+            "assignment_index": assignment_index,
+            "failure_class": "ProviderStateIsolationError",
+        }
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+
+        with self._contracts(), self.assertRaisesRegex(
+            ValueError, "Codex authentication incident is invalid"
+        ):
+            matched._reconcile_terminal_incident_public_progress(
+                root=self.root,
+                public_manifest=public,
+                private=private,
+                public_results_path=(
+                    self.root / "results" / "premarker-incident.json"
+                ),
+            )
+
+    def test_explicit_codex_auth_incident_is_valid_before_model_marker(self):
+        public, private, assignment_index = (
+            self._stage_transport_void_for_system("codex")
+        )
+        private["codex_auth_incident"] = {
+            "status": "terminal",
+            "assignment_index": assignment_index,
+            "failure_class": "CodexAuthenticationIncidentError",
+        }
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+
+        with self._contracts():
+            reconciled = (
+                matched._reconcile_terminal_incident_public_progress(
+                    root=self.root,
+                    public_manifest=public,
+                    private=private,
+                    public_results_path=(
+                        self.root
+                        / "results"
+                        / "explicit-codex-incident.json"
+                    ),
+                )
+            )
+
+        self.assertEqual(reconciled["status"], "stopped_transport_void")
+        self.assertEqual(
+            reconciled["model_invocations_conservatively_chargeable"], 0
+        )
+
+    def test_generic_codex_auth_incident_is_valid_after_model_marker(self):
+        public, private, assignment_index = (
+            self._stage_transport_void_for_system("codex")
+        )
+        assignment = private["assignments"][assignment_index]
+        assignment["model_invocation"] = {
+            "status": "started",
+            "started_at_utc": "before-model-incident",
+        }
+        assignment["model_invocation_state"] = "started_not_finished"
+        assignment["conservative_chargeable"] = True
+        private["codex_auth_incident"] = {
+            "status": "terminal",
+            "assignment_index": assignment_index,
+            "failure_class": "ProviderStateIsolationError",
+        }
+        matched._write_private_state(
+            self.private_path, private, AUTHENTICATION_KEY
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+
+        with self._contracts():
+            reconciled = (
+                matched._reconcile_terminal_incident_public_progress(
+                    root=self.root,
+                    public_manifest=public,
+                    private=private,
+                    public_results_path=(
+                        self.root
+                        / "results"
+                        / "postmarker-codex-incident.json"
+                    ),
+                )
+            )
+
+        self.assertEqual(reconciled["status"], "stopped_transport_void")
+        self.assertEqual(
+            reconciled["model_invocations_conservatively_chargeable"], 1
+        )
 
     def test_crash_interrupted_non_codex_assignment_is_non_resumable(self):
         self._prepare()
@@ -8442,7 +8773,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "status": "transport_void",
                 "started_at_utc": "earlier-start",
                 "finished_at_utc": "earlier-finish",
-                "void_reason": "test-prefix",
+                "void_reason": "provider_adapter_execution_failed",
             }
             for ref, profile_id in keys[:orphan_index]
         ]
@@ -8472,8 +8803,8 @@ class MatchedPanelTests(unittest.TestCase):
             {
                 "status": "terminal",
                 "assignment_index": orphan_index,
-                "failure_class": "interrupted_after_durable_start",
-                "incident_code": "provider_interrupted_after_durable_start",
+                "failure_class": "interrupted_after_durable_attempt",
+                "incident_code": "provider_interrupted_after_durable_attempt",
             },
         )
         with self.assertRaisesRegex(RuntimeError, "execution incident"):
@@ -8496,7 +8827,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "status": "transport_void",
                 "started_at_utc": "earlier-start",
                 "finished_at_utc": "earlier-finish",
-                "void_reason": "test-prefix",
+                "void_reason": "provider_adapter_execution_failed",
             }
             for ref, profile_id in keys[:-1]
         ]
@@ -8786,11 +9117,156 @@ class MatchedPanelTests(unittest.TestCase):
             "clean_before_assignment",
         )
 
-    def test_production_completion_write_failure_terminalizes_durable_start(
+    def test_production_model_start_marker_failure_is_nonchargeable(
+        self,
+    ):
+        self._prepare()
+        original_write = matched._write_private_state
+        failed_once = False
+
+        def fail_model_start(path, value, key):
+            nonlocal failed_once
+            assignments = value.get("assignments")
+            current = (
+                assignments[-1]
+                if isinstance(assignments, list) and assignments
+                else None
+            )
+            invocation = (
+                current.get("model_invocation")
+                if isinstance(current, dict)
+                else None
+            )
+            if (
+                not failed_once
+                and isinstance(current, dict)
+                and current.get("status") == "started"
+                and isinstance(invocation, dict)
+                and invocation.get("status") == "started"
+            ):
+                failed_once = True
+                raise OSError("offline model-start checkpoint failure")
+            return original_write(path, value, key)
+
+        def evaluate(_system: str, **kwargs):
+            kwargs["model_invocation_start_callback"]()
+            self.fail("model work must not follow marker persistence failure")
+
+        with patch(
+            "epiagentbench.development_matched_panel._write_private_state",
+            side_effect=fail_model_start,
+        ):
+            result, invoked = self._run_with(evaluate)
+
+        self.assertTrue(failed_once)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(result["status"], "stopped_supervisor_incident")
+        self.assertEqual(
+            result["failure_stage"],
+            "provider_isolation_before_model_invocation",
+        )
+        self.assertEqual(
+            result["incident_code"],
+            "model_invocation_marker_persist_failed",
+        )
+        self.assertEqual(
+            result["model_invocations_conservatively_chargeable"], 0
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        assignment = private["assignments"][0]
+        self.assertEqual(assignment["status"], "transport_void")
+        self.assertNotIn("model_invocation", assignment)
+        self.assertEqual(assignment["model_invocation_state"], "not_started")
+        self.assertFalse(assignment["conservative_chargeable"])
+
+    def test_production_invocation_finished_write_failure_is_ambiguous(
+        self,
+    ):
+        self._prepare()
+        original_write = matched._write_private_state
+        failed_once = False
+
+        def fail_model_finished(path, value, key):
+            nonlocal failed_once
+            assignments = value.get("assignments")
+            current = (
+                assignments[-1]
+                if isinstance(assignments, list) and assignments
+                else None
+            )
+            invocation = (
+                current.get("model_invocation")
+                if isinstance(current, dict)
+                else None
+            )
+            if (
+                not failed_once
+                and isinstance(current, dict)
+                and current.get("status") == "started"
+                and isinstance(invocation, dict)
+                and invocation.get("status") == "finished"
+            ):
+                failed_once = True
+                raise OSError("offline model-finished checkpoint failure")
+            return original_write(path, value, key)
+
+        def evaluate(system: str, **kwargs):
+            return self._result(
+                system, kwargs["model"], kwargs["executable"], 1.0
+            )
+
+        with patch(
+            "epiagentbench.development_matched_panel._write_private_state",
+            side_effect=fail_model_finished,
+        ):
+            result, invoked = self._run_with(evaluate)
+
+        self.assertTrue(failed_once)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(result["status"], "stopped_supervisor_incident")
+        self.assertEqual(
+            result["failure_stage"],
+            "provider_isolation_after_model_invocation_start",
+        )
+        self.assertEqual(
+            result["incident_code"],
+            "provider_completion_marker_persist_failed",
+        )
+        self.assertEqual(
+            result["model_invocations_conservatively_chargeable"], 1
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        assignment = private["assignments"][0]
+        self.assertEqual(assignment["status"], "transport_void")
+        self.assertEqual(
+            matched._durable_model_invocation_state(assignment),
+            "started_not_finished",
+        )
+        self.assertEqual(
+            assignment["model_invocation_state"],
+            "started_not_finished",
+        )
+        self.assertTrue(assignment["conservative_chargeable"])
+
+    def test_production_assignment_result_write_failure_preserves_finished_invocation(
         self,
     ):
         self._prepare()
         self.keychain_present = True
+        prepared = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        keys = matched._assignment_keys(prepared["schedule"])
+        codex_index = next(
+            index
+            for index, (_episode_ref, profile_id) in enumerate(keys)
+            if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
+        )
+        self._set_terminal_assignment_prefix(codex_index)
         original_write = matched._write_private_state
         failed_once = False
 
@@ -8856,9 +9332,10 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertTrue(failed_once)
         self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(invoked.call_args.args[0], "codex")
         self.assertEqual(result["status"], "stopped_supervisor_incident")
-        self.assertEqual(result["terminal_assignments"], 1)
-        self.assertEqual(result["transport_voids"], 1)
+        self.assertEqual(result["terminal_assignments"], codex_index + 1)
+        self.assertEqual(result["transport_voids"], codex_index + 1)
         self.assertEqual(
             result["incident_code"],
             "provider_completion_marker_persist_failed",
@@ -8867,13 +9344,25 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, AUTHENTICATION_KEY
         )
         self.assertEqual(
-            private["assignments"][0]["status"], "transport_void"
+            private["assignments"][codex_index]["status"], "transport_void"
         )
-        self.assertNotIn("public_result", private["assignments"][0])
+        self.assertEqual(
+            matched._durable_model_invocation_state(
+                private["assignments"][codex_index]
+            ),
+            "finished",
+        )
+        self.assertEqual(
+            result["model_invocations_conservatively_chargeable"], 1
+        )
+        self.assertNotIn(
+            "public_result", private["assignments"][codex_index]
+        )
         self.assertEqual(
             private["execution_incident"]["failure_class"],
             "ProviderCompletionPersistenceError",
         )
+        self.assertNotIn("codex_auth_incident", private)
 
     def test_production_before_call_helper_drift_is_terminal_zero_call(self):
         self._prepare()
@@ -8978,7 +9467,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(result["status"], "stopped_supervisor_incident")
         self.assertEqual(
             result["failure_stage"],
-            "provider_isolation_after_provider",
+            "provider_isolation_after_model_invocation_start",
         )
         self.assertNotIn("attestation_failure_code", result)
         private = matched._load_private_state(
@@ -8988,7 +9477,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["assignments"][0]["status"], "transport_void")
         self.assertEqual(
             private["assignments"][0]["void_reason"],
-            "ProviderStateIsolationError",
+            "provider_state_isolation_failed",
         )
         self.assertEqual(
             private["execution_incident"]["failure_class"],
@@ -9045,7 +9534,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(result["status"], "stopped_supervisor_incident")
         self.assertEqual(
             result["failure_stage"],
-            "provider_isolation_after_provider",
+            "provider_isolation_after_model_invocation_start",
         )
         self.assertNotIn("attestation_failure_code", result)
         private = matched._load_private_state(
@@ -9054,7 +9543,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(len(private["assignments"]), 1)
         self.assertEqual(
             private["assignments"][0]["void_reason"],
-            "ProviderStateIsolationError",
+            "provider_state_isolation_failed",
         )
         self.assertEqual(
             private["execution_incident"]["failure_class"],
@@ -9203,7 +9692,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(result["status"], "stopped_supervisor_incident")
         self.assertEqual(
             result["failure_stage"],
-            "provider_isolation_after_provider",
+            "provider_isolation_after_model_invocation_start",
         )
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
@@ -9257,7 +9746,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(stopped["status"], "stopped_supervisor_incident")
         self.assertEqual(
             stopped["failure_stage"],
-            "provider_isolation_after_provider",
+            "provider_isolation_after_model_invocation_start",
         )
         self.assertEqual(stopped["terminal_assignments"], claude_index + 1)
         self.assertEqual(stopped["results"], [])
@@ -9272,7 +9761,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(assignment["status"], "transport_void")
         self.assertNotIn("raw_result", assignment)
         self.assertEqual(
-            assignment["void_reason"], "ProviderStateIsolationError"
+            assignment["void_reason"], "provider_state_isolation_failed"
         )
         self.assertEqual(
             private["execution_incident"],
@@ -9365,6 +9854,105 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
 
+    def test_production_readiness_timeout_is_nonchargeable_and_continues(
+        self,
+    ):
+        public = self._prepare()
+        self.keychain_present = True
+        keys = self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 2)
+        first_key, second_key = keys[-2:]
+        live = self._supervisor_attestation(
+            "production", public["precommitment_sha256"]
+        )
+        evaluator_calls = 0
+
+        def evaluate(system: str, **kwargs):
+            nonlocal evaluator_calls
+            evaluator_calls += 1
+            if evaluator_calls == 1:
+                raise ProviderCLIReadinessTimeoutError(
+                    "offline readiness timeout"
+                )
+            return self._result(
+                system,
+                kwargs["model"],
+                kwargs["executable"],
+                1.0,
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.launchd_agent.attest_live_launch_agent",
+                return_value=live,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
+            pending = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                supervisor_runtime_dir=self.root / "production-supervisor",
+                require_persistent_supervisor=True,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 2)
+        self.assertEqual(
+            pending["status"], matched._PENDING_PRODUCTION_STATUS
+        )
+        self.assertEqual(pending["terminal_assignments"], ASSIGNMENT_COUNT)
+        self.assertEqual(pending["transport_voids"], ASSIGNMENT_COUNT - 1)
+        self.assertEqual(
+            pending["model_invocations_conservatively_chargeable"], 1
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        first, second = private["assignments"][-2:]
+        self.assertEqual(
+            (first["episode_ref"], first["profile_id"]), first_key
+        )
+        self.assertEqual(first["status"], "transport_void")
+        self.assertEqual(
+            first["void_reason"], "provider_cli_readiness_timeout"
+        )
+        self.assertTrue(first["timed_out"])
+        self.assertEqual(
+            first["timeout_stage"], "provider_cli_readiness"
+        )
+        self.assertEqual(
+            first["failure_stage"], "provider_cli_readiness"
+        )
+        self.assertEqual(first["model_invocation_state"], "not_started")
+        self.assertFalse(first["conservative_chargeable"])
+        self.assertEqual(
+            (second["episode_ref"], second["profile_id"]), second_key
+        )
+        self.assertEqual(second["status"], "complete")
+        self.assertEqual(
+            matched._durable_model_invocation_state(second), "finished"
+        )
+        self.assertNotIn("execution_incident", private)
+        self.assertNotIn("codex_auth_incident", private)
+
     def test_assignment_300_process_isolation_incident_blocks_retirement(self):
         self._prepare()
         self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
@@ -9378,7 +9966,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(result["status"], "stopped_supervisor_incident")
         self.assertEqual(
             result["failure_stage"],
-            "provider_isolation_after_provider",
+            "provider_isolation_after_model_invocation_start",
         )
         self.assertEqual(result["terminal_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(result["results"], [])
@@ -9491,7 +10079,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(repaired["status"], "stopped_supervisor_incident")
         self.assertEqual(
             repaired["failure_stage"],
-            "provider_isolation_after_provider",
+            "provider_isolation_after_model_invocation_start",
         )
         self.assertEqual(repaired["terminal_assignments"], 1)
         self.assertEqual(repaired["completed_assignments"], 0)
@@ -9526,9 +10114,9 @@ class MatchedPanelTests(unittest.TestCase):
             {
                 "status": "terminal",
                 "assignment_index": 0,
-                "failure_class": "interrupted_after_durable_start",
+                "failure_class": "interrupted_after_durable_attempt",
                 "boundary": "provider-output-DO-NOT-LEAK",
-                "incident_code": "provider_interrupted_after_durable_start",
+                "incident_code": "provider_interrupted_after_durable_attempt",
             },
             "boundary is invalid",
         )
@@ -9538,9 +10126,9 @@ class MatchedPanelTests(unittest.TestCase):
             {
                 "status": "terminal",
                 "assignment_index": 0,
-                "failure_class": "interrupted_after_durable_start",
+                "failure_class": "interrupted_after_durable_attempt",
                 "attestation_failure_code": "provider-output-DO-NOT-LEAK",
-                "incident_code": "provider_interrupted_after_durable_start",
+                "incident_code": "provider_interrupted_after_durable_attempt",
             },
             "failure code",
         )
@@ -9618,7 +10206,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "status": "transport_void",
                 "started_at_utc": "test-assignment-start",
                 "finished_at_utc": "test-assignment-finish",
-                "void_reason": "ProviderProcessIsolationError",
+                "void_reason": "provider_process_isolation_failed",
             }
         ]
         private["execution_incident"] = {
@@ -9893,7 +10481,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "status": "transport_void",
                 "started_at_utc": "start",
                 "finished_at_utc": "finish",
-                "void_reason": "test_terminal_checkpoint",
+                "void_reason": "provider_adapter_execution_failed",
             }
             for episode_ref, profile_id in matched._assignment_keys(
                 private["schedule"]
@@ -10047,9 +10635,9 @@ class MatchedPanelTests(unittest.TestCase):
             receipt["preflight_purpose"],
             "unscored_infrastructure_routing_handshake",
         )
-        self.assertIsNone(receipt["failed_provider_invocation_state"])
+        self.assertIsNone(receipt["failed_model_invocation_state"])
         self.assertEqual(
-            receipt["provider_calls_conservatively_chargeable"], 6
+            receipt["model_invocations_conservatively_chargeable"], 6
         )
         self.assertEqual(len(receipt["profiles"]), len(PROFILES))
         self.assertTrue(
@@ -10060,7 +10648,7 @@ class MatchedPanelTests(unittest.TestCase):
                 (
                     item["profile_id"],
                     item["requested_reasoning"],
-                    item["invocation_state"],
+                    item["model_invocation_state"],
                     item["outcome"],
                     item["timed_out"],
                     item["conservative_chargeable"],
@@ -10145,9 +10733,9 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                attempt["provider_invocation"]["status"] == "finished"
-                and "started_at_utc" in attempt["provider_invocation"]
-                and "finished_at_utc" in attempt["provider_invocation"]
+                attempt["model_invocation"]["status"] == "finished"
+                and "started_at_utc" in attempt["model_invocation"]
+                and "finished_at_utc" in attempt["model_invocation"]
                 for attempt in private["environment_preflight"]["attempts"]
             )
         )
@@ -10286,7 +10874,7 @@ class MatchedPanelTests(unittest.TestCase):
             {
                 key: outcomes["codex-sol"][key]
                 for key in (
-                    "invocation_state",
+                    "model_invocation_state",
                     "outcome",
                     "timed_out",
                     "conservative_chargeable",
@@ -10294,7 +10882,7 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             },
             {
-                "invocation_state": "finished",
+                "model_invocation_state": "finished",
                 "outcome": "failed_timeout",
                 "timed_out": True,
                 "conservative_chargeable": True,
@@ -10305,14 +10893,14 @@ class MatchedPanelTests(unittest.TestCase):
             {
                 key: outcomes["codex-luna-max"][key]
                 for key in (
-                    "invocation_state",
+                    "model_invocation_state",
                     "outcome",
                     "timed_out",
                     "conservative_chargeable",
                 )
             },
             {
-                "invocation_state": "not_started",
+                "model_invocation_state": "not_started",
                 "outcome": "skipped_dependency",
                 "timed_out": False,
                 "conservative_chargeable": False,
@@ -10325,7 +10913,7 @@ class MatchedPanelTests(unittest.TestCase):
             outcomes["cursor-kimi-k27-code"]["outcome"], "passed"
         )
         self.assertEqual(
-            receipt["provider_calls_conservatively_chargeable"], 5
+            receipt["model_invocations_conservatively_chargeable"], 5
         )
         self.assertFalse(receipt["scores_reported"])
 
@@ -10415,11 +11003,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         failure = receipt["profiles"][0]
         self.assertEqual(failure["failure_reason"], "nonzero_exit")
-        self.assertEqual(failure["invocation_state"], "finished")
+        self.assertEqual(failure["model_invocation_state"], "finished")
         self.assertFalse(failure["timed_out"])
         self.assertTrue(failure["conservative_chargeable"])
         self.assertEqual(
-            receipt["provider_calls_conservatively_chargeable"], len(PROFILES)
+            receipt["model_invocations_conservatively_chargeable"],
+            len(PROFILES),
         )
         self.assertEqual(receipt["failed_profile_ids"], ["claude-opus-high"])
 
@@ -10513,7 +11102,7 @@ class MatchedPanelTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            [item["invocation_state"] for item in outcomes],
+            [item["model_invocation_state"] for item in outcomes],
             [
                 "finished",
                 "finished",
@@ -10528,19 +11117,19 @@ class MatchedPanelTests(unittest.TestCase):
             [True, True, True, False, False, False],
         )
         self.assertEqual(
-            receipt["provider_calls_conservatively_chargeable"], 3
+            receipt["model_invocations_conservatively_chargeable"], 3
         )
         self.assertNotIn(
             "provider-secret-must-not-leak",
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v18_receipt(self):
+    def test_environment_preflight_gate_validates_full_v19_receipt(self):
         self._prepare()
         preflight_path = (
             self.root
             / "results"
-            / "development-matched-50x6-v18.preflight.json"
+            / "development-matched-50x6-v19.preflight.json"
         )
 
         def evaluate(system: str, **kwargs):
@@ -10763,28 +11352,35 @@ class MatchedPanelTests(unittest.TestCase):
             "execution_contract_before_harness",
         )
         self.assertEqual(
-            before_receipt["failed_provider_invocation_state"],
+            before_receipt["failed_model_invocation_state"],
             "not_started",
         )
         self.assertEqual(
-            before_receipt["provider_calls_conservatively_chargeable"], 0
+            before_receipt["model_invocations_conservatively_chargeable"], 0
         )
 
-    def test_provider_invocation_accounting_uses_only_durable_markers(self):
+    def test_model_invocation_accounting_uses_only_durable_markers(self):
         attempts = [
             {"profile_id": "not-started"},
             {
                 "profile_id": "started",
-                "provider_invocation": {"status": "started"},
+                "model_invocation": {
+                    "status": "started",
+                    "started_at_utc": "started",
+                },
             },
             {
                 "profile_id": "finished",
-                "provider_invocation": {"status": "finished"},
+                "model_invocation": {
+                    "status": "finished",
+                    "started_at_utc": "started",
+                    "finished_at_utc": "finished",
+                },
             },
         ]
         self.assertEqual(
             [
-                matched._durable_provider_invocation_state(attempt)
+                matched._durable_model_invocation_state(attempt)
                 for attempt in attempts
             ],
             ["not_started", "started_not_finished", "finished"],
@@ -11091,7 +11687,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             authentication_receipt["panel_id"],
-            "development-matched-50x6-v18",
+            "development-matched-50x6-v19",
         )
         self.assertEqual(authentication_receipt["status"], "passed")
         self.assertIs(authentication_receipt["development_only"], True)
@@ -11751,7 +12347,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v18"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v19"),
         ):
             matched.authenticate_panel(
                 root=self.root,
@@ -11902,10 +12498,10 @@ class MatchedPanelTests(unittest.TestCase):
             "execution_contract_after_harness",
         )
         self.assertEqual(
-            after_receipt["failed_provider_invocation_state"], "finished"
+            after_receipt["failed_model_invocation_state"], "finished"
         )
         self.assertEqual(
-            after_receipt["provider_calls_conservatively_chargeable"], 1
+            after_receipt["model_invocations_conservatively_chargeable"], 1
         )
 
     def test_disposable_preflight_requires_cursor_key_before_any_call(self):
@@ -11955,6 +12551,332 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
+    def test_preflight_readiness_timeout_is_zero_charge_and_one_shot(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-readiness.json"
+
+        def readiness_timeout(_system: str, **kwargs):
+            self.assertTrue(
+                callable(kwargs["model_invocation_start_callback"])
+            )
+            raise ProviderCLIReadinessTimeoutError(
+                "offline readiness timeout"
+            )
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=readiness_timeout,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(
+            receipt["failure_reason"], "provider_cli_readiness_timeout"
+        )
+        self.assertEqual(
+            receipt["failure_stage"], "provider_cli_readiness"
+        )
+        self.assertEqual(
+            receipt["incident_code"], "provider_cli_readiness_timeout"
+        )
+        self.assertTrue(receipt["timed_out"])
+        self.assertEqual(
+            receipt["timeout_stages"], ["provider_cli_readiness"]
+        )
+        self.assertEqual(
+            receipt["failed_model_invocation_state"], "not_started"
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 0
+        )
+        self.assertEqual(
+            [item["outcome"] for item in receipt["profiles"]],
+            ["failed_provider_cli_readiness_timeout"]
+            + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
+        )
+        first = receipt["profiles"][0]
+        self.assertEqual(first["model_invocation_state"], "not_started")
+        self.assertFalse(first["conservative_chargeable"])
+        self.assertEqual(
+            first["timeout_stage"], "provider_cli_readiness"
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        durable_first = private["environment_preflight"]["attempts"][0]
+        self.assertNotIn("model_invocation", durable_first)
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate_again,
+            self.assertRaisesRegex(RuntimeError, "one-shot required state"),
+        ):
+            run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+        evaluate_again.assert_not_called()
+
+    def test_preflight_model_start_marker_failure_is_nonchargeable(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-model-start.json"
+        original_write = matched._write_private_state
+        failed_once = False
+
+        def fail_model_start(path, value, key):
+            nonlocal failed_once
+            preflight = value.get("environment_preflight")
+            attempts = (
+                preflight.get("attempts")
+                if isinstance(preflight, dict)
+                else None
+            )
+            current = (
+                attempts[-1]
+                if isinstance(attempts, list) and attempts
+                else None
+            )
+            invocation = (
+                current.get("model_invocation")
+                if isinstance(current, dict)
+                else None
+            )
+            if (
+                not failed_once
+                and isinstance(current, dict)
+                and current.get("status") == "started"
+                and isinstance(invocation, dict)
+                and invocation.get("status") == "started"
+            ):
+                failed_once = True
+                raise OSError("offline model-start checkpoint failure")
+            return original_write(path, value, key)
+
+        def evaluate(_system: str, **kwargs):
+            kwargs["model_invocation_start_callback"]()
+            self.fail("model work must not follow marker persistence failure")
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_write_private_state",
+                side_effect=fail_model_start,
+            ),
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertTrue(failed_once)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(receipt["failure_stage"], "model_invocation_marker")
+        self.assertEqual(
+            receipt["incident_code"],
+            "model_invocation_marker_persist_failed",
+        )
+        self.assertEqual(
+            receipt["failed_model_invocation_state"], "not_started"
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 0
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        durable_first = private["environment_preflight"]["attempts"][0]
+        self.assertNotIn("model_invocation", durable_first)
+
+    def test_preflight_model_start_postcommit_failure_is_chargeable(self):
+        self._prepare()
+        preflight_path = (
+            self.root / "results" / "preflight-model-start-postcommit.json"
+        )
+        original_write = matched._write_private_state
+        failed_once = False
+
+        def persist_then_fail(path, value, key):
+            nonlocal failed_once
+            preflight = value.get("environment_preflight")
+            attempts = (
+                preflight.get("attempts")
+                if isinstance(preflight, dict)
+                else None
+            )
+            current = (
+                attempts[-1]
+                if isinstance(attempts, list) and attempts
+                else None
+            )
+            invocation = (
+                current.get("model_invocation")
+                if isinstance(current, dict)
+                else None
+            )
+            if (
+                not failed_once
+                and isinstance(current, dict)
+                and current.get("status") == "started"
+                and isinstance(invocation, dict)
+                and invocation.get("status") == "started"
+            ):
+                failed_once = True
+                original_write(path, value, key)
+                raise OSError("offline postcommit marker failure")
+            return original_write(path, value, key)
+
+        def evaluate(_system: str, **kwargs):
+            kwargs["model_invocation_start_callback"]()
+            self.fail("model work must not follow marker persistence failure")
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_write_private_state",
+                side_effect=persist_then_fail,
+            ),
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertTrue(failed_once)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(receipt["failure_stage"], "model_invocation_marker")
+        self.assertEqual(
+            receipt["incident_code"],
+            "model_invocation_marker_persist_failed",
+        )
+        self.assertEqual(
+            receipt["failed_model_invocation_state"],
+            "started_not_finished",
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 1
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 1
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        durable_first = private["environment_preflight"]["attempts"][0]
+        self.assertEqual(
+            matched._durable_model_invocation_state(durable_first),
+            "started_not_finished",
+        )
+
+    def test_preflight_spawn_failure_after_marker_is_chargeable(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "preflight-spawn.json"
+
+        def spawn_failure(_system: str, **kwargs):
+            kwargs["model_invocation_start_callback"]()
+            raise ProviderSpawnIsolationError("offline spawn failure")
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=spawn_failure,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(receipt["failure_stage"], "provider_execution")
+        self.assertEqual(receipt["incident_code"], "provider_spawn_failed")
+        self.assertEqual(
+            receipt["failed_model_invocation_state"],
+            "started_not_finished",
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 1
+        )
+
     def test_failed_disposable_preflight_is_one_shot(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight.json"
@@ -11984,11 +12906,11 @@ class MatchedPanelTests(unittest.TestCase):
             "provider_adapter_execution_failed",
         )
         self.assertEqual(
-            receipt["failed_provider_invocation_state"],
+            receipt["failed_model_invocation_state"],
             "started_not_finished",
         )
         self.assertEqual(
-            receipt["provider_calls_conservatively_chargeable"], 1
+            receipt["model_invocations_conservatively_chargeable"], 1
         )
 
         with (
@@ -12032,7 +12954,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
             current = attempts[-1] if isinstance(attempts, list) and attempts else None
             invocation = (
-                current.get("provider_invocation")
+                current.get("model_invocation")
                 if isinstance(current, dict)
                 else None
             )
@@ -12097,8 +13019,11 @@ class MatchedPanelTests(unittest.TestCase):
             "provider_completion_marker_persist_failed",
         )
         self.assertEqual(
-            receipt["failed_provider_invocation_state"],
+            receipt["failed_model_invocation_state"],
             "started_not_finished",
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 1
         )
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
@@ -12106,7 +13031,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight = private["environment_preflight"]
         self.assertEqual(preflight["terminal_public_receipt"], receipt)
         self.assertEqual(
-            preflight["attempts"][0]["provider_invocation"]["status"],
+            preflight["attempts"][0]["model_invocation"]["status"],
             "started",
         )
 
@@ -12134,7 +13059,7 @@ class MatchedPanelTests(unittest.TestCase):
                 else None
             )
             invocation = (
-                current.get("provider_invocation")
+                current.get("model_invocation")
                 if isinstance(current, dict)
                 else None
             )
@@ -12205,13 +13130,19 @@ class MatchedPanelTests(unittest.TestCase):
             ["terminal_abort"]
             + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
         )
+        self.assertEqual(
+            receipt["failed_model_invocation_state"], "finished"
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 1
+        )
         private = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
         first = private["environment_preflight"]["attempts"][0]
         self.assertEqual(first["status"], "terminal_abort")
         self.assertEqual(
-            first["provider_invocation"]["status"],
+            first["model_invocation"]["status"],
             "finished",
         )
 
@@ -12333,7 +13264,7 @@ class MatchedPanelTests(unittest.TestCase):
                 else None
             )
             invocation = (
-                current.get("provider_invocation")
+                current.get("model_invocation")
                 if isinstance(current, dict)
                 else None
             )
@@ -12429,7 +13360,7 @@ class MatchedPanelTests(unittest.TestCase):
             "quarantined",
         )
 
-    def test_running_preflight_with_started_provider_invocation_is_one_shot(self):
+    def test_running_preflight_with_started_model_invocation_is_one_shot(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-running.json"
         private = matched._load_private_state(
@@ -12449,7 +13380,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "profile_id": PROFILES[0]["profile_id"],
                     "status": "started",
                     "started_at_utc": "test-attempt-start",
-                    "provider_invocation": {
+                    "model_invocation": {
                         "status": "started",
                         "started_at_utc": "test-provider-start",
                     },
@@ -12543,6 +13474,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "status": "transport_void",
                 "started_at_utc": "start",
                 "finished_at_utc": "finish",
+                "void_reason": "provider_adapter_execution_failed",
             }
         ]
         matched._write_private_state(
@@ -12586,7 +13518,7 @@ class ProviderFreePublicationTests(unittest.TestCase):
         self.source = self.root / "source.json"
         self.destination = self.root / "destination.json"
         self.payload = {
-            "panel_id": "development-matched-50x6-v18",
+            "panel_id": "development-matched-50x6-v19",
             "status": "provider_free",
         }
         self.source.write_text(

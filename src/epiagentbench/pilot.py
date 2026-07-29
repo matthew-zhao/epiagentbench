@@ -928,10 +928,16 @@ class ProviderProgressPersistenceError(ProviderStateIsolationError):
     incident_code = "provider_progress_checkpoint_persist_failed"
 
 
-class ProviderInvocationPersistenceError(ProviderStateIsolationError):
-    """Raised when the durable provider-start marker cannot be persisted."""
+class ProviderAttemptPersistenceError(ProviderStateIsolationError):
+    """Raised when a nonchargeable provider-attempt marker cannot persist."""
 
-    incident_code = "provider_invocation_marker_persist_failed"
+    incident_code = "provider_attempt_marker_persist_failed"
+
+
+class ProviderInvocationPersistenceError(ProviderStateIsolationError):
+    """Raised when the durable model-start marker cannot be persisted."""
+
+    incident_code = "model_invocation_marker_persist_failed"
 
 
 class ProviderCompletionPersistenceError(ProviderStateIsolationError):
@@ -950,6 +956,14 @@ class ProviderQuarantinePersistenceError(ProviderStateIsolationError):
     """Raised when a terminal provider quarantine cannot be persisted."""
 
     incident_code = "provider_quarantine_checkpoint_persist_failed"
+
+
+class ProviderCLIReadinessTimeoutError(RuntimeError):
+    """Raised when a non-model provider CLI readiness check times out."""
+
+    incident_code = "provider_cli_readiness_timeout"
+    failure_stage = "provider_cli_readiness"
+    timeout_stage = "provider_cli_readiness"
 
 
 class ProviderOutputOverflowError(RuntimeError):
@@ -1363,6 +1377,7 @@ def _run_provider_process_group(
     umask: int,
     forbidden_exact_bytes: Sequence[bytes] = (),
     progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
+    before_spawn_callback: Callable[[], None] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Run one provider CLI with bounded capture in a new POSIX session."""
 
@@ -1373,6 +1388,10 @@ def _run_provider_process_group(
         raise ValueError("Forbidden provider output bytes must be nonempty")
     if progress_callback is not None and not callable(progress_callback):
         raise ValueError("Invalid provider progress callback")
+    if before_spawn_callback is not None and not callable(
+        before_spawn_callback
+    ):
+        raise ValueError("Invalid provider before-spawn callback")
     forbidden_exact_bytes = tuple(forbidden_exact_bytes)
     if os.name != "posix" or not hasattr(os, "killpg"):
         raise ProviderProcessIsolationError(
@@ -1391,6 +1410,8 @@ def _run_provider_process_group(
         else None
     )
     try:
+        if before_spawn_callback is not None:
+            before_spawn_callback()
         try:
             process = subprocess.Popen(
                 list(command),
@@ -2425,6 +2446,7 @@ def evaluate_local_cli_agent(
     claude_effort: str | ClaudeEffort | None = None,
     codex_reasoning_effort: str | None = None,
     progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
+    model_invocation_start_callback: Callable[[], None] | None = None,
     codex_auth_storage_dir: str | os.PathLike[str] | None = None,
     claude_secure_storage_dir: str | os.PathLike[str] | None = None,
     claude_glean_oauth_client_id: str | None = None,
@@ -2443,6 +2465,10 @@ def evaluate_local_cli_agent(
         raise ValueError("Codex reasoning effort is only valid for the Codex system")
     if progress_callback is not None and not callable(progress_callback):
         raise ValueError("Invalid provider progress callback")
+    if model_invocation_start_callback is not None and not callable(
+        model_invocation_start_callback
+    ):
+        raise ValueError("Invalid model invocation start callback")
     if codex_auth_storage_dir is not None and system != "codex":
         raise ValueError("Codex auth storage is only valid for the Codex system")
     if claude_secure_storage_dir is not None and system != "claude":
@@ -2583,6 +2609,10 @@ def evaluate_local_cli_agent(
                     timeout_seconds=15,
                     umask=0o077,
                 )
+            except subprocess.TimeoutExpired:
+                raise ProviderCLIReadinessTimeoutError(
+                    "Provider CLI version readiness timed out"
+                ) from None
             except ProviderOutputOverflowError:
                 raise ProviderStateIsolationError(
                     "Provider CLI version preflight exceeded its output limit"
@@ -2609,6 +2639,10 @@ def evaluate_local_cli_agent(
                         umask=0o077,
                         forbidden_exact_bytes=(cursor_key_bytes,),
                     )
+                except subprocess.TimeoutExpired:
+                    raise ProviderCLIReadinessTimeoutError(
+                        "Cursor MCP readiness timed out"
+                    ) from None
                 except ProviderOutputOverflowError:
                     cursor_key_bytes = b""
                     environment.pop("CURSOR_API_KEY", None)
@@ -2738,6 +2772,9 @@ def evaluate_local_cli_agent(
                         umask=0o077,
                         forbidden_exact_bytes=forbidden_output,
                         progress_callback=capture_progress,
+                        before_spawn_callback=(
+                            model_invocation_start_callback
+                        ),
                     )
                     returncode = process.returncode
                     stdout = _bounded(process.stdout)

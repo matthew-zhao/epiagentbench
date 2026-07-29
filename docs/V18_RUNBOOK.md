@@ -1,3 +1,21 @@
+> [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V18 completed provider-free preparation and foreground authentication, then
+> stopped during its first Claude preflight profile. The released trace-free
+> receipt conservatively records one started-not-finished provider invocation.
+> An offline control-path audit strongly indicates that the non-model CLI
+> readiness probe timed out before the model-bearing process was spawned, but
+> V18's early marker cannot prove zero billing, so the one-call $5 ceiling is
+> retained. No production assignment, score, or trace was released.
+> Do not resume, repair, or reuse any V18 cohort, key, credential namespace,
+> private state, runtime cache, supervisor, Keychain service, or path. The
+> immutable public facts are recorded in the
+> [V18 supersession receipt](../results/development-matched-50x6-v18.superseded.json);
+> use the [V19 runbook](V19_RUNBOOK.md) only after its provider-free
+> preparation is published and the operator supplies a fresh exact
+> authorization.
+
 # EpiAgentBench V18 execution runbook
 
 > [!CAUTION]

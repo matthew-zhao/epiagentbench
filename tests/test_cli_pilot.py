@@ -18,8 +18,10 @@ from unittest.mock import patch
 from epiagentbench.pilot import (
     CodexAuthenticationIncidentError,
     ClaudeEffort,
+    ProviderCLIReadinessTimeoutError,
     ProviderOutputOverflowError,
     ProviderProcessIsolationError,
+    ProviderSpawnIsolationError,
     ProviderStateIsolationError,
     _ProviderProgressTracker,
     _ProviderTemporaryDirectory,
@@ -404,6 +406,71 @@ class CliPilotTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b"0o77")
         self.assertEqual(result.stderr, b"provider-stderr")
+
+    @unittest.skipUnless(
+        os.name == "posix" and hasattr(os, "killpg"),
+        "provider process groups require POSIX",
+    )
+    def test_provider_process_group_runs_boundary_callback_before_spawn(self):
+        events: list[str] = []
+
+        def before_spawn() -> None:
+            events.append("boundary")
+
+        with tempfile.TemporaryDirectory() as temp:
+            result = _run_provider_process_group(
+                [sys.executable, "-c", "print('spawned')"],
+                cwd=Path(temp),
+                environment={"PATH": os.defpath},
+                timeout_seconds=5,
+                umask=0o077,
+                before_spawn_callback=before_spawn,
+            )
+
+        self.assertEqual(events, ["boundary"])
+        self.assertEqual(result.stdout.strip(), b"spawned")
+
+    def test_provider_process_group_callback_failure_prevents_spawn(self):
+        callback_error = OSError("durable marker unavailable")
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch("epiagentbench.pilot.subprocess.Popen") as popen,
+            self.assertRaises(OSError) as caught,
+        ):
+            _run_provider_process_group(
+                [sys.executable, "-c", "raise SystemExit(0)"],
+                cwd=Path(temp),
+                environment={"PATH": os.defpath},
+                timeout_seconds=5,
+                umask=0o077,
+                before_spawn_callback=lambda: (_ for _ in ()).throw(
+                    callback_error
+                ),
+            )
+
+        self.assertIs(caught.exception, callback_error)
+        popen.assert_not_called()
+
+    def test_provider_spawn_failure_occurs_after_boundary_callback(self):
+        events: list[str] = []
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch(
+                "epiagentbench.pilot.subprocess.Popen",
+                side_effect=OSError("spawn refused"),
+            ),
+            self.assertRaises(ProviderSpawnIsolationError),
+        ):
+            _run_provider_process_group(
+                [sys.executable, "-c", "raise SystemExit(0)"],
+                cwd=Path(temp),
+                environment={"PATH": os.defpath},
+                timeout_seconds=5,
+                umask=0o077,
+                before_spawn_callback=lambda: events.append("boundary"),
+            )
+
+        self.assertEqual(events, ["boundary"])
 
     def test_progress_telemetry_uses_only_coarse_combined_buckets(self):
         snapshots: list[dict] = []
@@ -1964,6 +2031,41 @@ class CliPilotTests(unittest.TestCase):
             self.assertNotIn("test-only", str(caught.exception))
             self.assertIsNone(caught.exception.__cause__)
 
+    def test_claude_version_readiness_timeout_stops_before_model_boundary(self):
+        timeout = subprocess.TimeoutExpired(["claude", "--version"], 15)
+        model_boundary_calls: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                side_effect=timeout,
+            ) as provider_run,
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderCLIReadinessTimeoutError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                family="reporting_artifact",
+                backend="starsim-ltc-v3",
+                model_invocation_start_callback=lambda: (
+                    model_boundary_calls.append("model")
+                ),
+            )
+
+        provider_run.assert_called_once()
+        self.assertEqual(
+            provider_run.call_args.args[0], ["/claude", "--version"]
+        )
+        launch.assert_not_called()
+        self.assertEqual(model_boundary_calls, [])
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_cli_readiness"
+        )
+        self.assertEqual(
+            caught.exception.timeout_stage, "provider_cli_readiness"
+        )
+
     def test_claude_agent_plaintext_fallback_closes_episode(self):
         class Session:
             closed = False
@@ -2647,6 +2749,7 @@ class CliPilotTests(unittest.TestCase):
                 return None
 
         error = subprocess.TimeoutExpired(["cursor", "mcp", "enable"], 30)
+        model_boundary_calls: list[str] = []
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
@@ -2665,17 +2768,21 @@ class CliPilotTests(unittest.TestCase):
                 "epiagentbench.pilot._snapshot_cursor_host_state",
                 side_effect=("stable", "stable"),
             ),
-            self.assertRaises(subprocess.TimeoutExpired),
+            self.assertRaises(ProviderCLIReadinessTimeoutError),
         ):
             evaluate_local_cli_agent(
                 "cursor",
                 seed=17,
                 family="reporting_artifact",
                 backend="starsim-ltc-v3",
+                model_invocation_start_callback=lambda: (
+                    model_boundary_calls.append("model")
+                ),
             )
         run.assert_not_called()
         self.assertEqual(provider_run.call_count, 2)
         launch.assert_not_called()
+        self.assertEqual(model_boundary_calls, [])
 
     def test_cursor_assignment_requires_explicit_api_key_before_launch(self):
         with (

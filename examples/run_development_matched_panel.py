@@ -23,7 +23,7 @@ if __name__ == "__main__":
     _require_isolated_main_process()
 
 
-# V18 invokes this script with ``-I -S -B``.  Build the only permitted import
+# V19 invokes this script with ``-I -S -B``.  Build the only permitted import
 # path explicitly: standard library first, then the frozen repository, then
 # the bound virtual-environment packages.  Appending these directories does
 # not execute .pth, sitecustomize, or usercustomize.
@@ -35,7 +35,7 @@ if sys.flags.isolated:
         or sys.flags.dont_write_bytecode != 1
         or not sys.flags.safe_path
     ):
-        raise RuntimeError("Refusing a partially isolated V18 Python process")
+        raise RuntimeError("Refusing a partially isolated V19 Python process")
     _SOURCE_ROOT = _REPOSITORY_ROOT / "src"
     _VENV_ROOT = Path(sys.executable).parent.parent
     _SITE_PACKAGES = (
@@ -48,7 +48,7 @@ if sys.flags.isolated:
         not (_VENV_ROOT / "pyvenv.cfg").is_file()
         or not _SITE_PACKAGES.is_dir()
     ):
-        raise RuntimeError("V18 requires its bound virtual environment")
+        raise RuntimeError("V19 requires its bound virtual environment")
     sys.path.append(str(_SOURCE_ROOT))
     sys.path.append(str(_SITE_PACKAGES))
 
@@ -203,7 +203,7 @@ def main() -> int:
     )
     freeze = commands.add_parser(
         "freeze",
-        help="Freeze the one V18 cohort after runtime receipt verification",
+        help="Freeze the one V19 cohort after runtime receipt verification",
     )
     freeze.add_argument(
         "--preparation-runtime-receipt", required=True, type=Path
