@@ -18,11 +18,22 @@ from unittest.mock import patch
 from epiagentbench.pilot import (
     CodexAuthenticationIncidentError,
     ClaudeEffort,
+    PRE_MODEL_PHASES,
+    ProviderCLIUnavailableError,
+    ProviderCLIReadinessSetupError,
     ProviderCLIReadinessTimeoutError,
+    ProviderCLIVersionEmptyError,
+    ProviderCLIVersionNonzeroError,
+    ProviderEnvironmentSetupError,
+    ProviderEpisodeStartupError,
+    ProviderMCPReadinessError,
+    ProviderOutputIsolationError,
     ProviderOutputOverflowError,
+    ProviderPreModelPhasePersistenceError,
     ProviderProcessIsolationError,
     ProviderSpawnIsolationError,
     ProviderStateIsolationError,
+    ProviderWorkspaceSetupError,
     _ProviderProgressTracker,
     _ProviderTemporaryDirectory,
     _CLAUDE_EXPECTED_TOOLS,
@@ -1698,10 +1709,14 @@ class CliPilotTests(unittest.TestCase):
     def test_codex_requires_explicit_auth_storage_before_cli_lookup(self):
         with (
             patch("epiagentbench.pilot.shutil.which") as which,
-            self.assertRaisesRegex(RuntimeError, "explicit stable auth storage"),
+            self.assertRaises(ProviderEnvironmentSetupError) as caught,
         ):
             evaluate_local_cli_agent("codex", seed=17)
         which.assert_not_called()
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_environment_setup_failed",
+        )
 
     def test_codex_auth_storage_argument_is_rejected_for_non_codex(self):
         with (
@@ -2034,6 +2049,7 @@ class CliPilotTests(unittest.TestCase):
     def test_claude_version_readiness_timeout_stops_before_model_boundary(self):
         timeout = subprocess.TimeoutExpired(["claude", "--version"], 15)
         model_boundary_calls: list[str] = []
+        phases: list[str] = []
         with (
             patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
             patch(
@@ -2048,6 +2064,7 @@ class CliPilotTests(unittest.TestCase):
                 seed=17,
                 family="reporting_artifact",
                 backend="starsim-ltc-v3",
+                pre_model_phase_callback=phases.append,
                 model_invocation_start_callback=lambda: (
                     model_boundary_calls.append("model")
                 ),
@@ -2060,11 +2077,640 @@ class CliPilotTests(unittest.TestCase):
         launch.assert_not_called()
         self.assertEqual(model_boundary_calls, [])
         self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
+        self.assertEqual(
             caught.exception.failure_stage, "provider_cli_readiness"
         )
         self.assertEqual(
             caught.exception.timeout_stage, "provider_cli_readiness"
         )
+
+    def test_version_readiness_spawn_failure_is_typed_as_readiness_setup(
+        self,
+    ):
+        secret = "readiness-spawn-secret-must-not-leak"
+        phases: list[str] = []
+        model_boundary_calls: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                side_effect=ProviderSpawnIsolationError(secret),
+            ) as provider_run,
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderCLIReadinessSetupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+                model_invocation_start_callback=lambda: (
+                    model_boundary_calls.append("model")
+                ),
+            )
+
+        provider_run.assert_called_once()
+        launch.assert_not_called()
+        self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
+        self.assertEqual(model_boundary_calls, [])
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_cli_readiness_setup_failed",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_cli_readiness"
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_pre_model_phase_callback_is_ordered_before_model_boundary(self):
+        class Session:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        events: list[str] = []
+        call_count = 0
+
+        def provider_process(command, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=b"claude 1", stderr=b""
+                )
+            kwargs["before_spawn_callback"]()
+            raise ProviderSpawnIsolationError("offline spawn failure")
+
+        session = Session()
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                side_effect=provider_process,
+            ) as provider_run,
+            patch(
+                "epiagentbench.pilot.launch_socket_episode",
+                return_value=session,
+            ),
+            self.assertRaises(ProviderSpawnIsolationError),
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=lambda phase: events.append(
+                    f"phase:{phase}"
+                ),
+                model_invocation_start_callback=lambda: events.append(
+                    "model_invocation"
+                ),
+            )
+
+        self.assertEqual(provider_run.call_count, 2)
+        self.assertEqual(
+            events,
+            [f"phase:{phase}" for phase in PRE_MODEL_PHASES]
+            + ["model_invocation"],
+        )
+        self.assertTrue(session.closed)
+
+    def test_pre_model_phase_callback_is_optional(self):
+        class Session:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        model_boundary_calls: list[str] = []
+        call_count = 0
+
+        def provider_process(command, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=b"claude 1", stderr=b""
+                )
+            kwargs["before_spawn_callback"]()
+            raise ProviderSpawnIsolationError("offline spawn failure")
+
+        session = Session()
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                side_effect=provider_process,
+            ),
+            patch(
+                "epiagentbench.pilot.launch_socket_episode",
+                return_value=session,
+            ),
+            self.assertRaises(ProviderSpawnIsolationError),
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                model_invocation_start_callback=lambda: (
+                    model_boundary_calls.append("model")
+                ),
+            )
+
+        self.assertEqual(model_boundary_calls, ["model"])
+        self.assertTrue(session.closed)
+
+    def test_pre_model_phase_callback_failure_is_typed_and_content_free(self):
+        secret = "phase-callback-secret-must-not-leak"
+
+        def fail_phase(_phase: str) -> None:
+            raise RuntimeError(secret)
+
+        with (
+            patch("epiagentbench.pilot.shutil.which") as which,
+            self.assertRaises(
+                ProviderPreModelPhasePersistenceError
+            ) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=fail_phase,
+            )
+
+        which.assert_not_called()
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_pre_model_phase_checkpoint_persist_failed",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage,
+            "pre_model_phase_checkpoint",
+        )
+        self.assertEqual(
+            caught.exception.pre_model_phase,
+            "provider_environment_setup",
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_later_phase_callback_failures_record_attempted_phase(self):
+        class Session:
+            def close(self):
+                return None
+
+        secret = "later-phase-secret-must-not-leak"
+        for target_phase in PRE_MODEL_PHASES[1:]:
+            with self.subTest(target_phase=target_phase):
+                phases: list[str] = []
+                provider_calls = 0
+
+                def fail_target_phase(phase: str) -> None:
+                    phases.append(phase)
+                    if phase == target_phase:
+                        raise RuntimeError(secret)
+
+                def provider_process(command, **kwargs):
+                    nonlocal provider_calls
+                    provider_calls += 1
+                    if provider_calls == 1:
+                        return subprocess.CompletedProcess(
+                            command, 0, stdout=b"claude 1", stderr=b""
+                        )
+                    kwargs["before_spawn_callback"]()
+                    raise AssertionError("provider spawn must remain blocked")
+
+                with (
+                    patch(
+                        "epiagentbench.pilot.shutil.which",
+                        return_value="/claude",
+                    ),
+                    patch(
+                        "epiagentbench.pilot._run_provider_process_group",
+                        side_effect=provider_process,
+                    ),
+                    patch(
+                        "epiagentbench.pilot.launch_socket_episode",
+                        return_value=Session(),
+                    ),
+                    self.assertRaises(
+                        ProviderPreModelPhasePersistenceError
+                    ) as caught,
+                ):
+                    evaluate_local_cli_agent(
+                        "claude",
+                        seed=17,
+                        pre_model_phase_callback=fail_target_phase,
+                    )
+
+                self.assertEqual(
+                    caught.exception.pre_model_phase, target_phase
+                )
+                self.assertEqual(phases[-1], target_phase)
+                self.assertNotIn(secret, str(caught.exception))
+                self.assertIsNone(caught.exception.__cause__)
+
+    def test_environment_isolation_error_is_typed_and_content_free(self):
+        secret = "environment-secret-must-not-leak"
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._isolate_claude_environment",
+                side_effect=OSError(secret),
+            ),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group"
+            ) as provider_run,
+            self.assertRaises(ProviderEnvironmentSetupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        provider_run.assert_not_called()
+        self.assertEqual(phases, ["provider_environment_setup"])
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_environment_setup_failed",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_environment_setup"
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_temporary_root_error_is_typed_and_content_free(self):
+        secret = "temporary-root-secret-must-not-leak"
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._ProviderTemporaryDirectory",
+                side_effect=OSError(secret),
+            ),
+            patch("epiagentbench.pilot._prepare_workspace") as workspace,
+            self.assertRaises(ProviderEnvironmentSetupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        workspace.assert_not_called()
+        self.assertEqual(phases, ["provider_environment_setup"])
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_environment_setup_failed",
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_identity_readiness_setup_error_is_typed_and_content_free(self):
+        secret = "identity-readiness-secret-must-not-leak"
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._isolate_identity_environment",
+                side_effect=OSError(secret),
+            ),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group"
+            ) as provider_run,
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderCLIReadinessSetupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        provider_run.assert_not_called()
+        launch.assert_not_called()
+        self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_cli_readiness_setup_failed",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_cli_readiness"
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_provider_selector_error_is_typed_and_content_free(self):
+        secret = "selector-secret-must-not-leak"
+        with (
+            patch(
+                "epiagentbench.pilot.selectors.DefaultSelector",
+                side_effect=OSError(secret),
+            ),
+            self.assertRaises(ProviderOutputIsolationError) as caught,
+        ):
+            _run_provider_process_group(
+                ["/offline-provider"],
+                cwd=Path("/tmp"),
+                environment={},
+                timeout_seconds=1,
+                umask=0o077,
+            )
+
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_output_isolation_failed",
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_cli_unavailable_is_typed_and_environment_attributed(self):
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value=None),
+            patch("epiagentbench.pilot._prepare_workspace") as workspace,
+            self.assertRaises(ProviderCLIUnavailableError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        workspace.assert_not_called()
+        self.assertEqual(phases, ["provider_environment_setup"])
+        self.assertEqual(
+            caught.exception.incident_code, "provider_cli_unavailable"
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_environment_setup"
+        )
+
+    def test_workspace_setup_error_is_typed_and_content_free(self):
+        secret = "workspace-secret-must-not-leak"
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._prepare_workspace",
+                side_effect=OSError(secret),
+            ),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group"
+            ) as provider_run,
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderWorkspaceSetupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        provider_run.assert_not_called()
+        launch.assert_not_called()
+        self.assertEqual(phases, ["provider_environment_setup"])
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_workspace_setup_failed",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_environment_setup"
+        )
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_workspace_setup_preserves_isolation_error(self):
+        primary = ProviderStateIsolationError(
+            "workspace isolation incident"
+        )
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._prepare_workspace",
+                side_effect=primary,
+            ),
+            self.assertRaises(ProviderStateIsolationError) as caught,
+        ):
+            evaluate_local_cli_agent("claude", seed=17)
+
+        self.assertIs(caught.exception, primary)
+
+    def test_cli_version_nonzero_is_typed_and_pre_model(self):
+        secret = b"version-error-secret-must-not-leak"
+        phases: list[str] = []
+        model_boundary_calls: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                return_value=subprocess.CompletedProcess(
+                    [], 9, stdout=b"", stderr=secret
+                ),
+            ) as provider_run,
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderCLIVersionNonzeroError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+                model_invocation_start_callback=lambda: (
+                    model_boundary_calls.append("model")
+                ),
+            )
+
+        provider_run.assert_called_once()
+        launch.assert_not_called()
+        self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
+        self.assertEqual(model_boundary_calls, [])
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_cli_version_nonzero",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_cli_readiness"
+        )
+        self.assertNotIn(secret.decode(), str(caught.exception))
+
+    def test_cli_version_empty_is_typed_and_pre_model(self):
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                return_value=subprocess.CompletedProcess(
+                    [], 0, stdout=b"", stderr=b""
+                ),
+            ),
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderCLIVersionEmptyError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        launch.assert_not_called()
+        self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_cli_version_empty",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_cli_readiness"
+        )
+
+    def test_cursor_mcp_nonzero_is_typed_and_pre_model(self):
+        phases: list[str] = []
+        secret = b"mcp-error-secret-must-not-leak"
+        with (
+            patch.dict(
+                os.environ, {"CURSOR_API_KEY": "test-only"}, clear=True
+            ),
+            patch("epiagentbench.pilot.shutil.which", return_value="/cursor"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                side_effect=(
+                    subprocess.CompletedProcess(
+                        [], 0, stdout=b"cursor 1", stderr=b""
+                    ),
+                    subprocess.CompletedProcess(
+                        [], 3, stdout=b"", stderr=secret
+                    ),
+                ),
+            ) as provider_run,
+            patch(
+                "epiagentbench.pilot._snapshot_cursor_host_state",
+                side_effect=("stable", "stable"),
+            ),
+            patch("epiagentbench.pilot.launch_socket_episode") as launch,
+            self.assertRaises(ProviderMCPReadinessError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "cursor",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        self.assertEqual(provider_run.call_count, 2)
+        launch.assert_not_called()
+        self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_mcp_readiness_failed",
+        )
+        self.assertEqual(
+            caught.exception.failure_stage, "provider_cli_readiness"
+        )
+        self.assertNotIn(secret.decode(), str(caught.exception))
+
+    def test_episode_startup_error_is_typed_and_content_free(self):
+        class CustomStartupError(Exception):
+            pass
+
+        secret = "episode-start-secret-must-not-leak"
+        phases: list[str] = []
+        model_boundary_calls: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                return_value=subprocess.CompletedProcess(
+                    [], 0, stdout=b"claude 1", stderr=b""
+                ),
+            ),
+            patch(
+                "epiagentbench.pilot.launch_socket_episode",
+                side_effect=CustomStartupError(secret),
+            ),
+            self.assertRaises(ProviderEpisodeStartupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+                model_invocation_start_callback=lambda: (
+                    model_boundary_calls.append("model")
+                ),
+            )
+
+        self.assertEqual(
+            phases,
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+                "episode_startup",
+            ],
+        )
+        self.assertEqual(model_boundary_calls, [])
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_episode_start_failed",
+        )
+        self.assertEqual(caught.exception.failure_stage, "episode_startup")
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_episode_startup_preserves_isolation_error(self):
+        primary = ProviderStateIsolationError(
+            "trusted isolation incident"
+        )
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                return_value=subprocess.CompletedProcess(
+                    [], 0, stdout=b"claude 1", stderr=b""
+                ),
+            ),
+            patch(
+                "epiagentbench.pilot.launch_socket_episode",
+                side_effect=primary,
+            ),
+            self.assertRaises(ProviderStateIsolationError) as caught,
+        ):
+            evaluate_local_cli_agent("claude", seed=17)
+
+        self.assertIs(caught.exception, primary)
 
     def test_claude_agent_plaintext_fallback_closes_episode(self):
         class Session:
@@ -2247,7 +2893,7 @@ class CliPilotTests(unittest.TestCase):
             alias.symlink_to(secure, target_is_directory=True)
             with (
                 patch("epiagentbench.pilot.shutil.which") as which,
-                self.assertRaisesRegex(ValueError, "Invalid Claude"),
+                self.assertRaises(ProviderEnvironmentSetupError) as caught,
             ):
                 evaluate_local_cli_agent(
                     "claude",
@@ -2255,6 +2901,10 @@ class CliPilotTests(unittest.TestCase):
                     claude_secure_storage_dir=alias,
                 )
             which.assert_not_called()
+            self.assertEqual(
+                caught.exception.incident_code,
+                "provider_environment_setup_failed",
+            )
 
     def test_cursor_environment_uses_only_disposable_storage_roots(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -2731,7 +3381,7 @@ class CliPilotTests(unittest.TestCase):
                 "epiagentbench.pilot._snapshot_cursor_host_state",
                 side_effect=("stable", "stable"),
             ),
-            self.assertRaisesRegex(RuntimeError, "MCP enablement failed"),
+            self.assertRaises(ProviderMCPReadinessError) as caught,
         ):
             evaluate_local_cli_agent(
                 "cursor",
@@ -2742,6 +3392,10 @@ class CliPilotTests(unittest.TestCase):
         run.assert_not_called()
         self.assertEqual(provider_run.call_count, 2)
         launch.assert_not_called()
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_mcp_readiness_failed",
+        )
 
     def test_cursor_mcp_enable_exception_stops_before_paid_agent(self):
         class Session:
@@ -2788,7 +3442,7 @@ class CliPilotTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("epiagentbench.pilot.launch_socket_episode") as launch,
-            self.assertRaisesRegex(RuntimeError, "requires CURSOR_API_KEY"),
+            self.assertRaises(ProviderEnvironmentSetupError) as caught,
         ):
             evaluate_local_cli_agent(
                 "cursor",
@@ -2797,6 +3451,10 @@ class CliPilotTests(unittest.TestCase):
                 backend="starsim-ltc-v3",
             )
         launch.assert_not_called()
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_environment_setup_failed",
+        )
 
     def test_claude_high_effort_is_emitted_exactly(self):
         command = self._command(

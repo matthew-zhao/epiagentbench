@@ -1,3 +1,16 @@
+> [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V20 ended during its first preflight profile before the durable model
+> invocation boundary. The authenticated, sanitized
+> [preflight receipt](../results/development-matched-50x6-v20.preflight.json)
+> records zero conservatively chargeable model calls, zero production
+> episodes, and no scores. Do not resume, retry, repair, or reuse any V20
+> cohort, key, credential, runtime-cache, supervisor, or execution namespace.
+> See the
+> [public supersession record](../results/development-matched-50x6-v20.superseded.json)
+> and the replacement [V21 runbook](V21_RUNBOOK.md).
+
 # EpiAgentBench V20 execution runbook
 
 > [!CAUTION]
@@ -112,7 +125,7 @@ key, cohort, credential directory, private state, or schedule.
 | Panel and cohort | `development-matched-50x6-v20` |
 | Top-level schema | `development_matched_panel_v20` |
 | Runtime receipt | `results/development-matched-50x6-v20.runtime.json` |
-| Required Python launch path | `/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python` |
+| Required Python launch path | Operator-supplied absolute isolated EpiAgentBench Python path |
 | Required Python flags | `-I -S -B` |
 | Required Starsim | `3.5.1` |
 | Persistent-supervisor contract | `epiagentbench.persistent_supervisor_contract.v9` |
@@ -198,7 +211,7 @@ read-only; it does not create or mutate a Git checkout.
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_CONTROL_COMMIT:?set the exact published control-plane commit}"
 V20_REMOTE_REF='refs/heads/codex/v20-runtime-preflight'
@@ -226,7 +239,7 @@ directory that never overlaps the cache.
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_RUNTIME_STAGING="$HOME/.codex/epiagentbench-v20-runtime-receipt-staging"
 V20_EXPECTED_COMMIT="${V20_CONTROL_COMMIT:?set the exact published control-plane commit}"
@@ -276,7 +289,7 @@ repository. A byte difference is terminal for this preparation attempt.
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_RUNTIME_STAGING="$HOME/.codex/epiagentbench-v20-runtime-receipt-staging"
 V20_EXPECTED_COMMIT="${V20_CONTROL_COMMIT:?set the exact published control-plane commit}"
@@ -351,7 +364,7 @@ regenerate the receipt there.
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_RUNTIME_STAGING="$HOME/.codex/epiagentbench-v20-runtime-receipt-staging"
 V20_EXPECTED_COMMIT="${V20_CONTROL_COMMIT:?set the exact published control-plane commit}"
@@ -407,7 +420,7 @@ the supplied checkout before beginning provider-free preparation.
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_RUNTIME_STAGING="$HOME/.codex/epiagentbench-v20-runtime-receipt-staging"
 V20_EXPECTED_COMMIT="${V20_RECEIPT_COMMIT:?set the exact published runtime-receipt commit}"
@@ -472,7 +485,7 @@ This is the irreversible V20 preparation boundary. Use the matched V20
 set -euo pipefail
 umask 077
 set -o noclobber
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_RUNTIME_STAGING="$HOME/.codex/epiagentbench-v20-runtime-receipt-staging"
 V20_EXPECTED_COMMIT="${V20_RECEIPT_COMMIT:?set the exact published runtime-receipt commit}"
@@ -554,7 +567,7 @@ authenticated owner-only LaunchAgent config is created.
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_RUNTIME_STAGING="$HOME/.codex/epiagentbench-v20-runtime-receipt-staging"
 V20_EXPECTED_COMMIT="${V20_RECEIPT_COMMIT:?set the exact published runtime-receipt commit}"
@@ -623,7 +636,7 @@ preflight, and final-result destinations remain absent.
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_RECEIPT_COMMIT:?set the exact published runtime-receipt commit}"
 V20_PREPARE_CHECKOUT="${V20_PREPARE_CHECKOUT:?set the absolute canonical path to the fresh receipt-bound checkout}"
@@ -698,7 +711,7 @@ through GitButler before a supervisor is generated.
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_MANIFEST_COMMIT:?set the exact published V20 manifest commit}"
 V20_REPOSITORY_ROOT="${V20_AUTHORIZATION_CHECKOUT:?set the clean manifest-bound checkout}"
@@ -731,7 +744,7 @@ ceremony run:
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_MANIFEST_COMMIT:?set the exact published V20 manifest commit}"
 V20_REPOSITORY_ROOT="${V20_AUTHORIZATION_CHECKOUT:?set the clean manifest-bound checkout}"
@@ -765,7 +778,7 @@ Keychain service in an operator-visible terminal:
 ```bash
 set -euo pipefail
 umask 077
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_AUTHENTICATION_RECEIPT_COMMIT:?set the exact published authentication-receipt commit}"
 V20_REPOSITORY_ROOT="${V20_AUTHENTICATION_RECEIPT_CHECKOUT:?set the clean authentication-receipt-bound checkout}"
@@ -861,7 +874,7 @@ preflight exactly once:
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_AUTHENTICATION_RECEIPT_COMMIT:?set the exact published authentication-receipt commit}"
 V20_REPOSITORY_ROOT="${V20_EXECUTION_CHECKOUT:?set the clean receipt-bound execution checkout}"
@@ -925,7 +938,7 @@ exactly once:
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_PREFLIGHT_RECEIPT_COMMIT:?set the exact published preflight-receipt commit}"
 V20_REPOSITORY_ROOT="${V20_PRODUCTION_CHECKOUT:?set the clean preflight-receipt-bound checkout}"
@@ -997,7 +1010,7 @@ permitted recovery is this self-contained, provider-free command:
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_AUTHENTICATION_RECEIPT_COMMIT:?set the exact published authentication-receipt commit}"
 V20_REPOSITORY_ROOT="${V20_PREFLIGHT_TERMINAL_CHECKOUT:?set the clean terminal preflight checkout}"
@@ -1025,7 +1038,7 @@ checkout and the canonical production output:
 
 ```bash
 set -euo pipefail
-V20_PYTHON='/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python'
+V20_PYTHON="${EPIAGENTBENCH_PYTHON:?set the absolute isolated EpiAgentBench Python path}"
 V20_RUNTIME_CACHE="$HOME/.codex/epiagentbench-v20-runtime-cache"
 V20_EXPECTED_COMMIT="${V20_PREFLIGHT_RECEIPT_COMMIT:?set the exact published preflight-receipt commit}"
 V20_REPOSITORY_ROOT="${V20_PRODUCTION_TERMINAL_CHECKOUT:?set the clean terminal production checkout}"

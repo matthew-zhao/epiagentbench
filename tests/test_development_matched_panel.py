@@ -33,13 +33,22 @@ from epiagentbench.development_matched_panel import (
     run_panel,
 )
 from epiagentbench.pilot import (
+    PRE_MODEL_PHASES,
     CodexAuthenticationIncidentError,
     PilotRunResult,
+    ProviderCLIUnavailableError,
+    ProviderCLIReadinessSetupError,
     ProviderCLIReadinessTimeoutError,
+    ProviderCLIVersionEmptyError,
+    ProviderCLIVersionNonzeroError,
+    ProviderEpisodeStartupError,
+    ProviderEnvironmentSetupError,
     ProviderExecutionIsolationError,
+    ProviderMCPReadinessError,
     ProviderProcessIsolationError,
     ProviderSpawnIsolationError,
     ProviderStateIsolationError,
+    ProviderWorkspaceSetupError,
 )
 from epiagentbench.replay_trace import replay_trace_sha256
 from epiagentbench.trusted.episode_pack import (
@@ -138,7 +147,7 @@ RUNTIME_CACHE_CONTRACT = {
 }
 RUNTIME_SMOKE_CONTRACT = {
     "schema_version": "epiagentbench.preparation_runtime_smoke.v1",
-    "fixed_public_scenario": "v20_four_person_ltc_one_day",
+    "fixed_public_scenario": "v21_four_person_ltc_one_day",
     "result_sha256": "sha256:" + "e" * 64,
     "result": {"test": "fixed-public-smoke"},
 }
@@ -162,7 +171,7 @@ def prepare_panel(**kwargs):
     root = Path(kwargs["root"])
     kwargs.setdefault(
         "preparation_runtime_receipt_path",
-        root / "results" / "development-matched-50x6-v20.runtime.json",
+        root / "results" / "development-matched-50x6-v21.runtime.json",
     )
     kwargs.setdefault("expected_benchmark_base_commit", "d" * 40)
     kwargs.setdefault(
@@ -175,14 +184,38 @@ def prepare_panel(**kwargs):
 def _adapt_model_bearing_test_evaluator(evaluator):
     def adapted(*args, **kwargs):
         callback = kwargs.get("model_invocation_start_callback")
+        phase_callback = kwargs.get("pre_model_phase_callback")
         if not callable(callback):
             raise AssertionError(
                 "test evaluator did not receive a model invocation callback"
             )
+        if not callable(phase_callback):
+            raise AssertionError(
+                "test evaluator did not receive a pre-model phase callback"
+            )
         callback_count = 0
+        observed_phases: list[str] = []
+
+        def tracked_phase(phase: str) -> None:
+            expected_index = len(observed_phases)
+            if (
+                expected_index >= len(PRE_MODEL_PHASES)
+                or phase != PRE_MODEL_PHASES[expected_index]
+            ):
+                raise AssertionError(
+                    "test evaluator emitted an invalid pre-model phase "
+                    "transition"
+                )
+            observed_phases.append(phase)
+            phase_callback(phase)
+
+        def complete_pre_model_phases() -> None:
+            for phase in PRE_MODEL_PHASES[len(observed_phases) :]:
+                tracked_phase(phase)
 
         def tracked_callback() -> None:
             nonlocal callback_count
+            complete_pre_model_phases()
             callback_count += 1
             if callback_count != 1:
                 raise AssertionError(
@@ -191,6 +224,7 @@ def _adapt_model_bearing_test_evaluator(evaluator):
             callback()
 
         kwargs["model_invocation_start_callback"] = tracked_callback
+        kwargs["pre_model_phase_callback"] = tracked_phase
         progress_callback = kwargs.get("progress_callback")
         if callable(progress_callback):
             def tracked_progress(snapshot) -> None:
@@ -208,8 +242,6 @@ def _adapt_model_bearing_test_evaluator(evaluator):
                 ) from None
             raise
         except Exception:
-            if callback_count == 0:
-                tracked_callback()
             raise
         if callback_count == 0:
             tracked_callback()
@@ -357,9 +389,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v20.authentication.json",
+            "results/development-matched-50x6-v21.authentication.json",
         ):
-            return "results/development-matched-50x6-v20.authentication.json"
+            return "results/development-matched-50x6-v21.authentication.json"
         return ""
 
     @staticmethod
@@ -454,10 +486,10 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_verification.v1"
             ),
-            "panel_id": "development-matched-50x6-v20",
+            "panel_id": "development-matched-50x6-v21",
             "status": "passed",
             "published_receipt_path": (
-                "results/development-matched-50x6-v20.runtime.json"
+                "results/development-matched-50x6-v21.runtime.json"
             ),
             "published_receipt_file_sha256": "sha256:" + "f" * 64,
             "published_benchmark_base_commit": "c" * 40,
@@ -490,14 +522,14 @@ class MatchedPanelTests(unittest.TestCase):
         return (
             {
                 "schema_version": (
-                    "epiagentbench.v20_cohort_freeze_claim.v1"
+                    "epiagentbench.v21_cohort_freeze_claim.v1"
                 ),
                 "status": "pending_create_once_freeze",
                 "fixture": True,
             },
             {
                 "schema_version": (
-                    "epiagentbench.v20_cohort_freeze_completion.v1"
+                    "epiagentbench.v21_cohort_freeze_completion.v1"
                 ),
                 "status": "completed_create_once_freeze",
                 "fixture": True,
@@ -514,7 +546,7 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v20",
+            "panel_id": "development-matched-50x6-v21",
             "status": "passed",
             "benchmark_base_commit": benchmark_base_commit,
             "required_starsim_version": "3.5.1",
@@ -723,7 +755,7 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v2"
             ),
-            "panel_id": "development-matched-50x6-v20",
+            "panel_id": "development-matched-50x6-v21",
             "status": "passed",
             "benchmark_base_commit": commit,
             "required_starsim_version": "3.5.1",
@@ -800,7 +832,7 @@ class MatchedPanelTests(unittest.TestCase):
             self.skipTest("requires the pinned V5 scientific Python")
 
         cache_root = (
-            self.claude_secure_storage_dir / "v20-runtime-receipt-cache"
+            self.claude_secure_storage_dir / "v21-runtime-receipt-cache"
         )
         cache_root.mkdir(mode=0o700)
         for name in ("matplotlib", "numba", "xdg"):
@@ -889,7 +921,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_prepared_manifest_redacts_private_runtime_cache_binding(self):
         cache_root, environment = self._runtime_cache_environment(
-            "private-v20-runtime-cache"
+            "private-v21-runtime-cache"
         )
         with patch.dict(os.environ, environment, clear=False):
             cache_contract = matched._runtime_cache_contract(cache_root)
@@ -917,7 +949,7 @@ class MatchedPanelTests(unittest.TestCase):
                 preparation_runtime_receipt_path=(
                     self.root
                     / "results"
-                    / "development-matched-50x6-v20.runtime.json"
+                    / "development-matched-50x6-v21.runtime.json"
                 ),
                 expected_benchmark_base_commit="d" * 40,
                 runtime_cache_dir=cache_root,
@@ -1187,12 +1219,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             first["fixed_public_scenario"],
-            "v20_contact_transmission_with_matched_contact_stop",
+            "v21_contact_transmission_with_matched_contact_stop",
         )
         self.assertEqual(
             first["result_sha256"],
             "sha256:"
-            "c4577a0c488248f74cd19f84e51b41c51cece803e36324ae4f3ac038715631c8",
+            "2f69e11f3313f7bf3294dbab0fa9058428f2c70546dea7896c91cc872b0ab5cf",
         )
         self.assertEqual(
             first["result_sha256"],
@@ -1246,7 +1278,7 @@ class MatchedPanelTests(unittest.TestCase):
             first["result"]["contact_stop_action"]["boundaries"][2][
                 "applied_control_ids"
             ],
-            ["v20-stop-direct-care"],
+            ["v21-stop-direct-care"],
         )
 
     def test_real_preparation_runtime_smoke_rejects_golden_digest_drift(self):
@@ -1277,7 +1309,7 @@ class MatchedPanelTests(unittest.TestCase):
         receipt_path = (
             self.root
             / "results"
-            / "development-matched-50x6-v20.runtime.json"
+            / "development-matched-50x6-v21.runtime.json"
         )
         receipt_path.parent.mkdir()
         published = self._preparation_runtime_receipt()
@@ -1377,7 +1409,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
     def test_freeze_verifies_runtime_before_key_cohort_or_randomness(self):
-        output_directory = self.root / "fresh-v20-cohort"
+        output_directory = self.root / "fresh-v21-cohort"
         with (
             patch.object(
                 matched,
@@ -1433,7 +1465,7 @@ class MatchedPanelTests(unittest.TestCase):
             matched._cohort_freeze_claim_path(shared_key)
 
     def test_freeze_claim_is_pending_before_freezer_and_completed_once(self):
-        output_directory = self.root / "fresh-v20-cohort"
+        output_directory = self.root / "fresh-v21-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -1508,7 +1540,7 @@ class MatchedPanelTests(unittest.TestCase):
                     expected_benchmark_base_commit="d" * 40,
                     runtime_cache_dir=self.root / "runtime-cache",
                     authentication_key_file=self.key_path,
-                    output_directory=self.root / "reroll-v20-cohort",
+                    output_directory=self.root / "reroll-v21-cohort",
                     freeze_claim_path=claim_path,
                 )
 
@@ -1533,7 +1565,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
 
     def test_interrupted_freeze_claim_is_terminal_and_nonretryable(self):
-        output_directory = self.root / "interrupted-v20-cohort"
+        output_directory = self.root / "interrupted-v21-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -1597,7 +1629,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(freezer.call_count, 1)
         second_freezer.assert_not_called()
 
-    def test_prepare_rejects_generic_and_cherry_picked_v20_cohorts(self):
+    def test_prepare_rejects_generic_and_cherry_picked_v21_cohorts(self):
         generic_manifest = self._cohort()
         real_require = matched._require_completed_cohort_freeze_claim
         with (
@@ -1648,7 +1680,7 @@ class MatchedPanelTests(unittest.TestCase):
             authentication_key=AUTHENTICATION_KEY,
         )
         cherry_picked_manifest = self._cohort_at(
-            self.root / "cherry-picked-v20-cohort"
+            self.root / "cherry-picked-v21-cohort"
         )
         with self.assertRaisesRegex(
             ValueError, "belongs to another freeze"
@@ -2200,6 +2232,102 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_unbounded_provider_spend=True,
             )
         return payload, evaluate
+
+    @staticmethod
+    def _fail_after_model_boundary(error: Exception):
+        def evaluate(_system: str, **kwargs):
+            for phase in PRE_MODEL_PHASES:
+                kwargs["pre_model_phase_callback"](phase)
+            kwargs["model_invocation_start_callback"]()
+            raise error
+
+        return evaluate
+
+    def _assert_preflight_pre_model_failure(
+        self,
+        *,
+        error: Exception,
+        expected_phase: str | None,
+        expected_stage: str,
+        expected_incident_code: str,
+    ) -> None:
+        self._prepare()
+        preflight_path = self.root / "results" / "pre-model-failure.json"
+
+        def fail_before_model(_system: str, **kwargs):
+            if expected_phase is not None:
+                phase_index = PRE_MODEL_PHASES.index(expected_phase)
+                for phase in PRE_MODEL_PHASES[: phase_index + 1]:
+                    kwargs["pre_model_phase_callback"](phase)
+            raise error
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=fail_before_model,
+            ) as invoked,
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(
+            receipt["failed_model_invocation_state"], "not_started"
+        )
+        self.assertEqual(receipt["failed_pre_model_phase"], expected_phase)
+        self.assertEqual(receipt["failure_stage"], expected_stage)
+        self.assertEqual(
+            receipt["incident_code"], expected_incident_code
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 0
+        )
+        first = receipt["profiles"][0]
+        self.assertEqual(first["model_invocation_state"], "not_started")
+        self.assertEqual(first["pre_model_phase"], expected_phase)
+        self.assertEqual(first["failed_pre_model_phase"], expected_phase)
+        self.assertFalse(first["conservative_chargeable"])
+        self.assertEqual(
+            [item["outcome"] for item in receipt["profiles"][1:]],
+            ["not_started_terminal_abort"] * (len(PROFILES) - 1),
+        )
+        self.assertNotIn(
+            "must-not-leak", json.dumps(receipt, sort_keys=True)
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        durable = private["environment_preflight"]["attempts"][0]
+        self.assertNotIn("model_invocation", durable)
+        expected_checkpoints = (
+            list(
+                PRE_MODEL_PHASES[
+                    : PRE_MODEL_PHASES.index(expected_phase) + 1
+                ]
+            )
+            if expected_phase is not None
+            else None
+        )
+        self.assertEqual(
+            durable.get("pre_model_phase_checkpoints"),
+            expected_checkpoints,
+        )
 
     def test_supervisor_loss_after_provider_is_terminal_before_next_call(self):
         from epiagentbench.launchd_agent import (
@@ -3135,6 +3263,8 @@ class MatchedPanelTests(unittest.TestCase):
         def evaluate(system: str, **kwargs):
             nonlocal calls
             calls += 1
+            for phase in PRE_MODEL_PHASES:
+                kwargs["pre_model_phase_callback"](phase)
             kwargs["model_invocation_start_callback"]()
             result = self._result(
                 system,
@@ -4170,7 +4300,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v20_authorization_breakdown"],
+            contract["claude_current_v21_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -4180,7 +4310,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v20_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v21_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -4203,6 +4333,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v17_usd": 0.0,
                 "v18_usd": 5.0,
                 "v19_usd": 0.0,
+                "v20_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -4256,6 +4387,11 @@ class MatchedPanelTests(unittest.TestCase):
                 "v19_runtime_receipt",
                 "v19_manifest",
                 "v19_supersession",
+                "v20_runtime_receipt",
+                "v20_manifest",
+                "v20_authentication_receipt",
+                "v20_preflight_artifact",
+                "v20_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -4263,14 +4399,14 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
-    def test_v20_acknowledgement_is_exact_and_accounts_through_v19(self):
+    def test_v21_acknowledgement_is_exact_and_accounts_through_v20(self):
         self.assertEqual(
             hashlib.sha256(
                 REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
             ).hexdigest(),
-            "c192557a25bb6050be27b3ce2af60837c8a966a47368c67d2d6972a0dc9e73e7",
+            "9d149c27986f0e35c9f4a5c40f9d315ac6ab1fcef1ef7eafc079832c2bbab1cc",
         )
-        self.assertIn("six-call v20 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("six-call v21 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("$590 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("failed v14 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn(
@@ -4288,17 +4424,21 @@ class MatchedPanelTests(unittest.TestCase):
             "failed zero-model-call v19 authentication setup",
             REQUIRED_SPEND_ACKNOWLEDGEMENT,
         )
+        self.assertIn(
+            "failed zero-model-call v20 preflight",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
         runbook = (
-            Path(__file__).resolve().parents[1] / "docs" / "V20_RUNBOOK.md"
+            Path(__file__).resolve().parents[1] / "docs" / "V21_RUNBOOK.md"
         ).read_text(encoding="utf-8")
         readme = (
             Path(__file__).resolve().parents[1] / "README.md"
         ).read_text(encoding="utf-8")
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, runbook)
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, readme)
-        self.assertIn("development-matched-50x6-v20", runbook)
-        self.assertIn("development_matched_panel_v20", runbook)
-        self.assertIn("epiagentbench-cursor-v20", runbook)
+        self.assertIn("development-matched-50x6-v21", runbook)
+        self.assertIn("development_matched_panel_v21", runbook)
+        self.assertIn("epiagentbench-cursor-v21", runbook)
         checkout_proof = runbook.index(
             "operator-approved GitButler-compatible"
         )
@@ -4319,7 +4459,7 @@ class MatchedPanelTests(unittest.TestCase):
             "security add-generic-password"
         )
         supervisor_creation = runbook.index(
-            'mkdir "$HOME/.codex/epiagentbench-v20-supervisors"'
+            'mkdir "$HOME/.codex/epiagentbench-v21-supervisors"'
         )
         self.assertLess(checkout_proof, runtime_preflight)
         self.assertLess(runtime_preflight, private_creation)
@@ -4329,11 +4469,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertLess(manifest_authorization, cursor_credential)
         self.assertLess(manifest_authorization, supervisor_creation)
         self.assertIn(
-            'V20_RUNTIME_CHECKOUT="${V20_RUNTIME_CHECKOUT:?',
+            'V21_RUNTIME_CHECKOUT="${V21_RUNTIME_CHECKOUT:?',
             runbook,
         )
         self.assertIn(
-            'V20_PREPARE_CHECKOUT="${V20_PREPARE_CHECKOUT:?',
+            'V21_PREPARE_CHECKOUT="${V21_PREPARE_CHECKOUT:?',
             runbook,
         )
         self.assertIn(
@@ -4341,15 +4481,15 @@ class MatchedPanelTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            'git ls-files --error-unmatch "$V20_PUBLIC_RUNTIME"',
+            'git ls-files --error-unmatch "$V21_PUBLIC_RUNTIME"',
             runbook,
         )
         self.assertNotIn("git worktree add", runbook)
         self.assertIn("for candidate_path in \\", runbook)
         self.assertNotIn("for path in \\", runbook)
         self.assertEqual(runbook.count("reconcile-terminal-receipt"), 2)
-        self.assertIn("V20_PREFLIGHT_TERMINAL_CHECKOUT", runbook)
-        self.assertIn("V20_PRODUCTION_TERMINAL_CHECKOUT", runbook)
+        self.assertIn("V21_PREFLIGHT_TERMINAL_CHECKOUT", runbook)
+        self.assertIn("V21_PRODUCTION_TERMINAL_CHECKOUT", runbook)
         self.assertIn("--public-runtime-receipt", runbook)
         self.assertIn("--public-verification-receipt", runbook)
         self.assertIn("publish-provider-free-json", runbook)
@@ -4358,19 +4498,19 @@ class MatchedPanelTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            """test "$(stat -f '%Lp' "$V20_RUNTIME_ONE")" = 644""",
+            """test "$(stat -f '%Lp' "$V21_RUNTIME_ONE")" = 644""",
             runbook,
         )
         self.assertIn(
-            """test "$(stat -f '%Lp' "$V20_VERIFICATION_OUTPUT")" = 644""",
+            """test "$(stat -f '%Lp' "$V21_VERIFICATION_OUTPUT")" = 644""",
             runbook,
         )
-        self.assertNotIn('> "$V20_RUNTIME_ONE"', runbook)
-        self.assertNotIn('> "$V20_RUNTIME_TWO"', runbook)
-        self.assertNotIn('> "$V20_VERIFICATION_OUTPUT"', runbook)
-        self.assertNotIn('cp "$V20_RUNTIME_ONE"', runbook)
+        self.assertNotIn('> "$V21_RUNTIME_ONE"', runbook)
+        self.assertNotIn('> "$V21_RUNTIME_TWO"', runbook)
+        self.assertNotIn('> "$V21_VERIFICATION_OUTPUT"', runbook)
+        self.assertNotIn('cp "$V21_RUNTIME_ONE"', runbook)
         self.assertNotIn(
-            'cp "$V20_PREPARE_CHECKOUT/$V20_PUBLIC_MANIFEST"',
+            'cp "$V21_PREPARE_CHECKOUT/$V21_PUBLIC_MANIFEST"',
             runbook,
         )
 
@@ -4496,7 +4636,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v20_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v21_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -4943,7 +5083,7 @@ class MatchedPanelTests(unittest.TestCase):
             "--freeze-claim",
             (
                 "/private/"
-                ".development-matched-50x6-v20."
+                ".development-matched-50x6-v21."
                 "cohort-freeze-claim.v1.json"
             ),
             "--claude-secure-storage-dir",
@@ -4986,7 +5126,7 @@ class MatchedPanelTests(unittest.TestCase):
             prepare.call_args.kwargs["freeze_claim_path"],
             Path(
                 "/private/"
-                ".development-matched-50x6-v20."
+                ".development-matched-50x6-v21."
                 "cohort-freeze-claim.v1.json"
             ),
         )
@@ -5016,8 +5156,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v20")
-        self.assertEqual(public["schema_version"], "development_matched_panel_v20")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v21")
+        self.assertEqual(public["schema_version"], "development_matched_panel_v21")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -5066,6 +5206,23 @@ class MatchedPanelTests(unittest.TestCase):
                 "episode-service cleanup, and Codex authentication incidents "
                 "are terminal and non-resumable"
             ),
+        )
+        self.assertEqual(
+            public["run_contract"]["transport_void_public_schema"][
+                "timeout_stage"
+            ],
+            [None, "provider_cli_readiness", "model_invocation"],
+        )
+        self.assertEqual(
+            public["run_contract"]["transport_void_public_schema"][
+                "failure_stage"
+            ],
+            [
+                None,
+                *PRE_MODEL_PHASES,
+                "pre_model_phase_checkpoint",
+                "model_invocation",
+            ],
         )
         self.assertEqual(
             public["run_contract"]["terminal_incident_policy"],
@@ -7404,11 +7561,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v20_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v21_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v20", "six-call v10"
+            "six-call v21", "six-call v10"
         )
         with (
             patch(
@@ -7442,7 +7599,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_root_owned_regular_executable_identity"
             ) as wrapper_identity,
-            self.assertRaisesRegex(RuntimeError, "exact v20 \\$590"),
+            self.assertRaisesRegex(RuntimeError, "exact v21 \\$590"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -7763,7 +7920,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.authentication_dependency_freeze.v1"
             ),
             "status": "frozen",
-            "panel_id": "development-matched-50x6-v20",
+            "panel_id": "development-matched-50x6-v21",
             "public_precommitment_sha256": public["precommitment_sha256"],
             "static_cli_contract_sha256": public["contract_hashes"][
                 "cli_sha256"
@@ -8098,7 +8255,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "epiagentbench.development_matched_panel."
                     "evaluate_local_cli_agent"
                 ) as evaluate,
-                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v20"),
+                self.assertRaisesRegex(RuntimeError, "manifest-bound exact v21"),
             ):
                 run_environment_preflight(
                     root=self.root,
@@ -8145,7 +8302,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v20"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v21"),
         ):
             run_panel(
                 root=self.root,
@@ -9702,8 +9859,10 @@ class MatchedPanelTests(unittest.TestCase):
         self._prepare()
 
         result, invoked = self._run_with(
-            ProviderProcessIsolationError(
-                "Provider process group remained alive after termination"
+            self._fail_after_model_boundary(
+                ProviderProcessIsolationError(
+                    "Provider process group remained alive after termination"
+                )
             )
         )
         self.assertEqual(invoked.call_count, 1)
@@ -9872,6 +10031,71 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
 
+    def test_production_cli_unavailable_phase_is_nonchargeable(self):
+        public = self._prepare()
+
+        def unavailable(_system: str, **kwargs):
+            kwargs["pre_model_phase_callback"](
+                "provider_environment_setup"
+            )
+            durable = matched._load_private_state(
+                self.private_path, AUTHENTICATION_KEY
+            )
+            live_assignment = durable["assignments"][0]
+            self.assertEqual(
+                live_assignment["pre_model_phase"],
+                "provider_environment_setup",
+            )
+            matched._validate_contracts(
+                root=self.root,
+                private=durable,
+                public=public,
+                authentication_key=AUTHENTICATION_KEY,
+                claude_secure_storage_dir=(
+                    self.claude_secure_storage_dir
+                ),
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+            )
+            raise ProviderCLIUnavailableError(
+                "must-not-leak production executable path"
+            )
+
+        result, invoked = self._run_with(unavailable)
+
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(result["status"], "stopped_transport_void")
+        self.assertEqual(
+            result["model_invocations_conservatively_chargeable"], 0
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        assignment = private["assignments"][0]
+        self.assertEqual(assignment["status"], "transport_void")
+        self.assertEqual(
+            assignment["void_reason"], "provider_cli_unavailable"
+        )
+        self.assertEqual(
+            assignment["failure_stage"],
+            "provider_environment_setup",
+        )
+        self.assertEqual(
+            assignment["pre_model_phase"],
+            "provider_environment_setup",
+        )
+        self.assertEqual(
+            assignment["failed_pre_model_phase"],
+            "provider_environment_setup",
+        )
+        self.assertEqual(
+            assignment["model_invocation_state"], "not_started"
+        )
+        self.assertFalse(assignment["conservative_chargeable"])
+        self.assertNotIn("model_invocation", assignment)
+        self.assertNotIn(
+            "must-not-leak", json.dumps(result, sort_keys=True)
+        )
+
     def test_production_readiness_timeout_is_nonchargeable_and_continues(
         self,
     ):
@@ -9888,6 +10112,12 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal evaluator_calls
             evaluator_calls += 1
             if evaluator_calls == 1:
+                kwargs["pre_model_phase_callback"](
+                    "provider_environment_setup"
+                )
+                kwargs["pre_model_phase_callback"](
+                    "provider_cli_readiness"
+                )
                 raise ProviderCLIReadinessTimeoutError(
                     "offline readiness timeout"
                 )
@@ -9960,6 +10190,13 @@ class MatchedPanelTests(unittest.TestCase):
             first["failure_stage"], "provider_cli_readiness"
         )
         self.assertEqual(first["model_invocation_state"], "not_started")
+        self.assertEqual(
+            first["pre_model_phase"], "provider_cli_readiness"
+        )
+        self.assertEqual(
+            first["failed_pre_model_phase"],
+            "provider_cli_readiness",
+        )
         self.assertFalse(first["conservative_chargeable"])
         self.assertEqual(
             (second["episode_ref"], second["profile_id"]), second_key
@@ -9976,8 +10213,10 @@ class MatchedPanelTests(unittest.TestCase):
         self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
 
         result, invoked = self._run_with(
-            ProviderProcessIsolationError(
-                "Provider process group remained alive after termination"
+            self._fail_after_model_boundary(
+                ProviderProcessIsolationError(
+                    "Provider process group remained alive after termination"
+                )
             )
         )
         self.assertEqual(invoked.call_count, 1)
@@ -10055,8 +10294,10 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertRaisesRegex(OSError, "simulated public progress crash"),
         ):
             self._run_with(
-                ProviderProcessIsolationError(
-                    "Provider process group remained alive after termination"
+                self._fail_after_model_boundary(
+                    ProviderProcessIsolationError(
+                        "Provider process group remained alive after termination"
+                    )
                 )
             )
 
@@ -10379,6 +10620,138 @@ class MatchedPanelTests(unittest.TestCase):
             matched._cohort_retirement_path(
                 Path(private["cohort_manifest_path"])
             ).exists()
+        )
+
+    def test_final_pre_model_void_finalizes_with_finite_public_stage(self):
+        self._prepare()
+        self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
+
+        def episode_start_failure(_system: str, **kwargs):
+            for phase in PRE_MODEL_PHASES[:3]:
+                kwargs["pre_model_phase_callback"](phase)
+            raise ProviderEpisodeStartupError(
+                "must-not-leak final episode startup detail"
+            )
+
+        stopped, invoked = self._run_with(episode_start_failure)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(stopped["status"], "stopped_transport_void")
+        self.assertEqual(stopped["terminal_assignments"], ASSIGNMENT_COUNT)
+        self.assertEqual(
+            stopped["model_invocations_conservatively_chargeable"], 0
+        )
+
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        final_private = private["assignments"][-1]
+        self.assertEqual(final_private["failure_stage"], "episode_startup")
+        self.assertEqual(
+            final_private["failed_pre_model_phase"], "episode_startup"
+        )
+        self.assertEqual(
+            final_private["model_invocation_state"], "not_started"
+        )
+
+        self.keychain_present = False
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent"
+            ) as evaluate_again,
+        ):
+            completed = run_panel(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_results_path=self.results_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        evaluate_again.assert_not_called()
+        self.assertEqual(
+            completed["status"], "complete_with_transport_voids"
+        )
+        self.assertEqual(
+            completed["results"][-1]["failure_stage"], "episode_startup"
+        )
+        self.assertEqual(
+            completed["results"][-1]["model_invocation_state"],
+            "not_started",
+        )
+        self.assertNotIn(
+            "must-not-leak", json.dumps(completed, sort_keys=True)
+        )
+
+    def test_final_non_timeout_readiness_void_validates_and_builds_result(
+        self,
+    ):
+        public = self._prepare()
+        self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
+
+        def version_failure(_system: str, **kwargs):
+            for phase in PRE_MODEL_PHASES[:2]:
+                kwargs["pre_model_phase_callback"](phase)
+            raise ProviderCLIVersionNonzeroError(
+                "must-not-leak version process detail"
+            )
+
+        stopped, invoked = self._run_with(version_failure)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(stopped["status"], "stopped_transport_void")
+        self.assertEqual(stopped["terminal_assignments"], ASSIGNMENT_COUNT)
+
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        with self._contracts():
+            matched._validate_contracts(
+                root=self.root,
+                private=private,
+                public=public,
+                authentication_key=AUTHENTICATION_KEY,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+            )
+        final_private = private["assignments"][-1]
+        self.assertEqual(
+            final_private["void_reason"], "provider_cli_version_nonzero"
+        )
+        self.assertEqual(
+            final_private["failure_stage"], "provider_cli_readiness"
+        )
+        self.assertNotIn("timeout_stage", final_private)
+        self.assertNotIn("timed_out", final_private)
+
+        private["panel_completed_at_utc"] = "test-panel-complete"
+        artifact = matched._complete_artifact(public, private)
+        final_public = artifact["results"][-1]
+        self.assertEqual(
+            artifact["status"], "complete_with_transport_voids"
+        )
+        self.assertEqual(
+            final_public["reason"], "provider_cli_version_nonzero"
+        )
+        self.assertEqual(
+            final_public["failure_stage"], "provider_cli_readiness"
+        )
+        self.assertIsNone(final_public["timeout_stage"])
+        self.assertFalse(final_public["conservative_chargeable"])
+        self.assertNotIn(
+            "must-not-leak", json.dumps(artifact, sort_keys=True)
         )
 
     def test_production_codex_timeout_is_terminal_auth_incident(self):
@@ -11069,6 +11442,7 @@ class MatchedPanelTests(unittest.TestCase):
             if system == "claude":
                 self.keychain_present = True
             if model == "gpt-5.6-sol":
+                kwargs["model_invocation_start_callback"]()
                 raise ProviderStateIsolationError(
                     "provider-secret-must-not-leak"
                 )
@@ -11142,12 +11516,12 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v20_receipt(self):
+    def test_environment_preflight_gate_validates_full_v21_receipt(self):
         self._prepare()
         preflight_path = (
             self.root
             / "results"
-            / "development-matched-50x6-v20.preflight.json"
+            / "development-matched-50x6-v21.preflight.json"
         )
 
         def evaluate(system: str, **kwargs):
@@ -12100,7 +12474,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             authentication_receipt["panel_id"],
-            "development-matched-50x6-v20",
+            "development-matched-50x6-v21",
         )
         self.assertEqual(authentication_receipt["status"], "passed")
         self.assertIs(authentication_receipt["development_only"], True)
@@ -13112,7 +13486,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v20"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v21"),
         ):
             matched.authenticate_panel(
                 root=self.root,
@@ -13328,6 +13702,104 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
+    def test_preflight_generic_setup_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=RuntimeError("must-not-leak generic setup detail"),
+            expected_phase="provider_environment_setup",
+            expected_stage="provider_environment_setup",
+            expected_incident_code="provider_adapter_execution_failed",
+        )
+
+    def test_preflight_cli_unavailable_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderCLIUnavailableError(
+                "must-not-leak CLI path detail"
+            ),
+            expected_phase="provider_environment_setup",
+            expected_stage="provider_environment_setup",
+            expected_incident_code="provider_cli_unavailable",
+        )
+
+    def test_preflight_environment_setup_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderEnvironmentSetupError(
+                "must-not-leak environment setup detail"
+            ),
+            expected_phase="provider_environment_setup",
+            expected_stage="provider_environment_setup",
+            expected_incident_code="provider_environment_setup_failed",
+        )
+
+    def test_preflight_workspace_setup_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderWorkspaceSetupError(
+                "must-not-leak workspace path"
+            ),
+            expected_phase="provider_environment_setup",
+            expected_stage="provider_environment_setup",
+            expected_incident_code="provider_workspace_setup_failed",
+        )
+
+    def test_preflight_cli_version_nonzero_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderCLIVersionNonzeroError(
+                "must-not-leak version stderr"
+            ),
+            expected_phase="provider_cli_readiness",
+            expected_stage="provider_cli_readiness",
+            expected_incident_code="provider_cli_version_nonzero",
+        )
+
+    def test_preflight_cli_readiness_setup_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderCLIReadinessSetupError(
+                "must-not-leak readiness setup detail"
+            ),
+            expected_phase="provider_cli_readiness",
+            expected_stage="provider_cli_readiness",
+            expected_incident_code="provider_cli_readiness_setup_failed",
+        )
+
+    def test_preflight_readiness_spawn_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderSpawnIsolationError(
+                "must-not-leak readiness spawn detail"
+            ),
+            expected_phase="provider_cli_readiness",
+            expected_stage="provider_cli_readiness",
+            expected_incident_code="provider_spawn_failed",
+        )
+
+    def test_preflight_cli_version_empty_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderCLIVersionEmptyError(
+                "must-not-leak empty-version context"
+            ),
+            expected_phase="provider_cli_readiness",
+            expected_stage="provider_cli_readiness",
+            expected_incident_code="provider_cli_version_empty",
+        )
+
+    def test_preflight_mcp_readiness_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderMCPReadinessError(
+                "must-not-leak MCP readiness output"
+            ),
+            expected_phase="provider_cli_readiness",
+            expected_stage="provider_cli_readiness",
+            expected_incident_code="provider_mcp_readiness_failed",
+        )
+
+    def test_preflight_episode_startup_failure_is_zero_chargeable(self):
+        self._assert_preflight_pre_model_failure(
+            error=ProviderEpisodeStartupError(
+                "must-not-leak episode startup detail"
+            ),
+            expected_phase="episode_startup",
+            expected_stage="episode_startup",
+            expected_incident_code="provider_episode_start_failed",
+        )
+
     def test_preflight_readiness_timeout_is_zero_charge_and_one_shot(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-readiness.json"
@@ -13335,6 +13807,12 @@ class MatchedPanelTests(unittest.TestCase):
         def readiness_timeout(_system: str, **kwargs):
             self.assertTrue(
                 callable(kwargs["model_invocation_start_callback"])
+            )
+            kwargs["pre_model_phase_callback"](
+                "provider_environment_setup"
+            )
+            kwargs["pre_model_phase_callback"](
+                "provider_cli_readiness"
             )
             raise ProviderCLIReadinessTimeoutError(
                 "offline readiness timeout"
@@ -13383,6 +13861,10 @@ class MatchedPanelTests(unittest.TestCase):
             receipt["failed_model_invocation_state"], "not_started"
         )
         self.assertEqual(
+            receipt["failed_pre_model_phase"],
+            "provider_cli_readiness",
+        )
+        self.assertEqual(
             receipt["model_invocations_conservatively_chargeable"], 0
         )
         self.assertEqual(
@@ -13392,6 +13874,13 @@ class MatchedPanelTests(unittest.TestCase):
         )
         first = receipt["profiles"][0]
         self.assertEqual(first["model_invocation_state"], "not_started")
+        self.assertEqual(
+            first["pre_model_phase"], "provider_cli_readiness"
+        )
+        self.assertEqual(
+            first["failed_pre_model_phase"],
+            "provider_cli_readiness",
+        )
         self.assertFalse(first["conservative_chargeable"])
         self.assertEqual(
             first["timeout_stage"], "provider_cli_readiness"
@@ -13401,6 +13890,13 @@ class MatchedPanelTests(unittest.TestCase):
         )
         durable_first = private["environment_preflight"]["attempts"][0]
         self.assertNotIn("model_invocation", durable_first)
+        self.assertEqual(
+            durable_first["pre_model_phase_checkpoints"],
+            [
+                "provider_environment_setup",
+                "provider_cli_readiness",
+            ],
+        )
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
@@ -13426,6 +13922,100 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluate_again.assert_not_called()
+
+    def test_preflight_phase_checkpoint_failure_is_nonchargeable(self):
+        self._prepare()
+        preflight_path = self.root / "results" / "phase-write-failure.json"
+        original_write = matched._write_private_state
+        failed_once = False
+
+        def fail_first_phase(path, value, key):
+            nonlocal failed_once
+            preflight = value.get("environment_preflight")
+            attempts = (
+                preflight.get("attempts")
+                if isinstance(preflight, dict)
+                else None
+            )
+            current = (
+                attempts[-1]
+                if isinstance(attempts, list) and attempts
+                else None
+            )
+            if (
+                not failed_once
+                and isinstance(current, dict)
+                and current.get("pre_model_phase_checkpoints")
+                == ["provider_environment_setup"]
+                and "model_invocation" not in current
+            ):
+                failed_once = True
+                raise OSError("must-not-leak phase checkpoint path")
+            return original_write(path, value, key)
+
+        def evaluate(_system: str, **kwargs):
+            kwargs["pre_model_phase_callback"](
+                "provider_environment_setup"
+            )
+            self.fail("model work must not follow phase persistence failure")
+
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_preflight_execution"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_write_private_state",
+                side_effect=fail_first_phase,
+            ),
+        ):
+            receipt = run_environment_preflight(
+                root=self.root,
+                authentication_key_file=self.key_path,
+                claude_secure_storage_dir=self.claude_secure_storage_dir,
+                codex_secure_storage_dir=self.codex_secure_storage_dir,
+                private_state_path=self.private_path,
+                public_manifest_path=self.public_path,
+                public_preflight_path=preflight_path,
+                acknowledge_unbounded_provider_spend=True,
+            )
+
+        self.assertTrue(failed_once)
+        self.assertEqual(invoked.call_count, 1)
+        self.assertEqual(
+            receipt["failure_stage"], "pre_model_phase_checkpoint"
+        )
+        self.assertEqual(
+            receipt["incident_code"],
+            "provider_pre_model_phase_checkpoint_persist_failed",
+        )
+        self.assertEqual(
+            receipt["failed_model_invocation_state"], "not_started"
+        )
+        self.assertEqual(
+            receipt["failed_pre_model_phase"],
+            "provider_environment_setup",
+        )
+        self.assertEqual(
+            receipt["model_invocations_conservatively_chargeable"], 0
+        )
+        self.assertNotIn(
+            "must-not-leak", json.dumps(receipt, sort_keys=True)
+        )
+        private = matched._load_private_state(
+            self.private_path, AUTHENTICATION_KEY
+        )
+        durable = private["environment_preflight"]["attempts"][0]
+        self.assertNotIn("model_invocation", durable)
+        self.assertNotIn("pre_model_phase_checkpoints", durable)
 
     def test_preflight_model_start_marker_failure_is_nonchargeable(self):
         self._prepare()
@@ -13644,11 +14234,20 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self.assertEqual(invoked.call_count, 1)
-        self.assertEqual(receipt["failure_stage"], "provider_execution")
+        self.assertEqual(
+            receipt["failure_stage"], "model_spawn_boundary"
+        )
         self.assertEqual(receipt["incident_code"], "provider_spawn_failed")
         self.assertEqual(
             receipt["failed_model_invocation_state"],
             "started_not_finished",
+        )
+        self.assertEqual(
+            receipt["failed_pre_model_phase"], "model_spawn_boundary"
+        )
+        self.assertEqual(
+            receipt["profiles"][0]["pre_model_phase"],
+            "model_spawn_boundary",
         )
         self.assertEqual(
             receipt["model_invocations_conservatively_chargeable"], 1
@@ -13684,10 +14283,11 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             receipt["failed_model_invocation_state"],
-            "started_not_finished",
+            "not_started",
         )
+        self.assertIsNone(receipt["failed_pre_model_phase"])
         self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
+            receipt["model_invocations_conservatively_chargeable"], 0
         )
 
         with (
@@ -14295,7 +14895,7 @@ class ProviderFreePublicationTests(unittest.TestCase):
         self.source = self.root / "source.json"
         self.destination = self.root / "destination.json"
         self.payload = {
-            "panel_id": "development-matched-50x6-v20",
+            "panel_id": "development-matched-50x6-v21",
             "status": "provider_free",
         }
         self.source.write_text(

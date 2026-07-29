@@ -67,6 +67,12 @@ _PROGRESS_ELAPSED_BUCKETS = (
     "900_1799s",
     "ge_1800s",
 )
+PRE_MODEL_PHASES = (
+    "provider_environment_setup",
+    "provider_cli_readiness",
+    "episode_startup",
+    "model_spawn_boundary",
+)
 _CODEX_REASONING_EFFORTS = frozenset(
     {"none", "low", "medium", "high", "xhigh", "max"}
 )
@@ -910,6 +916,19 @@ class ProviderStateIsolationError(ProviderExecutionIsolationError):
     incident_code = "provider_state_isolation_failed"
 
 
+class ProviderPreModelPhasePersistenceError(ProviderStateIsolationError):
+    """Raised when a content-free pre-model phase cannot be persisted."""
+
+    incident_code = "provider_pre_model_phase_checkpoint_persist_failed"
+    failure_stage = "pre_model_phase_checkpoint"
+
+    def __init__(self, message: str, *, pre_model_phase: str) -> None:
+        if pre_model_phase not in PRE_MODEL_PHASES:
+            raise ValueError("Invalid failed pre-model phase")
+        super().__init__(message)
+        self.pre_model_phase = pre_model_phase
+
+
 class ProviderSpawnIsolationError(ProviderProcessIsolationError):
     """Raised when an isolated provider process cannot be created."""
 
@@ -963,7 +982,72 @@ class ProviderCLIReadinessTimeoutError(RuntimeError):
 
     incident_code = "provider_cli_readiness_timeout"
     failure_stage = "provider_cli_readiness"
+    pre_model_phase = "provider_cli_readiness"
     timeout_stage = "provider_cli_readiness"
+
+
+class ProviderCLIUnavailableError(RuntimeError):
+    """Raised when the configured provider CLI cannot be resolved."""
+
+    incident_code = "provider_cli_unavailable"
+    failure_stage = "provider_environment_setup"
+    pre_model_phase = "provider_environment_setup"
+
+
+class ProviderEnvironmentSetupError(RuntimeError):
+    """Raised when ordinary provider environment setup cannot complete."""
+
+    incident_code = "provider_environment_setup_failed"
+    failure_stage = "provider_environment_setup"
+    pre_model_phase = "provider_environment_setup"
+
+
+class ProviderWorkspaceSetupError(RuntimeError):
+    """Raised when the disposable public-only workspace cannot be prepared."""
+
+    incident_code = "provider_workspace_setup_failed"
+    failure_stage = "provider_environment_setup"
+    pre_model_phase = "provider_environment_setup"
+
+
+class ProviderCLIVersionNonzeroError(RuntimeError):
+    """Raised when a non-model CLI identity check exits unsuccessfully."""
+
+    incident_code = "provider_cli_version_nonzero"
+    failure_stage = "provider_cli_readiness"
+    pre_model_phase = "provider_cli_readiness"
+
+
+class ProviderCLIVersionEmptyError(RuntimeError):
+    """Raised when a non-model CLI identity check returns no identity."""
+
+    incident_code = "provider_cli_version_empty"
+    failure_stage = "provider_cli_readiness"
+    pre_model_phase = "provider_cli_readiness"
+
+
+class ProviderMCPReadinessError(RuntimeError):
+    """Raised when non-model provider MCP readiness exits unsuccessfully."""
+
+    incident_code = "provider_mcp_readiness_failed"
+    failure_stage = "provider_cli_readiness"
+    pre_model_phase = "provider_cli_readiness"
+
+
+class ProviderCLIReadinessSetupError(RuntimeError):
+    """Raised when ordinary non-model CLI readiness setup cannot complete."""
+
+    incident_code = "provider_cli_readiness_setup_failed"
+    failure_stage = "provider_cli_readiness"
+    pre_model_phase = "provider_cli_readiness"
+
+
+class ProviderEpisodeStartupError(RuntimeError):
+    """Raised when the trusted episode fails before model invocation."""
+
+    incident_code = "provider_episode_start_failed"
+    failure_stage = "episode_startup"
+    pre_model_phase = "episode_startup"
 
 
 class ProviderOutputOverflowError(RuntimeError):
@@ -1397,7 +1481,12 @@ def _run_provider_process_group(
         raise ProviderProcessIsolationError(
             "Provider process-group isolation is unavailable"
         )
-    selector = selectors.DefaultSelector()
+    try:
+        selector = selectors.DefaultSelector()
+    except (OSError, RuntimeError, ValueError):
+        raise ProviderOutputIsolationError(
+            "Provider output selector could not be initialized"
+        ) from None
     process: subprocess.Popen[bytes] | None = None
     streams: dict[str, Any] = {}
     captures = {"stdout": bytearray(), "stderr": bytearray()}
@@ -2446,6 +2535,7 @@ def evaluate_local_cli_agent(
     claude_effort: str | ClaudeEffort | None = None,
     codex_reasoning_effort: str | None = None,
     progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
+    pre_model_phase_callback: Callable[[str], None] | None = None,
     model_invocation_start_callback: Callable[[], None] | None = None,
     codex_auth_storage_dir: str | os.PathLike[str] | None = None,
     claude_secure_storage_dir: str | os.PathLike[str] | None = None,
@@ -2465,6 +2555,10 @@ def evaluate_local_cli_agent(
         raise ValueError("Codex reasoning effort is only valid for the Codex system")
     if progress_callback is not None and not callable(progress_callback):
         raise ValueError("Invalid provider progress callback")
+    if pre_model_phase_callback is not None and not callable(
+        pre_model_phase_callback
+    ):
+        raise ValueError("Invalid pre-model phase callback")
     if model_invocation_start_callback is not None and not callable(
         model_invocation_start_callback
     ):
@@ -2479,114 +2573,177 @@ def evaluate_local_cli_agent(
         raise ValueError(
             "Managed Glean OAuth client identifier is only valid for Claude"
         )
-    codex_auth_storage_path: Path | None = None
-    if system == "codex":
-        if codex_auth_storage_dir is None:
-            raise RuntimeError(
-                "Isolated Codex evaluation requires explicit stable auth storage"
-            )
-        try:
-            codex_auth_storage_path = _canonical_codex_auth_storage_path(
-                codex_auth_storage_dir
-            )
-        except ValueError:
-            raise CodexAuthenticationIncidentError(
-                "Isolated Codex authentication state became ambiguous"
-            ) from None
-    secure_storage_path: Path | None = None
-    if claude_secure_storage_dir is not None:
-        try:
-            secure_storage_value = os.fspath(claude_secure_storage_dir)
-        except TypeError as error:
-            raise ValueError("Invalid Claude secure-storage directory") from error
+
+    pre_model_phase_index = -1
+
+    def publish_pre_model_phase(phase: str) -> None:
+        nonlocal pre_model_phase_index
+        expected_index = pre_model_phase_index + 1
         if (
-            not isinstance(secure_storage_value, str)
-            or not secure_storage_value.strip()
+            expected_index >= len(PRE_MODEL_PHASES)
+            or phase != PRE_MODEL_PHASES[expected_index]
         ):
-            raise ValueError("Invalid Claude secure-storage directory")
-        try:
+            raise ProviderStateIsolationError(
+                "Pre-model phase transition was invalid"
+            )
+        if pre_model_phase_callback is not None:
+            try:
+                pre_model_phase_callback(phase)
+            except ProviderExecutionIsolationError:
+                raise
+            except Exception:
+                raise ProviderPreModelPhasePersistenceError(
+                    "Pre-model phase checkpoint could not be persisted",
+                    pre_model_phase=phase,
+                ) from None
+        pre_model_phase_index = expected_index
+
+    publish_pre_model_phase("provider_environment_setup")
+    codex_auth_storage_path: Path | None = None
+    secure_storage_path: Path | None = None
+    cursor_api_key: str | None = None
+    try:
+        if system == "codex":
+            if codex_auth_storage_dir is None:
+                raise ProviderEnvironmentSetupError(
+                    "Stable provider authentication storage is required"
+                )
+            try:
+                codex_auth_storage_path = _canonical_codex_auth_storage_path(
+                    codex_auth_storage_dir
+                )
+            except ValueError:
+                raise CodexAuthenticationIncidentError(
+                    "Isolated Codex authentication state became ambiguous"
+                ) from None
+        if claude_secure_storage_dir is not None:
+            secure_storage_value = os.fspath(claude_secure_storage_dir)
+            if (
+                not isinstance(secure_storage_value, str)
+                or not secure_storage_value.strip()
+            ):
+                raise ProviderEnvironmentSetupError(
+                    "Stable provider authentication storage is invalid"
+                )
             secure_storage_path = _canonical_claude_secure_storage_path(
                 secure_storage_value
             )
-        except ValueError:
-            raise ValueError(
-                "Invalid Claude secure-storage directory"
-            ) from None
-    cursor_api_key: str | None = None
-    if system == "cursor":
-        cursor_api_key = os.environ.get("CURSOR_API_KEY", "").strip()
-        if not cursor_api_key:
-            raise RuntimeError(
-                "Isolated Cursor evaluation requires CURSOR_API_KEY; refusing to "
-                "reuse login state from the host home directory"
+        if system == "cursor":
+            cursor_api_key = os.environ.get("CURSOR_API_KEY", "").strip()
+            if not cursor_api_key:
+                raise ProviderEnvironmentSetupError(
+                    "Explicit provider authentication is required"
+                )
+        requested_model = model or DEFAULT_MODELS[system]
+        executable_name = executable or DEFAULT_EXECUTABLES[system]
+        resolved = shutil.which(executable_name)
+        if resolved is None:
+            raise ProviderCLIUnavailableError(
+                "Required provider CLI is unavailable"
             )
-    requested_model = model or DEFAULT_MODELS[system]
-    executable_name = executable or DEFAULT_EXECUTABLES[system]
-    resolved = shutil.which(executable_name)
-    if resolved is None:
-        raise RuntimeError(f"Required CLI is unavailable: {executable_name}")
+        temporary_directory = _ProviderTemporaryDirectory()
+    except (
+        CodexAuthenticationIncidentError,
+        ProviderEnvironmentSetupError,
+        ProviderExecutionIsolationError,
+        ProviderCLIUnavailableError,
+    ):
+        raise
+    except Exception:
+        raise ProviderEnvironmentSetupError(
+            "Provider environment could not be prepared"
+        ) from None
 
-    with _ProviderTemporaryDirectory() as temp:
+    with temporary_directory as temp:
         # Cursor binds project-scoped approvals to the canonical workspace path.
         # On macOS /tmp aliases /private/tmp, so use one identity for enable/run.
-        root = Path(temp).resolve()
+        try:
+            root = Path(temp).resolve()
+        except Exception:
+            raise ProviderEnvironmentSetupError(
+                "Disposable provider root could not be prepared"
+            ) from None
         socket_path = str(root / "episode.sock")
-        workspace, public_root, schema_path, mcp_path = _prepare_workspace(
-            root, socket_path
-        )
-        final_path = workspace / "final.json"
-        command = build_agent_command(
-            system,
-            executable=resolved,
-            model=requested_model,
-            workspace=str(workspace),
-            schema_path=str(schema_path),
-            mcp_path=str(mcp_path),
-            final_output_path=str(final_path),
-            python=sys.executable,
-            public_root=str(public_root),
-            socket_path=socket_path,
-            claude_max_budget_usd=claude_max_budget_usd,
-            claude_effort=effort,
-            codex_reasoning_effort=codex_effort,
-        )
-        environment = os.environ.copy()
-        environment.pop("EPIAGENT_SOCKET", None)
+        try:
+            workspace, public_root, schema_path, mcp_path = _prepare_workspace(
+                root, socket_path
+            )
+        except ProviderExecutionIsolationError:
+            raise
+        except Exception:
+            raise ProviderWorkspaceSetupError(
+                "Disposable provider workspace could not be prepared"
+            ) from None
+        try:
+            final_path = workspace / "final.json"
+            command = build_agent_command(
+                system,
+                executable=resolved,
+                model=requested_model,
+                workspace=str(workspace),
+                schema_path=str(schema_path),
+                mcp_path=str(mcp_path),
+                final_output_path=str(final_path),
+                python=sys.executable,
+                public_root=str(public_root),
+                socket_path=socket_path,
+                claude_max_budget_usd=claude_max_budget_usd,
+                claude_effort=effort,
+                codex_reasoning_effort=codex_effort,
+            )
+            environment = os.environ.copy()
+            environment.pop("EPIAGENT_SOCKET", None)
+        except Exception:
+            raise ProviderEnvironmentSetupError(
+                "Provider command environment could not be prepared"
+            ) from None
         audit: list[str] = []
         cursor_host_audit = False
         cursor_host_state_before: str | None = None
         codex_home_link: Path | None = None
         glean_home_link: Path | None = None
-        if system == "cursor":
-            cursor_host_audit = True
-            cursor_host_state_before = _snapshot_cursor_host_state()
-            if cursor_host_state_before is None:
-                raise ProviderStateIsolationError(
-                    "Cursor isolation preflight could not verify host chat "
-                    "metadata; refusing to launch the provider CLI"
+        try:
+            if system == "cursor":
+                cursor_host_audit = True
+                cursor_host_state_before = _snapshot_cursor_host_state()
+                if cursor_host_state_before is None:
+                    raise ProviderStateIsolationError(
+                        "Cursor isolation preflight could not verify host chat "
+                        "metadata; refusing to launch the provider CLI"
+                    )
+                _isolate_cursor_environment(environment, root)
+            elif system == "codex":
+                assert codex_auth_storage_path is not None
+                try:
+                    codex_home_link = _isolate_codex_environment(
+                        environment, root, codex_auth_storage_path
+                    )
+                except (OSError, RuntimeError, ValueError):
+                    raise CodexAuthenticationIncidentError(
+                        "Isolated Codex authentication state became ambiguous"
+                    ) from None
+            elif system == "claude":
+                glean_home_link = _isolate_claude_environment(
+                    environment,
+                    root,
+                    secure_storage_path,
+                    claude_glean_oauth_client_id,
                 )
-            _isolate_cursor_environment(environment, root)
-        elif system == "codex":
-            assert codex_auth_storage_path is not None
-            try:
-                codex_home_link = _isolate_codex_environment(
-                    environment, root, codex_auth_storage_path
+                _attest_runtime_claude_credential_state(
+                    glean_home_link, secure_storage_path
                 )
-            except (OSError, RuntimeError, ValueError):
-                raise CodexAuthenticationIncidentError(
-                    "Isolated Codex authentication state became ambiguous"
-                ) from None
-        elif system == "claude":
-            glean_home_link = _isolate_claude_environment(
-                environment,
-                root,
-                secure_storage_path,
-                claude_glean_oauth_client_id,
-            )
-            _attest_runtime_claude_credential_state(
-                glean_home_link, secure_storage_path
-            )
+        except (
+            CodexAuthenticationIncidentError,
+            ProviderEnvironmentSetupError,
+            ProviderExecutionIsolationError,
+        ):
+            raise
+        except Exception:
+            raise ProviderEnvironmentSetupError(
+                "Provider environment isolation could not be prepared"
+            ) from None
 
+        publish_pre_model_phase("provider_cli_readiness")
         readiness_terminal_error: Exception | None = None
         try:
             if codex_home_link is not None and codex_auth_storage_path is not None:
@@ -2613,6 +2770,10 @@ def evaluate_local_cli_agent(
                 raise ProviderCLIReadinessTimeoutError(
                     "Provider CLI version readiness timed out"
                 ) from None
+            except ProviderSpawnIsolationError:
+                raise ProviderCLIReadinessSetupError(
+                    "Provider CLI version readiness could not start"
+                ) from None
             except ProviderOutputOverflowError:
                 raise ProviderStateIsolationError(
                     "Provider CLI version preflight exceeded its output limit"
@@ -2623,9 +2784,13 @@ def evaluate_local_cli_agent(
             version = version_output.decode(
                 "utf-8", errors="replace"
             ).strip()[:200]
-            if version_process.returncode != 0 or not version:
-                raise RuntimeError(
-                    "Provider CLI version preflight failed before episode launch"
+            if version_process.returncode != 0:
+                raise ProviderCLIVersionNonzeroError(
+                    "Provider CLI version readiness returned a nonzero status"
+                )
+            if not version:
+                raise ProviderCLIVersionEmptyError(
+                    "Provider CLI version readiness returned no identity"
                 )
             if system == "cursor":
                 assert cursor_api_key is not None
@@ -2642,6 +2807,10 @@ def evaluate_local_cli_agent(
                 except subprocess.TimeoutExpired:
                     raise ProviderCLIReadinessTimeoutError(
                         "Cursor MCP readiness timed out"
+                    ) from None
+                except ProviderSpawnIsolationError:
+                    raise ProviderCLIReadinessSetupError(
+                        "Cursor MCP readiness could not start"
                     ) from None
                 except ProviderOutputOverflowError:
                     cursor_key_bytes = b""
@@ -2671,15 +2840,25 @@ def evaluate_local_cli_agent(
                         "Provider credential isolation failed"
                     ) from None
                 if enabled.returncode != 0:
-                    raise RuntimeError(
-                        "Cursor MCP enablement failed before the paid agent call"
+                    raise ProviderMCPReadinessError(
+                        "Provider MCP readiness returned a nonzero status"
                     )
         except (
             CodexAuthenticationIncidentError,
+            ProviderCLIReadinessSetupError,
+            ProviderCLIReadinessTimeoutError,
+            ProviderCLIVersionEmptyError,
+            ProviderCLIVersionNonzeroError,
             ProviderExecutionIsolationError,
+            ProviderMCPReadinessError,
         ) as error:
             readiness_terminal_error = error
             raise
+        except Exception:
+            readiness_terminal_error = ProviderCLIReadinessSetupError(
+                "Provider CLI readiness setup could not complete"
+            )
+            raise readiness_terminal_error from None
         finally:
             try:
                 if system == "codex":
@@ -2703,17 +2882,36 @@ def evaluate_local_cli_agent(
                             + isolation_events[0]
                         )
                     cursor_host_state_before = readiness_after
-            except Exception:
+            except (
+                CodexAuthenticationIncidentError,
+                ProviderExecutionIsolationError,
+            ):
                 if readiness_terminal_error is None:
                     raise
+            except Exception:
+                if readiness_terminal_error is None:
+                    raise ProviderCLIReadinessSetupError(
+                        "Provider CLI readiness attestation could not complete"
+                    ) from None
 
-        session = launch_socket_episode(
-            public_socket_path=socket_path,
-            seed=seed,
-            family=family,
-            backend=backend,
-            episode_secret=episode_secret,
-        )
+        publish_pre_model_phase("episode_startup")
+        try:
+            session = launch_socket_episode(
+                public_socket_path=socket_path,
+                seed=seed,
+                family=family,
+                backend=backend,
+                episode_secret=episode_secret,
+            )
+        except (
+            CodexAuthenticationIncidentError,
+            ProviderExecutionIsolationError,
+        ):
+            raise
+        except Exception:
+            raise ProviderEpisodeStartupError(
+                "Trusted episode failed to start before model invocation"
+            ) from None
         session_terminal_error: Exception | None = None
         try:
             call_terminal_error: Exception | None = None
@@ -2764,6 +2962,12 @@ def evaluate_local_cli_agent(
                         if cursor_api_key is not None
                         else ()
                     )
+
+                    def persist_model_spawn_boundary() -> None:
+                        publish_pre_model_phase("model_spawn_boundary")
+                        if model_invocation_start_callback is not None:
+                            model_invocation_start_callback()
+
                     process = _run_provider_process_group(
                         command,
                         cwd=workspace,
@@ -2772,9 +2976,7 @@ def evaluate_local_cli_agent(
                         umask=0o077,
                         forbidden_exact_bytes=forbidden_output,
                         progress_callback=capture_progress,
-                        before_spawn_callback=(
-                            model_invocation_start_callback
-                        ),
+                        before_spawn_callback=persist_model_spawn_boundary,
                     )
                     returncode = process.returncode
                     stdout = _bounded(process.stdout)

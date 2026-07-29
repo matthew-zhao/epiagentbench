@@ -171,6 +171,8 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                     {
                         "profile_id": profile["profile_id"],
                         "model_invocation_state": "finished",
+                        "pre_model_phase": "model_spawn_boundary",
+                        "failed_pre_model_phase": None,
                         "outcome": "passed",
                         "timed_out": False,
                         "timeout_stage": None,
@@ -182,6 +184,10 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                     {
                         "profile_id": profile["profile_id"],
                         "model_invocation_state": "not_started",
+                        "pre_model_phase": "provider_cli_readiness",
+                        "failed_pre_model_phase": (
+                            "provider_cli_readiness"
+                        ),
                         "outcome": (
                             "failed_provider_cli_readiness_timeout"
                         ),
@@ -195,6 +201,8 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                     {
                         "profile_id": profile["profile_id"],
                         "model_invocation_state": "not_started",
+                        "pre_model_phase": None,
+                        "failed_pre_model_phase": None,
                         "outcome": "not_started_terminal_abort",
                         "timed_out": False,
                         "timeout_stage": None,
@@ -208,6 +216,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 "incident_code": "provider_cli_readiness_timeout",
                 "failed_profile_id": matched.PROFILES[1]["profile_id"],
                 "failed_model_invocation_state": "not_started",
+                "failed_pre_model_phase": "provider_cli_readiness",
                 "model_invocations_conservatively_chargeable": 1,
                 "timed_out": True,
                 "timeout_stages": ["provider_cli_readiness"],

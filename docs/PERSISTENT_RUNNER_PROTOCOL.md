@@ -1,10 +1,11 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V20 persistent-supervisor
+Status at control-plane publication: versioned V21 persistent-supervisor
 contract schema v9, execution-context protocol v6, launchd config schema v12,
-and authentication-setup schema v3. The source contract, panel/schema
+and authentication-setup schema v3. The finite pre-model phase contract,
+source contract, panel/schema
 identifiers, spend
-accounting, path namespace, and [V20 runbook](V20_RUNBOOK.md) are defined. The
+accounting, path namespace, and [V21 runbook](V21_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -44,7 +45,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V20 key, cohort, credential namespace, schedule, private state, or
+8. No V21 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -98,22 +99,34 @@ transparent recovery from an in-flight host failure and strict at-most-once
 execution are mutually incompatible. The benchmark chooses at-most-once
 execution and fails closed.
 
-V20 retains V19's separation of attempt accounting from model-invocation
-accounting. Non-model CLI readiness probes occur before
-`model_invocation.started`. A
-typed `provider_cli_readiness_timeout` with
-`model_invocation_state = "not_started"` contributes zero conservatively
-chargeable model invocations and is never retried. It ends preflight; in
-production it consumes one fixed-denominator assignment with finite reason
-`provider_cli_readiness_timeout`, publishes `provider_cli_readiness` as both
-failure and timeout stage, and the same one-shot worker continues. Failure to
-persist the marker prevents the spawn. Once the marker is durable, an
-interrupted or ambiguous launch remains conservatively chargeable. A Codex
-authentication incident requires either that durable marker or an explicit
-Codex credential-state incident; a generic pre-marker control failure records
-only its execution incident. Preflight and production share this boundary. The
-V18 public receipt keeps its legacy early-marker projection and one-call
-conservative accounting; it is not retroactively rewritten.
+V21 retains the separation of attempt accounting from model-invocation
+accounting and adds one durable, ordered, content-free pre-model phase field.
+The only permitted transitions are `provider_environment_setup`,
+`provider_cli_readiness`, `episode_startup`, and `model_spawn_boundary`.
+Unknown, duplicate, skipped, out-of-order, or provider-supplied phase values
+fail closed. The phase contains no provider output, exception text, command
+arguments, environment values, paths, credentials, prompts, observations,
+episode identifiers, scores, or traces.
+
+Typed environment setup, CLI-unavailable, disposable-workspace, readiness
+setup, CLI readiness timeout, CLI-version nonzero, CLI-version empty identity,
+provider MCP readiness, and trusted episode-start failures all occur before
+`model_invocation.started`. With
+`model_invocation_state = "not_started"` they contribute zero conservatively
+chargeable model invocations and are never retried. A failure to durably
+persist the next phase or the model-invocation marker prevents spawn. Once the
+model marker is durable, an interrupted or ambiguous launch remains
+conservatively chargeable. A Codex authentication incident requires either
+that durable marker or an explicit Codex credential-state incident; a generic
+pre-marker control failure records only its execution incident. Preflight and
+production share this boundary.
+
+The V20 public receipt keeps its historical generic
+`provider_execution` / `provider_adapter_execution_failed` projection. Its
+durable model state was `not_started`, proving zero conservatively chargeable
+calls, but its exact pre-model subphase is not recoverable and is not
+retroactively rewritten. The V18 receipt likewise retains its legacy early
+marker and one-call conservative accounting.
 
 The initial macOS adapter supervises one complete evaluator command, not 300
 individual provider commands. Its own `prepared`, `launch_committed`,
@@ -146,10 +159,9 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V20 retains the provider-free boundary before the private panel exists. One
-exact absolute interpreter,
-`/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python`, runs every
-V20 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
+V21 retains the provider-free boundary before the private panel exists. One
+operator-supplied, absolute, attested isolated interpreter runs every V21 CLI
+and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order, and
 does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. Every
@@ -186,10 +198,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v20.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v21.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V20 freezer or `prepare` command can create or read a key, cohort,
+the matched V21 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -342,7 +354,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V20, generation also requires the exact manifest-bound runtime-cache root.
+For V21, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -410,7 +422,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V20 model call may start until all of the following pass through the
+No V21 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -525,16 +537,16 @@ started no model-bearing call, created no credential or public authentication
 receipt, and started no preflight or production work. It is terminal and
 forbidden for namespace or cohort reuse.
 
-V20 binds explicit runtime-cache input, internal environment installation and
+V21 binds explicit runtime-cache input, internal environment installation and
 exact restoration, a durable foreground-authentication ceremony claim,
 atomic create-once staging/publication, the finite provider-incident taxonomy,
 authenticated terminal-receipt exit, completion-checkpoint recovery,
 repository-relative receipt handoff, provider-free prelaunch attestation,
 nested launchd-state parser, and the existing heartbeat/retry/source contracts
 under panel/cohort
-`development-matched-50x6-v20`, top-level schema
-`development_matched_panel_v20`, the exact $590 acknowledgement, and fresh
-V20 paths. Its two-commit provider-free runtime protocol must prove the exact V5
+`development-matched-50x6-v21`, top-level schema
+`development_matched_panel_v21`, the exact $590 acknowledgement, and fresh
+V21 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
@@ -551,11 +563,30 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V20 panel's Claude ceiling is $510 (102 calls × $5); the exact
+The current V21 panel's Claude ceiling is $510 (102 calls × $5); the exact
 acknowledgement's $590 cumulative ceiling adds the conservative $80 allowance
 for prior failed panels, including V18's retained $5 legacy-marker call; V19
-adds zero because it started no Claude model-bearing call.
+and V20 add zero because neither started a Claude model-bearing call.
 Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only
 and are never mixed into the new estimand.
+
+V20 completed its runtime receipt, private freeze, manifest, spend
+authorization, and foreground authentication, then stopped on the first Claude
+preflight profile. The sanitized receipt records
+`model_invocation_state = "not_started"`, zero conservatively chargeable calls,
+zero production episodes, and no scores. V20's generic provider-adapter
+projection cannot distinguish CLI-identity readiness from trusted episode
+startup, so its supersession preserves that uncertainty. V20 is terminal,
+non-resumable, and forbidden for namespace or cohort reuse.
+
+V21 versions the panel/cohort as `development-matched-50x6-v21`, the top-level
+schema as `development_matched_panel_v21`, and every private/execution
+namespace. It retains the `$510` current-run and `$80` prior conservative
+Claude ceilings; V20 adds zero, so the exact cumulative acknowledgement remains
+`$590`. Before any V21 runtime receipt, manifest, private state,
+authentication, supervisor, or provider call is created, the provider-free
+control-plane and phase-accounting tests must be published and pinned. The
+[V21 runbook](V21_RUNBOOK.md) is authoritative for the later create-once
+sequence.

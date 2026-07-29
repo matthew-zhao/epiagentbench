@@ -1435,7 +1435,7 @@ def _manifest_binding(
         if isinstance(preparation_runtime_contract, dict)
         else None
     )
-    is_v20 = preparation_runtime_contract is not None
+    uses_bound_preparation_runtime = preparation_runtime_contract is not None
     if (
         not isinstance(panel_id, str)
         or not _SAFE_NAME.fullmatch(panel_id)
@@ -1444,7 +1444,7 @@ def _manifest_binding(
         or not isinstance(python_executable_sha256, str)
         or not _SHA256.fullmatch(python_executable_sha256)
         or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
-        or is_v20
+        or uses_bound_preparation_runtime
         and (
             not isinstance(python_entrypoint_binding_sha256, str)
             or not _SHA256.fullmatch(python_entrypoint_binding_sha256)
@@ -1469,12 +1469,12 @@ def _manifest_binding(
         str(python_entrypoint_kind),
         (
             str(python_entrypoint_binding_sha256)
-            if is_v20
+            if uses_bound_preparation_runtime
             else None
         ),
         (
             str(runtime_cache_contract_sha256)
-            if is_v20
+            if uses_bound_preparation_runtime
             else None
         ),
     )
@@ -1806,7 +1806,8 @@ def generate_launch_agent(
     if manifest_runtime_cache_contract_sha256 is not None:
         if runtime_cache_dir is None:
             raise ValueError(
-                "V20 LaunchAgent requires the bound runtime cache directory"
+                "This LaunchAgent requires the manifest-bound runtime cache "
+                "directory"
             )
         supplied_runtime_cache = _absolute(
             runtime_cache_dir, label="runtime cache directory"

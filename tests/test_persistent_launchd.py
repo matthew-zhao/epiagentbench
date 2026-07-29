@@ -954,7 +954,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v20_rejects_legacy_launchd_schema_before_control_action(
+    def test_v21_rejects_legacy_launchd_schema_before_control_action(
         self,
     ) -> None:
         generated = self._generate()

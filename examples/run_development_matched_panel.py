@@ -124,10 +124,10 @@ if __name__ == "__main__":
     )
 
 
-# V20 invokes this script with ``-I -S -B``.  Build the only permitted import
-# path explicitly: standard library first, then the frozen repository, then
-# the bound virtual-environment packages.  Appending these directories does
-# not execute .pth, sitecustomize, or usercustomize.
+# Bound matched-panel runs invoke this script with ``-I -S -B``. Build the
+# only permitted import path explicitly: standard library first, then the
+# frozen repository, then the bound virtual-environment packages. Appending
+# these directories does not execute .pth, sitecustomize, or usercustomize.
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if sys.flags.isolated:
     if (
@@ -136,7 +136,9 @@ if sys.flags.isolated:
         or sys.flags.dont_write_bytecode != 1
         or not sys.flags.safe_path
     ):
-        raise RuntimeError("Refusing a partially isolated V20 Python process")
+        raise RuntimeError(
+            "Refusing a partially isolated matched-panel Python process"
+        )
     _SOURCE_ROOT = _REPOSITORY_ROOT / "src"
     _VENV_ROOT = Path(sys.executable).parent.parent
     _SITE_PACKAGES = (
@@ -149,7 +151,9 @@ if sys.flags.isolated:
         not (_VENV_ROOT / "pyvenv.cfg").is_file()
         or not _SITE_PACKAGES.is_dir()
     ):
-        raise RuntimeError("V20 requires its bound virtual environment")
+        raise RuntimeError(
+            "The matched panel requires its bound virtual environment"
+        )
     sys.path.append(str(_SOURCE_ROOT))
     sys.path.append(str(_SITE_PACKAGES))
 
@@ -356,7 +360,10 @@ def main() -> int:
     )
     freeze = commands.add_parser(
         "freeze",
-        help="Freeze the one V20 cohort after runtime receipt verification",
+        help=(
+            "Freeze the one versioned cohort after runtime receipt "
+            "verification"
+        ),
     )
     freeze.add_argument(
         "--preparation-runtime-receipt", required=True, type=Path

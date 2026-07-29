@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 from collections.abc import Mapping, Sequence
 import hashlib
 import json
@@ -175,18 +174,23 @@ class V19SupersessionTests(unittest.TestCase):
                 "persistent_supervisor_execution_protocol_v6",
             }.issubset(requirements)
         )
-        panel = (
-            self.root / "src/epiagentbench/development_matched_panel.py"
-        ).read_text(encoding="utf-8")
+        v20_manifest = json.loads(
+            (
+                self.root
+                / "results/development-matched-50x6-v20.manifest.json"
+            ).read_bytes()
+        )
         launcher = (
             self.root / "src/epiagentbench/launchd_agent.py"
         ).read_text(encoding="utf-8")
-        self.assertIn(
-            'PANEL_ID = "development-matched-50x6-v20"', panel
+        self.assertEqual(
+            v20_manifest["panel_id"], "development-matched-50x6-v20"
         )
-        self.assertIn(
-            '_AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v3"',
-            panel,
+        self.assertEqual(
+            v20_manifest["run_contract"]["authentication_setup"][
+                "schema_version"
+            ],
+            "epiagentbench.authentication_setup.v3",
         )
         self.assertIn(
             '_SCHEMA = "epiagentbench.launchd_agent.v12"', launcher
@@ -196,26 +200,6 @@ class V19SupersessionTests(unittest.TestCase):
         )
 
     def test_v20_acknowledgement_and_budget_are_consistent(self) -> None:
-        panel_path = (
-            self.root / "src/epiagentbench/development_matched_panel.py"
-        )
-        panel_source = panel_path.read_text(encoding="utf-8")
-        assignments = {
-            node.targets[0].id: ast.literal_eval(node.value)
-            for node in ast.parse(panel_source).body
-            if isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id
-            in {
-                "REQUIRED_SPEND_ACKNOWLEDGEMENT",
-                "_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD",
-            }
-        }
-        self.assertEqual(
-            assignments["REQUIRED_SPEND_ACKNOWLEDGEMENT"],
-            self.V20_ACKNOWLEDGEMENT,
-        )
         self.assertEqual(
             "sha256:"
             + hashlib.sha256(
@@ -223,21 +207,24 @@ class V19SupersessionTests(unittest.TestCase):
             ).hexdigest(),
             self.V20_ACKNOWLEDGEMENT_SHA256,
         )
+        v20_manifest = json.loads(
+            (
+                self.root
+                / "results/development-matched-50x6-v20.manifest.json"
+            ).read_bytes()
+        )
         self.assertEqual(
-            assignments["_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD"],
-            590.0,
+            v20_manifest["run_contract"]["spend_authorization"][
+                "required_acknowledgement_text_sha256"
+            ],
+            self.V20_ACKNOWLEDGEMENT_SHA256,
         )
-        self.assertIn(
-            '"claude_current_v20_authorization_ceiling_usd"',
-            panel_source,
-        )
-        self.assertIn('"v19_usd": 0.0', panel_source)
 
         readme = (self.root / "README.md").read_text(encoding="utf-8")
         runbook = (self.root / "docs/V20_RUNBOOK.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn(self.V20_ACKNOWLEDGEMENT, readme)
+        self.assertNotIn(self.V20_ACKNOWLEDGEMENT, readme)
         self.assertIn(self.V20_ACKNOWLEDGEMENT, runbook)
         self.assertIn(self.V20_ACKNOWLEDGEMENT_SHA256, runbook)
         for document in (readme, runbook):

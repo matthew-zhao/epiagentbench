@@ -44,20 +44,30 @@ from .development_pilot import (
     _utc_now,
 )
 from .pilot import (
+    PRE_MODEL_PHASES,
     CodexAuthenticationIncidentError,
     PilotRunResult,
     ProviderAttemptPersistenceError,
+    ProviderCLIUnavailableError,
+    ProviderCLIReadinessSetupError,
     ProviderCLIReadinessTimeoutError,
+    ProviderCLIVersionEmptyError,
+    ProviderCLIVersionNonzeroError,
     ProviderCompletionPersistenceError,
+    ProviderEnvironmentSetupError,
+    ProviderEpisodeStartupError,
     ProviderExecutionIsolationError,
     ProviderInvocationPersistenceError,
+    ProviderMCPReadinessError,
     ProviderOutputIsolationError,
+    ProviderPreModelPhasePersistenceError,
     ProviderProcessIsolationError,
     ProviderProgressPersistenceError,
     ProviderQuarantinePersistenceError,
     ProviderResultCheckpointPersistenceError,
     ProviderSpawnIsolationError,
     ProviderStateIsolationError,
+    ProviderWorkspaceSetupError,
     _ProviderTemporaryDirectory,
     _attest_codex_auth_storage,
     _attest_claude_secure_storage_keychain,
@@ -88,9 +98,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v20"
+PANEL_ID = "development-matched-50x6-v21"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v20"
+SCHEMA_VERSION = "development_matched_panel_v21"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -98,7 +108,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v20 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v21 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $590 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -109,8 +119,8 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "failed v14 preflight, the failed zero-model-call v15 pre-claim "
     "preparation, the failed v16 preflight, the failed zero-model-call v17 "
     "pre-start runtime-cache-environment refusal, the failed v18 preflight, "
-    "the failed zero-model-call v19 authentication setup, and the v20 "
-    "preflight and production run."
+    "the failed zero-model-call v19 authentication setup, the failed "
+    "zero-model-call v20 preflight, and the v21 preflight and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v2"
@@ -123,7 +133,7 @@ _PREPARATION_RUNTIME_SMOKE_SCHEMA = (
 )
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "c4577a0c488248f74cd19f84e51b41c51cece803e36324ae4f3ac038715631c8"
+    "2f69e11f3313f7bf3294dbab0fa9058428f2c70546dea7896c91cc872b0ab5cf"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -241,17 +251,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V20 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V21 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V20 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V21 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V20 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V21 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v20_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v21_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v20_cohort_freeze_completion.v1"
+    "epiagentbench.v21_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -377,6 +387,7 @@ _PROVIDER_ISOLATION_FAILURE_CLASSES = frozenset(
         "ProviderOutputIsolationError",
         "ProviderProcessIsolationError",
         "ProviderProgressPersistenceError",
+        "ProviderPreModelPhasePersistenceError",
         "ProviderQuarantinePersistenceError",
         "ProviderResultCheckpointPersistenceError",
         "ProviderSpawnIsolationError",
@@ -389,11 +400,19 @@ _PROVIDER_INCIDENT_CODES = frozenset(
         "evaluator_return_contract_failed",
         "provider_adapter_execution_failed",
         "provider_attempt_marker_persist_failed",
+        "provider_cli_unavailable",
         "provider_cli_readiness_timeout",
+        "provider_cli_readiness_setup_failed",
+        "provider_cli_version_empty",
+        "provider_cli_version_nonzero",
         "provider_completion_marker_persist_failed",
+        "provider_episode_start_failed",
+        "provider_environment_setup_failed",
         "provider_execution_isolation_failed",
         "model_invocation_marker_persist_failed",
+        "provider_mcp_readiness_failed",
         "provider_output_isolation_failed",
+        "provider_pre_model_phase_checkpoint_persist_failed",
         "provider_process_isolation_failed",
         "provider_progress_checkpoint_persist_failed",
         "provider_quarantine_checkpoint_persist_failed",
@@ -402,6 +421,7 @@ _PROVIDER_INCIDENT_CODES = frozenset(
         "provider_result_processing_failed",
         "provider_spawn_failed",
         "provider_state_isolation_failed",
+        "provider_workspace_setup_failed",
         "supervisor_boundary_attestation_failed",
         "unexpected_control_path_failure",
     }
@@ -420,6 +440,10 @@ _PREFLIGHT_FAILURE_STAGES = frozenset(
         "provider_completion_marker",
         "provider_contract",
         "provider_cli_readiness",
+        "provider_environment_setup",
+        "episode_startup",
+        "model_spawn_boundary",
+        "pre_model_phase_checkpoint",
         "provider_execution",
         "model_invocation_marker",
         "provider_progress_checkpoint",
@@ -430,6 +454,17 @@ _PREFLIGHT_FAILURE_STAGES = frozenset(
         "supervisor_attestation_final_completion",
         "trace_validation",
     }
+)
+_TRANSPORT_VOID_TIMEOUT_STAGES = (
+    None,
+    "provider_cli_readiness",
+    "model_invocation",
+)
+_TRANSPORT_VOID_FAILURE_STAGES = (
+    None,
+    *PRE_MODEL_PHASES,
+    "pre_model_phase_checkpoint",
+    "model_invocation",
 )
 _PRODUCTION_PUBLIC_FAILURE_STAGES = frozenset(
     {
@@ -1012,21 +1047,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V20 cohort destination")
+    return _canonical_new_private_path(value, label="V21 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V20 claim location paired with this owner-only key."""
+    """Return the one V21 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V20 authentication-key namespace is unavailable"
+            "V21 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1035,16 +1070,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V20 authentication-key namespace must be owner-only"
+            "V21 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V20 cohort freeze claim"
+        requested_path, label="V21 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V20 cohort freeze claim must use the canonical key-namespace path"
+            "V21 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1072,7 +1107,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V20 cohort freeze claim authentication failed")
+        raise ValueError("V21 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1095,7 +1130,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V20 cohort freeze completion authentication failed")
+        raise ValueError("V21 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1119,7 +1154,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V20 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V21 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1149,12 +1184,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V20 freeze attempt before any cohort randomness."""
+    """Burn the only V21 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V20 cohort freeze completion already exists; never rerun freeze"
+            "V21 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1171,11 +1206,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V20 cohort freeze already has a pending claim; interrupted "
+            "V21 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V20 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V21 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1193,7 +1228,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V20 cohort manifest must use its canonical filename")
+        raise ValueError("V21 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1204,7 +1239,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V20 frozen cohort manifest"
+            canonical_manifest_path, label="V21 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1222,11 +1257,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V20 cohort freeze completion already exists; never replace it"
+            "V21 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V20 cohort freeze completion failed its durable reload"
+            "V21 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1244,13 +1279,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V20 cohort has no authenticated create-once freeze claim"
+            "Frozen V21 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V20 cohort freeze remains pending; interrupted freezes are "
+            "V21 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1258,7 +1293,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V20 cohort manifest must use its canonical filename")
+        raise ValueError("V21 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1273,11 +1308,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V20 cohort freeze claim belongs to another freeze")
+        raise ValueError("V21 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V20 cohort freeze claim has no claim time")
+        raise ValueError("V21 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1288,7 +1323,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V20 frozen cohort manifest"
+            manifest_path, label="V21 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1298,12 +1333,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V20 cohort freeze completion differs from its manifest or claim"
+            "V21 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V20 cohort freeze completion has no completion time")
+        raise ValueError("V21 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -3400,12 +3435,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V20 key only when one stable inode owns its namespace."""
+    """Read the V21 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V20 authentication key is unavailable") from None
+        raise RuntimeError("V21 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3425,18 +3460,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V20 authentication key must be an owner-only single-link file"
+            "V21 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V20 authentication key is unavailable") from None
+        raise RuntimeError("V21 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V20 authentication key changed while reading")
+        raise RuntimeError("V21 authentication key changed while reading")
     return key
 
 
@@ -4338,7 +4373,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V20 runtime-cache environment does not match the exact contract"
+            "V21 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4352,17 +4387,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V20 runtime-cache contract is inconsistent")
+        raise RuntimeError("V21 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V20 runtime-cache environment is unavailable")
+        raise RuntimeError("V21 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V20 runtime-cache environment is invalid")
+        raise RuntimeError("V21 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4487,7 +4522,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v20-stop-direct-care",
+                        control_id="v21-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4520,14 +4555,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V20 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V21 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V20 Starsim golden smoke changed engine descriptors"
+                "V21 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4569,7 +4604,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V20 Starsim golden smoke lost its causal transmission/control "
+            "V21 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4597,12 +4632,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V20 Starsim golden smoke result drifted from its reviewed digest"
+            "V21 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v20_contact_transmission_with_matched_contact_stop"
+            "v21_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -4620,7 +4655,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V20 requires exact Starsim "
+            "V21 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -4638,7 +4673,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V20 Python executable must not be temporary")
+        raise RuntimeError("V21 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -4702,7 +4737,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V20 creation."""
+    """Attest every public preparation dependency before private V21 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -4723,7 +4758,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V20 runtime preflight is not at the expected pinned commit"
+            "V21 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -4734,7 +4769,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().absolute()
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V20 runtime cache must be outside the repository"
+            "V21 runtime cache must be outside the repository"
         )
     runtime = _runtime_contract()
     smoke = _preparation_runtime_smoke()
@@ -4747,7 +4782,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V20 source changed during preparation runtime preflight"
+            "V21 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -4781,18 +4816,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V20 preparation runtime receipt must already be committed"
+            "V21 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V20 preparation runtime receipt",
+            label="V21 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V20 preparation runtime receipt is unavailable"
+            "V21 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -4850,7 +4885,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V20 preparation runtime receipt failed closed-schema validation"
+            "V21 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -4862,7 +4897,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V20 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V21 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -4879,14 +4914,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V20 runtime cache changed during receipt verification"
+            "V21 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V20 preparation runtime differs from the published receipt"
+            "V21 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v1",
@@ -4987,18 +5022,18 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V20 preparation runtime is invalid")
+        raise ValueError("Bound V21 preparation runtime is invalid")
     runtime_cache = _runtime_cache_contract(
         _runtime_cache_root_from_environment()
     )
     if bound.get("runtime_cache_contract_sha256") != _component_hash(
         runtime_cache
     ):
-        raise ValueError("Bound V20 runtime cache changed")
+        raise ValueError("Bound V21 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V20 Starsim smoke result changed")
+        raise ValueError("Bound V21 Starsim smoke result changed")
     return bound
 
 
@@ -5420,8 +5455,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v20_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v20_authorization_breakdown": {
+        "claude_current_v21_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v21_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -5452,6 +5487,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v17_usd": 0.0,
             "v18_usd": 5.0,
             "v19_usd": 0.0,
+            "v20_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -5580,6 +5616,21 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v19_supersession": (
                 "results/development-matched-50x6-v19.superseded.json"
             ),
+            "v20_runtime_receipt": (
+                "results/development-matched-50x6-v20.runtime.json"
+            ),
+            "v20_manifest": (
+                "results/development-matched-50x6-v20.manifest.json"
+            ),
+            "v20_authentication_receipt": (
+                "results/development-matched-50x6-v20.authentication.json"
+            ),
+            "v20_preflight_artifact": (
+                "results/development-matched-50x6-v20.preflight.json"
+            ),
+            "v20_supersession": (
+                "results/development-matched-50x6-v20.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -5600,7 +5651,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V20 exactly once after runtime re-attestation."""
+    """Claim and freeze V21 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -5634,7 +5685,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V20 runtime cache must not overlap the {label}"
+                f"V21 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -5655,13 +5706,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V20 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V21 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V20 cohort returned a noncanonical artifact location"
+            "Frozen V21 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -5674,9 +5725,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V20 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V21 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v20_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v21_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -5735,13 +5786,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V20 requires an exact 1800-second assignment timeout")
+        raise ValueError("V21 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V20 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V21 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -5766,7 +5817,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V20 runtime cache must not overlap the {label}"
+                f"V21 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -5778,7 +5829,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V20 source or CLI identity drifted after runtime verification"
+            "V21 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -5832,7 +5883,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V20 runtime cache must not overlap the {label}"
+                f"V21 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -6136,16 +6187,8 @@ def _prepare_panel_locked(
             "transport_void_public_schema": {
                 "reason": "finite_provider_incident_code",
                 "allowed_reasons": sorted(_PROVIDER_INCIDENT_CODES),
-                "timeout_stage": [
-                    None,
-                    "provider_cli_readiness",
-                    "model_invocation",
-                ],
-                "failure_stage": [
-                    None,
-                    "provider_cli_readiness",
-                    "model_invocation",
-                ],
+                "timeout_stage": list(_TRANSPORT_VOID_TIMEOUT_STAGES),
+                "failure_stage": list(_TRANSPORT_VOID_FAILURE_STAGES),
             },
             "partial_public_results": False,
             "environment_preflight_required_before_production_launch": True,
@@ -6485,7 +6528,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V20 preparation runtime binding is invalid"
+            "Private V21 preparation runtime binding is invalid"
         )
     expected_contracts = {
         "runtime_contract": _runtime_contract(),
@@ -6553,7 +6596,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V20 preparation runtime contract is missing")
+        raise ValueError("V21 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -6582,7 +6625,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V20 cohort freeze claim differs from private state"
+            "Authenticated V21 cohort freeze claim differs from private state"
         )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
@@ -6682,9 +6725,12 @@ def _validate_contracts(
             model_invocation_state = _durable_model_invocation_state(
                 assignment
             )
+            durable_pre_model_phase = _durable_pre_model_phase(
+                assignment
+            )
         except RuntimeError as error:
             raise ValueError(
-                "Private assignment model-invocation marker is invalid"
+                "Private assignment execution marker is invalid"
             ) from error
         if (
             assignment.get("status") == "complete"
@@ -6695,6 +6741,18 @@ def _validate_contracts(
             )
         projected_state = assignment.get("model_invocation_state")
         projected_chargeable = assignment.get("conservative_chargeable")
+        projected_pre_model_phase = assignment.get("pre_model_phase")
+        failed_pre_model_phase = assignment.get(
+            "failed_pre_model_phase"
+        )
+        phase_projection_present = any(
+            name in assignment
+            for name in (
+                "pre_model_phase_checkpoints",
+                "pre_model_phase",
+                "failed_pre_model_phase",
+            )
+        )
         if (
             projected_state is not None
             and projected_state != model_invocation_state
@@ -6706,34 +6764,71 @@ def _validate_contracts(
             raise ValueError(
                 "Private assignment model-invocation projection is invalid"
             )
+        if phase_projection_present and (
+            projected_pre_model_phase != durable_pre_model_phase
+            or failed_pre_model_phase not in {*PRE_MODEL_PHASES, None}
+            or (
+                model_invocation_state != "not_started"
+                and durable_pre_model_phase != "model_spawn_boundary"
+            )
+            or (
+                assignment.get("status") == "complete"
+                and failed_pre_model_phase is not None
+            )
+        ):
+            raise ValueError(
+                "Private assignment pre-model phase projection is invalid"
+            )
         if assignment.get("status") == "transport_void":
             void_reason = assignment.get("void_reason")
             timeout_stage = assignment.get("timeout_stage")
             failure_stage = assignment.get("failure_stage")
             if (
                 void_reason not in _PROVIDER_INCIDENT_CODES
-                or timeout_stage
-                not in {None, "provider_cli_readiness", "model_invocation"}
-                or failure_stage
-                not in {None, "provider_cli_readiness", "model_invocation"}
+                or timeout_stage not in _TRANSPORT_VOID_TIMEOUT_STAGES
+                or failure_stage not in _TRANSPORT_VOID_FAILURE_STAGES
             ):
                 raise ValueError(
                     "Private transport-void projection is invalid"
                 )
-            if (
+            readiness_timeout_claimed = (
                 void_reason == "provider_cli_readiness_timeout"
                 or timeout_stage == "provider_cli_readiness"
-                or failure_stage == "provider_cli_readiness"
-            ) and (
+                or (
+                    failure_stage == "provider_cli_readiness"
+                    and assignment.get("timed_out") is True
+                )
+            )
+            if readiness_timeout_claimed and (
                 void_reason != "provider_cli_readiness_timeout"
                 or timeout_stage != "provider_cli_readiness"
                 or failure_stage != "provider_cli_readiness"
                 or model_invocation_state != "not_started"
                 or assignment.get("timed_out") is not True
                 or projected_chargeable is not False
+                or (
+                    phase_projection_present
+                    and (
+                        projected_pre_model_phase
+                        != "provider_cli_readiness"
+                        or failed_pre_model_phase
+                        != "provider_cli_readiness"
+                    )
+                )
             ):
                 raise ValueError(
                     "Private readiness-timeout projection is invalid"
+                )
+            if (
+                not readiness_timeout_claimed
+                and failure_stage == "provider_cli_readiness"
+                and (
+                    timeout_stage is not None
+                    or assignment.get("timed_out") is True
+                )
+            ):
+                raise ValueError(
+                    "Private ordinary readiness projection is invalid"
                 )
     if private.get("status") in {"complete", _PENDING_PRODUCTION_STATUS} and (
         len(assignments) != ASSIGNMENT_COUNT
@@ -6860,7 +6955,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V20 spend authorization contract mismatch")
+        raise ValueError("V21 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -6888,7 +6983,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v20 spend authorization receipt is required "
+            "A manifest-bound exact v21 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -6903,14 +6998,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v20 spend authorization receipt is required "
+            "A manifest-bound exact v21 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v20 spend authorization receipt is required "
+            "A manifest-bound exact v21 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -6932,7 +7027,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v20 $590 cumulative spend acknowledgement text is required"
+            "The exact v21 $590 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -8393,7 +8488,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V20 panel cannot retry"
+                    "state; this V21 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -8406,7 +8501,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V20 panel cannot retry"
+                    "state; this V21 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8419,7 +8514,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V20 panel cannot retry"
+                    "state; this V21 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -8441,7 +8536,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V20 panel cannot retry"
+                        "repository-contract state; this V21 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -8462,7 +8557,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V20 panel "
+                "Authentication process state is ambiguous; this V21 panel "
                 "cannot retry"
             )
         if (
@@ -8493,7 +8588,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -8525,7 +8620,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V20 panel cannot retry"
+                "state; this V21 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -8538,7 +8633,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -8551,7 +8646,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -8568,7 +8663,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -8587,7 +8682,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V20 panel cannot retry"
+                "state; this V21 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -8699,7 +8794,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V20 panel cannot retry"
+                    "state before provider launch; this V21 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8714,7 +8809,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V20 panel cannot retry"
+                    "state before provider launch; this V21 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -8731,7 +8826,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V20 panel cannot retry"
+                    "state before provider launch; this V21 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -8750,7 +8845,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V20 panel cannot retry"
+                    "state; this V21 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -8798,7 +8893,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V20 panel cannot retry"
+                    "V21 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -8816,7 +8911,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V20 panel cannot retry"
+                    "state after provider return; this V21 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8834,7 +8929,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V20 panel cannot retry"
+                    "state after provider return; this V21 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
@@ -8874,7 +8969,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V20 panel cannot retry"
+                    "state after provider return; this V21 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -8896,7 +8991,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V20 panel cannot retry"
+                    "this V21 panel cannot retry"
                 ) from None
 
         try:
@@ -8910,7 +9005,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -8923,7 +9018,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -8940,7 +9035,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V20 panel cannot retry"
+                "this V21 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -8959,7 +9054,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V20 panel cannot retry"
+                "state; this V21 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -9360,9 +9455,36 @@ def _terminal_preflight_candidate(
         raise RuntimeError(
             "Terminal preflight receipt failure stage is invalid"
         )
+    profiles = candidate.get("profiles")
+    if isinstance(profiles, list) and (
+        any(
+            not isinstance(profile, Mapping)
+            or not _valid_preflight_phase_projection(profile)
+            for profile in profiles
+        )
+        or candidate.get("failed_pre_model_phase")
+        not in {*PRE_MODEL_PHASES, None}
+    ):
+        raise RuntimeError(
+            "Terminal preflight receipt phase projection is invalid"
+        )
+    failed_profile_id = candidate.get("failed_profile_id")
+    if isinstance(profiles, list) and isinstance(failed_profile_id, str):
+        failed_profiles = [
+            profile
+            for profile in profiles
+            if isinstance(profile, Mapping)
+            and profile.get("profile_id") == failed_profile_id
+        ]
+        if (
+            len(failed_profiles) != 1
+            or candidate.get("failed_pre_model_phase")
+            != failed_profiles[0].get("failed_pre_model_phase")
+        ):
+            raise RuntimeError(
+                "Terminal preflight failed phase projection is invalid"
+            )
     if candidate.get("failure_reason") == "provider_cli_readiness_timeout":
-        profiles = candidate.get("profiles")
-        failed_profile_id = candidate.get("failed_profile_id")
         readiness_profiles: list[Mapping[str, Any]] = []
         expected_chargeable = 0
         profiles_consistent = isinstance(profiles, list)
@@ -9404,6 +9526,12 @@ def _terminal_preflight_candidate(
             or readiness_profile.get("model_invocation_state")
             != "not_started"
             or readiness_profile.get("conservative_chargeable") is not False
+            or readiness_profile.get("pre_model_phase")
+            != "provider_cli_readiness"
+            or readiness_profile.get("failed_pre_model_phase")
+            != "provider_cli_readiness"
+            or candidate.get("failed_pre_model_phase")
+            != "provider_cli_readiness"
             or readiness_profile.get("outcome")
             != "failed_provider_cli_readiness_timeout"
             or readiness_profile.get("timed_out") is not True
@@ -9820,6 +9948,8 @@ def _assert_environment_preflight(
             not isinstance(attempt, dict)
             or attempt.get("status") != "passed"
             or _durable_model_invocation_state(attempt) != "finished"
+            or _durable_pre_model_phase(attempt)
+            != "model_spawn_boundary"
             for attempt in private_attempts
         )
     ):
@@ -9864,6 +9994,8 @@ def _assert_environment_preflight(
             and item.get("requested_reasoning")
             == expected_profile["requested_reasoning"]
             and item.get("model_invocation_state") == "finished"
+            and item.get("pre_model_phase") == "model_spawn_boundary"
+            and item.get("failed_pre_model_phase") is None
             and item.get("outcome") == "passed"
             and item.get("timed_out") is False
             and item.get("timeout_stage") is None
@@ -9929,6 +10061,7 @@ def _assert_environment_preflight(
         or receipt.get("preflight_purpose")
         != "unscored_infrastructure_routing_handshake"
         or receipt.get("failed_model_invocation_state") is not None
+        or receipt.get("failed_pre_model_phase") is not None
         or receipt.get("timeout_stages") != []
         or receipt.get("failed_profile_ids") != []
         or receipt.get("failure_reason") is not None
@@ -10222,10 +10355,75 @@ def _result_timed_out(result: PilotRunResult) -> bool:
     )
 
 
+def _durable_pre_model_phase(marker: Mapping[str, Any]) -> str | None:
+    """Project an ordered authenticated phase ledger onto its latest phase."""
+
+    checkpoints = marker.get("pre_model_phase_checkpoints")
+    if checkpoints is None:
+        return None
+    if (
+        not isinstance(checkpoints, list)
+        or not checkpoints
+        or len(checkpoints) > len(PRE_MODEL_PHASES)
+        or tuple(checkpoints) != PRE_MODEL_PHASES[: len(checkpoints)]
+    ):
+        raise RuntimeError("Pre-model phase checkpoints are invalid")
+    return str(checkpoints[-1])
+
+
+def _failed_pre_model_phase(
+    error: BaseException,
+    *,
+    marker: Mapping[str, Any],
+    model_invocation_state: str,
+) -> str | None:
+    """Return only a trusted or durable content-free pre-model failure phase."""
+
+    trusted_types = (
+        (
+            (
+                ProviderCLIUnavailableError,
+                ProviderEnvironmentSetupError,
+                ProviderWorkspaceSetupError,
+            ),
+            "provider_environment_setup",
+        ),
+        (
+            (
+                ProviderCLIReadinessTimeoutError,
+                ProviderCLIReadinessSetupError,
+                ProviderCLIVersionEmptyError,
+                ProviderCLIVersionNonzeroError,
+                ProviderMCPReadinessError,
+            ),
+            "provider_cli_readiness",
+        ),
+        ((ProviderEpisodeStartupError,), "episode_startup"),
+    )
+    for error_types, phase in trusted_types:
+        if isinstance(error, error_types):
+            return phase
+    if isinstance(error, ProviderSpawnIsolationError):
+        durable_phase = _durable_pre_model_phase(marker)
+        return (
+            "model_spawn_boundary"
+            if model_invocation_state != "not_started"
+            else durable_phase
+        )
+    if isinstance(error, ProviderPreModelPhasePersistenceError):
+        phase = getattr(error, "pre_model_phase", None)
+        return str(phase) if phase in PRE_MODEL_PHASES else None
+    if model_invocation_state == "not_started":
+        return _durable_pre_model_phase(marker)
+    return None
+
+
 def _preflight_profile_outcome(
     profile: Mapping[str, Any],
     *,
     model_invocation_state: str,
+    pre_model_phase: str | None,
+    failed_pre_model_phase: str | None,
     outcome: str,
     timed_out: bool,
     timeout_stage: str | None,
@@ -10248,7 +10446,21 @@ def _preflight_profile_outcome(
         raise RuntimeError("Invalid preflight profile outcome")
     if type(timed_out) is not bool:
         raise RuntimeError("Invalid preflight timeout outcome")
-    if timeout_stage not in {None, "provider_cli_readiness", "model_invocation"}:
+    if pre_model_phase is not None and pre_model_phase not in PRE_MODEL_PHASES:
+        raise RuntimeError("Invalid preflight pre-model phase")
+    if (
+        failed_pre_model_phase is not None
+        and failed_pre_model_phase not in PRE_MODEL_PHASES
+    ):
+        raise RuntimeError("Invalid failed pre-model phase")
+    if (
+        model_invocation_state != "not_started"
+        and pre_model_phase != "model_spawn_boundary"
+    ):
+        raise RuntimeError(
+            "A model invocation requires the durable spawn-boundary phase"
+        )
+    if timeout_stage not in _TRANSPORT_VOID_TIMEOUT_STAGES:
         raise RuntimeError("Invalid preflight timeout stage")
     if timed_out is not (timeout_stage is not None):
         raise RuntimeError("Preflight timeout flag and stage disagree")
@@ -10259,11 +10471,48 @@ def _preflight_profile_outcome(
         "requested_model": profile["requested_model"],
         "requested_reasoning": profile["requested_reasoning"],
         "model_invocation_state": model_invocation_state,
+        "pre_model_phase": pre_model_phase,
+        "failed_pre_model_phase": failed_pre_model_phase,
         "outcome": outcome,
         "timed_out": timed_out,
         "timeout_stage": timeout_stage,
         "conservative_chargeable": chargeable,
     }
+
+
+def _valid_preflight_phase_projection(item: Mapping[str, Any]) -> bool:
+    """Validate the closed public projection of the private phase ledger."""
+
+    state = item.get("model_invocation_state")
+    phase = item.get("pre_model_phase")
+    failed_phase = item.get("failed_pre_model_phase")
+    if (
+        state not in {"not_started", "started_not_finished", "finished"}
+        or phase not in {*PRE_MODEL_PHASES, None}
+        or failed_phase not in {*PRE_MODEL_PHASES, None}
+        or item.get("conservative_chargeable")
+        is not (state != "not_started")
+    ):
+        return False
+    if state != "not_started" and phase != "model_spawn_boundary":
+        return False
+    if item.get("outcome") in {
+        "not_started_terminal_abort",
+        "skipped_dependency",
+    }:
+        return phase is None and failed_phase is None
+    if item.get("outcome") in {
+        "passed",
+        "failed_provider",
+        "failed_timeout",
+    }:
+        return phase == "model_spawn_boundary" and failed_phase is None
+    if failed_phase is not None and phase is not None:
+        failed_index = PRE_MODEL_PHASES.index(failed_phase)
+        durable_index = PRE_MODEL_PHASES.index(phase)
+        if failed_index > durable_index + 1:
+            return False
+    return True
 
 
 def _persistent_attestation_error(
@@ -10305,13 +10554,31 @@ def _provider_incident_code(
         fallback = "unexpected_control_path_failure"
     trusted_types = (
         (
+            ProviderPreModelPhasePersistenceError,
+            "provider_pre_model_phase_checkpoint_persist_failed",
+        ),
+        (
             ProviderAttemptPersistenceError,
             "provider_attempt_marker_persist_failed",
+        ),
+        (ProviderCLIUnavailableError, "provider_cli_unavailable"),
+        (
+            ProviderEnvironmentSetupError,
+            "provider_environment_setup_failed",
         ),
         (
             ProviderCLIReadinessTimeoutError,
             "provider_cli_readiness_timeout",
         ),
+        (
+            ProviderCLIReadinessSetupError,
+            "provider_cli_readiness_setup_failed",
+        ),
+        (ProviderCLIVersionEmptyError, "provider_cli_version_empty"),
+        (ProviderCLIVersionNonzeroError, "provider_cli_version_nonzero"),
+        (ProviderMCPReadinessError, "provider_mcp_readiness_failed"),
+        (ProviderEpisodeStartupError, "provider_episode_start_failed"),
+        (ProviderWorkspaceSetupError, "provider_workspace_setup_failed"),
         (
             ProviderCompletionPersistenceError,
             "provider_completion_marker_persist_failed",
@@ -10350,8 +10617,34 @@ def _provider_incident_code(
 def _provider_failure_stage(error: BaseException, *, fallback: str) -> str:
     """Project an exception onto a finite, content-free failure stage."""
 
-    if isinstance(error, ProviderCLIReadinessTimeoutError):
+    if isinstance(
+        error,
+        (
+            ProviderCLIUnavailableError,
+            ProviderEnvironmentSetupError,
+            ProviderWorkspaceSetupError,
+        ),
+    ):
+        return "provider_environment_setup"
+    if isinstance(
+        error,
+        (
+            ProviderCLIReadinessTimeoutError,
+            ProviderCLIReadinessSetupError,
+            ProviderCLIVersionEmptyError,
+            ProviderCLIVersionNonzeroError,
+            ProviderMCPReadinessError,
+        ),
+    ):
         return "provider_cli_readiness"
+    if isinstance(error, ProviderEpisodeStartupError):
+        return "episode_startup"
+    if isinstance(error, ProviderSpawnIsolationError):
+        if fallback in PRE_MODEL_PHASES:
+            return fallback
+        return "model_spawn_boundary"
+    if isinstance(error, ProviderPreModelPhasePersistenceError):
+        return "pre_model_phase_checkpoint"
     if fallback not in _PREFLIGHT_FAILURE_STAGES:
         return "provider_execution"
     return fallback
@@ -10840,6 +11133,8 @@ def _run_environment_preflight_core(
                 skipped = _preflight_profile_outcome(
                     profile,
                     model_invocation_state="not_started",
+                    pre_model_phase=None,
+                    failed_pre_model_phase=None,
                     outcome="skipped_dependency",
                     timed_out=False,
                     timeout_stage=None,
@@ -10937,6 +11232,46 @@ def _run_environment_preflight_core(
                 failure_stage = "glean_dependency_before_harness"
                 _attest_frozen_glean_auth_dependencies(private, public)
 
+                def persist_pre_model_phase(phase: str) -> None:
+                    nonlocal failure_stage, incident_code
+                    failure_stage = "pre_model_phase_checkpoint"
+                    incident_code = (
+                        "provider_pre_model_phase_checkpoint_persist_failed"
+                    )
+                    checkpoints = marker.get(
+                        "pre_model_phase_checkpoints", []
+                    )
+                    if (
+                        not isinstance(checkpoints, list)
+                        or len(checkpoints) >= len(PRE_MODEL_PHASES)
+                        or phase != PRE_MODEL_PHASES[len(checkpoints)]
+                    ):
+                        raise ProviderStateIsolationError(
+                            "Pre-model phase transition is invalid"
+                        )
+                    marker["pre_model_phase_checkpoints"] = [
+                        *checkpoints,
+                        phase,
+                    ]
+                    marker["pre_model_phase"] = phase
+                    try:
+                        _write_private_state(
+                            private_state_path,
+                            private,
+                            authentication_key,
+                        )
+                    except Exception:
+                        persistence_error = (
+                            ProviderPreModelPhasePersistenceError(
+                                "Pre-model phase checkpoint could not be "
+                                "persisted",
+                                pre_model_phase=phase,
+                            )
+                        )
+                        raise persistence_error from None
+                    failure_stage = phase
+                    incident_code = "provider_adapter_execution_failed"
+
                 def persist_model_invocation_start() -> None:
                     nonlocal failure_stage, incident_code
                     failure_stage = "model_invocation_marker"
@@ -10946,6 +11281,14 @@ def _run_environment_preflight_core(
                     if "model_invocation" in marker:
                         raise ProviderStateIsolationError(
                             "Model invocation marker transition is invalid"
+                        )
+                    if (
+                        _durable_pre_model_phase(marker)
+                        != "model_spawn_boundary"
+                    ):
+                        raise ProviderStateIsolationError(
+                            "Model invocation preceded its durable phase "
+                            "checkpoint"
                         )
                     marker["model_invocation"] = {
                         "status": "started",
@@ -11009,6 +11352,7 @@ def _run_environment_preflight_core(
                         else None
                     ),
                     progress_callback=persist_progress,
+                    pre_model_phase_callback=persist_pre_model_phase,
                     model_invocation_start_callback=(
                         persist_model_invocation_start
                     ),
@@ -11146,6 +11490,8 @@ def _run_environment_preflight_core(
                 public_attempt = _preflight_profile_outcome(
                     profile,
                     model_invocation_state="finished",
+                    pre_model_phase=_durable_pre_model_phase(marker),
+                    failed_pre_model_phase=None,
                     outcome=(
                         "passed"
                         if passed
@@ -11266,6 +11612,15 @@ def _run_environment_preflight_core(
                     (CodexAuthenticationIncidentError, ProviderStateIsolationError),
                 ):
                     marker.pop("progress_telemetry", None)
+                model_invocation_state = (
+                    _durable_model_invocation_state(marker)
+                )
+                pre_model_phase = _durable_pre_model_phase(marker)
+                failed_pre_model_phase = _failed_pre_model_phase(
+                    error,
+                    marker=marker,
+                    model_invocation_state=model_invocation_state,
+                )
                 marker.update(
                     {
                         "status": "terminal_abort",
@@ -11277,11 +11632,9 @@ def _run_environment_preflight_core(
                         "incident_code": _provider_incident_code(
                             error, fallback=incident_code
                         ),
+                        "failed_pre_model_phase": failed_pre_model_phase,
                         **_attestation_incident_fields(error),
                     }
-                )
-                model_invocation_state = (
-                    _durable_model_invocation_state(marker)
                 )
                 timeout_stage = _provider_timeout_stage(
                     error, result=result
@@ -11304,6 +11657,8 @@ def _run_environment_preflight_core(
                 terminal_outcome = _preflight_profile_outcome(
                     profile,
                     model_invocation_state=model_invocation_state,
+                    pre_model_phase=pre_model_phase,
+                    failed_pre_model_phase=failed_pre_model_phase,
                     outcome=(
                         "failed_provider_cli_readiness_timeout"
                         if readiness_timeout
@@ -11333,6 +11688,8 @@ def _run_environment_preflight_core(
                     unstarted = _preflight_profile_outcome(
                         remaining,
                         model_invocation_state="not_started",
+                        pre_model_phase=None,
+                        failed_pre_model_phase=None,
                         outcome="not_started_terminal_abort",
                         timed_out=False,
                         timeout_stage=None,
@@ -11372,6 +11729,7 @@ def _run_environment_preflight_core(
                     "failed_model_invocation_state": (
                         model_invocation_state
                     ),
+                    "failed_pre_model_phase": failed_pre_model_phase,
                     "model_invocations_conservatively_chargeable": (
                         _conservatively_chargeable_provider_calls(attempts)
                     ),
@@ -11430,6 +11788,11 @@ def _run_environment_preflight_core(
             ],
             "failed_model_invocation_state": (
                 profile_failures[0]["model_invocation_state"]
+                if profile_failures
+                else None
+            ),
+            "failed_pre_model_phase": (
+                profile_failures[0]["failed_pre_model_phase"]
                 if profile_failures
                 else None
             ),
@@ -12327,10 +12690,8 @@ def _complete_artifact(
             failure_stage = assignment.get("failure_stage")
             if (
                 void_reason not in _PROVIDER_INCIDENT_CODES
-                or timeout_stage
-                not in {None, "provider_cli_readiness", "model_invocation"}
-                or failure_stage
-                not in {None, "provider_cli_readiness", "model_invocation"}
+                or timeout_stage not in _TRANSPORT_VOID_TIMEOUT_STAGES
+                or failure_stage not in _TRANSPORT_VOID_FAILURE_STAGES
             ):
                 raise ValueError(
                     "Transport-void public projection is invalid"
@@ -12934,6 +13295,9 @@ def _run_panel_locked(
         interrupted_model_state = _durable_model_invocation_state(
             assignments[-1]
         )
+        interrupted_pre_model_phase = _durable_pre_model_phase(
+            assignments[-1]
+        )
         private["execution_incident"] = {
             "status": "terminal",
             "assignment_index": len(assignments) - 1,
@@ -12956,6 +13320,14 @@ def _run_panel_locked(
         )
         assignments[-1]["model_invocation_state"] = (
             interrupted_model_state
+        )
+        assignments[-1]["pre_model_phase"] = (
+            interrupted_pre_model_phase
+        )
+        assignments[-1]["failed_pre_model_phase"] = (
+            interrupted_pre_model_phase
+            if interrupted_model_state == "not_started"
+            else None
         )
         assignments[-1]["conservative_chargeable"] = (
             interrupted_model_state != "not_started"
@@ -13118,12 +13490,56 @@ def _run_panel_locked(
                 ) from None
             incident_code = "provider_adapter_execution_failed"
 
+            def persist_pre_model_phase(phase: str) -> None:
+                nonlocal incident_code
+                incident_code = (
+                    "provider_pre_model_phase_checkpoint_persist_failed"
+                )
+                checkpoints = marker.get(
+                    "pre_model_phase_checkpoints", []
+                )
+                if (
+                    not isinstance(checkpoints, list)
+                    or len(checkpoints) >= len(PRE_MODEL_PHASES)
+                    or phase != PRE_MODEL_PHASES[len(checkpoints)]
+                ):
+                    raise ProviderStateIsolationError(
+                        "Pre-model phase transition is invalid"
+                    )
+                marker["pre_model_phase_checkpoints"] = [
+                    *checkpoints,
+                    phase,
+                ]
+                marker["pre_model_phase"] = phase
+                try:
+                    _write_private_state(
+                        private_state_path,
+                        private,
+                        authentication_key,
+                    )
+                except Exception:
+                    persistence_error = (
+                        ProviderPreModelPhasePersistenceError(
+                            "Pre-model phase checkpoint could not be persisted",
+                            pre_model_phase=phase,
+                        )
+                    )
+                    raise persistence_error from None
+                incident_code = "provider_adapter_execution_failed"
+
             def persist_model_invocation_start() -> None:
                 nonlocal incident_code
                 incident_code = "model_invocation_marker_persist_failed"
                 if "model_invocation" in marker:
                     raise ProviderStateIsolationError(
                         "Model invocation marker transition is invalid"
+                    )
+                if (
+                    _durable_pre_model_phase(marker)
+                    != "model_spawn_boundary"
+                ):
+                    raise ProviderStateIsolationError(
+                        "Model invocation preceded its durable phase checkpoint"
                     )
                 marker["model_invocation"] = {
                     "status": "started",
@@ -13196,6 +13612,7 @@ def _run_panel_locked(
                     else None
                 ),
                 progress_callback=persist_progress,
+                pre_model_phase_callback=persist_pre_model_phase,
                 model_invocation_start_callback=(
                     persist_model_invocation_start
                 ),
@@ -13334,6 +13751,12 @@ def _run_panel_locked(
             model_invocation_state = _durable_model_invocation_state(
                 marker
             )
+            pre_model_phase = _durable_pre_model_phase(marker)
+            failed_pre_model_phase = _failed_pre_model_phase(
+                error,
+                marker=marker,
+                model_invocation_state=model_invocation_state,
+            )
             projected_incident_code = _provider_incident_code(
                 error, fallback=incident_code
             )
@@ -13367,6 +13790,8 @@ def _run_panel_locked(
             marker["finished_at_utc"] = _utc_now()
             marker["void_reason"] = projected_incident_code
             marker["model_invocation_state"] = model_invocation_state
+            marker["pre_model_phase"] = pre_model_phase
+            marker["failed_pre_model_phase"] = failed_pre_model_phase
             marker["conservative_chargeable"] = (
                 marker["model_invocation_state"] != "not_started"
             )
@@ -13374,7 +13799,19 @@ def _run_panel_locked(
                 error,
                 result=result,
             )
-            marker["failure_stage"] = timeout_stage
+            marker["failure_stage"] = (
+                _provider_failure_stage(
+                    error,
+                    fallback=(
+                        pre_model_phase
+                        if model_invocation_state == "not_started"
+                        and pre_model_phase is not None
+                        else "provider_execution"
+                    ),
+                )
+                if failed_pre_model_phase is not None
+                else timeout_stage
+            )
             if timeout_stage is not None:
                 marker["timed_out"] = True
                 marker["timeout_stage"] = timeout_stage
@@ -13406,6 +13843,8 @@ def _run_panel_locked(
             return stopped
         marker["status"] = "complete"
         marker["finished_at_utc"] = finished
+        marker["pre_model_phase"] = _durable_pre_model_phase(marker)
+        marker["failed_pre_model_phase"] = None
         marker["public_result"] = sanitized
         try:
             _write_private_state(
@@ -13452,6 +13891,10 @@ def _run_panel_locked(
                     "model_invocation_state": (
                         _durable_model_invocation_state(durable_marker)
                     ),
+                    "pre_model_phase": (
+                        _durable_pre_model_phase(durable_marker)
+                    ),
+                    "failed_pre_model_phase": None,
                     "conservative_chargeable": True,
                     "failure_stage": None,
                 }
