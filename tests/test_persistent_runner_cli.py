@@ -3,23 +3,216 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
 from examples import run_development_matched_panel as matched_cli
+from epiagentbench.development_matched_panel import FAMILIES
 
 
 class PersistentRunnerCliTests(unittest.TestCase):
+    def test_isolated_import_path_installs_once_and_spawn_replay_is_idempotent(
+        self,
+    ) -> None:
+        source = Path("/frozen/repository/src")
+        site = Path("/frozen/venv/lib/python3.11/site-packages")
+        baseline = ["/stdlib", "/stdlib/lib-dynload"]
+        with patch.object(sys, "path", list(baseline)):
+            matched_cli._install_exact_isolated_import_path(
+                source_root=source,
+                site_packages=site,
+            )
+            installed = list(sys.path)
+            self.assertEqual(
+                installed,
+                [*baseline, str(source), str(site)],
+            )
+
+            matched_cli._install_exact_isolated_import_path(
+                source_root=source,
+                site_packages=site,
+            )
+            self.assertEqual(sys.path, installed)
+
+    def test_isolated_import_path_rejects_every_nonexact_inherited_state(
+        self,
+    ) -> None:
+        source = Path("/frozen/repository/src")
+        site = Path("/frozen/venv/lib/python3.11/site-packages")
+        malformed = (
+            ["/stdlib", str(source)],
+            ["/stdlib", str(site)],
+            ["/stdlib", str(site), str(source)],
+            ["/stdlib", str(source), str(site), str(source)],
+            ["/stdlib", str(source), "/unexpected", str(site)],
+            ["/stdlib", str(source), str(site), "/unexpected"],
+        )
+        for candidate in malformed:
+            with (
+                self.subTest(candidate=candidate),
+                patch.object(sys, "path", list(candidate)),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "malformed isolated matched-panel import path",
+                ),
+            ):
+                matched_cli._install_exact_isolated_import_path(
+                    source_root=source,
+                    site_packages=site,
+                )
+
+    def test_isolated_prefix_is_rejected_before_project_import(self) -> None:
+        runner = Path(matched_cli.__file__).resolve()
+        with TemporaryDirectory(
+            prefix="eab22-shadow-", dir="/tmp"
+        ) as directory:
+            shadow_root = Path(directory)
+            package = shadow_root / "epiagentbench"
+            package.mkdir()
+            (package / "__init__.py").write_text("", encoding="utf-8")
+            marker = shadow_root / "shadow-imported"
+            (package / "launchd_agent.py").write_text(
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text('bad', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-B",
+                    "-c",
+                    (
+                        "import runpy,sys;"
+                        "sys.path.insert(0,sys.argv[2]);"
+                        "runpy.run_path(sys.argv[1],run_name='__mp_main__')"
+                    ),
+                    str(runner),
+                    str(shadow_root),
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={},
+                check=False,
+                timeout=30,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertFalse(marker.exists())
+
+    def test_isolated_two_entry_tail_is_rejected_before_project_import(
+        self,
+    ) -> None:
+        runner = Path(matched_cli.__file__).resolve()
+        with TemporaryDirectory(
+            prefix="eab22-shadow-tail-", dir="/tmp"
+        ) as directory:
+            shadow_root = Path(directory)
+            package = shadow_root / "epiagentbench"
+            package.mkdir()
+            (package / "__init__.py").write_text("", encoding="utf-8")
+            marker = shadow_root / "shadow-imported"
+            (package / "launchd_agent.py").write_text(
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text('bad', encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-B",
+                    "-c",
+                    (
+                        "import runpy,sys;"
+                        "sys.path.extend((sys.argv[2],sys.argv[3]));"
+                        "runpy.run_path(sys.argv[1],run_name='__mp_main__')"
+                    ),
+                    str(runner),
+                    str(shadow_root),
+                    "/unexpected-second-tail",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={},
+                check=False,
+                timeout=30,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertFalse(marker.exists())
+
+    def test_real_isolated_file_entrypoint_replays_under_spawn_and_starts_broker(
+        self,
+    ) -> None:
+        try:
+            import starsim  # type: ignore
+        except ImportError:
+            self.skipTest("exact Starsim scientific runtime is unavailable")
+        if str(getattr(starsim, "__version__", "")) != "3.5.1":
+            self.skipTest("test requires exact Starsim 3.5.1")
+
+        runner = Path(matched_cli.__file__).resolve()
+        with TemporaryDirectory(
+            prefix="eab22-runtime-", dir="/tmp"
+        ) as directory:
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-B",
+                    str(runner),
+                    "smoke-episode-startup",
+                    "--runtime-cache-dir",
+                    directory,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={},
+                check=False,
+                timeout=300,
+            )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            completed.stderr.decode("utf-8", errors="replace"),
+        )
+        receipt = json.loads(completed.stdout)
+        self.assertEqual(
+            receipt["schema_version"],
+            "epiagentbench.preparation_episode_startup_smoke.v1",
+        )
+        self.assertEqual(receipt["public_families"], list(FAMILIES))
+        self.assertEqual(receipt["public_seeds"], [0, 7, 2**31 - 2])
+        self.assertEqual(receipt["serial_repetitions"], 2)
+        self.assertEqual(
+            receipt["trusted_evaluator_processes_started"],
+            30,
+        )
+        self.assertTrue(receipt["public_transcript_reproducible"])
+        self.assertEqual(receipt["provider_processes_started"], 0)
+        self.assertEqual(receipt["authentication_processes_started"], 0)
+        self.assertEqual(receipt["model_calls_started"], 0)
+        self.assertFalse(receipt["private_artifacts_required"])
+
     def test_preparation_runtime_preflight_bypasses_private_path_gate(self):
         payload = {
             "schema_version": (
-                "epiagentbench.preparation_runtime_preflight.v2"
+                "epiagentbench.preparation_runtime_preflight.v3"
             ),
             "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
+            "model_calls_started": 0,
             "private_artifacts_required": False,
         }
         with (

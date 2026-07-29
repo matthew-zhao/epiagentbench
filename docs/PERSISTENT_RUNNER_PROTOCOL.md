@@ -1,11 +1,11 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V21 persistent-supervisor
+Status at control-plane publication: versioned V22 persistent-supervisor
 contract schema v9, execution-context protocol v6, launchd config schema v12,
 and authentication-setup schema v3. The finite pre-model phase contract,
 source contract, panel/schema
 identifiers, spend
-accounting, path namespace, and [V21 runbook](V21_RUNBOOK.md) are defined. The
+accounting, path namespace, and [V22 runbook](V22_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -45,7 +45,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V21 key, cohort, credential namespace, schedule, private state, or
+8. No V22 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -73,6 +73,11 @@ terminate that job.
     terminal ambiguity, never a retry. Terminal helper-start and ambiguous-
     start totals are recomputed from the sealed history, and post-return
     execution, dependency, and credential drift keep distinct finite causes.
+15. The pre-private runtime receipt must exercise the actual `-I -S -B`
+    runner file through multiprocessing `spawn`, start the trusted broker for
+    every public family and fixed public boundary seed twice serially, and
+    bind only content-free aggregate evidence. A direct engine-only smoke or
+    `-c` import probe is insufficient.
 
 ## Durable assignment phases and the current adapter
 
@@ -99,8 +104,9 @@ transparent recovery from an in-flight host failure and strict at-most-once
 execution are mutually incompatible. The benchmark chooses at-most-once
 execution and fails closed.
 
-V21 retains the separation of attempt accounting from model-invocation
-accounting and adds one durable, ordered, content-free pre-model phase field.
+V21 introduced the separation of attempt accounting from model-invocation
+accounting and its durable, ordered, content-free pre-model phase field. V22
+retains that boundary and adds a finite trusted-evaluator startup substage.
 The only permitted transitions are `provider_environment_setup`,
 `provider_cli_readiness`, `episode_startup`, and `model_spawn_boundary`.
 Unknown, duplicate, skipped, out-of-order, or provider-supplied phase values
@@ -120,6 +126,15 @@ conservatively chargeable. A Codex authentication incident requires either
 that durable marker or an explicit Codex credential-state incident; a generic
 pre-marker control failure records only its execution incident. Preflight and
 production share this boundary.
+
+The V21 receipt localized its terminal failure to `episode_startup`, before
+model invocation, but did not expose an internal broker substage. A
+provider-free exact-file reproduction showed that multiprocessing `spawn`
+inherited the parent’s manually extended isolated `sys.path`, replayed the
+runner as `__mp_main__`, and the runner appended the same two paths again. The
+strict validator correctly rejected the duplicates. V22 accepts only the
+pristine parent or an exact one-copy inherited ordered tail; partial,
+duplicate, reversed, displaced, or trailing states still fail closed.
 
 The V20 public receipt keeps its historical generic
 `provider_execution` / `provider_adapter_execution_failed` projection. Its
@@ -159,17 +174,21 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V21 retains the provider-free boundary before the private panel exists. One
-operator-supplied, absolute, attested isolated interpreter runs every V21 CLI
+V22 retains the provider-free boundary before the private panel exists. One
+operator-supplied, absolute, attested isolated interpreter runs every V22 CLI
 and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
-repository `src` and V5 virtual-environment `site-packages` in that order, and
-does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. Every
+repository `src` and V5 virtual-environment `site-packages` in that order in
+the parent, and re-attests the already-present exact ordered tail during
+`spawn` replay. It does not execute `site`, `.pth`, `sitecustomize`, or
+`usercustomize`. Every
 scientific-runtime-loading operator command receives one explicit absolute
 runtime-cache directory and installs the six-variable environment internally
 before scientific imports; missing or poisoned caller values are not
 authoritative, and the exact prior presence and bytes are restored in
-`finally`. The preparation preflight runs twice at a clean pinned control-plane
+`finally`. Scientific runtime and cache work likewise runs under an internally
+installed `umask 077`, with the caller's prior mask restored in `finally`.
+The preparation preflight runs twice at a clean pinned control-plane
 commit. Each
 pass:
 
@@ -183,6 +202,10 @@ pass:
   through the real Starsim-backed engine: the no-action branch has one
   deterministic resident-to-staff transmission across the sole direct-care
   edge, while the matched day-one contact stop prevents it;
+- launches the real controller and pathname-socket broker for all five public
+  causal families at public seeds `0`, `7`, and `2**31 - 2`, twice serially
+  (30 trusted evaluator starts), requiring identical public-transcript
+  digests and complete socket cleanup;
 - binds the clean source and CLI contracts; and
 - binds the complete runtime-cache v3 tree: an absolute normalized,
   current-user `0700` root containing only exact current-user `0700`
@@ -198,10 +221,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v21.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v22.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V21 freezer or `prepare` command can create or read a key, cohort,
+the matched V22 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -221,7 +244,8 @@ XDG_CACHE_HOME=<owner-only-cache>/xdg
 ```
 
 The public runtime receipt carries the original control-plane commit, runtime
-identity and contract hashes, Starsim smoke contract, path-free scientific
+identity and contract hashes, Starsim smoke contract, a separately hashed
+closed broker-startup smoke contract, path-free scientific
 module-origin identities, the Python target content hash and entrypoint kind,
 and opaque hashes of the complete Python and cache bindings. The later
 manifest additionally carries the tracked receipt path and file digest plus
@@ -354,7 +378,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V21, generation also requires the exact manifest-bound runtime-cache root.
+For V22, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -422,7 +446,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V21 model call may start until all of the following pass through the
+No V22 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -537,20 +561,29 @@ started no model-bearing call, created no credential or public authentication
 receipt, and started no preflight or production work. It is terminal and
 forbidden for namespace or cohort reuse.
 
-V21 binds explicit runtime-cache input, internal environment installation and
+V21 completed provider-free preparation, cohort freeze, manifest publication,
+exact spend authorization, and foreground authentication. Its first Claude
+preflight profile then failed during trusted episode startup before the model
+boundary. The authenticated receipt records zero conservatively chargeable
+model calls, zero production episodes, and no scores. The exact provider-free
+reproduction above makes V21 terminal and non-resumable; none of its cohort,
+key, credentials, cache, supervisor, or execution namespaces may be reused.
+
+V22 binds explicit runtime-cache input, internal environment installation and
 exact restoration, a durable foreground-authentication ceremony claim,
 atomic create-once staging/publication, the finite provider-incident taxonomy,
 authenticated terminal-receipt exit, completion-checkpoint recovery,
 repository-relative receipt handoff, provider-free prelaunch attestation,
 nested launchd-state parser, and the existing heartbeat/retry/source contracts
 under panel/cohort
-`development-matched-50x6-v21`, top-level schema
-`development_matched_panel_v21`, the exact $590 acknowledgement, and fresh
-V21 paths. Its two-commit provider-free runtime protocol must prove the exact V5
+`development-matched-50x6-v22`, top-level schema
+`development_matched_panel_v22`, the exact $590 acknowledgement, and fresh
+V22 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
-pinned source tree, and the closed bounded owner-only runtime-cache v3
+pinned source tree, the real 30-start broker matrix, and the closed bounded
+owner-only runtime-cache v3
 inventory. The first commit publishes code; the two identical receipts are
 then generated through separate no-clobber destinations and compared at that
 commit; the second commit publishes those exact bytes through the same atomic
@@ -563,10 +596,10 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V21 panel's Claude ceiling is $510 (102 calls × $5); the exact
+The current V22 panel's Claude ceiling is $510 (102 calls × $5); the exact
 acknowledgement's $590 cumulative ceiling adds the conservative $80 allowance
-for prior failed panels, including V18's retained $5 legacy-marker call; V19
-and V20 add zero because neither started a Claude model-bearing call.
+for prior failed panels, including V18's retained $5 legacy-marker call; V19,
+V20, and V21 add zero because none started a Claude model-bearing call.
 Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only
@@ -581,12 +614,13 @@ projection cannot distinguish CLI-identity readiness from trusted episode
 startup, so its supersession preserves that uncertainty. V20 is terminal,
 non-resumable, and forbidden for namespace or cohort reuse.
 
-V21 versions the panel/cohort as `development-matched-50x6-v21`, the top-level
-schema as `development_matched_panel_v21`, and every private/execution
+V22 versions the panel/cohort as `development-matched-50x6-v22`, the top-level
+schema as `development_matched_panel_v22`, and every private/execution
 namespace. It retains the `$510` current-run and `$80` prior conservative
-Claude ceilings; V20 adds zero, so the exact cumulative acknowledgement remains
-`$590`. Before any V21 runtime receipt, manifest, private state,
+Claude ceilings; V20 and V21 add zero, so the exact cumulative
+acknowledgement remains `$590`. Before any V22 runtime receipt, manifest,
+private state,
 authentication, supervisor, or provider call is created, the provider-free
 control-plane and phase-accounting tests must be published and pinned. The
-[V21 runbook](V21_RUNBOOK.md) is authoritative for the later create-once
+[V22 runbook](V22_RUNBOOK.md) is authoritative for the later create-once
 sequence.

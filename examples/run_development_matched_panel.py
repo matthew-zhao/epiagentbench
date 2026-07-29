@@ -2,11 +2,75 @@
 
 from __future__ import annotations
 
+import sys
+
+
+def _require_unshadowed_isolated_bootstrap_path() -> None:
+    """Reject an inherited path prefix before importing shadowable modules."""
+
+    if not sys.flags.isolated:
+        return
+    stdlib_dir = getattr(sys, "_stdlib_dir", None)
+    platlibdir = getattr(sys, "platlibdir", None)
+    if (
+        not isinstance(stdlib_dir, str)
+        or not stdlib_dir.startswith("/")
+        or not isinstance(platlibdir, str)
+        or not platlibdir
+        or "/" in platlibdir
+    ):
+        raise RuntimeError("Refusing an unbound isolated Python bootstrap")
+    major, minor = sys.version_info[:2]
+    runner_file = globals().get("__file__")
+    executable = sys.executable
+    runner_parts = (
+        runner_file.rsplit("/", 2)
+        if isinstance(runner_file, str)
+        else []
+    )
+    executable_parts = (
+        executable.rsplit("/", 2)
+        if isinstance(executable, str)
+        else []
+    )
+    if (
+        len(runner_parts) != 3
+        or not runner_parts[0].startswith("/")
+        or runner_parts[1:] != [
+            "examples",
+            "run_development_matched_panel.py",
+        ]
+        or len(executable_parts) != 3
+        or not executable_parts[0].startswith("/")
+        or executable_parts[1] != "bin"
+        or not executable_parts[2]
+    ):
+        raise RuntimeError("Refusing an unbound isolated Python bootstrap")
+    expected_base = [
+        (
+            f"{sys.base_prefix}/{platlibdir}/"
+            f"python{major}{minor}.zip"
+        ),
+        stdlib_dir,
+        f"{stdlib_dir}/lib-dynload",
+    ]
+    expected_tail = [
+        f"{runner_parts[0]}/src",
+        (
+            f"{executable_parts[0]}/lib/"
+            f"python{major}.{minor}/site-packages"
+        ),
+    ]
+    if sys.path not in (expected_base, [*expected_base, *expected_tail]):
+        raise RuntimeError("Refusing an unbound isolated Python bootstrap")
+
+
+_require_unshadowed_isolated_bootstrap_path()
+
 import argparse
 import json
 import os
 from pathlib import Path
-import sys
 
 
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -19,6 +83,49 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
 )
 _SUPERVISED_COMMANDS = frozenset({"preflight", "run"})
 _CACHE_FREE_COMMANDS = frozenset({"publish-provider-free-json"})
+
+
+def _install_exact_isolated_import_path(
+    *,
+    source_root: Path,
+    site_packages: Path,
+) -> None:
+    """Install, or re-attest, the only two manually added import paths.
+
+    ``multiprocessing`` uses ``spawn`` for the trusted episode broker.  The
+    child inherits the already-extended parent ``sys.path`` and then replays
+    this file as ``__mp_main__``.  Accept exactly those two legitimate states:
+    a pristine isolated interpreter, or one prior exact append by its parent.
+    Every partial, duplicated, reordered, or displaced binding fails closed.
+    """
+
+    if (
+        not source_root.is_absolute()
+        or not site_packages.is_absolute()
+        or source_root == site_packages
+    ):
+        raise RuntimeError(
+            "Refusing an invalid isolated matched-panel import path"
+        )
+    expected_tail = [str(source_root), str(site_packages)]
+    positions = [
+        index
+        for index, value in enumerate(sys.path)
+        if value in expected_tail
+    ]
+    if not positions:
+        sys.path.extend(expected_tail)
+        return
+    if (
+        sys.path[-len(expected_tail) :] == expected_tail
+        and positions
+        == list(range(len(sys.path) - len(expected_tail), len(sys.path)))
+        and all(sys.path.count(value) == 1 for value in expected_tail)
+    ):
+        return
+    raise RuntimeError(
+        "Refusing a malformed isolated matched-panel import path"
+    )
 
 
 def _require_isolated_main_process() -> None:
@@ -154,8 +261,10 @@ if sys.flags.isolated:
         raise RuntimeError(
             "The matched panel requires its bound virtual environment"
         )
-    sys.path.append(str(_SOURCE_ROOT))
-    sys.path.append(str(_SITE_PACKAGES))
+    _install_exact_isolated_import_path(
+        source_root=_SOURCE_ROOT,
+        site_packages=_SITE_PACKAGES,
+    )
 
     from epiagentbench.launchd_agent import (
         _validate_isolated_python_process,
@@ -170,6 +279,7 @@ if sys.flags.isolated:
 
 from epiagentbench.development_matched_panel import (
     PANEL_ID,
+    _preparation_episode_startup_smoke,
     assert_durable_live_execution_paths,
     assert_terminal_receipt_ready_for_exit,
     authenticate_panel,
@@ -330,6 +440,16 @@ def main() -> int:
     )
     preparation_preflight.add_argument(
         "--public-runtime-receipt", type=Path
+    )
+    episode_startup_smoke = commands.add_parser(
+        "smoke-episode-startup",
+        help=(
+            "Run the fixed provider-free broker-startup matrix through "
+            "the real isolated file entrypoint"
+        ),
+    )
+    episode_startup_smoke.add_argument(
+        "--runtime-cache-dir", required=True, type=Path
     )
     provider_free_publish = commands.add_parser(
         "publish-provider-free-json",
@@ -498,6 +618,15 @@ def main() -> int:
                     sort_keys=True,
                 )
             )
+        return 0
+    if args.command == "smoke-episode-startup":
+        print(
+            json.dumps(
+                _preparation_episode_startup_smoke(),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     if args.command == "publish-provider-free-json":
         print(

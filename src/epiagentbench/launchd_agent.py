@@ -1452,7 +1452,7 @@ def _manifest_binding(
             or not _SHA256.fullmatch(runtime_cache_contract_sha256)
             or not isinstance(preparation_runtime_contract, dict)
             or preparation_runtime_contract.get("schema_version")
-            != "epiagentbench.bound_preparation_runtime.v1"
+            != "epiagentbench.bound_preparation_runtime.v2"
             or isinstance(runtime_contract, dict)
             and (
                 "python_executable" in runtime_contract

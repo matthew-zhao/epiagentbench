@@ -30,7 +30,11 @@ import time
 import unicodedata
 from typing import Any, Callable, Mapping, Sequence
 
-from .trusted.service import launch_socket_episode
+from .trusted.service import (
+    TRUSTED_EVALUATOR_STARTUP_STAGES,
+    TrustedEvaluatorStartupError,
+    launch_socket_episode,
+)
 
 
 DEFAULT_MODELS = {
@@ -1048,6 +1052,21 @@ class ProviderEpisodeStartupError(RuntimeError):
     incident_code = "provider_episode_start_failed"
     failure_stage = "episode_startup"
     pre_model_phase = "episode_startup"
+
+    def __init__(
+        self,
+        message: str = "Trusted episode failed to start before model invocation",
+        *,
+        episode_startup_stage: str = "unclassified",
+    ) -> None:
+        if (
+            not isinstance(episode_startup_stage, str)
+            or episode_startup_stage
+            not in TRUSTED_EVALUATOR_STARTUP_STAGES
+        ):
+            episode_startup_stage = "unclassified"
+        super().__init__(message)
+        self.episode_startup_stage = episode_startup_stage
 
 
 class ProviderOutputOverflowError(RuntimeError):
@@ -2903,6 +2922,10 @@ def evaluate_local_cli_agent(
                 backend=backend,
                 episode_secret=episode_secret,
             )
+        except TrustedEvaluatorStartupError as error:
+            raise ProviderEpisodeStartupError(
+                episode_startup_stage=error.startup_stage,
+            ) from None
         except (
             CodexAuthenticationIncidentError,
             ProviderExecutionIsolationError,
@@ -2910,7 +2933,7 @@ def evaluate_local_cli_agent(
             raise
         except Exception:
             raise ProviderEpisodeStartupError(
-                "Trusted episode failed to start before model invocation"
+                episode_startup_stage="unclassified",
             ) from None
         session_terminal_error: Exception | None = None
         try:

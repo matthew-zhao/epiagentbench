@@ -261,7 +261,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         ] = launchd_agent._component_sha256(python_binding)
         cache_contract = launchd_agent._runtime_cache_contract(cache_root)
         manifest["preparation_runtime_contract"] = {
-            "schema_version": "epiagentbench.bound_preparation_runtime.v1",
+            "schema_version": "epiagentbench.bound_preparation_runtime.v2",
             "runtime_cache_contract_sha256": (
                 launchd_agent._component_sha256(cache_contract)
             ),
@@ -954,7 +954,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v21_rejects_legacy_launchd_schema_before_control_action(
+    def test_v22_rejects_legacy_launchd_schema_before_control_action(
         self,
     ) -> None:
         generated = self._generate()

@@ -1,4 +1,24 @@
+> [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V21’s six-call preflight failed during trusted episode startup before any
+> model invocation. Its authenticated public receipt records `not_started`,
+> zero conservatively chargeable model calls, zero production episodes, and
+> no scores. The provider-free audit reproduced the exact cause:
+> multiprocessing `spawn` replayed this runner as `__mp_main__`, the
+> unconditional isolated import bootstrap appended the repository and virtual
+> environment paths a second time, and the unchanged strict validator rejected
+> that duplicate path before the broker could report ready. V21 must never be
+> resumed or reused. See the
+> [V21 preflight receipt](../results/development-matched-50x6-v21.preflight.json),
+> [supersession record](../results/development-matched-50x6-v21.superseded.json),
+> and replacement [V22 runbook](V22_RUNBOOK.md).
+
 # EpiAgentBench V21 execution runbook
+
+The remainder of this document is retained only as the archived pre-execution
+V21 plan. Its prospective statements are historical and are overridden by the
+terminal notice above.
 
 > [!CAUTION]
 > **CONTROL PLANE ONLY — NO V21 RUN HAS BEEN PREPARED OR AUTHORIZED.**

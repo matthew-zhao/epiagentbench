@@ -27,6 +27,33 @@ from .wire import (
 _PUBLIC_ENVELOPE_KEYS = {"version", "id", "method", "params"}
 _GENERIC_ERROR = {"code": "rejected", "message": "Request rejected."}
 _MAX_AGENT_ARTIFACT_BYTES = 2_097_152
+TRUSTED_EVALUATOR_STARTUP_STAGES = frozenset(
+    {
+        "process_spawn",
+        "process_bootstrap_nonzero",
+        "backend_resolution",
+        "runtime_creation",
+        "socket_bind",
+        "public_service_start",
+        "ready_timeout",
+        "startup_channel",
+        "startup_protocol",
+        "unclassified",
+    }
+)
+
+
+class TrustedEvaluatorStartupError(RuntimeError):
+    """A finite, content-free trusted-evaluator startup failure."""
+
+    def __init__(self, startup_stage: str):
+        if (
+            not isinstance(startup_stage, str)
+            or startup_stage not in TRUSTED_EVALUATOR_STARTUP_STAGES
+        ):
+            startup_stage = "unclassified"
+        super().__init__("Trusted evaluator failed to start")
+        self.startup_stage = startup_stage
 
 
 class SecureEpisodeSession:
@@ -339,7 +366,7 @@ def launch_secure_episode(
         public_child.close()
         admin_parent.close()
         admin_child.close()
-        raise
+        raise TrustedEvaluatorStartupError("process_spawn") from None
     public_child.close()
     admin_child.close()
     try:
@@ -408,7 +435,7 @@ def launch_socket_episode(
     except Exception:
         admin_parent.close()
         admin_child.close()
-        raise
+        raise TrustedEvaluatorStartupError("process_spawn") from None
     admin_child.close()
 
     admin_channel = _await_ready(
@@ -432,6 +459,15 @@ def _await_ready(
     try:
         ready = channel.receive()
     except WireError:
+        startup_stage = (
+            "ready_timeout"
+            if process.is_alive()
+            else (
+                "process_bootstrap_nonzero"
+                if process.exitcode not in {None, 0}
+                else "startup_channel"
+            )
+        )
         try:
             admin_socket.settimeout(None)
         except OSError:
@@ -441,14 +477,56 @@ def _await_ready(
         if process.is_alive():
             process.terminate()
             process.join(timeout=1.0)
-        raise RuntimeError("Trusted evaluator failed to start") from None
+        raise TrustedEvaluatorStartupError(startup_stage) from None
     admin_socket.settimeout(None)
+    if ready == {"version": PROTOCOL_VERSION, "event": "ready"}:
+        return channel
+    startup_stage = "startup_protocol"
+    child_stage = ready.get("stage") if isinstance(ready, dict) else None
+    if (
+        isinstance(ready, dict)
+        and set(ready) == {"version", "event", "stage"}
+        and ready.get("version") == PROTOCOL_VERSION
+        and ready.get("event") == "startup_failed"
+        and isinstance(child_stage, str)
+        and child_stage in TRUSTED_EVALUATOR_STARTUP_STAGES
+        and child_stage
+        not in {
+            "process_spawn",
+            "process_bootstrap_nonzero",
+            "ready_timeout",
+            "startup_channel",
+            "startup_protocol",
+            "unclassified",
+        }
+    ):
+        startup_stage = child_stage
     if ready != {"version": PROTOCOL_VERSION, "event": "ready"}:
         channel.close()
-        process.terminate()
+        if process.is_alive():
+            process.terminate()
         process.join(timeout=1.0)
-        raise RuntimeError("Trusted evaluator failed to start")
-    return channel
+        raise TrustedEvaluatorStartupError(startup_stage) from None
+
+
+def _send_startup_failure(channel: JsonSocket, stage: str) -> None:
+    """Send only one allowlisted failure stage over the private admin link."""
+
+    if (
+        not isinstance(stage, str)
+        or stage not in TRUSTED_EVALUATOR_STARTUP_STAGES
+    ):
+        stage = "unclassified"
+    try:
+        channel.send(
+            {
+                "version": PROTOCOL_VERSION,
+                "event": "startup_failed",
+                "stage": stage,
+            }
+        )
+    except WireError:
+        pass
 
 
 def _serve_episode(
@@ -467,6 +545,12 @@ def _serve_episode(
     controller = None
     try:
         backend = build_backend(backend_name)
+    except Exception:
+        _send_startup_failure(admin_channel, "backend_resolution")
+        public_channel.close()
+        admin_channel.close()
+        return
+    try:
         runtime = backend.create_runtime(
             seed=seed,
             family=family,
@@ -474,15 +558,9 @@ def _serve_episode(
         )
         controller = TrustedEpisodeController(runtime)
     except Exception:
+        _send_startup_failure(admin_channel, "runtime_creation")
         if runtime is not None:
             runtime.close()
-        public_channel.close()
-        admin_channel.close()
-        return
-
-    try:
-        admin_channel.send({"version": PROTOCOL_VERSION, "event": "ready"})
-    except WireError:
         public_channel.close()
         admin_channel.close()
         return
@@ -493,9 +571,20 @@ def _serve_episode(
         name="public-investigation-broker",
         daemon=True,
     )
-    public_thread.start()
     try:
+        public_thread.start()
+    except Exception:
+        _send_startup_failure(admin_channel, "public_service_start")
+        controller.close()
+        public_channel.close()
+        admin_channel.close()
+        return
+
+    try:
+        admin_channel.send({"version": PROTOCOL_VERSION, "event": "ready"})
         _serve_admin(admin_channel, controller)
+    except WireError:
+        return
     finally:
         controller.close()
         public_channel.close()
@@ -514,22 +603,38 @@ def _serve_socket_episode(
     """Child entry point for a single-connection filesystem broker socket."""
 
     admin_channel = JsonSocket(admin_socket)
-    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener: socket.socket | None = None
     public_channel: JsonSocket | None = None
     runtime = None
     controller = None
+    public_thread: Thread | None = None
+    public_thread_started = False
     try:
-        backend = build_backend(backend_name)
-        runtime = backend.create_runtime(
-            seed=seed,
-            family=family,
-            presentation_key=episode_secret,
-        )
-        controller = TrustedEpisodeController(runtime)
-        listener.bind(public_socket_path)
-        os.chmod(public_socket_path, 0o600)
-        listener.listen(1)
-        admin_channel.send({"version": PROTOCOL_VERSION, "event": "ready"})
+        try:
+            backend = build_backend(backend_name)
+        except Exception:
+            _send_startup_failure(admin_channel, "backend_resolution")
+            return
+        try:
+            runtime = backend.create_runtime(
+                seed=seed,
+                family=family,
+                presentation_key=episode_secret,
+            )
+            controller = TrustedEpisodeController(runtime)
+        except Exception:
+            _send_startup_failure(admin_channel, "runtime_creation")
+            return
+        try:
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(public_socket_path)
+            os.chmod(public_socket_path, 0o600)
+            listener.listen(1)
+        except Exception:
+            _send_startup_failure(admin_channel, "socket_bind")
+            return
+
+        assert listener is not None
 
         def accept_and_serve() -> None:
             nonlocal public_channel
@@ -545,7 +650,13 @@ def _serve_socket_episode(
             name="public-investigation-broker",
             daemon=True,
         )
-        public_thread.start()
+        try:
+            public_thread.start()
+            public_thread_started = True
+        except Exception:
+            _send_startup_failure(admin_channel, "public_service_start")
+            return
+        admin_channel.send({"version": PROTOCOL_VERSION, "event": "ready"})
         _serve_admin(admin_channel, controller)
     except Exception:
         return
@@ -554,10 +665,13 @@ def _serve_socket_episode(
             controller.close()
         elif runtime is not None:
             runtime.close()
-        listener.close()
+        if listener is not None:
+            listener.close()
         if public_channel is not None:
             public_channel.close()
         admin_channel.close()
+        if public_thread is not None and public_thread_started:
+            public_thread.join(timeout=0.5)
         try:
             os.unlink(public_socket_path)
         except FileNotFoundError:

@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V21 is
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V22 is
 designed to run as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
@@ -589,21 +589,29 @@ therefore preserves that uncertainty rather than inventing a more specific
 cause. V20 is terminal and none of its cohort, key, credential, cache,
 supervisor, or execution namespaces may be reused.
 
-V21 adds an ordered, content-free pre-model phase contract:
-`provider_environment_setup`, `provider_cli_readiness`, `episode_startup`, and
-`model_spawn_boundary`. It separately classifies environment, disposable
-workspace, and CLI availability failures; readiness setup, CLI-version
-timeout, nonzero, and empty-identity failures; provider MCP readiness; episode
-startup; phase-checkpoint persistence; and model-bearing spawn. The durable
-model-invocation marker remains the only chargeability boundary. The offline
-test adapter no longer synthesizes that marker after a generic exception, and
-focused tests require every pre-spawn failure to remain zero-chargeable.
-Neither phase state nor public receipts contain raw provider output, error
-text, prompts, observations, credentials, private episode data, or traces.
+V21 added that ordered, content-free pre-model phase contract and its
+authenticated [preflight receipt](results/development-matched-50x6-v21.preflight.json)
+localized the first-profile failure to `episode_startup`, before model
+invocation, with zero conservatively chargeable calls and zero production
+episodes. The exact internal cause was then reproduced provider-free: Python
+`multiprocessing` replayed the real isolated runner file as `__mp_main__`,
+inherited the parent’s already-extended `sys.path`, and the runner appended
+the repository and virtual-environment paths a second time. The unchanged
+strict validator correctly rejected those duplicates before the broker could
+report ready. V21 is terminal; its exact public bindings and non-reuse rule
+are recorded in the
+[V21 supersession](results/development-matched-50x6-v21.superseded.json).
+
+V22 makes that bootstrap exact and idempotent for only two legitimate states:
+the pristine isolated parent and its exact inherited `spawn` replay. Partial,
+duplicated, reordered, displaced, or trailing bindings still fail closed.
+Trusted episode startup now reports only a finite content-free substage, never
+exception text or benchmark data. The durable model-invocation marker remains
+the only chargeability boundary.
 The versioned identifiers, fresh namespaces, publication gates, and
 provider-free stopping point are defined in the
-[V21 runbook](docs/V21_RUNBOOK.md). This control-plane work does not create a
-V21 runtime receipt, manifest, private state, credential namespace,
+[V22 runbook](docs/V22_RUNBOOK.md). This control-plane work does not create a
+V22 runtime receipt, manifest, private state, credential namespace,
 supervisor, authentication ceremony, or model call.
 
 The runtime receipt proves exact Starsim 3.5.1 and executes a hardcoded
@@ -614,7 +622,13 @@ matched day-one contact-stop counterfactual prevents that transmission. This
 is a deterministic capability smoke, not calibration evidence, a biological
 effect estimate, or a benchmark score. The receipt binds that aggregate
 result, actual installed bytes of the declared scientific distributions, and
-the clean source and CLI contracts. It also commits opaque hashes for the full
+the clean source and CLI contracts. V22 additionally starts the real
+controller/socket broker for all five public causal families at public seeds
+`0`, `7`, and `2**31 - 2`, twice serially: 30 trusted-evaluator starts through
+the actual `-I -S -B` file entrypoint. The receipt retains only fixed public
+inputs, counts, reproducibility status, and aggregate transcript hashes—never
+raw observations, generated identifiers, paths, secrets, hidden state,
+traces, or scores. It also commits opaque hashes for the full
 Python entrypoint/bootstrap binding and for a closed, bounded, current-user
 runtime-cache v3 tree. That tree has an exact current-user `0700` root whose
 only entries are exact current-user `0700` directories named `matplotlib`,
@@ -627,10 +641,11 @@ includes the Python target content hash and entrypoint kind, path-free
 scientific module-origin identities, and only opaque hashes for the complete
 Python and cache bindings; it includes no raw absolute Python/cache path,
 environment, inventory, or device/inode/UID topology. It explicitly records
-zero provider and authentication processes and contains no private benchmark
-data. The same interpreter and cache bindings are mandatory for cohort
+zero provider processes, authentication processes, and model calls, and
+contains no private benchmark data. The same interpreter and cache bindings
+are mandatory for cohort
 freeze, prepare, preflight, and production. This versioning step itself does
-not prepare V21, authorize spend, authenticate a provider, create a supervisor,
+not prepare V22, authorize spend, authenticate a provider, create a supervisor,
 or make a model call.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
@@ -643,7 +658,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each future V21 assignment is designed to record an evaluator-owned,
+Each future V22 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -687,9 +702,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V21 first completes the foreground, zero-model
+Before production, V22 first completes the foreground, zero-model
 authentication ceremony described above. Only after its sanitized receipt is
-committed does V21 run a disposable six-call, unscored
+committed does V22 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -707,7 +722,7 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V21 current-run Claude ceiling is $510: two
+a $5 per-call runner ceiling. The V22 current-run Claude ceiling is $510: two
 Claude preflight calls plus 100 production calls, or 102 current-run Claude
 calls × $5. Prior failed panels contribute a conservative $80 ceiling: two v2
 Claude preflight calls ($10), the ambiguous v5 attempt ($5), v7's two returned
@@ -716,35 +731,36 @@ preflight plus one production Claude calls ($15), V9's two preflight plus
 two production Claude calls ($20), V14's two returned Claude preflight
 calls ($10), V16's one started-not-finished Claude preflight call ($5), and
 V18's legacy early-marker first Claude preflight call ($5);
-v3, v4, v6, V10, V11, V12, V13, V15, V17, V19, and V20 started no Claude
-model call.
+v3, v4, v6, V10, V11, V12, V13, V15, V17, V19, V20, and V21 started no
+Claude model call.
 The exact acknowledgement's cumulative Claude ceiling is therefore $590
-($510 for V21 plus $80 for prior failed panels), not a claim about measured
+($510 for V22 plus $80 for prior failed panels), not a claim about measured
 billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-V20's acknowledgement and authentication procedure are retained only in the
-terminal [V20 runbook](docs/V20_RUNBOOK.md); they must not be executed or
-reused. V21 preparation, authorization, authentication, and execution must
+V20 and V21 acknowledgements and authentication procedures are retained only
+in their terminal [V20](docs/V20_RUNBOOK.md) and
+[V21](docs/V21_RUNBOOK.md) runbooks; they must not be executed or reused.
+V22 preparation, authorization, authentication, and execution must
 follow the fresh namespaces and publication sequence in the
-[V21 runbook](docs/V21_RUNBOOK.md).
+[V22 runbook](docs/V22_RUNBOOK.md).
 
-V21 retains the `$510` current-run Claude ceiling and the conservative `$80`
-allowance for prior panels. V20 adds `$0` because no durable model invocation
-started, so the cumulative ceiling remains `$590`. Codex and Cursor remain
-uncapped. V21 requires this new exact acknowledgement:
+V22 retains the `$510` current-run Claude ceiling and the conservative `$80`
+allowance for prior panels. V20 and V21 each add `$0` because no durable model
+invocation started, so the cumulative ceiling remains `$590`. Codex and Cursor
+remain uncapped. V22 requires this new exact acknowledgement:
 
-> I acknowledge the replacement six-call v21 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $590 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, and the v21 preflight and production run.
+> I acknowledge the replacement six-call v22 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $590 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, and the v22 preflight and production run.
 
 Its SHA-256 is
-`9d149c27986f0e35c9f4a5c40f9d315ac6ab1fcef1ef7eafc079832c2bbab1cc`.
+`fea481a235c9edf64348c0e98e4b8b913869a929ee66ae3a9bf49052cdd1a94a`.
 Publication alone is not authorization: the exact text must later be sealed
-against the final V21 manifest and public precommitment before authentication
+against the final V22 manifest and public precommitment before authentication
 or any provider-bearing operation.
 
-The V21 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V22 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -812,7 +828,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V21 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V22 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. Its tracked
 pre-private receipt hashes every enumerated regular file in each declared
@@ -820,7 +836,7 @@ scientific distribution rather than relying only on package name/version or
 `RECORD` metadata. The trusted computing base includes the root administrator
 and the installed Glean distribution; there is not yet an independently
 approved digest or cryptographic source-to-binary provenance for that helper
-bundle. V21 commits the exact installed helper bundle after acknowledgement and
+bundle. V22 commits the exact installed helper bundle after acknowledgement and
 detects persistent identity or ownership drift at every call boundary, but a
 malicious administrator capable of an ABA swap between attestation and
 execution is explicitly out of scope. Such an administrator could also
@@ -836,7 +852,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V21 detects the pipe-retaining form of that escape, but
+pipes; V22 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

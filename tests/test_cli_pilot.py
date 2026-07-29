@@ -65,6 +65,7 @@ from epiagentbench.pilot import (
     evaluate_paired_cli_agents,
     parse_agent_output,
 )
+from epiagentbench.trusted.service import TrustedEvaluatorStartupError
 
 
 def _submission() -> dict:
@@ -2645,7 +2646,7 @@ class CliPilotTests(unittest.TestCase):
 
     def test_episode_startup_error_is_typed_and_content_free(self):
         class CustomStartupError(Exception):
-            pass
+            startup_stage = "runtime_creation"
 
         secret = "episode-start-secret-must-not-leak"
         phases: list[str] = []
@@ -2687,7 +2688,46 @@ class CliPilotTests(unittest.TestCase):
             "provider_episode_start_failed",
         )
         self.assertEqual(caught.exception.failure_stage, "episode_startup")
+        self.assertEqual(
+            caught.exception.episode_startup_stage,
+            "unclassified",
+        )
         self.assertNotIn(secret, str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_episode_startup_preserves_only_trusted_finite_stage(self):
+        phases: list[str] = []
+        with (
+            patch("epiagentbench.pilot.shutil.which", return_value="/claude"),
+            patch(
+                "epiagentbench.pilot._run_provider_process_group",
+                return_value=subprocess.CompletedProcess(
+                    [], 0, stdout=b"claude 1", stderr=b""
+                ),
+            ),
+            patch(
+                "epiagentbench.pilot.launch_socket_episode",
+                side_effect=TrustedEvaluatorStartupError(
+                    "runtime_creation"
+                ),
+            ),
+            self.assertRaises(ProviderEpisodeStartupError) as caught,
+        ):
+            evaluate_local_cli_agent(
+                "claude",
+                seed=17,
+                pre_model_phase_callback=phases.append,
+            )
+
+        self.assertEqual(phases[-1], "episode_startup")
+        self.assertEqual(
+            caught.exception.episode_startup_stage,
+            "runtime_creation",
+        )
+        self.assertEqual(
+            caught.exception.incident_code,
+            "provider_episode_start_failed",
+        )
         self.assertIsNone(caught.exception.__cause__)
 
     def test_episode_startup_preserves_isolation_error(self):

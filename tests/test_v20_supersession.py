@@ -336,8 +336,8 @@ class V20SupersessionTests(unittest.TestCase):
         runbook = (self.root / "docs/V21_RUNBOOK.md").read_text(
             encoding="utf-8"
         )
+        self.assertIn(self.V21_ACKNOWLEDGEMENT, runbook)
         for document in (readme, runbook):
-            self.assertIn(self.V21_ACKNOWLEDGEMENT, document)
             self.assertIn("$510", document)
             self.assertIn("$80", document)
             self.assertIn("$590", document)
@@ -370,22 +370,6 @@ class V20SupersessionTests(unittest.TestCase):
         self.assertEqual(
             self.superseded["production_episodes_consumed"], 0
         )
-
-    def test_v21_control_plane_created_no_run_artifact(self) -> None:
-        for suffix in (
-            "runtime.json",
-            "manifest.json",
-            "authentication.json",
-            "preflight.json",
-            "json",
-        ):
-            self.assertFalse(
-                (
-                    self.root
-                    / "results"
-                    / f"development-matched-50x6-v21.{suffix}"
-                ).exists()
-            )
 
     def test_v21_runbook_preserves_the_two_commit_provider_free_boundary(
         self,

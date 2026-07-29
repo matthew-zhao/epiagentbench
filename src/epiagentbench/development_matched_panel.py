@@ -96,11 +96,12 @@ from .trusted.cohort_freezer import (
     freeze_private_starsim_cohort,
 )
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
+from .trusted.service import TRUSTED_EVALUATOR_STARTUP_STAGES
 
 
-PANEL_ID = "development-matched-50x6-v21"
+PANEL_ID = "development-matched-50x6-v22"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v21"
+SCHEMA_VERSION = "development_matched_panel_v22"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -108,7 +109,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v21 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v22 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $590 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -120,20 +121,26 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "preparation, the failed v16 preflight, the failed zero-model-call v17 "
     "pre-start runtime-cache-environment refusal, the failed v18 preflight, "
     "the failed zero-model-call v19 authentication setup, the failed "
-    "zero-model-call v20 preflight, and the v21 preflight and production run."
+    "zero-model-call v20 preflight, the failed zero-model-call v21 preflight, "
+    "and the v22 preflight and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
-    "epiagentbench.preparation_runtime_preflight.v2"
+    "epiagentbench.preparation_runtime_preflight.v3"
 )
 _BOUND_PREPARATION_RUNTIME_SCHEMA = (
-    "epiagentbench.bound_preparation_runtime.v1"
+    "epiagentbench.bound_preparation_runtime.v2"
 )
 _PREPARATION_RUNTIME_SMOKE_SCHEMA = (
-    "epiagentbench.preparation_runtime_smoke.v1"
+    "epiagentbench.preparation_runtime_smoke.v2"
 )
+_PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA = (
+    "epiagentbench.preparation_episode_startup_smoke.v1"
+)
+_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS = (0, 7, 2**31 - 2)
+_PREPARATION_EPISODE_STARTUP_REPETITIONS = 2
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "2f69e11f3313f7bf3294dbab0fa9058428f2c70546dea7896c91cc872b0ab5cf"
+    "c0f3d38fdbd1ac906e3f33fe587217d01baa7c672e6d08a97a9099ff2d0860a2"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -251,17 +258,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V21 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V22 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V21 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V22 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V21 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V22 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v21_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v22_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v21_cohort_freeze_completion.v1"
+    "epiagentbench.v22_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -1047,21 +1054,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V21 cohort destination")
+    return _canonical_new_private_path(value, label="V22 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V21 claim location paired with this owner-only key."""
+    """Return the one V22 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V21 authentication-key namespace is unavailable"
+            "V22 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1070,16 +1077,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V21 authentication-key namespace must be owner-only"
+            "V22 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V21 cohort freeze claim"
+        requested_path, label="V22 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V21 cohort freeze claim must use the canonical key-namespace path"
+            "V22 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1107,7 +1114,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V21 cohort freeze claim authentication failed")
+        raise ValueError("V22 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1130,7 +1137,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V21 cohort freeze completion authentication failed")
+        raise ValueError("V22 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1154,7 +1161,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V21 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V22 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1184,12 +1191,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V21 freeze attempt before any cohort randomness."""
+    """Burn the only V22 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V21 cohort freeze completion already exists; never rerun freeze"
+            "V22 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1206,11 +1213,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V21 cohort freeze already has a pending claim; interrupted "
+            "V22 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V21 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V22 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1228,7 +1235,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V21 cohort manifest must use its canonical filename")
+        raise ValueError("V22 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1239,7 +1246,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V21 frozen cohort manifest"
+            canonical_manifest_path, label="V22 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1257,11 +1264,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V21 cohort freeze completion already exists; never replace it"
+            "V22 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V21 cohort freeze completion failed its durable reload"
+            "V22 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1279,13 +1286,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V21 cohort has no authenticated create-once freeze claim"
+            "Frozen V22 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V21 cohort freeze remains pending; interrupted freezes are "
+            "V22 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1293,7 +1300,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V21 cohort manifest must use its canonical filename")
+        raise ValueError("V22 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1308,11 +1315,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V21 cohort freeze claim belongs to another freeze")
+        raise ValueError("V22 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V21 cohort freeze claim has no claim time")
+        raise ValueError("V22 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1323,7 +1330,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V21 frozen cohort manifest"
+            manifest_path, label="V22 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1333,12 +1340,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V21 cohort freeze completion differs from its manifest or claim"
+            "V22 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V21 cohort freeze completion has no completion time")
+        raise ValueError("V22 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -3435,12 +3442,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V21 key only when one stable inode owns its namespace."""
+    """Read the V22 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V21 authentication key is unavailable") from None
+        raise RuntimeError("V22 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3460,18 +3467,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V21 authentication key must be an owner-only single-link file"
+            "V22 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V21 authentication key is unavailable") from None
+        raise RuntimeError("V22 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V21 authentication key changed while reading")
+        raise RuntimeError("V22 authentication key changed while reading")
     return key
 
 
@@ -4373,7 +4380,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V21 runtime-cache environment does not match the exact contract"
+            "V22 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4387,17 +4394,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V21 runtime-cache contract is inconsistent")
+        raise RuntimeError("V22 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V21 runtime-cache environment is unavailable")
+        raise RuntimeError("V22 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V21 runtime-cache environment is invalid")
+        raise RuntimeError("V22 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4522,7 +4529,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v21-stop-direct-care",
+                        control_id="v22-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4555,14 +4562,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V21 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V22 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V21 Starsim golden smoke changed engine descriptors"
+                "V22 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4604,7 +4611,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V21 Starsim golden smoke lost its causal transmission/control "
+            "V22 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4632,16 +4639,178 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V21 Starsim golden smoke result drifted from its reviewed digest"
+            "V22 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v21_contact_transmission_with_matched_contact_stop"
+            "v22_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
     }
+
+
+def _preparation_episode_startup_smoke() -> dict[str, Any]:
+    """Exercise the real spawn/controller/socket path without private inputs.
+
+    Only fixed public family names, fixed public seeds, counts, and transcript
+    digests leave this function.  Raw observations, generated identifiers,
+    paths, presentation keys, and simulator state remain transient.
+    """
+
+    from epiagentbench_client import InvestigationClient
+
+    from .trusted.service import launch_socket_episode
+
+    case_digests_by_repetition: list[list[str]] = []
+    trusted_evaluator_processes_started = 0
+    for repetition in range(_PREPARATION_EPISODE_STARTUP_REPETITIONS):
+        case_digests: list[str] = []
+        for family in FAMILIES:
+            for seed in _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS:
+                presentation_key = hashlib.sha256(
+                    (
+                        "EpiAgentBench V22 provider-free episode startup "
+                        f"smoke v1|{family}|{seed}"
+                    ).encode("ascii")
+                ).digest()
+                with TemporaryDirectory(
+                    prefix="eab22-", dir="/tmp"
+                ) as directory:
+                    socket_path = Path(directory) / "episode.sock"
+                    session = launch_socket_episode(
+                        public_socket_path=str(socket_path),
+                        seed=seed,
+                        family=family,
+                        backend=BACKEND,
+                        episode_secret=presentation_key,
+                    )
+                    trusted_evaluator_processes_started += 1
+                    client = None
+                    try:
+                        client = InvestigationClient.connect_unix(
+                            str(socket_path)
+                        )
+                        public_transcript = {
+                            "manifest": client.manifest,
+                            "initial_observations": (
+                                client.initial_observations()
+                            ),
+                            "clock_and_budget": (
+                                client.get_clock_and_budget()
+                            ),
+                        }
+                        case_digests.append(
+                            _component_hash(
+                                {
+                                    "family": family,
+                                    "seed": seed,
+                                    "public_transcript": public_transcript,
+                                }
+                            )
+                        )
+                    finally:
+                        try:
+                            if client is not None:
+                                client.close()
+                        finally:
+                            session.close()
+                    if socket_path.exists():
+                        raise RuntimeError(
+                            "V22 episode-startup smoke left a broker socket"
+                        )
+        case_digests_by_repetition.append(case_digests)
+
+    if (
+        len(case_digests_by_repetition) != 2
+        or case_digests_by_repetition[0]
+        != case_digests_by_repetition[1]
+    ):
+        raise RuntimeError(
+            "V22 episode-startup smoke is not serially reproducible"
+        )
+    expected_processes = (
+        len(FAMILIES)
+        * len(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS)
+        * _PREPARATION_EPISODE_STARTUP_REPETITIONS
+    )
+    if trusted_evaluator_processes_started != expected_processes:
+        raise RuntimeError(
+            "V22 episode-startup smoke did not complete its fixed matrix"
+        )
+    return {
+        "schema_version": _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA,
+        "backend": BACKEND,
+        "public_families": list(FAMILIES),
+        "public_seeds": list(
+            _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS
+        ),
+        "serial_repetitions": (
+            _PREPARATION_EPISODE_STARTUP_REPETITIONS
+        ),
+        "trusted_evaluator_processes_started": expected_processes,
+        "public_transcript_reproducible": True,
+        "public_transcript_sha256": _component_hash(
+            case_digests_by_repetition[0]
+        ),
+        "provider_processes_started": 0,
+        "authentication_processes_started": 0,
+        "model_calls_started": 0,
+        "private_artifacts_required": False,
+    }
+
+
+def _valid_preparation_episode_startup_smoke(
+    value: object,
+) -> bool:
+    """Validate the complete public, content-free broker smoke projection."""
+
+    expected_processes = (
+        len(FAMILIES)
+        * len(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS)
+        * _PREPARATION_EPISODE_STARTUP_REPETITIONS
+    )
+    return (
+        isinstance(value, dict)
+        and set(value)
+        == {
+            "authentication_processes_started",
+            "backend",
+            "model_calls_started",
+            "private_artifacts_required",
+            "provider_processes_started",
+            "public_families",
+            "public_seeds",
+            "public_transcript_reproducible",
+            "public_transcript_sha256",
+            "schema_version",
+            "serial_repetitions",
+            "trusted_evaluator_processes_started",
+        }
+        and value.get("schema_version")
+        == _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA
+        and value.get("backend") == BACKEND
+        and value.get("public_families") == list(FAMILIES)
+        and value.get("public_seeds")
+        == list(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS)
+        and value.get("serial_repetitions")
+        == _PREPARATION_EPISODE_STARTUP_REPETITIONS
+        and type(value.get("serial_repetitions")) is int
+        and value.get("trusted_evaluator_processes_started")
+        == expected_processes
+        and type(value.get("trusted_evaluator_processes_started"))
+        is int
+        and value.get("public_transcript_reproducible") is True
+        and _is_sha256(value.get("public_transcript_sha256"))
+        and value.get("provider_processes_started") == 0
+        and type(value.get("provider_processes_started")) is int
+        and value.get("authentication_processes_started") == 0
+        and type(value.get("authentication_processes_started")) is int
+        and value.get("model_calls_started") == 0
+        and type(value.get("model_calls_started")) is int
+        and value.get("private_artifacts_required") is False
+    )
 
 
 def _runtime_contract() -> dict[str, Any]:
@@ -4655,7 +4824,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V21 requires exact Starsim "
+            "V22 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -4673,7 +4842,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V21 Python executable must not be temporary")
+        raise RuntimeError("V22 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -4727,6 +4896,9 @@ def _preparation_runtime_identity(receipt: Mapping[str, Any]) -> str:
             "starsim_smoke_contract_sha256": receipt.get(
                 "starsim_smoke_contract_sha256"
             ),
+            "episode_startup_smoke_contract_sha256": receipt.get(
+                "episode_startup_smoke_contract_sha256"
+            ),
         }
     )
 
@@ -4737,7 +4909,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V21 creation."""
+    """Attest every public preparation dependency before private V22 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -4758,7 +4930,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V21 runtime preflight is not at the expected pinned commit"
+            "V22 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -4766,14 +4938,19 @@ def preflight_preparation_runtime(
         )
     source = _source_contract(root)
     cli = _cli_contract()
-    cache_root = runtime_cache_dir.expanduser().absolute()
+    cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V21 runtime cache must be outside the repository"
+            "V22 runtime cache must be outside the repository"
         )
-    runtime = _runtime_contract()
-    smoke = _preparation_runtime_smoke()
-    runtime_cache = _runtime_cache_contract(runtime_cache_dir)
+    previous_umask = os.umask(0o077)
+    try:
+        runtime = _runtime_contract()
+        smoke = _preparation_runtime_smoke()
+        episode_startup_smoke = _preparation_episode_startup_smoke()
+        runtime_cache = _runtime_cache_contract(runtime_cache_dir)
+    finally:
+        os.umask(previous_umask)
     head_after = _git_output(root, "rev-parse", "HEAD")
     if (
         not hmac.compare_digest(head_before, head_after)
@@ -4782,7 +4959,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V21 source changed during preparation runtime preflight"
+            "V22 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -4795,10 +4972,15 @@ def preflight_preparation_runtime(
         "runtime_contract_sha256": _component_hash(runtime),
         "runtime_cache_contract_sha256": _component_hash(runtime_cache),
         "starsim_smoke_contract_sha256": _component_hash(smoke),
+        "episode_startup_smoke_contract_sha256": _component_hash(
+            episode_startup_smoke
+        ),
         "runtime_contract": runtime,
         "starsim_smoke_contract": smoke,
+        "episode_startup_smoke_contract": episode_startup_smoke,
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
+        "model_calls_started": 0,
         "private_artifacts_required": False,
     }
     receipt["runtime_identity_sha256"] = _preparation_runtime_identity(
@@ -4816,23 +4998,26 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V21 preparation runtime receipt must already be committed"
+            "V22 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V21 preparation runtime receipt",
+            label="V22 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V21 preparation runtime receipt is unavailable"
+            "V22 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
         "benchmark_base_commit",
         "cli_contract_sha256",
+        "episode_startup_smoke_contract",
+        "episode_startup_smoke_contract_sha256",
+        "model_calls_started",
         "panel_id",
         "private_artifacts_required",
         "provider_processes_started",
@@ -4857,6 +5042,7 @@ def _load_preparation_runtime_receipt(
         != REQUIRED_STARSIM_VERSION
         or receipt.get("provider_processes_started") != 0
         or receipt.get("authentication_processes_started") != 0
+        or receipt.get("model_calls_started") != 0
         or receipt.get("private_artifacts_required") is not False
         or not isinstance(receipt.get("benchmark_base_commit"), str)
         or len(str(receipt["benchmark_base_commit"])) != 40
@@ -4873,19 +5059,28 @@ def _load_preparation_runtime_receipt(
                 "runtime_cache_contract_sha256",
                 "starsim_smoke_contract_sha256",
                 "runtime_identity_sha256",
+                "episode_startup_smoke_contract_sha256",
             )
         )
         or type(receipt.get("provider_processes_started")) is not int
         or type(receipt.get("authentication_processes_started")) is not int
+        or type(receipt.get("model_calls_started")) is not int
         or receipt.get("runtime_contract_sha256")
         != _component_hash(receipt.get("runtime_contract"))
         or receipt.get("starsim_smoke_contract_sha256")
         != _component_hash(receipt.get("starsim_smoke_contract"))
+        or receipt.get("episode_startup_smoke_contract_sha256")
+        != _component_hash(
+            receipt.get("episode_startup_smoke_contract")
+        )
+        or not _valid_preparation_episode_startup_smoke(
+            receipt.get("episode_startup_smoke_contract")
+        )
         or receipt.get("runtime_identity_sha256")
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V21 preparation runtime receipt failed closed-schema validation"
+            "V22 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -4897,7 +5092,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V21 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V22 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -4914,17 +5109,17 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V21 runtime cache changed during receipt verification"
+            "V22 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V21 preparation runtime differs from the published receipt"
+            "V22 preparation runtime differs from the published receipt"
         )
     return {
-        "schema_version": "epiagentbench.preparation_runtime_verification.v1",
+        "schema_version": "epiagentbench.preparation_runtime_verification.v2",
         "panel_id": PANEL_ID,
         "status": "passed",
         "required_starsim_version": REQUIRED_STARSIM_VERSION,
@@ -4946,11 +5141,18 @@ def verify_preparation_runtime(
         "starsim_smoke_contract_sha256": current[
             "starsim_smoke_contract_sha256"
         ],
+        "episode_startup_smoke_contract_sha256": current[
+            "episode_startup_smoke_contract_sha256"
+        ],
         "runtime_contract": current["runtime_contract"],
         "runtime_cache_contract": current_runtime_cache,
         "starsim_smoke_contract": current["starsim_smoke_contract"],
+        "episode_startup_smoke_contract": current[
+            "episode_startup_smoke_contract"
+        ],
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
+        "model_calls_started": 0,
         "private_artifacts_required": False,
     }
 
@@ -4964,6 +5166,8 @@ def _validate_bound_preparation_runtime(
         or set(bound)
         != {
             "cli_contract_sha256",
+            "episode_startup_smoke_contract",
+            "episode_startup_smoke_contract_sha256",
             "panel_id",
             "published_receipt_path",
             "published_receipt_file_sha256",
@@ -4993,6 +5197,7 @@ def _validate_bound_preparation_runtime(
                 "runtime_cache_contract_sha256",
                 "starsim_smoke_contract_sha256",
                 "runtime_identity_sha256",
+                "episode_startup_smoke_contract_sha256",
             )
         )
         or bound.get("published_receipt_path")
@@ -5019,21 +5224,36 @@ def _validate_bound_preparation_runtime(
         != _component_hash(public.get("runtime_contract"))
         or bound.get("starsim_smoke_contract_sha256")
         != _component_hash(bound.get("starsim_smoke_contract"))
+        or bound.get("episode_startup_smoke_contract_sha256")
+        != _component_hash(
+            bound.get("episode_startup_smoke_contract")
+        )
+        or not _valid_preparation_episode_startup_smoke(
+            bound.get("episode_startup_smoke_contract")
+        )
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V21 preparation runtime is invalid")
+        raise ValueError("Bound V22 preparation runtime is invalid")
     runtime_cache = _runtime_cache_contract(
         _runtime_cache_root_from_environment()
     )
     if bound.get("runtime_cache_contract_sha256") != _component_hash(
         runtime_cache
     ):
-        raise ValueError("Bound V21 runtime cache changed")
+        raise ValueError("Bound V22 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V21 Starsim smoke result changed")
+        raise ValueError("Bound V22 Starsim smoke result changed")
+    if (
+        rerun_smoke
+        and _preparation_episode_startup_smoke()
+        != bound.get("episode_startup_smoke_contract")
+    ):
+        raise ValueError(
+            "Bound V22 episode-startup smoke result changed"
+        )
     return bound
 
 
@@ -5455,8 +5675,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v21_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v21_authorization_breakdown": {
+        "claude_current_v22_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v22_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -5488,6 +5708,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v18_usd": 5.0,
             "v19_usd": 0.0,
             "v20_usd": 0.0,
+            "v21_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -5631,6 +5852,21 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v20_supersession": (
                 "results/development-matched-50x6-v20.superseded.json"
             ),
+            "v21_runtime_receipt": (
+                "results/development-matched-50x6-v21.runtime.json"
+            ),
+            "v21_manifest": (
+                "results/development-matched-50x6-v21.manifest.json"
+            ),
+            "v21_authentication_receipt": (
+                "results/development-matched-50x6-v21.authentication.json"
+            ),
+            "v21_preflight_artifact": (
+                "results/development-matched-50x6-v21.preflight.json"
+            ),
+            "v21_supersession": (
+                "results/development-matched-50x6-v21.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -5651,7 +5887,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V21 exactly once after runtime re-attestation."""
+    """Claim and freeze V22 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -5685,7 +5921,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V21 runtime cache must not overlap the {label}"
+                f"V22 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -5706,13 +5942,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V21 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V22 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V21 cohort returned a noncanonical artifact location"
+            "Frozen V22 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -5725,9 +5961,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V21 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V22 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v21_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v22_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -5786,13 +6022,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V21 requires an exact 1800-second assignment timeout")
+        raise ValueError("V22 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V21 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V22 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -5817,7 +6053,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V21 runtime cache must not overlap the {label}"
+                f"V22 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -5829,7 +6065,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V21 source or CLI identity drifted after runtime verification"
+            "V22 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -5883,7 +6119,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V21 runtime cache must not overlap the {label}"
+                f"V22 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -6009,6 +6245,12 @@ def _prepare_panel_locked(
         ],
         "starsim_smoke_contract": runtime_verification[
             "starsim_smoke_contract"
+        ],
+        "episode_startup_smoke_contract_sha256": runtime_verification[
+            "episode_startup_smoke_contract_sha256"
+        ],
+        "episode_startup_smoke_contract": runtime_verification[
+            "episode_startup_smoke_contract"
         ],
     }
     replay = replay_trace_contract()
@@ -6528,7 +6770,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V21 preparation runtime binding is invalid"
+            "Private V22 preparation runtime binding is invalid"
         )
     expected_contracts = {
         "runtime_contract": _runtime_contract(),
@@ -6596,7 +6838,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V21 preparation runtime contract is missing")
+        raise ValueError("V22 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -6625,7 +6867,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V21 cohort freeze claim differs from private state"
+            "Authenticated V22 cohort freeze claim differs from private state"
         )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
@@ -6783,10 +7025,25 @@ def _validate_contracts(
             void_reason = assignment.get("void_reason")
             timeout_stage = assignment.get("timeout_stage")
             failure_stage = assignment.get("failure_stage")
+            episode_startup_stage = assignment.get(
+                "episode_startup_stage"
+            )
             if (
                 void_reason not in _PROVIDER_INCIDENT_CODES
                 or timeout_stage not in _TRANSPORT_VOID_TIMEOUT_STAGES
                 or failure_stage not in _TRANSPORT_VOID_FAILURE_STAGES
+                or (
+                    void_reason == "provider_episode_start_failed"
+                    and (
+                        not isinstance(episode_startup_stage, str)
+                        or episode_startup_stage
+                        not in TRUSTED_EVALUATOR_STARTUP_STAGES
+                    )
+                )
+                or (
+                    void_reason != "provider_episode_start_failed"
+                    and episode_startup_stage is not None
+                )
             ):
                 raise ValueError(
                     "Private transport-void projection is invalid"
@@ -6955,7 +7212,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V21 spend authorization contract mismatch")
+        raise ValueError("V22 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -6983,7 +7240,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v21 spend authorization receipt is required "
+            "A manifest-bound exact v22 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -6998,14 +7255,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v21 spend authorization receipt is required "
+            "A manifest-bound exact v22 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v21 spend authorization receipt is required "
+            "A manifest-bound exact v22 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -7027,7 +7284,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v21 $590 cumulative spend acknowledgement text is required"
+            "The exact v22 $590 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -8488,7 +8745,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V21 panel cannot retry"
+                    "state; this V22 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -8501,7 +8758,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V21 panel cannot retry"
+                    "state; this V22 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8514,7 +8771,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V21 panel cannot retry"
+                    "state; this V22 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -8536,7 +8793,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V21 panel cannot retry"
+                        "repository-contract state; this V22 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -8557,7 +8814,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V21 panel "
+                "Authentication process state is ambiguous; this V22 panel "
                 "cannot retry"
             )
         if (
@@ -8588,7 +8845,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -8620,7 +8877,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V21 panel cannot retry"
+                "state; this V22 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -8633,7 +8890,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -8646,7 +8903,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -8663,7 +8920,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -8682,7 +8939,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V21 panel cannot retry"
+                "state; this V22 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -8794,7 +9051,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V21 panel cannot retry"
+                    "state before provider launch; this V22 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8809,7 +9066,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V21 panel cannot retry"
+                    "state before provider launch; this V22 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -8826,7 +9083,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V21 panel cannot retry"
+                    "state before provider launch; this V22 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -8845,7 +9102,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V21 panel cannot retry"
+                    "state; this V22 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -8893,7 +9150,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V21 panel cannot retry"
+                    "V22 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -8911,7 +9168,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V21 panel cannot retry"
+                    "state after provider return; this V22 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8929,7 +9186,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V21 panel cannot retry"
+                    "state after provider return; this V22 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
@@ -8969,7 +9226,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V21 panel cannot retry"
+                    "state after provider return; this V22 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -8991,7 +9248,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V21 panel cannot retry"
+                    "this V22 panel cannot retry"
                 ) from None
 
         try:
@@ -9005,7 +9262,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -9018,7 +9275,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -9035,7 +9292,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V21 panel cannot retry"
+                "this V22 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -9054,7 +9311,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V21 panel cannot retry"
+                "state; this V22 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -9441,6 +9698,21 @@ def _terminal_preflight_candidate(
         raise RuntimeError(
             "Terminal preflight receipt incident code is invalid"
         )
+    episode_startup_stage = candidate.get("episode_startup_stage")
+    if (
+        incident_code == "provider_episode_start_failed"
+        and (
+            not isinstance(episode_startup_stage, str)
+            or episode_startup_stage
+            not in TRUSTED_EVALUATOR_STARTUP_STAGES
+        )
+    ) or (
+        incident_code != "provider_episode_start_failed"
+        and episode_startup_stage is not None
+    ):
+        raise RuntimeError(
+            "Terminal preflight episode-startup stage is invalid"
+        )
     failure_stage = candidate.get("failure_stage")
     if (
         (
@@ -9480,6 +9752,8 @@ def _terminal_preflight_candidate(
             len(failed_profiles) != 1
             or candidate.get("failed_pre_model_phase")
             != failed_profiles[0].get("failed_pre_model_phase")
+            or candidate.get("episode_startup_stage")
+            != failed_profiles[0].get("episode_startup_stage")
         ):
             raise RuntimeError(
                 "Terminal preflight failed phase projection is invalid"
@@ -10494,6 +10768,18 @@ def _valid_preflight_phase_projection(item: Mapping[str, Any]) -> bool:
         is not (state != "not_started")
     ):
         return False
+    startup_stage = item.get("episode_startup_stage")
+    if (
+        item.get("incident_code") == "provider_episode_start_failed"
+        and (
+            not isinstance(startup_stage, str)
+            or startup_stage not in TRUSTED_EVALUATOR_STARTUP_STAGES
+        )
+    ) or (
+        item.get("incident_code") != "provider_episode_start_failed"
+        and startup_stage is not None
+    ):
+        return False
     if state != "not_started" and phase != "model_spawn_boundary":
         return False
     if item.get("outcome") in {
@@ -10541,6 +10827,21 @@ def _attestation_incident_fields(error: BaseException) -> dict[str, str]:
     ):
         return {}
     return {"attestation_failure_code": str(failure_code)}
+
+
+def _episode_startup_incident_fields(
+    error: BaseException,
+) -> dict[str, str]:
+    """Return only the trusted finite broker-startup substage."""
+
+    stage = getattr(error, "episode_startup_stage", None)
+    if (
+        isinstance(error, ProviderEpisodeStartupError)
+        and isinstance(stage, str)
+        and stage in TRUSTED_EVALUATOR_STARTUP_STAGES
+    ):
+        return {"episode_startup_stage": str(stage)}
+    return {}
 
 
 def _provider_incident_code(
@@ -11634,6 +11935,7 @@ def _run_environment_preflight_core(
                         ),
                         "failed_pre_model_phase": failed_pre_model_phase,
                         **_attestation_incident_fields(error),
+                        **_episode_startup_incident_fields(error),
                     }
                 )
                 timeout_stage = _provider_timeout_stage(
@@ -11673,6 +11975,7 @@ def _run_environment_preflight_core(
                         "failure_stage": terminal_failure_stage,
                         "incident_code": terminal_incident_code,
                         **_attestation_incident_fields(error),
+                        **_episode_startup_incident_fields(error),
                         "scored": False,
                         "infrastructure_handshake_passed": False,
                     }
@@ -11737,6 +12040,7 @@ def _run_environment_preflight_core(
                     "failure_stage": terminal_failure_stage,
                     "incident_code": terminal_incident_code,
                     **_attestation_incident_fields(error),
+                    **_episode_startup_incident_fields(error),
                     "timed_out": timed_out,
                     "timeout_stages": (
                         [timeout_stage] if timeout_stage is not None else []
@@ -13792,6 +14096,7 @@ def _run_panel_locked(
             marker["model_invocation_state"] = model_invocation_state
             marker["pre_model_phase"] = pre_model_phase
             marker["failed_pre_model_phase"] = failed_pre_model_phase
+            marker.update(_episode_startup_incident_fields(error))
             marker["conservative_chargeable"] = (
                 marker["model_invocation_state"] != "not_started"
             )
