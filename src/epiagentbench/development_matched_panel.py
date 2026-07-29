@@ -88,9 +88,9 @@ from .trusted.cohort_freezer import (
 from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePack
 
 
-PANEL_ID = "development-matched-50x6-v19"
+PANEL_ID = "development-matched-50x6-v20"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v19"
+SCHEMA_VERSION = "development_matched_panel_v20"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -98,7 +98,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v19 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v20 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $590 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -109,7 +109,8 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "failed v14 preflight, the failed zero-model-call v15 pre-claim "
     "preparation, the failed v16 preflight, the failed zero-model-call v17 "
     "pre-start runtime-cache-environment refusal, the failed v18 preflight, "
-    "and the v19 preflight and production run."
+    "the failed zero-model-call v19 authentication setup, and the v20 "
+    "preflight and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v2"
@@ -122,7 +123,7 @@ _PREPARATION_RUNTIME_SMOKE_SCHEMA = (
 )
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "fad38877b79d2be90fbb136702878fb1c10f5547f0d0170a5ebcab6c9e776d12"
+    "c4577a0c488248f74cd19f84e51b41c51cece803e36324ae4f3ac038715631c8"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -134,7 +135,10 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
     "XDG_CACHE_HOME",
 )
 _SPEND_AUTHORIZATION_SCHEMA = "epiagentbench.spend_authorization.v2"
-_AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v2"
+_AUTHENTICATION_SETUP_SCHEMA = "epiagentbench.authentication_setup.v3"
+_AUTHENTICATION_TERMINAL_INCIDENT_SCHEMA = (
+    "epiagentbench.authentication_terminal_incident.v1"
+)
 _AUTHENTICATION_RECEIPT_SCHEMA = "epiagentbench.authentication_receipt.v2"
 _PUBLIC_RECEIPT_BINDING_SCHEMA = (
     "epiagentbench.repository_receipt_binding.v1"
@@ -237,17 +241,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V19 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V20 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V19 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V20 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V19 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V20 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v19_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v20_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v19_cohort_freeze_completion.v1"
+    "epiagentbench.v20_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -1008,21 +1012,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V19 cohort destination")
+    return _canonical_new_private_path(value, label="V20 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V19 claim location paired with this owner-only key."""
+    """Return the one V20 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V19 authentication-key namespace is unavailable"
+            "V20 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1031,16 +1035,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V19 authentication-key namespace must be owner-only"
+            "V20 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V19 cohort freeze claim"
+        requested_path, label="V20 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V19 cohort freeze claim must use the canonical key-namespace path"
+            "V20 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1068,7 +1072,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V19 cohort freeze claim authentication failed")
+        raise ValueError("V20 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1091,7 +1095,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V19 cohort freeze completion authentication failed")
+        raise ValueError("V20 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1115,7 +1119,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V19 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V20 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1145,12 +1149,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V19 freeze attempt before any cohort randomness."""
+    """Burn the only V20 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V19 cohort freeze completion already exists; never rerun freeze"
+            "V20 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1167,11 +1171,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V19 cohort freeze already has a pending claim; interrupted "
+            "V20 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V19 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V20 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1189,7 +1193,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V19 cohort manifest must use its canonical filename")
+        raise ValueError("V20 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1200,7 +1204,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V19 frozen cohort manifest"
+            canonical_manifest_path, label="V20 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1218,11 +1222,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V19 cohort freeze completion already exists; never replace it"
+            "V20 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V19 cohort freeze completion failed its durable reload"
+            "V20 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1240,13 +1244,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V19 cohort has no authenticated create-once freeze claim"
+            "Frozen V20 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V19 cohort freeze remains pending; interrupted freezes are "
+            "V20 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1254,7 +1258,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V19 cohort manifest must use its canonical filename")
+        raise ValueError("V20 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1269,11 +1273,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V19 cohort freeze claim belongs to another freeze")
+        raise ValueError("V20 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V19 cohort freeze claim has no claim time")
+        raise ValueError("V20 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1284,7 +1288,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V19 frozen cohort manifest"
+            manifest_path, label="V20 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1294,12 +1298,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V19 cohort freeze completion differs from its manifest or claim"
+            "V20 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V19 cohort freeze completion has no completion time")
+        raise ValueError("V20 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -2946,7 +2950,7 @@ def _bootstrap_codex_credentials(
                 invocation_start_failed=invocation_start_failed,
                 invocation_returned=invocation_returned,
             )
-        except ProviderExecutionIsolationError:
+        except Exception:
             raise
         except subprocess.SubprocessError:
             raise RuntimeError("Codex authentication bootstrap failed") from None
@@ -3161,7 +3165,7 @@ def _bootstrap_managed_glean_credentials(
                 invocation_start_failed=invocation_start_failed,
                 invocation_returned=invocation_returned,
             )
-        except ProviderExecutionIsolationError:
+        except Exception:
             raise
         except subprocess.SubprocessError:
             raise RuntimeError("Managed Glean authentication bootstrap failed") from None
@@ -3396,12 +3400,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V19 key only when one stable inode owns its namespace."""
+    """Read the V20 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V19 authentication key is unavailable") from None
+        raise RuntimeError("V20 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3421,18 +3425,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V19 authentication key must be an owner-only single-link file"
+            "V20 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V19 authentication key is unavailable") from None
+        raise RuntimeError("V20 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V19 authentication key changed while reading")
+        raise RuntimeError("V20 authentication key changed while reading")
     return key
 
 
@@ -4334,7 +4338,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V19 runtime-cache environment does not match the exact contract"
+            "V20 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4348,17 +4352,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V19 runtime-cache contract is inconsistent")
+        raise RuntimeError("V20 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V19 runtime-cache environment is unavailable")
+        raise RuntimeError("V20 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V19 runtime-cache environment is invalid")
+        raise RuntimeError("V20 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4483,7 +4487,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v19-stop-direct-care",
+                        control_id="v20-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4516,14 +4520,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V19 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V20 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V19 Starsim golden smoke changed engine descriptors"
+                "V20 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4565,7 +4569,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V19 Starsim golden smoke lost its causal transmission/control "
+            "V20 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4593,12 +4597,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V19 Starsim golden smoke result drifted from its reviewed digest"
+            "V20 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v19_contact_transmission_with_matched_contact_stop"
+            "v20_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -4616,7 +4620,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V19 requires exact Starsim "
+            "V20 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -4634,7 +4638,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V19 Python executable must not be temporary")
+        raise RuntimeError("V20 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -4698,7 +4702,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V19 creation."""
+    """Attest every public preparation dependency before private V20 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -4719,7 +4723,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V19 runtime preflight is not at the expected pinned commit"
+            "V20 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -4730,7 +4734,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().absolute()
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V19 runtime cache must be outside the repository"
+            "V20 runtime cache must be outside the repository"
         )
     runtime = _runtime_contract()
     smoke = _preparation_runtime_smoke()
@@ -4743,7 +4747,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V19 source changed during preparation runtime preflight"
+            "V20 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -4777,18 +4781,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V19 preparation runtime receipt must already be committed"
+            "V20 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V19 preparation runtime receipt",
+            label="V20 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V19 preparation runtime receipt is unavailable"
+            "V20 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -4846,7 +4850,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V19 preparation runtime receipt failed closed-schema validation"
+            "V20 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -4858,7 +4862,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V19 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V20 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -4875,14 +4879,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V19 runtime cache changed during receipt verification"
+            "V20 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V19 preparation runtime differs from the published receipt"
+            "V20 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v1",
@@ -4983,18 +4987,18 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V19 preparation runtime is invalid")
+        raise ValueError("Bound V20 preparation runtime is invalid")
     runtime_cache = _runtime_cache_contract(
         _runtime_cache_root_from_environment()
     )
     if bound.get("runtime_cache_contract_sha256") != _component_hash(
         runtime_cache
     ):
-        raise ValueError("Bound V19 runtime cache changed")
+        raise ValueError("Bound V20 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V19 Starsim smoke result changed")
+        raise ValueError("Bound V20 Starsim smoke result changed")
     return bound
 
 
@@ -5002,7 +5006,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v8",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v9",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -5342,6 +5346,26 @@ def _authentication_setup_contract(
             },
         },
         "model_calls": 0,
+        "runtime_cache_environment": {
+            "source": "explicit_bound_runtime_cache_directory",
+            "installation": "internal_before_scientific_import",
+            "caller_ambient_values": "ignored",
+            "restoration": "exact_prior_presence_and_value_in_finally",
+        },
+        "ceremony_claim": {
+            "durable_before": [
+                "execution_contract_attestation",
+                "frozen_authentication_dependency_attestation",
+                "authorization_worktree_attestation",
+                "credential_integrity_attestation",
+                "provider_process_launch",
+            ],
+            "preclaim_tty_failure": "no_state_mutation",
+            "postclaim_integrity_failure": (
+                "terminal_allowlisted_incident_without_provider_attempt"
+            ),
+            "interrupted_claim": "terminal_on_reentry",
+        },
         "authentication_dependency_identity": {
             "prepare_time_contract": (
                 "fixed_root_owned_paths_and_dispatch_semantics"
@@ -5396,8 +5420,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v19_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v19_authorization_breakdown": {
+        "claude_current_v20_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v20_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -5427,6 +5451,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v16_usd": 5.0,
             "v17_usd": 0.0,
             "v18_usd": 5.0,
+            "v19_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -5546,6 +5571,15 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v18_supersession": (
                 "results/development-matched-50x6-v18.superseded.json"
             ),
+            "v19_runtime_receipt": (
+                "results/development-matched-50x6-v19.runtime.json"
+            ),
+            "v19_manifest": (
+                "results/development-matched-50x6-v19.manifest.json"
+            ),
+            "v19_supersession": (
+                "results/development-matched-50x6-v19.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -5566,7 +5600,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V19 exactly once after runtime re-attestation."""
+    """Claim and freeze V20 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -5600,7 +5634,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V19 runtime cache must not overlap the {label}"
+                f"V20 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -5621,13 +5655,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V19 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V20 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V19 cohort returned a noncanonical artifact location"
+            "Frozen V20 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -5640,9 +5674,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V19 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V20 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v19_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v20_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -5701,13 +5735,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V19 requires an exact 1800-second assignment timeout")
+        raise ValueError("V20 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V19 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V20 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -5732,7 +5766,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V19 runtime cache must not overlap the {label}"
+                f"V20 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -5744,7 +5778,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V19 source or CLI identity drifted after runtime verification"
+            "V20 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -5798,7 +5832,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V19 runtime cache must not overlap the {label}"
+                f"V20 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -6234,6 +6268,7 @@ def _prepare_panel_locked(
         "authentication_setup": {
             "schema_version": _AUTHENTICATION_SETUP_SCHEMA,
             "status": "required",
+            "ceremony": {"status": "required", "attempts": []},
             "required_contract_hashes": {
                 name: public["contract_hashes"][name]
                 for name in (
@@ -6450,7 +6485,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V19 preparation runtime binding is invalid"
+            "Private V20 preparation runtime binding is invalid"
         )
     expected_contracts = {
         "runtime_contract": _runtime_contract(),
@@ -6518,7 +6553,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V19 preparation runtime contract is missing")
+        raise ValueError("V20 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -6547,7 +6582,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V19 cohort freeze claim differs from private state"
+            "Authenticated V20 cohort freeze claim differs from private state"
         )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
@@ -6825,7 +6860,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V19 spend authorization contract mismatch")
+        raise ValueError("V20 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -6853,7 +6888,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v19 spend authorization receipt is required "
+            "A manifest-bound exact v20 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -6868,14 +6903,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v19 spend authorization receipt is required "
+            "A manifest-bound exact v20 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v19 spend authorization receipt is required "
+            "A manifest-bound exact v20 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -6897,7 +6932,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v19 $590 cumulative spend acknowledgement text is required"
+            "The exact v20 $590 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -7043,6 +7078,37 @@ _AUTHENTICATION_SETUP_STATUSES = frozenset(
         "passed",
     }
 )
+_AUTHENTICATION_CEREMONY_STATUSES = frozenset(
+    {"required", "running", "retryable_failed", "terminal_failed", "passed"}
+)
+_AUTHENTICATION_TERMINAL_INCIDENTS = {
+    "execution_contract_attestation_failed": (
+        "execution_contract_before_provider"
+    ),
+    "frozen_authentication_dependency_attestation_failed": (
+        "authentication_dependency_before_provider"
+    ),
+    "authorization_worktree_attestation_failed": (
+        "authorization_worktree_before_provider"
+    ),
+    "credential_integrity_failed": "credential_integrity_before_provider",
+    "interrupted_authentication_ceremony": (
+        "authentication_ceremony_reentry"
+    ),
+    "provider_authentication_terminal_failure": (
+        "provider_authentication"
+    ),
+    "execution_contract_attestation_failed_after_provider_return": (
+        "execution_contract_after_provider_return"
+    ),
+    (
+        "frozen_authentication_dependency_attestation_failed_after_"
+        "provider_return"
+    ): "authentication_dependency_after_provider_return",
+    "credential_integrity_failed_after_provider_return": (
+        "credential_integrity_after_provider_return"
+    ),
+}
 
 
 def _authentication_contract_hashes(
@@ -7193,6 +7259,183 @@ def _attest_frozen_glean_auth_dependencies(
     return freeze
 
 
+_AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES = frozenset(
+    {"launch_pending", "started", "start_failed", "returned"}
+)
+_AUTHENTICATION_PROVIDER_INVOCATIONS = frozenset(
+    {
+        "not_launched",
+        "interrupted_process_state",
+        "credential_integrity_incident",
+        "execution_contract_incident",
+        "authentication_dependency_incident",
+        "authorization_worktree_incident",
+    }
+)
+
+
+def _authentication_provider_exposure_counts(
+    setup: Mapping[str, Any],
+) -> tuple[int, int]:
+    attempts = [
+        attempt
+        for provider in ("codex", "managed_glean")
+        for attempt in setup[provider]["attempts"]
+        if isinstance(attempt, Mapping)
+    ]
+    started = sum(
+        isinstance(attempt.get("started_at_utc"), str)
+        and bool(attempt["started_at_utc"])
+        for attempt in attempts
+    )
+    ambiguous = sum(
+        isinstance(attempt.get("launch_pending_at_utc"), str)
+        and bool(attempt["launch_pending_at_utc"])
+        and not isinstance(attempt.get("started_at_utc"), str)
+        and not isinstance(attempt.get("start_failed_at_utc"), str)
+        for attempt in attempts
+    )
+    return started, ambiguous
+
+
+def _validate_authentication_provider_attempt(attempt: Any) -> str:
+    if not isinstance(attempt, dict):
+        raise ValueError("Private provider authentication state is invalid")
+    status = attempt.get("status")
+    if status not in (
+        _AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES
+        | {"retryable_failed", "terminal_failed", "passed"}
+    ):
+        raise ValueError("Private provider authentication state is invalid")
+
+    timestamp_fields = {
+        "launch_pending_at_utc",
+        "started_at_utc",
+        "start_failed_at_utc",
+        "returned_at_utc",
+        "finished_at_utc",
+    }
+    if any(
+        name in attempt
+        and (
+            not isinstance(attempt[name], str)
+            or not attempt[name]
+        )
+        for name in timestamp_fields
+    ):
+        raise ValueError("Private provider authentication state is invalid")
+    if "returncode" in attempt and type(attempt["returncode"]) is not int:
+        raise ValueError("Private provider authentication state is invalid")
+    if "invocation" in attempt and attempt["invocation"] not in (
+        _AUTHENTICATION_PROVIDER_INVOCATIONS
+    ):
+        raise ValueError("Private provider authentication state is invalid")
+
+    active_key_sets = {
+        "launch_pending": {
+            "status",
+            "launch_pending_at_utc",
+        },
+        "started": {
+            "status",
+            "launch_pending_at_utc",
+            "started_at_utc",
+        },
+        "start_failed": {
+            "status",
+            "launch_pending_at_utc",
+            "start_failed_at_utc",
+        },
+        "returned": {
+            "status",
+            "launch_pending_at_utc",
+            "started_at_utc",
+            "returned_at_utc",
+            "returncode",
+        },
+    }
+    if status in _AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES:
+        if set(attempt) != active_key_sets[status]:
+            raise ValueError(
+                "Private provider authentication state is invalid"
+            )
+        return str(status)
+
+    if status == "passed":
+        if (
+            set(attempt)
+            != active_key_sets["returned"] | {"finished_at_utc"}
+            or attempt.get("returncode") != 0
+        ):
+            raise ValueError(
+                "Private provider authentication state is invalid"
+            )
+        return str(status)
+
+    keys = set(attempt)
+    if not {"status", "finished_at_utc"}.issubset(keys):
+        raise ValueError("Private provider authentication state is invalid")
+    marker_keys = keys - {
+        "status",
+        "finished_at_utc",
+        "invocation",
+    }
+    allowed_marker_sets = {
+        frozenset(),
+        frozenset({"launch_pending_at_utc"}),
+        frozenset(
+            {
+                "launch_pending_at_utc",
+                "started_at_utc",
+            }
+        ),
+        frozenset(
+            {
+                "launch_pending_at_utc",
+                "start_failed_at_utc",
+            }
+        ),
+        frozenset(
+            {
+                "launch_pending_at_utc",
+                "started_at_utc",
+                "returned_at_utc",
+                "returncode",
+            }
+        ),
+    }
+    if frozenset(marker_keys) not in allowed_marker_sets:
+        raise ValueError("Private provider authentication state is invalid")
+    invocation = attempt.get("invocation")
+    if status == "retryable_failed":
+        if (
+            not marker_keys
+            and invocation != "not_launched"
+        ) or (
+            marker_keys
+            and "invocation" in attempt
+        ) or marker_keys == {"launch_pending_at_utc"}:
+            raise ValueError(
+                "Private provider authentication state is invalid"
+            )
+    elif not marker_keys:
+        if "invocation" not in attempt:
+            raise ValueError(
+                "Private provider authentication state is invalid"
+            )
+    elif invocation == "not_launched":
+        raise ValueError("Private provider authentication state is invalid")
+    elif (
+        "invocation" in attempt
+        and invocation
+        not in _AUTHENTICATION_PROVIDER_INVOCATIONS - {"not_launched"}
+    ):
+        raise ValueError(
+            "Private provider authentication state is invalid"
+        )
+    return str(status)
+
+
 def _validate_authentication_setup_state(
     private: Mapping[str, Any],
     public: Mapping[str, Any],
@@ -7208,29 +7451,118 @@ def _validate_authentication_setup_state(
         or type(setup.get("model_calls_started")) is not int
     ):
         raise ValueError("Private authentication setup state is invalid")
+    ceremony = setup.get("ceremony")
+    if (
+        not isinstance(ceremony, dict)
+        or set(ceremony) != {"status", "attempts"}
+        or ceremony.get("status") not in _AUTHENTICATION_CEREMONY_STATUSES
+        or not isinstance(ceremony.get("attempts"), list)
+    ):
+        raise ValueError("Private authentication ceremony state is invalid")
+    for attempt in ceremony["attempts"]:
+        if not isinstance(attempt, dict) or attempt.get("status") not in {
+            "running",
+            "retryable_failed",
+            "terminal_failed",
+            "passed",
+        }:
+            raise ValueError("Private authentication ceremony state is invalid")
+        expected_keys = {"status", "claimed_at_utc"}
+        if attempt["status"] != "running":
+            expected_keys.add("finished_at_utc")
+        if attempt["status"] == "terminal_failed":
+            expected_keys.add("incident")
+        if set(attempt) != expected_keys or any(
+            not isinstance(attempt.get(name), str) or not attempt[name]
+            for name in expected_keys - {"incident"}
+        ):
+            raise ValueError("Private authentication ceremony state is invalid")
+        incident = attempt.get("incident")
+        if attempt["status"] == "terminal_failed":
+            if (
+                not isinstance(incident, dict)
+                or set(incident)
+                != {
+                    "schema_version",
+                    "stage",
+                    "code",
+                    "provider_processes_started",
+                    "provider_process_starts_ambiguous",
+                    "model_calls_started",
+                    "retry_permitted",
+                }
+                or incident.get("schema_version")
+                != _AUTHENTICATION_TERMINAL_INCIDENT_SCHEMA
+                or incident.get("code")
+                not in _AUTHENTICATION_TERMINAL_INCIDENTS
+                or incident.get("stage")
+                != _AUTHENTICATION_TERMINAL_INCIDENTS[incident["code"]]
+                or type(incident.get("provider_processes_started")) is not int
+                or incident["provider_processes_started"] < 0
+                or type(incident.get("provider_process_starts_ambiguous"))
+                is not int
+                or incident["provider_process_starts_ambiguous"] < 0
+                or incident.get("model_calls_started") != 0
+                or type(incident.get("model_calls_started")) is not int
+                or incident.get("retry_permitted") is not False
+            ):
+                raise ValueError(
+                    "Private authentication terminal incident is invalid"
+                )
+        elif incident is not None:
+            raise ValueError("Private authentication ceremony state is invalid")
+    ceremony_status = ceremony["status"]
+    if ceremony_status == "required":
+        if ceremony["attempts"]:
+            raise ValueError("Private authentication ceremony state is invalid")
+    elif (
+        not ceremony["attempts"]
+        or ceremony["attempts"][-1].get("status") != ceremony_status
+    ):
+        raise ValueError("Private authentication ceremony state is invalid")
+    ceremony_statuses = [
+        str(attempt["status"]) for attempt in ceremony["attempts"]
+    ]
+    for index, status in enumerate(ceremony_statuses[:-1]):
+        if status == "retryable_failed":
+            continue
+        if (
+            status == "passed"
+            and index == len(ceremony_statuses) - 2
+            and ceremony_statuses[-1] == "terminal_failed"
+        ):
+            continue
+        raise ValueError(
+            "Private authentication ceremony history is invalid"
+        )
     for provider in ("codex", "managed_glean"):
         value = setup.get(provider)
         if (
             not isinstance(value, dict)
             or value.get("status") not in _AUTHENTICATION_PROVIDER_STATUSES
             or not isinstance(value.get("attempts"), list)
-            or any(
-                not isinstance(attempt, dict)
-                or attempt.get("status")
-                not in {
-                    "launch_pending",
-                    "started",
-                    "start_failed",
-                    "returned",
-                    "retryable_failed",
-                    "terminal_failed",
-                    "passed",
-                }
-                for attempt in value["attempts"]
-            )
         ):
             raise ValueError("Private provider authentication state is invalid")
         attempts = value["attempts"]
+        statuses = [
+            _validate_authentication_provider_attempt(attempt)
+            for attempt in attempts
+        ]
+        for index, status in enumerate(statuses[:-1]):
+            if status == "retryable_failed":
+                continue
+            if (
+                status == "passed"
+                and index == len(statuses) - 2
+                and statuses[-1] == "terminal_failed"
+                and attempts[-1].get("invocation")
+                in _AUTHENTICATION_PROVIDER_INVOCATIONS
+                - {"not_launched"}
+            ):
+                continue
+            raise ValueError(
+                "Private provider authentication history is invalid"
+            )
         provider_status = value["status"]
         if provider_status == "required":
             if attempts:
@@ -7242,17 +7574,26 @@ def _validate_authentication_setup_state(
             or attempts[-1].get("status") != provider_status
             and not (
                 provider_status == "running"
-                and attempts[-1].get("status")
-                in {
-                    "launch_pending",
-                    "started",
-                    "start_failed",
-                    "returned",
-                }
+                and statuses[-1]
+                in _AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES
             )
         ):
             raise ValueError(
                 "Private provider authentication state is invalid"
+            )
+    started_count, ambiguous_count = (
+        _authentication_provider_exposure_counts(setup)
+    )
+    for attempt in ceremony["attempts"]:
+        incident = attempt.get("incident")
+        if incident is not None and (
+            incident.get("provider_processes_started") != started_count
+            or incident.get("provider_process_starts_ambiguous")
+            != ambiguous_count
+        ):
+            raise ValueError(
+                "Private authentication terminal incident accounting "
+                "is invalid"
             )
 
     overall = setup["status"]
@@ -7263,19 +7604,26 @@ def _validate_authentication_setup_state(
     allowed_pairs = {
         "required": {
             ("required", "required"),
-            ("passed", "required"),
         },
         "running": {
+            ("required", "required"),
+            ("retryable_failed", "required"),
             ("running", "required"),
+            ("passed", "required"),
             ("passed", "running"),
+            ("passed", "retryable_failed"),
         },
         "retryable_failed": {
             ("retryable_failed", "required"),
             ("passed", "retryable_failed"),
         },
         "terminal_failed": {
+            ("required", "required"),
+            ("passed", "required"),
             ("terminal_failed", "required"),
+            ("retryable_failed", "required"),
             ("passed", "terminal_failed"),
+            ("passed", "retryable_failed"),
             ("terminal_failed", "terminal_failed"),
         },
         "pending_publication": {("passed", "passed")},
@@ -7284,6 +7632,18 @@ def _validate_authentication_setup_state(
     if provider_pair not in allowed_pairs[overall]:
         raise ValueError(
             "Private authentication setup state transition is invalid"
+        )
+    expected_ceremony_status = {
+        "required": "required",
+        "running": "running",
+        "retryable_failed": "retryable_failed",
+        "terminal_failed": "terminal_failed",
+        "pending_publication": "passed",
+        "passed": "passed",
+    }[overall]
+    if ceremony_status != expected_ceremony_status:
+        raise ValueError(
+            "Private authentication ceremony transition is invalid"
         )
     return setup
 
@@ -7328,6 +7688,7 @@ def _validate_authentication_contracts(
     claude_secure_storage_dir: Path,
     codex_secure_storage_dir: Path,
     revalidate_live_identity_contracts: bool,
+    validate_live_storage_bindings: bool = True,
 ) -> dict[str, Any]:
     """Validate authentication-only surfaces without reading cohort packs."""
 
@@ -7350,18 +7711,19 @@ def _validate_authentication_contracts(
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Authentication setup contract mismatch")
-    _validate_claude_auth_binding(
-        root=root,
-        claude_secure_storage_dir=claude_secure_storage_dir,
-        private=private,
-        public=public,
-    )
-    _validate_codex_auth_binding(
-        root=root,
-        codex_secure_storage_dir=codex_secure_storage_dir,
-        private=private,
-        public=public,
-    )
+    if validate_live_storage_bindings:
+        _validate_claude_auth_binding(
+            root=root,
+            claude_secure_storage_dir=claude_secure_storage_dir,
+            private=private,
+            public=public,
+        )
+        _validate_codex_auth_binding(
+            root=root,
+            codex_secure_storage_dir=codex_secure_storage_dir,
+            private=private,
+            public=public,
+        )
     hashes = public.get("contract_hashes")
     if not isinstance(hashes, Mapping) or any(
         hashes.get(name) != _component_hash(value)
@@ -7439,6 +7801,20 @@ def _validate_authentication_receipt(
 def _authentication_status_payload(
     setup: Mapping[str, Any],
 ) -> dict[str, Any]:
+    ceremony = setup.get("ceremony")
+    attempts = (
+        ceremony.get("attempts")
+        if isinstance(ceremony, Mapping)
+        else None
+    )
+    terminal_incident = (
+        attempts[-1].get("incident")
+        if isinstance(attempts, list)
+        and attempts
+        and isinstance(attempts[-1], Mapping)
+        and attempts[-1].get("status") == "terminal_failed"
+        else None
+    )
     return {
         "panel_id": PANEL_ID,
         "status": str(setup.get("status")),
@@ -7447,6 +7823,16 @@ def _authentication_status_payload(
             for provider in ("codex", "managed_glean")
         },
         "model_calls_started": 0,
+        "failure_stage": (
+            str(terminal_incident.get("stage"))
+            if isinstance(terminal_incident, Mapping)
+            else None
+        ),
+        "failure_code": (
+            str(terminal_incident.get("code"))
+            if isinstance(terminal_incident, Mapping)
+            else None
+        ),
     }
 
 
@@ -7492,6 +7878,123 @@ def _authentication_provider_is_retryably_empty(
     raise ValueError("Unknown authentication provider")
 
 
+def _claim_authentication_ceremony(
+    *,
+    private: dict[str, Any],
+    private_state_path: Path,
+    authentication_key: bytes,
+) -> None:
+    setup = private["authentication_setup"]
+    ceremony = setup["ceremony"]
+    if (
+        setup.get("status") not in {"required", "retryable_failed"}
+        or ceremony.get("status") not in {"required", "retryable_failed"}
+    ):
+        raise ProviderStateIsolationError(
+            "Authentication ceremony state changed before claim"
+        )
+    ceremony["attempts"].append(
+        {"status": "running", "claimed_at_utc": _utc_now()}
+    )
+    ceremony["status"] = "running"
+    setup["status"] = "running"
+    _write_private_state(
+        private_state_path, private, authentication_key
+    )
+
+
+def _finish_authentication_ceremony(
+    *,
+    private: dict[str, Any],
+    status: str,
+    private_state_path: Path,
+    authentication_key: bytes,
+    persist: bool = True,
+) -> None:
+    if status not in {"retryable_failed", "passed"}:
+        raise ValueError("Invalid authentication ceremony outcome")
+    ceremony = private["authentication_setup"]["ceremony"]
+    attempts = ceremony["attempts"]
+    if (
+        ceremony.get("status") != "running"
+        or not attempts
+        or attempts[-1].get("status") != "running"
+    ):
+        raise ProviderStateIsolationError(
+            "Authentication ceremony state changed before completion"
+        )
+    attempts[-1] = {
+        **attempts[-1],
+        "status": status,
+        "finished_at_utc": _utc_now(),
+    }
+    ceremony["status"] = status
+    if persist:
+        _write_private_state(
+            private_state_path, private, authentication_key
+        )
+
+
+def _terminalize_authentication_ceremony(
+    *,
+    private: dict[str, Any],
+    private_state_path: Path,
+    authentication_key: bytes,
+    code: str,
+    persist: bool = True,
+) -> None:
+    stage = _AUTHENTICATION_TERMINAL_INCIDENTS.get(code)
+    if stage is None:
+        raise ValueError("Invalid authentication terminal incident")
+    setup = private["authentication_setup"]
+    ceremony = setup["ceremony"]
+    attempts = ceremony["attempts"]
+    now = _utc_now()
+    (
+        provider_processes_started,
+        provider_process_starts_ambiguous,
+    ) = _authentication_provider_exposure_counts(
+        setup
+    )
+    incident = {
+        "schema_version": _AUTHENTICATION_TERMINAL_INCIDENT_SCHEMA,
+        "stage": stage,
+        "code": code,
+        "provider_processes_started": provider_processes_started,
+        "provider_process_starts_ambiguous": (
+            provider_process_starts_ambiguous
+        ),
+        "model_calls_started": 0,
+        "retry_permitted": False,
+    }
+    if (
+        ceremony.get("status") == "running"
+        and attempts
+        and attempts[-1].get("status") == "running"
+    ):
+        attempts[-1] = {
+            **attempts[-1],
+            "status": "terminal_failed",
+            "finished_at_utc": now,
+            "incident": incident,
+        }
+    else:
+        attempts.append(
+            {
+                "status": "terminal_failed",
+                "claimed_at_utc": now,
+                "finished_at_utc": now,
+                "incident": incident,
+            }
+        )
+    ceremony["status"] = "terminal_failed"
+    setup["status"] = "terminal_failed"
+    if persist:
+        _write_private_state(
+            private_state_path, private, authentication_key
+        )
+
+
 def _terminalize_authentication_incident(
     *,
     private: dict[str, Any],
@@ -7500,19 +8003,54 @@ def _terminalize_authentication_incident(
     incident: str,
 ) -> None:
     setup = private["authentication_setup"]
+    incident_codes = {
+        "interrupted_process_state": "interrupted_authentication_ceremony",
+        "credential_integrity_incident": "credential_integrity_failed",
+        "execution_contract_incident": (
+            "execution_contract_attestation_failed"
+        ),
+        "authentication_dependency_incident": (
+            "frozen_authentication_dependency_attestation_failed"
+        ),
+        "authorization_worktree_incident": (
+            "authorization_worktree_attestation_failed"
+        ),
+    }
+    code = incident_codes.get(incident)
+    if code is None:
+        raise ValueError("Invalid authentication incident")
+    _terminalize_authentication_ceremony(
+        private=private,
+        private_state_path=private_state_path,
+        authentication_key=authentication_key,
+        code=code,
+        persist=False,
+    )
     now = _utc_now()
     for provider in ("codex", "managed_glean"):
         state = setup[provider]
         attempts = state["attempts"]
-        attempts.append(
-            {
+        if (
+            state.get("status") == "running"
+            and attempts
+            and attempts[-1].get("status")
+            in {"launch_pending", "started", "start_failed", "returned"}
+        ):
+            attempts[-1] = {
+                **attempts[-1],
                 "status": "terminal_failed",
                 "finished_at_utc": now,
                 "invocation": incident,
             }
-        )
+        else:
+            attempts.append(
+                {
+                    "status": "terminal_failed",
+                    "finished_at_utc": now,
+                    "invocation": incident,
+                }
+            )
         state["status"] = "terminal_failed"
-    setup["status"] = "terminal_failed"
     _write_private_state(
         private_state_path, private, authentication_key
     )
@@ -7590,13 +8128,44 @@ def _finish_authentication_provider_attempt(
     status: str,
     private_state_path: Path,
     authentication_key: bytes,
+    terminal_code: str | None = None,
 ) -> None:
     setup = private["authentication_setup"]
     state = setup[provider]
     attempts = state["attempts"]
     if status not in {"retryable_failed", "terminal_failed", "passed"}:
         raise ValueError("Invalid authentication attempt outcome")
-    if not attempts:
+    if terminal_code is not None and status != "terminal_failed":
+        raise ValueError(
+            "Authentication terminal code requires a terminal outcome"
+        )
+    if (
+        terminal_code is not None
+        and terminal_code not in _AUTHENTICATION_TERMINAL_INCIDENTS
+    ):
+        raise ValueError("Invalid authentication terminal incident")
+    active_statuses = {
+        "launch_pending",
+        "started",
+        "start_failed",
+        "returned",
+    }
+    active_attempt = (
+        attempts[-1]
+        if attempts and attempts[-1].get("status") in active_statuses
+        else None
+    )
+    if status == "passed" and (
+        active_attempt is None
+        or active_attempt.get("status") != "returned"
+        or active_attempt.get("returncode") != 0
+        or type(active_attempt.get("returncode")) is not int
+    ):
+        raise ProviderStateIsolationError(
+            "Authentication provider passed without a durable successful "
+            "process return"
+        )
+    if active_attempt is None:
         attempts.append(
             {
                 "status": status,
@@ -7606,22 +8175,45 @@ def _finish_authentication_provider_attempt(
         )
     else:
         attempts[-1] = {
-            **attempts[-1],
+            **active_attempt,
             "status": status,
             "finished_at_utc": _utc_now(),
         }
     state["status"] = status
     if status == "terminal_failed":
-        setup["status"] = "terminal_failed"
+        _terminalize_authentication_ceremony(
+            private=private,
+            private_state_path=private_state_path,
+            authentication_key=authentication_key,
+            code=(
+                terminal_code
+                or "provider_authentication_terminal_failure"
+            ),
+            persist=False,
+        )
     elif status == "retryable_failed":
         setup["status"] = "retryable_failed"
+        _finish_authentication_ceremony(
+            private=private,
+            status="retryable_failed",
+            private_state_path=private_state_path,
+            authentication_key=authentication_key,
+            persist=False,
+        )
     elif all(
         setup[name].get("status") == "passed"
         for name in ("codex", "managed_glean")
     ):
         setup["status"] = "pending_publication"
+        _finish_authentication_ceremony(
+            private=private,
+            status="passed",
+            private_state_path=private_state_path,
+            authentication_key=authentication_key,
+            persist=False,
+        )
     else:
-        setup["status"] = "required"
+        setup["status"] = "running"
     _write_private_state(private_state_path, private, authentication_key)
 
 
@@ -7734,20 +8326,7 @@ def authenticate_panel(
         raise RuntimeError(
             "Explicit acknowledgement of foreground interactive "
             "authentication is required"
-        )
-    assert_durable_live_execution_paths(
-        root=root, private_state_path=private_state_path
     )
-    resolved_claude = _validate_claude_secure_storage_dir(
-        claude_secure_storage_dir, root=root
-    )
-    resolved_codex = _validate_codex_secure_storage_dir(
-        codex_secure_storage_dir, root=root
-    )
-    if _paths_overlap(resolved_claude, resolved_codex):
-        raise ValueError(
-            "Claude and Codex secure storage directories must not overlap"
-        )
     receipt_path = _authentication_receipt_path(public_manifest_path)
     _assert_distinct_paths(
         authentication_key_file,
@@ -7766,19 +8345,38 @@ def authenticate_panel(
             private=private,
             public=public,
             public_manifest_path=public_manifest_path,
-            claude_secure_storage_dir=resolved_claude,
-            codex_secure_storage_dir=resolved_codex,
+            claude_secure_storage_dir=claude_secure_storage_dir,
+            codex_secure_storage_dir=codex_secure_storage_dir,
             revalidate_live_identity_contracts=False,
+            validate_live_storage_bindings=False,
         )
         _assert_spend_authorization(private, public)
-        _attest_execution_contracts(root=root, public=public)
-        _attest_frozen_glean_auth_dependencies(private, public)
         if setup.get("status") == "terminal_failed":
             raise RuntimeError(
                 "This panel has a terminal authentication incident"
             )
         if setup.get("status") in {"pending_publication", "passed"}:
             try:
+                resolved_claude = _validate_claude_secure_storage_dir(
+                    claude_secure_storage_dir, root=root
+                )
+                resolved_codex = _validate_codex_secure_storage_dir(
+                    codex_secure_storage_dir, root=root
+                )
+                if _paths_overlap(resolved_claude, resolved_codex):
+                    raise ValueError(
+                        "Claude and Codex secure storage directories must "
+                        "not overlap"
+                    )
+                setup = _validate_authentication_contracts(
+                    root=root,
+                    private=private,
+                    public=public,
+                    public_manifest_path=public_manifest_path,
+                    claude_secure_storage_dir=resolved_claude,
+                    codex_secure_storage_dir=resolved_codex,
+                    revalidate_live_identity_contracts=False,
+                )
                 _attest_authentication_credentials(
                     root=root,
                     private=private,
@@ -7786,8 +8384,6 @@ def authenticate_panel(
                     claude_secure_storage_dir=resolved_claude,
                     codex_secure_storage_dir=resolved_codex,
                 )
-                _attest_execution_contracts(root=root, public=public)
-                _attest_frozen_glean_auth_dependencies(private, public)
             except Exception:
                 _terminalize_authentication_incident(
                     private=private,
@@ -7797,18 +8393,56 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V19 panel cannot retry"
+                    "state; this V20 panel cannot retry"
+                ) from None
+            try:
+                _attest_execution_contracts(root=root, public=public)
+            except Exception:
+                _terminalize_authentication_incident(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    incident="execution_contract_incident",
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal execution-contract "
+                    "state; this V20 panel cannot retry"
+                ) from None
+            try:
+                _attest_frozen_glean_auth_dependencies(private, public)
+            except Exception:
+                _terminalize_authentication_incident(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    incident="authentication_dependency_incident",
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal dependency-contract "
+                    "state; this V20 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
                 and not receipt_path.exists()
                 and not receipt_path.is_symlink()
             ):
-                _assert_authorization_worktree(
-                    root=root,
-                    private_state_path=private_state_path,
-                    public_manifest_path=public_manifest_path,
-                )
+                try:
+                    _assert_authorization_worktree(
+                        root=root,
+                        private_state_path=private_state_path,
+                        public_manifest_path=public_manifest_path,
+                    )
+                except Exception:
+                    _terminalize_authentication_incident(
+                        private=private,
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        incident="authorization_worktree_incident",
+                    )
+                    raise RuntimeError(
+                        "Authentication entered a terminal "
+                        "repository-contract state; this V20 panel cannot retry"
+                    ) from None
             _publish_authentication_receipt(
                 root=root,
                 private=private,
@@ -7828,7 +8462,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V19 panel "
+                "Authentication process state is ambiguous; this V20 panel "
                 "cannot retry"
             )
         if (
@@ -7840,11 +8474,102 @@ def authenticate_panel(
             raise RuntimeError(
                 "Authentication must precede the one-shot environment preflight"
             )
-        _assert_authorization_worktree(
-            root=root,
+        _require_operator_authentication_tty()
+        _claim_authentication_ceremony(
+            private=private,
             private_state_path=private_state_path,
-            public_manifest_path=public_manifest_path,
+            authentication_key=key,
         )
+        try:
+            assert_durable_live_execution_paths(
+                root=root, private_state_path=private_state_path
+            )
+        except Exception:
+            _terminalize_authentication_ceremony(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                code="execution_contract_attestation_failed",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal execution-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
+        try:
+            resolved_claude = _validate_claude_secure_storage_dir(
+                claude_secure_storage_dir, root=root
+            )
+            resolved_codex = _validate_codex_secure_storage_dir(
+                codex_secure_storage_dir, root=root
+            )
+            if _paths_overlap(resolved_claude, resolved_codex):
+                raise ValueError(
+                    "Claude and Codex secure storage directories must not "
+                    "overlap"
+                )
+            setup = _validate_authentication_contracts(
+                root=root,
+                private=private,
+                public=public,
+                public_manifest_path=public_manifest_path,
+                claude_secure_storage_dir=resolved_claude,
+                codex_secure_storage_dir=resolved_codex,
+                revalidate_live_identity_contracts=False,
+            )
+        except Exception:
+            _terminalize_authentication_ceremony(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                code="credential_integrity_failed",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal credential-integrity "
+                "state; this V20 panel cannot retry"
+            ) from None
+        try:
+            _attest_execution_contracts(root=root, public=public)
+        except ProviderExecutionIsolationError:
+            _terminalize_authentication_ceremony(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                code="execution_contract_attestation_failed",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal execution-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
+        try:
+            _attest_frozen_glean_auth_dependencies(private, public)
+        except ProviderExecutionIsolationError:
+            _terminalize_authentication_ceremony(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                code="frozen_authentication_dependency_attestation_failed",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal dependency-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
+        try:
+            _assert_authorization_worktree(
+                root=root,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+            )
+        except Exception:
+            _terminalize_authentication_ceremony(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                code="authorization_worktree_attestation_failed",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal repository-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
         try:
             _attest_authentication_credentials(
                 root=root,
@@ -7854,17 +8579,16 @@ def authenticate_panel(
                 codex_secure_storage_dir=resolved_codex,
             )
         except Exception:
-            _terminalize_authentication_incident(
+            _terminalize_authentication_ceremony(
                 private=private,
                 private_state_path=private_state_path,
                 authentication_key=key,
-                incident="credential_integrity_incident",
+                code="credential_integrity_failed",
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V19 panel cannot retry"
+                "state; this V20 panel cannot retry"
             ) from None
-        _require_operator_authentication_tty()
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
             (
@@ -7964,13 +8688,51 @@ def authenticate_panel(
             state = setup[provider]
             if state.get("status") == "passed":
                 continue
-            _attest_execution_contracts(root=root, public=public)
-            _attest_frozen_glean_auth_dependencies(private, public)
-            _assert_authorization_worktree(
-                root=root,
-                private_state_path=private_state_path,
-                public_manifest_path=public_manifest_path,
-            )
+            try:
+                _attest_execution_contracts(root=root, public=public)
+            except Exception:
+                _terminalize_authentication_ceremony(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    code="execution_contract_attestation_failed",
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal execution-contract "
+                    "state before provider launch; this V20 panel cannot retry"
+                ) from None
+            try:
+                _attest_frozen_glean_auth_dependencies(private, public)
+            except Exception:
+                _terminalize_authentication_ceremony(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    code=(
+                        "frozen_authentication_dependency_attestation_failed"
+                    ),
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal dependency-contract "
+                    "state before provider launch; this V20 panel cannot retry"
+                ) from None
+            try:
+                _assert_authorization_worktree(
+                    root=root,
+                    private_state_path=private_state_path,
+                    public_manifest_path=public_manifest_path,
+                )
+            except Exception:
+                _terminalize_authentication_ceremony(
+                    private=private,
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    code="authorization_worktree_attestation_failed",
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal repository-contract "
+                    "state before provider launch; this V20 panel cannot retry"
+                ) from None
             try:
                 _attest_authentication_credentials(
                     root=root,
@@ -7980,51 +8742,18 @@ def authenticate_panel(
                     codex_secure_storage_dir=resolved_codex,
                 )
             except Exception:
-                _terminalize_authentication_incident(
+                _terminalize_authentication_ceremony(
                     private=private,
                     private_state_path=private_state_path,
                     authentication_key=key,
-                    incident="credential_integrity_incident",
+                    code="credential_integrity_failed",
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V19 panel cannot retry"
+                    "state; this V20 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
-                _attest_execution_contracts(root=root, public=public)
-                _attest_frozen_glean_auth_dependencies(private, public)
-                if provider == "codex":
-                    _require_codex_credential_state(
-                        resolved_codex,
-                        root=root,
-                        expected_identity=_private_codex_storage_identity(
-                            private
-                        ),
-                        credentials_present=True,
-                    )
-                    private["codex_auth_file_identity"] = (
-                        _codex_auth_file_identity(resolved_codex)
-                    )
-                else:
-                    _require_claude_credential_state(
-                        resolved_claude,
-                        root=root,
-                        expected_identity=_private_claude_storage_identity(
-                            private
-                        ),
-                        managed_glean_credentials_present=True,
-                    )
-                    private["managed_glean_auth_file_identity"] = (
-                        _managed_glean_auth_file_identity(resolved_claude)
-                    )
-                _finish_authentication_provider_attempt(
-                    private=private,
-                    provider=provider,
-                    status="passed",
-                    private_state_path=private_state_path,
-                    authentication_key=key,
-                )
             except KeyboardInterrupt:
                 _finish_authentication_provider_attempt(
                     private=private,
@@ -8035,8 +8764,15 @@ def authenticate_panel(
                 )
                 raise
             except Exception as error:
+                provider_attempts = setup[provider]["attempts"]
+                launch_state_ambiguous = bool(
+                    provider_attempts
+                    and provider_attempts[-1].get("status")
+                    == "launch_pending"
+                )
                 retryable = (
                     not isinstance(error, ProviderExecutionIsolationError)
+                    and not launch_state_ambiguous
                     and _authentication_provider_is_retryably_empty(
                         provider,
                         root=root,
@@ -8062,16 +8798,150 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V19 panel cannot retry"
+                    "V20 panel cannot retry"
+                ) from None
+            try:
+                _attest_execution_contracts(root=root, public=public)
+            except Exception:
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status="terminal_failed",
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    terminal_code=(
+                        "execution_contract_attestation_failed_after_"
+                        "provider_return"
+                    ),
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal execution-contract "
+                    "state after provider return; this V20 panel cannot retry"
+                ) from None
+            try:
+                _attest_frozen_glean_auth_dependencies(private, public)
+            except Exception:
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status="terminal_failed",
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    terminal_code=(
+                        "frozen_authentication_dependency_attestation_failed_"
+                        "after_provider_return"
+                    ),
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal dependency-contract "
+                    "state after provider return; this V20 panel cannot retry"
+                ) from None
+            try:
+                if provider == "codex":
+                    _require_codex_credential_state(
+                        resolved_codex,
+                        root=root,
+                        expected_identity=_private_codex_storage_identity(
+                            private
+                        ),
+                        credentials_present=True,
+                    )
+                    private["codex_auth_file_identity"] = (
+                        _codex_auth_file_identity(resolved_codex)
+                    )
+                else:
+                    _require_claude_credential_state(
+                        resolved_claude,
+                        root=root,
+                        expected_identity=_private_claude_storage_identity(
+                            private
+                        ),
+                        managed_glean_credentials_present=True,
+                    )
+                    private["managed_glean_auth_file_identity"] = (
+                        _managed_glean_auth_file_identity(resolved_claude)
+                    )
+            except Exception:
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status="terminal_failed",
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                    terminal_code=(
+                        "credential_integrity_failed_after_provider_return"
+                    ),
+                )
+                raise RuntimeError(
+                    "Authentication entered a terminal credential-integrity "
+                    "state after provider return; this V20 panel cannot retry"
+                ) from None
+            try:
+                _finish_authentication_provider_attempt(
+                    private=private,
+                    provider=provider,
+                    status="passed",
+                    private_state_path=private_state_path,
+                    authentication_key=key,
+                )
+            except Exception:
+                try:
+                    _terminalize_authentication_incident(
+                        private=private,
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        incident="interrupted_process_state",
+                    )
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    "Authentication provider completion state is ambiguous; "
+                    "this V20 panel cannot retry"
                 ) from None
 
-        _attest_execution_contracts(root=root, public=public)
-        _attest_frozen_glean_auth_dependencies(private, public)
-        _assert_authorization_worktree(
-            root=root,
-            private_state_path=private_state_path,
-            public_manifest_path=public_manifest_path,
-        )
+        try:
+            _attest_execution_contracts(root=root, public=public)
+        except ProviderExecutionIsolationError:
+            _terminalize_authentication_incident(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                incident="execution_contract_incident",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal execution-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
+        try:
+            _attest_frozen_glean_auth_dependencies(private, public)
+        except ProviderExecutionIsolationError:
+            _terminalize_authentication_incident(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                incident="authentication_dependency_incident",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal dependency-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
+        try:
+            _assert_authorization_worktree(
+                root=root,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+            )
+        except Exception:
+            _terminalize_authentication_incident(
+                private=private,
+                private_state_path=private_state_path,
+                authentication_key=key,
+                incident="authorization_worktree_incident",
+            )
+            raise RuntimeError(
+                "Authentication entered a terminal repository-contract state; "
+                "this V20 panel cannot retry"
+            ) from None
         try:
             _attest_authentication_credentials(
                 root=root,
@@ -8089,7 +8959,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V19 panel cannot retry"
+                "state; this V20 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -8121,6 +8991,18 @@ def panel_authentication_status(
         )
         private = _load_private_state(private_state_path, key)
         public = _load_json(public_manifest_path)
+        setup = _validate_authentication_contracts(
+            root=root,
+            private=private,
+            public=public,
+            public_manifest_path=public_manifest_path,
+            claude_secure_storage_dir=claude_secure_storage_dir,
+            codex_secure_storage_dir=codex_secure_storage_dir,
+            revalidate_live_identity_contracts=False,
+            validate_live_storage_bindings=False,
+        )
+        if setup.get("status") == "terminal_failed":
+            return _authentication_status_payload(setup)
         resolved_claude = _validate_claude_secure_storage_dir(
             claude_secure_storage_dir, root=root
         )

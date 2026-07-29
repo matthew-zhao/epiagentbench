@@ -1,3 +1,11 @@
+> [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT EXECUTE THIS RUNBOOK.**
+> V19 ended during foreground authentication setup with zero model-bearing
+> calls. Do not resume, repair, or reuse any V19 cohort, key, credential,
+> state, cache, supervisor, runtime, Keychain service, or claim. See the
+> [public supersession record](../results/development-matched-50x6-v19.superseded.json)
+> and the replacement [V20 runbook](V20_RUNBOOK.md).
+
 # EpiAgentBench V19 execution runbook
 
 > [!CAUTION]

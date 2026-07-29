@@ -1,9 +1,10 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V19 persistent-supervisor
-contract schema v8, execution-context protocol v5, and launchd config schema
-v11. The source contract, panel/schema identifiers, spend
-accounting, path namespace, and [V19 runbook](V19_RUNBOOK.md) are defined. The
+Status at control-plane publication: versioned V20 persistent-supervisor
+contract schema v9, execution-context protocol v6, launchd config schema v12,
+and authentication-setup schema v3. The source contract, panel/schema
+identifiers, spend
+accounting, path namespace, and [V20 runbook](V20_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -43,7 +44,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V19 key, cohort, credential namespace, schedule, private state, or
+8. No V20 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -60,6 +61,17 @@ terminate that job.
 12. Exit code 64 has one meaning: the evaluator CLI reloaded an exact public
     terminal receipt that matches authenticated private state. Every other
     nonzero or ambiguous child exit remains a supervisor terminal ambiguity.
+13. Foreground authentication requires an operator TTY, then persists a
+    ceremony claim before live execution, dependency, repository, credential,
+    or provider checks. A post-claim integrity failure is terminal with a
+    finite code and truthful never-started provider states; a second ceremony
+    is rejected.
+14. Authentication-helper attempts use a closed durable marker grammar.
+    Passing requires launch-pending, started, returned, and integer return code
+    zero. A launch-pending marker without either started or start-failed is
+    terminal ambiguity, never a retry. Terminal helper-start and ambiguous-
+    start totals are recomputed from the sealed history, and post-return
+    execution, dependency, and credential drift keep distinct finite causes.
 
 ## Durable assignment phases and the current adapter
 
@@ -86,8 +98,9 @@ transparent recovery from an in-flight host failure and strict at-most-once
 execution are mutually incompatible. The benchmark chooses at-most-once
 execution and fails closed.
 
-V19 separates attempt accounting from model-invocation accounting. Non-model
-CLI readiness probes occur before `model_invocation.started`. A
+V20 retains V19's separation of attempt accounting from model-invocation
+accounting. Non-model CLI readiness probes occur before
+`model_invocation.started`. A
 typed `provider_cli_readiness_timeout` with
 `model_invocation_state = "not_started"` contributes zero conservatively
 chargeable model invocations and is never retried. It ends preflight; in
@@ -133,14 +146,19 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V19 retains the provider-free boundary before the private panel exists. One exact
-absolute interpreter,
+V20 retains the provider-free boundary before the private panel exists. One
+exact absolute interpreter,
 `/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python`, runs every
-V19 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
+V20 CLI and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order, and
-does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. The
-preparation preflight runs twice at a clean pinned control-plane commit. Each
+does not execute `site`, `.pth`, `sitecustomize`, or `usercustomize`. Every
+scientific-runtime-loading operator command receives one explicit absolute
+runtime-cache directory and installs the six-variable environment internally
+before scientific imports; missing or poisoned caller values are not
+authoritative, and the exact prior presence and bytes are restored in
+`finally`. The preparation preflight runs twice at a clean pinned control-plane
+commit. Each
 pass:
 
 - requires exact Starsim 3.5.1;
@@ -168,10 +186,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v19.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v20.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V19 freezer or `prepare` command can create or read a key, cohort,
+the matched V20 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -247,9 +265,9 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. Persistent-supervisor contract schema v8 intentionally rejects
-schema-v6 manifests; a run must be freshly versioned, prepared, and authorized
-under the new contract.
+evaluator. Persistent-supervisor contract schema v9 intentionally rejects
+schema-v8/V19 manifests; a run must be freshly versioned, prepared, and
+authorized under the new contract.
 
 The child reserves exit 64 only after a second read proves the public terminal
 receipt is byte-for-byte and semantically identical to its HMAC-authenticated
@@ -324,7 +342,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V19, generation also requires the exact manifest-bound runtime-cache root.
+For V20, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -392,7 +410,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V19 model call may start until all of the following pass through the
+No V20 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -421,6 +439,12 @@ same supervisor path intended for production:
   before-provider exhaustion invokes none; that after-provider or final
   exhaustion invokes no additional provider; and that semantic failures are
   never retried;
+- foreground-authentication claim tests proving that pre-provider integrity
+  failures are durably terminal, launch no helper, publish no authentication
+  receipt, expose only finite status, and reject a second ceremony;
+- closed authentication-history tests rejecting synthetic passes, terminal
+  reentry, retryable launch ambiguity, contradictory provider markers, and
+  tampered helper-start totals, while retaining exact post-return root causes;
 - Python-entrypoint byte, inode, and venv-symlink drift tests proving failure
   before Keychain access or child launch;
 - two real provider-free Starsim smoke passes proving the identical
@@ -493,15 +517,24 @@ prove zero billing. V18 therefore retains one conservatively chargeable call.
 No production assignment, result, score, or trace was released. V18 is
 terminal, non-resumable, and forbidden for namespace or cohort reuse.
 
-V19 binds authenticated runtime-environment self-supply and exact restoration,
+V19 completed provider-free preparation and exact spend authorization, then
+failed before foreground authentication crossed its intended integrity
+boundary because the cache environment still depended on caller exports. The
+corrected device ceremony was cancelled after the at-most-once audit. V19
+started no model-bearing call, created no credential or public authentication
+receipt, and started no preflight or production work. It is terminal and
+forbidden for namespace or cohort reuse.
+
+V20 binds explicit runtime-cache input, internal environment installation and
+exact restoration, a durable foreground-authentication ceremony claim,
 atomic create-once staging/publication, the finite provider-incident taxonomy,
 authenticated terminal-receipt exit, completion-checkpoint recovery,
 repository-relative receipt handoff, provider-free prelaunch attestation,
 nested launchd-state parser, and the existing heartbeat/retry/source contracts
 under panel/cohort
-`development-matched-50x6-v19`, top-level schema
-`development_matched_panel_v19`, the exact $590 acknowledgement, and fresh
-V19 paths. Its two-commit provider-free runtime protocol must prove the exact V5
+`development-matched-50x6-v20`, top-level schema
+`development_matched_panel_v20`, the exact $590 acknowledgement, and fresh
+V20 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
@@ -518,9 +551,10 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V19 panel's Claude ceiling is $510 (102 calls × $5); the exact
+The current V20 panel's Claude ceiling is $510 (102 calls × $5); the exact
 acknowledgement's $590 cumulative ceiling adds the conservative $80 allowance
-for prior failed panels, including V18's retained $5 legacy-marker call.
+for prior failed panels, including V18's retained $5 legacy-marker call; V19
+adds zero because it started no Claude model-bearing call.
 Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only

@@ -954,7 +954,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v19_rejects_legacy_launchd_schema_before_control_action(
+    def test_v20_rejects_legacy_launchd_schema_before_control_action(
         self,
     ) -> None:
         generated = self._generate()
@@ -965,7 +965,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             raw_config,
             b"a" * 32,
         )
-        unsigned["schema_version"] = "epiagentbench.launchd_agent.v10"
+        unsigned["schema_version"] = "epiagentbench.launchd_agent.v11"
         resealed = launchd_agent._seal_payload(
             launchd_agent._CONFIG_AUTH_DOMAIN,
             unsigned,

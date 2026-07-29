@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -146,6 +147,8 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "/private/state.json",
             "--public-manifest",
             "/public/manifest.json",
+            "--runtime-cache-dir",
+            "/private/runtime-cache",
         ]
         if operation == "authenticate":
             arguments.append("--acknowledge-interactive-authentication")
@@ -174,6 +177,127 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "/private/supervisor",
             "--acknowledge-unbounded-provider-spend",
         ]
+
+    def test_operator_runtime_cache_bootstrap_overrides_all_six_values_and_restores(
+        self,
+    ) -> None:
+        original = {
+            name: f"poisoned-{index}"
+            for index, name in enumerate(
+                matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
+            )
+        }
+        with patch.dict(os.environ, original, clear=False):
+            snapshot = matched_cli._install_runtime_cache_environment(
+                self._authentication_arguments()
+            )
+            self.assertEqual(snapshot, original)
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
+                },
+                matched_cli._runtime_cache_environment(
+                    Path("/private/runtime-cache")
+                ),
+            )
+
+            matched_cli._restore_runtime_cache_environment(snapshot)
+            self.assertEqual(
+                {
+                    name: os.environ.get(name)
+                    for name in matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
+                },
+                original,
+            )
+
+    def test_runtime_cache_environment_is_restored_after_all_exit_paths(
+        self,
+    ) -> None:
+        class SyntheticError(RuntimeError):
+            pass
+
+        def invoke(outcome: str) -> None:
+            snapshot = matched_cli._install_runtime_cache_environment(
+                self._authentication_arguments()
+            )
+            try:
+                if outcome == "error":
+                    raise SyntheticError("synthetic error")
+                if outcome == "interrupt":
+                    raise KeyboardInterrupt
+            finally:
+                matched_cli._restore_runtime_cache_environment(snapshot)
+
+        for outcome, expected_exception in (
+            ("success", None),
+            ("error", SyntheticError),
+            ("interrupt", KeyboardInterrupt),
+        ):
+            with (
+                self.subTest(outcome=outcome),
+                patch.dict(os.environ, {}, clear=True),
+            ):
+                if expected_exception is None:
+                    invoke(outcome)
+                else:
+                    with self.assertRaises(expected_exception):
+                        invoke(outcome)
+                self.assertEqual(
+                    {
+                        name: os.environ.get(name)
+                        for name in matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
+                    },
+                    {
+                        name: None
+                        for name in matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
+                    },
+                )
+
+    def test_operator_runtime_cache_argument_rejects_ambiguous_or_unsafe_values(
+        self,
+    ) -> None:
+        base = self._authentication_arguments()
+        flag_index = base.index("--runtime-cache-dir")
+        cases = {
+            "missing": base[:flag_index] + base[flag_index + 2 :],
+            "duplicate": base
+            + ["--runtime-cache-dir=/private/second-runtime-cache"],
+            "relative": (
+                base[: flag_index + 1]
+                + ["relative/runtime-cache"]
+                + base[flag_index + 2 :]
+            ),
+            "non_normalized": (
+                base[: flag_index + 1]
+                + ["/private/runtime-cache/../runtime-cache"]
+                + base[flag_index + 2 :]
+            ),
+        }
+        for name, arguments in cases.items():
+            with self.subTest(name=name), self.assertRaises(SystemExit) as raised:
+                matched_cli._install_runtime_cache_environment(arguments)
+            self.assertEqual(raised.exception.code, 2)
+
+    def test_supervised_argv_stays_cache_path_free_and_uses_sealed_environment(
+        self,
+    ) -> None:
+        cache_root = Path("/private/sealed-runtime-cache")
+        sealed_environment = matched_cli._runtime_cache_environment(cache_root)
+        for operation in ("preflight", "run"):
+            arguments = self._arguments(operation)
+            with (
+                self.subTest(operation=operation),
+                patch.dict(os.environ, sealed_environment, clear=False),
+            ):
+                self.assertNotIn("--runtime-cache-dir", arguments)
+                self.assertFalse(
+                    any(str(cache_root) in argument for argument in arguments)
+                )
+                self.assertEqual(
+                    matched_cli._runtime_cache_argument(arguments),
+                    str(cache_root),
+                )
 
     def test_supervised_child_exits_zero_only_for_staged_success(self) -> None:
         cases = (
@@ -271,7 +395,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             self.assertEqual(matched_cli.main(), 0)
 
         authentication_status.assert_not_called()
-        durable_paths.assert_called_once()
+        durable_paths.assert_not_called()
         authenticate.assert_called_once_with(
             root=Path(matched_cli.__file__).resolve().parents[1],
             authentication_key_file=Path("/private/authentication.key"),
@@ -291,6 +415,8 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 "codex_status": "passed",
                 "managed_glean_status": "passed",
                 "model_calls_started": 0,
+                "failure_code": None,
+                "failure_stage": None,
             },
         )
         self.assertNotIn("must-not-print", safe_print.call_args.args[0])
@@ -389,6 +515,8 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 "managed_glean": "not-a-provider-object",
             },
             "model_calls_started": "token-count-canary",
+            "failure_code": "token-failure-code-canary",
+            "failure_stage": "token-failure-stage-canary",
         }
         summary = matched_cli._safe_authentication_summary(payload)
         self.assertEqual(
@@ -400,8 +528,45 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 "codex_status": "unknown",
                 "managed_glean_status": "unknown",
                 "model_calls_started": 0,
+                "failure_code": None,
+                "failure_stage": None,
             },
         )
+
+    def test_authentication_summary_retains_exact_postreturn_failures(
+        self,
+    ) -> None:
+        cases = (
+            (
+                "execution_contract_attestation_failed_after_provider_return",
+                "execution_contract_after_provider_return",
+            ),
+            (
+                "frozen_authentication_dependency_attestation_failed_after_"
+                "provider_return",
+                "authentication_dependency_after_provider_return",
+            ),
+            (
+                "credential_integrity_failed_after_provider_return",
+                "credential_integrity_after_provider_return",
+            ),
+        )
+        for failure_code, failure_stage in cases:
+            payload = {
+                "panel_id": matched_cli.PANEL_ID,
+                "status": "terminal_failed",
+                "providers": {
+                    "codex": {"status": "terminal_failed"},
+                    "managed_glean": {"status": "required"},
+                },
+                "model_calls_started": 0,
+                "failure_code": failure_code,
+                "failure_stage": failure_stage,
+            }
+            with self.subTest(failure_code=failure_code):
+                summary = matched_cli._safe_authentication_summary(payload)
+                self.assertEqual(summary["failure_code"], failure_code)
+                self.assertEqual(summary["failure_stage"], failure_stage)
 
 
 if __name__ == "__main__":

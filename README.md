@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V19 is
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V20 is
 designed to run as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
@@ -521,12 +521,24 @@ Claude ceiling without retroactively rewriting the historical receipt. No
 production assignment, score, or trace was released. V18 is terminal and none
 of its private or execution namespaces may be reused.
 
-V19 now versions the panel identifier, top-level schema, corrected $590
+V19 completed its provider-free runtime receipt, private freeze, manifest,
+and exact spend authorization, then failed at foreground authentication entry
+because the command relied on six caller-supplied runtime-cache variables.
+That failure occurred before the operator TTY or an authentication helper. A
+corrected Codex device ceremony was cancelled after the at-most-once audit;
+this was not caused by the user withholding device approval. The
+[V19 supersession](results/development-matched-50x6-v19.superseded.json)
+records zero model-bearing calls, no credentials, no public authentication
+receipt, and no preflight or production start. V19 is terminal and none of its
+private or execution namespaces may be reused.
+
+V20 now versions the panel identifier, top-level schema, corrected $590
 cumulative acknowledgement, fresh path namespace, supervisor contract
-`epiagentbench.persistent_supervisor_contract.v8`, launchd config
-`epiagentbench.launchd_agent.v11`, execution-context protocol
-`persistent-supervisor-v5`, and
-[execution runbook](docs/V19_RUNBOOK.md). V19 uses a two-commit
+`epiagentbench.persistent_supervisor_contract.v9`, launchd config
+`epiagentbench.launchd_agent.v12`, execution-context protocol
+`persistent-supervisor-v6`, authentication setup
+`epiagentbench.authentication_setup.v3`, and
+[execution runbook](docs/V20_RUNBOOK.md). V20 uses a two-commit
 provider-free preparation boundary: first publish the code commit; at that
 exact commit generate the scientific-runtime receipt twice under `-I -S -B`
 and compare it byte-for-byte; then publish the unchanged receipt through an
@@ -534,21 +546,34 @@ atomic create-once link as the second commit. Only a fresh checkout at that
 receipt commit may create the fresh key, empty credential directories,
 canonical freeze claim, cohort, private state, and public manifest. The
 manifest is transferred through the same no-clobber boundary, then published
-separately. The phase stops before authorization, so no V19 authentication,
+separately. The phase stops before authorization, so no V20 authentication,
 provider, or model call occurs.
 
-V19 preserves V18's removal of the shell-environment dependency. Generation, every
-config-backed control, the launchd worker, handled-terminal reconciliation,
-and release finalization derive the exact six cache variables from the
-freshly derived or HMAC-authenticated closed config, overwrite any absent or
-poisoned ambient values, and restore their prior presence and bytes in a
-`finally` boundary. Each action retains one authenticated config/key snapshot;
-finalization exact-compares a fresh authenticated read before mutation, so a
-replacement config cannot be evaluated under the first config's environment.
-The variables remain absent from plist and argv. This environment
-self-bootstrap is combined with V16's finite incident taxonomy, durable
+V20 removes the remaining foreground shell-environment dependency.
+Preparation and every scientific-runtime-loading operator command take one
+explicit bound runtime-cache directory and install the exact six variables
+internally before scientific imports. Config-backed controls and the launchd
+worker derive the same values from their HMAC-authenticated config. Every
+boundary overwrites absent or poisoned ambient values and restores their prior
+presence and bytes in a `finally` boundary. Each action retains one
+authenticated config/key snapshot; finalization exact-compares a fresh
+authenticated read before mutation, so a replacement config cannot be
+evaluated under the first config's environment. The variables remain absent
+from plist and argv. After the TTY gate, foreground authentication durably
+claims the ceremony before any live execution, dependency, repository,
+credential, or provider check; a post-claim integrity failure is terminal with
+a finite public code and a second ceremony is rejected. This self-bootstrap
+and claim boundary are combined with V16's finite incident taxonomy, durable
 terminal receipts, reserved handled exit 64, provider-free prelaunch
 attestation, and provider-free reconciliation.
+
+The V20 authentication claim also seals a closed helper-attempt history.
+Passing requires durable launch-pending, started, returned, and integer
+zero-return markers. A launch-pending record without a started or start-failed
+record is terminal ambiguity and cannot be retried. Terminal state recomputes
+known helper starts and ambiguous starts from that history, and code,
+dependency, or credential drift after a helper returns keeps a distinct
+finite post-return cause.
 
 The runtime receipt proves exact Starsim 3.5.1 and executes a hardcoded
 three-person, four-day LTC scenario twice per branch through the real
@@ -574,7 +599,7 @@ environment, inventory, or device/inode/UID topology. It explicitly records
 zero provider and authentication processes and contains no private benchmark
 data. The same interpreter and cache bindings are mandatory for cohort
 freeze, prepare, preflight, and production. This versioning step itself does
-not prepare V19, authorize spend, authenticate a provider, create a supervisor,
+not prepare V20, authorize spend, authenticate a provider, create a supervisor,
 or make a model call.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
@@ -587,7 +612,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each completed V19 assignment is designed to record an evaluator-owned,
+Each completed V20 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -631,9 +656,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V19 first completes the foreground, zero-model
+Before production, V20 first completes the foreground, zero-model
 authentication ceremony described above. Only after its sanitized receipt is
-committed does V19 run a disposable six-call, unscored
+committed does V20 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -651,7 +676,7 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V19 current-run Claude ceiling is $510: two
+a $5 per-call runner ceiling. The V20 current-run Claude ceiling is $510: two
 Claude preflight calls plus 100 production calls, or 102 current-run Claude
 calls × $5. Prior failed panels contribute a conservative $80 ceiling: two v2
 Claude preflight calls ($10), the ambiguous v5 attempt ($5), v7's two returned
@@ -660,27 +685,28 @@ preflight plus one production Claude calls ($15), V9's two preflight plus
 two production Claude calls ($20), V14's two returned Claude preflight
 calls ($10), V16's one started-not-finished Claude preflight call ($5), and
 V18's legacy early-marker first Claude preflight call ($5);
-v3, v4, v6, V10, V11, V12, V13, V15, and V17 started no Claude model call.
+v3, v4, v6, V10, V11, V12, V13, V15, V17, and V19 started no Claude model
+call.
 The exact acknowledgement's cumulative Claude ceiling is therefore $590
-($510 for V19 plus $80 for prior failed panels), not a claim about measured
+($510 for V20 plus $80 for prior failed panels), not a claim about measured
 billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-A generic command-line acknowledgement is not sufficient to unlock V19. After
+A generic command-line acknowledgement is not sufficient to unlock V20. After
 the final public manifest has been prepared and committed in an otherwise clean
 worktree, the operator must run the `authorize` subcommand with this exact
 sentence:
 
-> I acknowledge the replacement six-call v19 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $590 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, and the v19 preflight and production run.
+> I acknowledge the replacement six-call v20 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $590 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, and the v20 preflight and production run.
 
 Pass that sentence as `--acknowledgement-text` to
 `examples/run_development_matched_panel.py authorize`, together with the same
 authentication key, private state, public manifest, and Claude/Codex secure
 storage paths used for `prepare`. The private state must remain untracked and
 an exact current-user `0600` regular file. The command writes an authenticated
-private receipt bound to the exact text, V19 panel identifier, final public
+private receipt bound to the exact text, V20 panel identifier, final public
 precommitment, budget-contract hash, exact Glean authentication-dependency
 identity, cumulative $590 Claude ceiling, and unbounded Codex/Cursor spend. A
 missing receipt, a receipt copied from another manifest, or any altered field
@@ -691,12 +717,12 @@ the `authenticate` subcommand in a
 foreground terminal with `--acknowledge-interactive-authentication`. It exposes
 sign-in instructions but never provider tokens, prompts, observations, traces,
 hidden episode data, or scores. Commit the resulting
-`results/development-matched-50x6-v19.authentication.json` before generating
+`results/development-matched-50x6-v20.authentication.json` before generating
 the one-shot preflight supervisor. The preflight and production commands still
 require `--acknowledge-unbounded-provider-spend` as an immediate execution
 guard.
 
-The V19 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V20 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -764,7 +790,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V19 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V20 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. Its tracked
 pre-private receipt hashes every enumerated regular file in each declared
@@ -772,7 +798,7 @@ scientific distribution rather than relying only on package name/version or
 `RECORD` metadata. The trusted computing base includes the root administrator
 and the installed Glean distribution; there is not yet an independently
 approved digest or cryptographic source-to-binary provenance for that helper
-bundle. V19 commits the exact installed helper bundle after acknowledgement and
+bundle. V20 commits the exact installed helper bundle after acknowledgement and
 detects persistent identity or ownership drift at every call boundary, but a
 malicious administrator capable of an ABA swap between attestation and
 execution is explicitly out of scope. Such an administrator could also
@@ -788,7 +814,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V19 detects the pipe-retaining form of that escape, but
+pipes; V20 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

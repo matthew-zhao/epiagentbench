@@ -4,8 +4,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
+
+
+_RUNTIME_CACHE_ENVIRONMENT_KEYS = (
+    "MPLBACKEND",
+    "MPLCONFIGDIR",
+    "NUMBA_CACHE_DIR",
+    "PYTHONDONTWRITEBYTECODE",
+    "STARSIM_INSTALL_FONTS",
+    "XDG_CACHE_HOME",
+)
+_SUPERVISED_COMMANDS = frozenset({"preflight", "run"})
+_CACHE_FREE_COMMANDS = frozenset({"publish-provider-free-json"})
 
 
 def _require_isolated_main_process() -> None:
@@ -19,11 +32,99 @@ def _require_isolated_main_process() -> None:
         raise SystemExit(2)
 
 
+def _runtime_cache_environment(root: Path) -> dict[str, str]:
+    return {
+        "MPLBACKEND": "Agg",
+        "MPLCONFIGDIR": str(root / "matplotlib"),
+        "NUMBA_CACHE_DIR": str(root / "numba"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "STARSIM_INSTALL_FONTS": "0",
+        "XDG_CACHE_HOME": str(root / "xdg"),
+    }
+
+
+def _normalized_absolute_runtime_cache(value: str) -> Path:
+    candidate = Path(value)
+    if (
+        not candidate.is_absolute()
+        or candidate != Path(os.path.normpath(value))
+        or "\x00" in value
+    ):
+        raise SystemExit(2)
+    return candidate
+
+
+def _runtime_cache_argument(argv: list[str]) -> str | None:
+    if (
+        len(argv) < 2
+        or argv[1] in _CACHE_FREE_COMMANDS
+        or "-h" in argv[1:]
+        or "--help" in argv[1:]
+    ):
+        return None
+    if argv[1] in _SUPERVISED_COMMANDS:
+        configured = os.environ.get("MPLCONFIGDIR")
+        if not isinstance(configured, str) or not configured:
+            raise SystemExit(2)
+        candidate = _normalized_absolute_runtime_cache(configured).parent
+        if {
+            name: os.environ.get(name)
+            for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        } != _runtime_cache_environment(candidate):
+            raise SystemExit(2)
+        return str(candidate)
+    values: list[str] = []
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--runtime-cache-dir":
+            if index + 1 >= len(argv):
+                raise SystemExit(2)
+            values.append(argv[index + 1])
+            index += 2
+            continue
+        if argument.startswith("--runtime-cache-dir="):
+            values.append(argument.split("=", 1)[1])
+        index += 1
+    if len(values) != 1:
+        raise SystemExit(2)
+    return values[0]
+
+
+def _install_runtime_cache_environment(
+    argv: list[str],
+) -> dict[str, str | None]:
+    value = _runtime_cache_argument(argv)
+    if value is None:
+        return {}
+    root = _normalized_absolute_runtime_cache(value)
+    previous = {
+        name: os.environ.get(name)
+        for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+    }
+    os.environ.update(_runtime_cache_environment(root))
+    return previous
+
+
+def _restore_runtime_cache_environment(
+    previous: dict[str, str | None],
+) -> None:
+    for name, value in previous.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
+_RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT: dict[str, str | None] = {}
 if __name__ == "__main__":
     _require_isolated_main_process()
+    _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT = (
+        _install_runtime_cache_environment(sys.argv)
+    )
 
 
-# V19 invokes this script with ``-I -S -B``.  Build the only permitted import
+# V20 invokes this script with ``-I -S -B``.  Build the only permitted import
 # path explicitly: standard library first, then the frozen repository, then
 # the bound virtual-environment packages.  Appending these directories does
 # not execute .pth, sitecustomize, or usercustomize.
@@ -35,7 +136,7 @@ if sys.flags.isolated:
         or sys.flags.dont_write_bytecode != 1
         or not sys.flags.safe_path
     ):
-        raise RuntimeError("Refusing a partially isolated V19 Python process")
+        raise RuntimeError("Refusing a partially isolated V20 Python process")
     _SOURCE_ROOT = _REPOSITORY_ROOT / "src"
     _VENV_ROOT = Path(sys.executable).parent.parent
     _SITE_PACKAGES = (
@@ -48,7 +149,7 @@ if sys.flags.isolated:
         not (_VENV_ROOT / "pyvenv.cfg").is_file()
         or not _SITE_PACKAGES.is_dir()
     ):
-        raise RuntimeError("V19 requires its bound virtual environment")
+        raise RuntimeError("V20 requires its bound virtual environment")
     sys.path.append(str(_SOURCE_ROOT))
     sys.path.append(str(_SITE_PACKAGES))
 
@@ -106,7 +207,15 @@ _AUTHENTICATION_PROVIDER_STATUSES = frozenset(
 )
 
 
-def _add_panel_state_arguments(command: argparse.ArgumentParser) -> None:
+def _add_panel_state_arguments(
+    command: argparse.ArgumentParser,
+    *,
+    include_runtime_cache: bool = True,
+) -> None:
+    if include_runtime_cache:
+        command.add_argument(
+            "--runtime-cache-dir", required=True, type=Path
+        )
     command.add_argument("--authentication-key", required=True, type=Path)
     command.add_argument("--claude-secure-storage-dir", required=True, type=Path)
     command.add_argument("--codex-secure-storage-dir", required=True, type=Path)
@@ -145,6 +254,48 @@ def _safe_authentication_summary(payload: dict[str, object]) -> dict[str, object
     )
     raw_panel_id = payload.get("panel_id")
     panel_id = PANEL_ID if raw_panel_id == PANEL_ID else "unknown"
+    raw_failure_code = payload.get("failure_code")
+    failure_code = (
+        raw_failure_code
+        if isinstance(raw_failure_code, str)
+        and raw_failure_code
+        in {
+            "execution_contract_attestation_failed",
+            "frozen_authentication_dependency_attestation_failed",
+            "authorization_worktree_attestation_failed",
+            "credential_integrity_failed",
+            "interrupted_authentication_ceremony",
+            "provider_authentication_terminal_failure",
+            (
+                "execution_contract_attestation_failed_after_"
+                "provider_return"
+            ),
+            (
+                "frozen_authentication_dependency_attestation_failed_after_"
+                "provider_return"
+            ),
+            "credential_integrity_failed_after_provider_return",
+        }
+        else None
+    )
+    raw_failure_stage = payload.get("failure_stage")
+    failure_stage = (
+        raw_failure_stage
+        if isinstance(raw_failure_stage, str)
+        and raw_failure_stage
+        in {
+            "execution_contract_before_provider",
+            "authentication_dependency_before_provider",
+            "authorization_worktree_before_provider",
+            "credential_integrity_before_provider",
+            "authentication_ceremony_reentry",
+            "provider_authentication",
+            "execution_contract_after_provider_return",
+            "authentication_dependency_after_provider_return",
+            "credential_integrity_after_provider_return",
+        }
+        else None
+    )
     return {
         "panel_id": panel_id,
         "status": status,
@@ -152,6 +303,8 @@ def _safe_authentication_summary(payload: dict[str, object]) -> dict[str, object
         "codex_status": provider_status("codex"),
         "managed_glean_status": provider_status("managed_glean"),
         "model_calls_started": model_calls_started,
+        "failure_code": failure_code,
+        "failure_stage": failure_stage,
     }
 
 
@@ -203,7 +356,7 @@ def main() -> int:
     )
     freeze = commands.add_parser(
         "freeze",
-        help="Freeze the one V19 cohort after runtime receipt verification",
+        help="Freeze the one V20 cohort after runtime receipt verification",
     )
     freeze.add_argument(
         "--preparation-runtime-receipt", required=True, type=Path
@@ -291,15 +444,18 @@ def main() -> int:
     reconcile_terminal.add_argument(
         "--public-output", required=True, type=Path
     )
+    reconcile_terminal.add_argument(
+        "--runtime-cache-dir", required=True, type=Path
+    )
     preflight = commands.add_parser("preflight")
-    _add_panel_state_arguments(preflight)
+    _add_panel_state_arguments(preflight, include_runtime_cache=False)
     preflight.add_argument("--public-preflight", required=True, type=Path)
     preflight.add_argument("--supervisor-runtime", required=True, type=Path)
     preflight.add_argument(
         "--acknowledge-unbounded-provider-spend", action="store_true", required=True
     )
     run = commands.add_parser("run")
-    _add_panel_state_arguments(run)
+    _add_panel_state_arguments(run, include_runtime_cache=False)
     run.add_argument("--public-results", required=True, type=Path)
     run.add_argument("--supervisor-runtime", required=True, type=Path)
     run.add_argument(
@@ -410,10 +566,11 @@ def main() -> int:
             )
         )
         return 0
-    assert_durable_live_execution_paths(
-        root=root,
-        private_state_path=args.private_state,
-    )
+    if args.command != "authenticate":
+        assert_durable_live_execution_paths(
+            root=root,
+            private_state_path=args.private_state,
+        )
     if args.command == "prepare":
         payload = prepare_panel(
             root=root,
@@ -564,5 +721,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    _require_isolated_main_process()
-    raise SystemExit(main())
+    try:
+        _require_isolated_main_process()
+        _exit_code = main()
+    finally:
+        _restore_runtime_cache_environment(
+            _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT
+        )
+    raise SystemExit(_exit_code)
