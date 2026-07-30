@@ -180,7 +180,7 @@ class V17SupersessionTests(unittest.TestCase):
             "def _assert_authenticated_config_snapshot", launcher
         )
         self.assertIn(
-            '"schema_version": "epiagentbench.persistent_supervisor_contract.v9"',
+            '"schema_version": "epiagentbench.persistent_supervisor_contract.v10"',
             panel,
         )
 

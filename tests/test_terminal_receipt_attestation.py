@@ -9,6 +9,10 @@ from unittest.mock import patch
 
 from examples import run_development_matched_panel as matched_cli
 import epiagentbench.development_matched_panel as matched
+from epiagentbench.launchd_agent import (
+    ReleaseValidationError,
+    ReleaseValidationFailureCode,
+)
 from epiagentbench.persistent_supervisor import (
     HANDLED_TERMINAL_RECEIPT_EXIT_CODE,
 )
@@ -334,9 +338,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 ) as read_key,
                 patch.object(matched, "_write_private_state") as write_private,
                 patch.object(matched, "_atomic_json") as write_public,
-                self.assertRaisesRegex(
-                    RuntimeError, f"{operation}.*not canonical"
-                ),
+                self.assertRaises(ReleaseValidationError) as refused,
             ):
                 matched.finalize_supervised_release(
                     root=self.root,
@@ -349,6 +351,10 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                     supervisor_runtime_dir=self.root / "supervisor",
                     operation=operation,
                 )
+            self.assertEqual(
+                refused.exception.failure_code,
+                ReleaseValidationFailureCode.RUNTIME_BINDING_INVALID,
+            )
             durable_paths.assert_not_called()
             read_key.assert_not_called()
             write_private.assert_not_called()

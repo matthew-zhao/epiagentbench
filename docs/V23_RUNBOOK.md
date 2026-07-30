@@ -1,14 +1,14 @@
 # EpiAgentBench V23 execution runbook
 
 > [!CAUTION]
-> **CONTROL PLANE ONLY — NO V23 RUN HAS BEEN PREPARED OR AUTHORIZED.**
+> **TERMINAL HISTORICAL RUN — NEVER RESUME OR REUSE V23.**
 >
-> This runbook does not authorize authentication, a provider process, spend, a
-> supervisor start, or a model call. This source-only milestone creates no V23
-> runtime receipt, manifest, key, cohort, credential namespace, private state,
-> supervisor, authentication ceremony, preflight, or production result. Later
-> preparation and execution require separate operator decisions and the exact
-> manifest-bound acknowledgement below.
+> V23 later completed its six-call preflight child, but its no-site outer
+> worker failed during local release validation before publishing a passing
+> receipt. It made six model calls, started no production assignment, and is
+> non-resumable. Preserve this runbook only as history; use the
+> [V23 terminal record](../results/development-matched-50x6-v23.superseded.json)
+> and the replacement [V24 runbook](V24_RUNBOOK.md).
 
 V23 replaces the terminal V22 authentication attempt. V22 completed its
 provider-free preparation and exact spend authorization, then its initiating

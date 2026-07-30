@@ -1,11 +1,11 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V23 persistent-supervisor
-contract schema v9, execution-context protocol v6, launchd config schema v12,
+Status at control-plane publication: versioned V24 persistent-supervisor
+contract schema v10, execution-context protocol v6, launchd config schema v12,
 and authentication-setup schema v4. The finite pre-model phase contract,
 source contract, panel/schema
 identifiers, spend
-accounting, path namespace, and [V23 runbook](V23_RUNBOOK.md) are defined. The
+accounting, path namespace, and [V24 runbook](V24_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -45,7 +45,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V23 key, cohort, credential namespace, schedule, private state, or
+8. No V24 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -113,7 +113,7 @@ execution and fails closed.
 
 V21 introduced the separation of attempt accounting from model-invocation
 accounting and its durable, ordered, content-free pre-model phase field. V22
-added a finite trusted-evaluator startup substage. V23 retains both boundaries.
+added a finite trusted-evaluator startup substage. V24 retains both boundaries.
 The only permitted transitions are `provider_environment_setup`,
 `provider_cli_readiness`, `episode_startup`, and `model_spawn_boundary`.
 Unknown, duplicate, skipped, out-of-order, or provider-supplied phase values
@@ -140,7 +140,7 @@ provider-free exact-file reproduction showed that multiprocessing `spawn`
 inherited the parent’s manually extended isolated `sys.path`, replayed the
 runner as `__mp_main__`, and the runner appended the same two paths again. The
 strict validator correctly rejected the duplicates. V22 first accepted only
-the pristine parent or an exact one-copy inherited ordered tail; V23 retains
+the pristine parent or an exact one-copy inherited ordered tail; V24 retains
 that rule. Partial, duplicate, reversed, displaced, or trailing states still
 fail closed.
 
@@ -182,8 +182,8 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V23 retains the provider-free boundary before the private panel exists. One
-operator-supplied, absolute, attested isolated interpreter runs every V23 CLI
+V24 retains the provider-free boundary before the private panel exists. One
+operator-supplied, absolute, attested isolated interpreter runs every V24 CLI
 and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order in
@@ -229,10 +229,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v23.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v24.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V23 freezer or `prepare` command can create or read a key, cohort,
+the matched V24 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -309,8 +309,8 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. Persistent-supervisor contract schema v9 intentionally rejects
-schema-v8/V19 manifests; a run must be freshly versioned, prepared, and
+evaluator. Persistent-supervisor contract schema v10 intentionally rejects
+schema-v9/V23 manifests; a run must be freshly versioned, prepared, and
 authorized under the new contract.
 
 The child reserves exit 64 only after a second read proves the public terminal
@@ -343,6 +343,36 @@ explicit `finalize` control may repeat only this local verification and atomic
 publication step. It cannot relaunch the worker, evaluator, authentication
 bootstrap, or provider. A terminal release-validation incident is never
 retryable.
+
+V24's intentionally no-site outer worker does not re-import Starsim or
+re-inventory installed scientific distributions. Those live checks remain
+mandatory before and after provider calls. Release instead revalidates the
+sealed public component hashes, authenticated preparation/runtime-cache
+binding, cohort manifest, and every private pack. Owner-only cache contents may
+evolve after execution, but the sealed root and three top-level directory
+identities, ownership, modes, nonsymlink policy, filesystem boundary, file
+count, and byte limits remain enforced.
+
+Authenticated status schema `epiagentbench.launchd_worker_status.v5` exposes
+only one of these coarse release codes; it never includes exception text:
+
+| Code | Coarse gate |
+|---|---|
+| `release_completion_attestation_invalid` | Supervisor completion |
+| `release_runtime_binding_invalid` | Frozen worker/config binding |
+| `release_private_state_invalid` | Authenticated private state |
+| `release_contract_binding_invalid` | Sealed benchmark contracts |
+| `release_candidate_invalid` | Staged success candidate |
+| `release_public_watermark_invalid` | Existing public watermark/bytes |
+| `release_cohort_retirement_failed` | Terminal cohort retirement |
+| `release_private_commit_failed` | Private release commit |
+| `release_public_commit_failed` | Final public atomic commit |
+| `release_postcommit_attestation_failed` | Postcommit worker/config binding |
+| `release_internal` | Unclassified local release gate |
+
+Any such code is terminal and non-retryable. The authenticated worker status is
+authoritative; the operator preserves the runtime for an offline audit and
+creates a freshly versioned panel rather than retrying the worker or provider.
 
 ## Supervisor lease and liveness
 
@@ -386,7 +416,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V23, generation also requires the exact manifest-bound runtime-cache root.
+For V24, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -454,7 +484,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V23 model call may start until all of the following pass through the
+No V24 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -587,18 +617,30 @@ assignments, and no scores or traces; its owner-only orphan staging directory
 was removed without reading credential contents. V22 is terminal,
 non-resumable, and forbidden for cohort or namespace reuse.
 
-V23 binds explicit runtime-cache input, internal environment installation and
+V23 completed all six disposable preflight profiles: two Claude, two Codex,
+and two Cursor calls. The evaluator child staged a passing candidate and
+exited successfully, but the dependency-free outer worker attempted live
+scientific-runtime probes under `-I -S` and failed release validation. It
+published no official passing preflight receipt, started no production
+assignment, and released no score or trace. V23 is terminal, non-resumable,
+and contributes a conservative $10 Claude ceiling.
+
+V24 binds explicit runtime-cache input, internal environment installation and
 exact restoration, an operator-owned Terminal authentication boundary, a
 durable foreground-authentication ceremony claim, provider-free interrupted
 ceremony reconciliation,
 atomic create-once staging/publication, the finite provider-incident taxonomy,
 authenticated terminal-receipt exit, completion-checkpoint recovery,
 repository-relative receipt handoff, provider-free prelaunch attestation,
-nested launchd-state parser, and the existing heartbeat/retry/source contracts
-under panel/cohort
-`development-matched-50x6-v23`, top-level schema
-`development_matched_panel_v23`, the exact $590 acknowledgement, and fresh
-V23 paths. Its two-commit provider-free runtime protocol must prove the exact V5
+nested launchd-state parser, the finite release-failure taxonomy, sealed
+post-completion scientific validation without live re-import, provider-free
+tracked-source re-attestation, safe owner-only cache-content evolution, an
+owner-control-lock-serialized release transition with read-only premature and
+contention refusals, and the existing heartbeat/retry/source contracts under
+panel/cohort
+`development-matched-50x6-v24`, top-level schema
+`development_matched_panel_v24`, the exact $600 acknowledgement, and fresh
+V24 paths. Its two-commit provider-free runtime protocol must prove the exact V5
 Python under `-I -S -B`, exact Starsim 3.5.1, actual installed
 scientific-distribution bytes, the deterministic resident-to-staff/contact-stop
 capability smoke, the static provider/configuration identities, the clean
@@ -616,10 +658,11 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V23 panel's Claude ceiling is $510 (102 calls × $5); the exact
-acknowledgement's $590 cumulative ceiling adds the conservative $80 allowance
-for prior failed panels, including V18's retained $5 legacy-marker call; V19,
-V20, V21, and V22 add zero because none started a Claude model-bearing call.
+The current V24 panel's Claude ceiling is $510 (102 calls × $5); the exact
+acknowledgement's $600 cumulative ceiling adds the conservative $90 allowance
+for prior failed panels, including V18's retained $5 legacy-marker call and
+V23's two returned Claude preflight calls ($10); V19, V20, V21, and V22 add
+zero because none started a Claude model-bearing call.
 Neither value is a claim about measured billing.
 Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only
@@ -634,13 +677,13 @@ projection cannot distinguish CLI-identity readiness from trusted episode
 startup, so its supersession preserves that uncertainty. V20 is terminal,
 non-resumable, and forbidden for namespace or cohort reuse.
 
-V23 versions the panel/cohort as `development-matched-50x6-v23`, the top-level
-schema as `development_matched_panel_v23`, and every private/execution
-namespace. It retains the `$510` current-run and `$80` prior conservative
-Claude ceilings; V20, V21, and V22 add zero, so the exact cumulative
-acknowledgement remains `$590`. Before any V23 runtime receipt, manifest,
+V24 versions the panel/cohort as `development-matched-50x6-v24`, the top-level
+schema as `development_matched_panel_v24`, and every private/execution
+namespace. It retains the `$510` current-run and `$90` prior conservative
+Claude ceilings; V20, V21, and V22 add zero and V23 adds `$10`, so the exact cumulative
+acknowledgement remains `$600`. Before any V24 runtime receipt, manifest,
 private state,
 authentication, supervisor, or provider call is created, the provider-free
 control-plane and phase-accounting tests must be published and pinned. The
-[V23 runbook](V23_RUNBOOK.md) is authoritative for the later create-once
+[V24 runbook](V24_RUNBOOK.md) is authoritative for the later create-once
 sequence.

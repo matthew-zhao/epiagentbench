@@ -227,10 +227,11 @@ class V19SupersessionTests(unittest.TestCase):
         self.assertNotIn(self.V20_ACKNOWLEDGEMENT, readme)
         self.assertIn(self.V20_ACKNOWLEDGEMENT, runbook)
         self.assertIn(self.V20_ACKNOWLEDGEMENT_SHA256, runbook)
-        for document in (readme, runbook):
+        for document in (runbook,):
             self.assertIn("$510", document)
             self.assertIn("$80", document)
             self.assertIn("$590", document)
+        self.assertIn("$600", readme)
 
     def test_v19_runbook_is_terminal_and_points_to_v20(self) -> None:
         runbook = (self.root / "docs/V19_RUNBOOK.md").read_text(

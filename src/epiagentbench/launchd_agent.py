@@ -36,7 +36,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 
 _SCHEMA = "epiagentbench.launchd_agent.v12"
-_WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v4"
+_WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v5"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
 _CAFFEINATE = Path("/usr/bin/caffeinate")
@@ -47,7 +47,7 @@ _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
 _CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v12\x00"
-_WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v4\x00"
+_WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v5\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
 _MAX_CONFIG_BYTES = 8 * 1024 * 1024
@@ -144,6 +144,40 @@ class LiveAttestationError(LaunchAgentError):
             raise TypeError("failure_code must be a LiveAttestationFailureCode")
         self.failure_code = failure_code
         super().__init__("LaunchAgent live attestation was safely refused")
+
+
+class ReleaseValidationFailureCode(StrEnum):
+    """Finite, non-sensitive reasons a completed run was not released."""
+
+    COMPLETION_ATTESTATION_INVALID = (
+        "release_completion_attestation_invalid"
+    )
+    RUNTIME_BINDING_INVALID = "release_runtime_binding_invalid"
+    PRIVATE_STATE_INVALID = "release_private_state_invalid"
+    CONTRACT_BINDING_INVALID = "release_contract_binding_invalid"
+    CANDIDATE_INVALID = "release_candidate_invalid"
+    PUBLIC_WATERMARK_INVALID = "release_public_watermark_invalid"
+    COHORT_RETIREMENT_FAILED = "release_cohort_retirement_failed"
+    PRIVATE_COMMIT_FAILED = "release_private_commit_failed"
+    PUBLIC_COMMIT_FAILED = "release_public_commit_failed"
+    POSTCOMMIT_ATTESTATION_FAILED = (
+        "release_postcommit_attestation_failed"
+    )
+    INTERNAL = "release_internal"
+
+
+class ReleaseValidationError(LaunchAgentError):
+    """A release refusal carrying only one authenticated finite code."""
+
+    def __init__(self, failure_code: ReleaseValidationFailureCode):
+        if not isinstance(
+            failure_code, ReleaseValidationFailureCode
+        ):
+            raise TypeError(
+                "failure_code must be a ReleaseValidationFailureCode"
+            )
+        self.failure_code = failure_code
+        super().__init__("LaunchAgent release validation was safely refused")
 
 
 class _TransientAtomicReadError(ValueError):
@@ -1371,7 +1405,51 @@ def _require_dedicated_runtime_cache(
             )
 
 
-def _validate_runtime_cache_binding(config: Mapping[str, Any]) -> None:
+def _validate_runtime_cache_contract_safety(
+    cache: Mapping[str, Any],
+) -> None:
+    """Allow cache contents to evolve while preserving their sealed boundary."""
+
+    root_path = cache.get("directories", {}).get("root", {}).get("path")
+    if not isinstance(root_path, str):
+        raise ValueError("Invalid launch-agent runtime-cache binding")
+    observed = _runtime_cache_contract(Path(root_path))
+    for field in ("schema_version", "environment"):
+        if observed.get(field) != cache.get(field):
+            raise ValueError("Launch-agent runtime cache safety changed")
+    expected_directories = cache.get("directories")
+    observed_directories = observed.get("directories")
+    if (
+        not isinstance(expected_directories, Mapping)
+        or not isinstance(observed_directories, Mapping)
+        or set(observed_directories) != set(expected_directories)
+    ):
+        raise ValueError("Launch-agent runtime cache safety changed")
+    stable_directory_fields = (
+        "path",
+        "device",
+        "inode",
+        "owner_uid",
+        "mode",
+    )
+    for name, expected in expected_directories.items():
+        current = observed_directories.get(name)
+        if (
+            not isinstance(expected, Mapping)
+            or not isinstance(current, Mapping)
+            or any(
+                current.get(field) != expected.get(field)
+                for field in stable_directory_fields
+            )
+        ):
+            raise ValueError("Launch-agent runtime cache safety changed")
+
+
+def _validate_runtime_cache_binding(
+    config: Mapping[str, Any],
+    *,
+    allow_inventory_mutation: bool = False,
+) -> None:
     cache = config.get("runtime_cache_contract")
     cache_sha256 = config.get("runtime_cache_contract_sha256")
     if cache is None:
@@ -1387,8 +1465,11 @@ def _validate_runtime_cache_binding(config: Mapping[str, Any]) -> None:
         not isinstance(root_path, str)
         or not isinstance(cache_sha256, str)
         or _component_sha256(cache) != cache_sha256
-        or _runtime_cache_contract(Path(root_path)) != cache
     ):
+        raise ValueError("Launch-agent runtime cache changed")
+    if allow_inventory_mutation:
+        _validate_runtime_cache_contract_safety(cache)
+    elif _runtime_cache_contract(Path(root_path)) != cache:
         raise ValueError("Launch-agent runtime cache changed")
 
 
@@ -2194,6 +2275,7 @@ def _validate_authenticated_config(
     config_path: Path,
     config: dict[str, Any],
     authentication_key: bytes,
+    allow_runtime_cache_inventory_mutation: bool = False,
 ) -> tuple[dict[str, Any], Path, bytes]:
     if config["schema_version"] != _SCHEMA or config["uid"] != os.getuid():
         raise ValueError("Launch-agent config identity mismatch")
@@ -2280,20 +2362,18 @@ def _validate_authenticated_config(
     ):
         raise ValueError("Invalid launch-agent runtime-cache binding")
     else:
-        cache_root = configured_cache.get("directories", {}).get(
-            "root", {}
-        ).get("path")
-        if (
-            not isinstance(cache_root, str)
-            or _runtime_cache_contract(Path(cache_root))
-            != configured_cache
-            or any(
-                environment.get(name)
-                != configured_cache["environment"].get(name)
-                for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
-            )
+        if any(
+            environment.get(name)
+            != configured_cache["environment"].get(name)
+            for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
         ):
             raise ValueError("Launch-agent runtime cache changed")
+        _validate_runtime_cache_binding(
+            config,
+            allow_inventory_mutation=(
+                allow_runtime_cache_inventory_mutation
+            ),
+        )
     _require_regular(Path(config["worker_script"]), label="persistent worker script")
     _require_regular(Path(config["runner_script"]), label="frozen panel runner")
     repository_root = Path(config["repository_root"])
@@ -2471,6 +2551,7 @@ def _load_in_authenticated_runtime_environment(
     runtime_dir: Path,
     *,
     authentication_key_file: Path | None = None,
+    allow_runtime_cache_inventory_mutation: bool = False,
 ) -> Iterator[tuple[dict[str, Any], Path, bytes]]:
     """Open one HMAC config and hold its exact cache environment while used."""
 
@@ -2494,6 +2575,9 @@ def _load_in_authenticated_runtime_environment(
             config_path=config_path,
             config=config,
             authentication_key=authentication_key,
+            allow_runtime_cache_inventory_mutation=(
+                allow_runtime_cache_inventory_mutation
+            ),
         )
 
 
@@ -2610,7 +2694,23 @@ def _atomic_worker_status(
     authentication_key: bytes,
     state: str,
     reason: str | None = None,
+    release_failure_code: ReleaseValidationFailureCode | None = None,
 ) -> None:
+    if (
+        release_failure_code is None
+        and state == "terminal_incident"
+        and reason == "release_validation_failed"
+    ) or (
+        release_failure_code is not None
+        and (
+            not isinstance(
+                release_failure_code, ReleaseValidationFailureCode
+            )
+            or state != "terminal_incident"
+            or reason != "release_validation_failed"
+        )
+    ):
+        raise ValueError("Invalid release-validation worker status")
     payload: dict[str, Any] = {
         "schema_version": _WORKER_STATUS_SCHEMA,
         "label": config["label"],
@@ -2622,6 +2722,8 @@ def _atomic_worker_status(
     }
     if reason is not None:
         payload["reason"] = reason
+    if release_failure_code is not None:
+        payload["release_failure_code"] = release_failure_code.value
     record = _seal_payload(
         _WORKER_STATUS_AUTH_DOMAIN,
         payload,
@@ -2637,6 +2739,7 @@ def _atomic_worker_status(
     )
     os.replace(temporary, destination)
     _require_regular(destination, label="worker status", exact_mode=0o600)
+    _fsync_directory(runtime)
 
 
 def _read_cursor_key(config: Mapping[str, Any], *, command_runner: CommandRunner = subprocess.run) -> str:
@@ -2864,20 +2967,11 @@ def _run_launch_agent_worker_validated(
             cursor_key = ""
         if return_code == 0:
             try:
-                finalize_launch_agent(
-                    runtime,
-                    authentication_key_file=Path(
-                        config["authentication_key_file"]
-                    ),
+                _finalize_launch_agent_validated(
+                    config,
+                    authentication_key=authentication_key,
                 )
             except Exception:
-                _atomic_worker_status(
-                    runtime,
-                    config=config,
-                    authentication_key=authentication_key,
-                    state="terminal_incident",
-                    reason="release_validation_failed",
-                )
                 return 70
             return 0
         if return_code == _HANDLED_TERMINAL_RECEIPT_EXIT_CODE:
@@ -2963,7 +3057,7 @@ def _launchctl_outcome(
 
 
 class _LaunchControlLock:
-    """Serialize start/uninstall without sharing the core supervisor lock."""
+    """Serialize owner control actions without sharing the core lock."""
 
     def __init__(self, runtime: Path):
         self._path = runtime / _CONTROL_LOCK_NAME
@@ -3202,6 +3296,14 @@ def _worker_status(
     }
     state = payload.get("state")
     reason = payload.get("reason")
+    release_failure_code = payload.get("release_failure_code")
+    allowed_key_sets = {
+        frozenset(base_keys),
+        frozenset(base_keys | {"reason"}),
+        frozenset(
+            base_keys | {"reason", "release_failure_code"}
+        ),
+    }
     if (
         payload.get("schema_version") != _WORKER_STATUS_SCHEMA
         or state
@@ -3213,8 +3315,7 @@ def _worker_status(
             "supervisor_exited",
             "terminal_incident",
         }
-        or frozenset(payload)
-        not in {frozenset(base_keys), frozenset(base_keys | {"reason"})}
+        or frozenset(payload) not in allowed_key_sets
         or ("reason" in payload and reason not in {
             "benchmark_terminal_receipt",
             "cursor_keychain_unavailable",
@@ -3248,6 +3349,21 @@ def _worker_status(
                 "release_validation_failed",
                 "terminal_receipt_attestation_failed",
             }
+        )
+        or (
+            state == "terminal_incident"
+            and reason == "release_validation_failed"
+            and release_failure_code
+            not in {
+                code.value for code in ReleaseValidationFailureCode
+            }
+        )
+        or (
+            release_failure_code is not None
+            and not (
+                state == "terminal_incident"
+                and reason == "release_validation_failed"
+            )
         )
         or payload.get("label") != config["label"]
         or payload.get("operation") != config["operation"]
@@ -3402,6 +3518,10 @@ def _status_snapshot(
         status["worker_authenticated"] = True
         if "reason" in worker:
             status["worker_reason"] = worker["reason"]
+        if "release_failure_code" in worker:
+            status["release_failure_code"] = worker[
+                "release_failure_code"
+            ]
     return status
 
 
@@ -3415,12 +3535,34 @@ def launch_agent_status(
     with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
+        allow_runtime_cache_inventory_mutation=True,
     ) as (config, _, authentication_key):
-        return _status_snapshot(
+        status = _status_snapshot(
             config,
             authentication_key=authentication_key,
             command_runner=command_runner,
         )
+        supervisor = status.get("supervisor")
+        post_completion = (
+            isinstance(supervisor, Mapping)
+            and supervisor.get("state") == "authenticated"
+            and supervisor.get("health") == "terminal"
+            and supervisor.get("lifecycle")
+            in {"completed", "failed_closed", "paused"}
+            and status.get("worker_state")
+            in {
+                "release_pending",
+                "released",
+                "supervisor_exited",
+                "terminal_incident",
+            }
+        )
+        if not post_completion:
+            # Read-only monitoring may tolerate cache growth only after an
+            # authenticated terminal core. Before and during execution the
+            # exact preparation inventory remains part of the live boundary.
+            _validate_runtime_cache_binding(config)
+        return status
 
 
 def _attest_live_launch_agent_validated(
@@ -3709,6 +3851,7 @@ def attest_completed_launch_agent(
     with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
+        allow_runtime_cache_inventory_mutation=True,
     ) as (config, _, authentication_key):
         return _attest_completed_launch_agent_validated(
             config,
@@ -3757,80 +3900,147 @@ def _finalize_launch_agent_validated(
     """
 
     runtime = Path(config["runtime_dir"])
-    # Refuse an active, failed, or ambiguous core before changing worker state.
-    _attest_completed_launch_agent_validated(
-        config,
-        authentication_key=authentication_key,
-        expected_operation=str(config["operation"]),
-        expected_panel_id=str(config["panel_id"]),
-        expected_precommitment_sha256=str(config["precommitment_sha256"]),
+    failure_code = (
+        ReleaseValidationFailureCode.COMPLETION_ATTESTATION_INVALID
     )
-    with _LaunchControlLock(runtime):
-        _assert_authenticated_config_snapshot(
-            config,
-            authentication_key=authentication_key,
-        )
-        worker = _worker_status(
-            runtime,
-            config=config,
-            authentication_key=authentication_key,
-        )
-        if worker is None or worker.get("state") not in {
-            "supervisor_running",
-            "release_pending",
-            "released",
-            "supervisor_exited",
-        }:
-            raise ValueError("Launch-agent release state is not recoverable")
-        if worker.get("state") == "supervisor_exited" and worker.get(
-            "reason"
-        ) != "success":
-            raise ValueError("Failed supervisor execution cannot be released")
-        _attest_completed_launch_agent_validated(
-            config,
-            authentication_key=authentication_key,
-            expected_operation=str(config["operation"]),
-            expected_panel_id=str(config["panel_id"]),
-            expected_precommitment_sha256=str(config["precommitment_sha256"]),
-        )
-        if worker.get("state") != "released":
-            _assert_authenticated_config_snapshot(
-                config,
-                authentication_key=authentication_key,
-            )
-            _atomic_worker_status(
-                runtime,
-                config=config,
-                authentication_key=authentication_key,
-                state="release_pending",
-            )
-        try:
-            _finalize_supervised_release(config)
-        except Exception:
-            _atomic_worker_status(
-                runtime,
-                config=config,
-                authentication_key=authentication_key,
-                state="terminal_incident",
-                reason="release_validation_failed",
-            )
-            raise
-        _assert_authenticated_config_snapshot(
-            config,
-            authentication_key=authentication_key,
-        )
-        reason = (
-            "preflight_passed"
-            if config["operation"] == "preflight"
-            else "production_complete"
-        )
-        _atomic_worker_status(
-            runtime,
-            config=config,
-            authentication_key=authentication_key,
-            state="released",
-            reason=reason,
-        )
+    try:
+        with _LaunchControlLock(runtime):
+            release_attempt_started = False
+            try:
+                # A premature manual finalize is a read-only refusal. Only a
+                # proven completed core may enter the durable release state
+                # machine or replace the authenticated worker record.
+                _attest_completed_launch_agent_validated(
+                    config,
+                    authentication_key=authentication_key,
+                    expected_operation=str(config["operation"]),
+                    expected_panel_id=str(config["panel_id"]),
+                    expected_precommitment_sha256=str(
+                        config["precommitment_sha256"]
+                    ),
+                )
+                failure_code = (
+                    ReleaseValidationFailureCode.RUNTIME_BINDING_INVALID
+                )
+                _assert_authenticated_config_snapshot(
+                    config,
+                    authentication_key=authentication_key,
+                )
+                worker = _worker_status(
+                    runtime,
+                    config=config,
+                    authentication_key=authentication_key,
+                )
+                if worker is None or worker.get("state") not in {
+                    "supervisor_running",
+                    "release_pending",
+                    "released",
+                    "supervisor_exited",
+                }:
+                    raise ValueError(
+                        "Launch-agent release state is not recoverable"
+                    )
+                if worker.get("state") == "supervisor_exited" and worker.get(
+                    "reason"
+                ) != "success":
+                    raise ValueError(
+                        "Failed supervisor execution cannot be released"
+                    )
+                failure_code = (
+                    ReleaseValidationFailureCode
+                    .COMPLETION_ATTESTATION_INVALID
+                )
+                _attest_completed_launch_agent_validated(
+                    config,
+                    authentication_key=authentication_key,
+                    expected_operation=str(config["operation"]),
+                    expected_panel_id=str(config["panel_id"]),
+                    expected_precommitment_sha256=str(
+                        config["precommitment_sha256"]
+                    ),
+                )
+                if worker.get("state") != "released":
+                    failure_code = (
+                        ReleaseValidationFailureCode
+                        .RUNTIME_BINDING_INVALID
+                    )
+                    _assert_authenticated_config_snapshot(
+                        config,
+                        authentication_key=authentication_key,
+                    )
+                    _atomic_worker_status(
+                        runtime,
+                        config=config,
+                        authentication_key=authentication_key,
+                        state="release_pending",
+                    )
+                release_attempt_started = True
+                failure_code = ReleaseValidationFailureCode.INTERNAL
+                _finalize_supervised_release(config)
+                failure_code = (
+                    ReleaseValidationFailureCode
+                    .POSTCOMMIT_ATTESTATION_FAILED
+                )
+                _assert_authenticated_config_snapshot(
+                    config,
+                    authentication_key=authentication_key,
+                )
+                reason = (
+                    "preflight_passed"
+                    if config["operation"] == "preflight"
+                    else "production_complete"
+                )
+                _atomic_worker_status(
+                    runtime,
+                    config=config,
+                    authentication_key=authentication_key,
+                    state="released",
+                    reason=reason,
+                )
+            except Exception as error:
+                observed_code = (
+                    error.failure_code
+                    if isinstance(error, ReleaseValidationError)
+                    else failure_code
+                )
+                if release_attempt_started:
+                    try:
+                        worker = _worker_status(
+                            runtime,
+                            config=config,
+                            authentication_key=authentication_key,
+                        )
+                        already_classified = (
+                            worker is not None
+                            and worker.get("state") == "terminal_incident"
+                            and worker.get("reason")
+                            == "release_validation_failed"
+                            and worker.get("release_failure_code")
+                            in {
+                                code.value
+                                for code in ReleaseValidationFailureCode
+                            }
+                        )
+                        if not already_classified:
+                            _atomic_worker_status(
+                                runtime,
+                                config=config,
+                                authentication_key=authentication_key,
+                                state="terminal_incident",
+                                reason="release_validation_failed",
+                                release_failure_code=observed_code,
+                            )
+                    except Exception:
+                        # Preserve release_pending for an offline ambiguity
+                        # audit if authenticated incident persistence fails.
+                        pass
+                raise ReleaseValidationError(observed_code) from None
+    except ReleaseValidationError:
+        raise
+    except Exception:
+        # Lock contention or lock-integrity failure is a read-only refusal.
+        # Mutating status here would race the invocation that owns the lock.
+        raise ReleaseValidationError(failure_code) from None
     return {
         "label": config["label"],
         "operation": config["operation"],
@@ -3849,6 +4059,7 @@ def finalize_launch_agent(
     with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
+        allow_runtime_cache_inventory_mutation=True,
     ) as (config, _, authentication_key):
         return _finalize_launch_agent_validated(
             config,
@@ -3918,6 +4129,7 @@ def uninstall_launch_agent(
     with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
+        allow_runtime_cache_inventory_mutation=True,
     ) as (config, _, authentication_key):
         return _uninstall_launch_agent_validated(
             config,
@@ -3930,6 +4142,8 @@ __all__ = [
     "LaunchAgentError",
     "LiveAttestationError",
     "LiveAttestationFailureCode",
+    "ReleaseValidationError",
+    "ReleaseValidationFailureCode",
     "attest_completed_launch_agent",
     "attest_live_launch_agent",
     "finalize_launch_agent",

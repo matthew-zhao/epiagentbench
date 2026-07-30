@@ -99,9 +99,9 @@ from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePa
 from .trusted.service import TRUSTED_EVALUATOR_STARTUP_STAGES
 
 
-PANEL_ID = "development-matched-50x6-v23"
+PANEL_ID = "development-matched-50x6-v24"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v23"
+SCHEMA_VERSION = "development_matched_panel_v24"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -109,9 +109,9 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v23 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v24 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
-    "to $590 total Claude spend across the failed v2 preflight, failed v5 "
+    "to $600 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
     "failed v8 production run, v9 preflight and failed production run, the "
     "abandoned zero-model-call v10 precommitment, the failed zero-model-call "
@@ -122,8 +122,9 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "pre-start runtime-cache-environment refusal, the failed v18 preflight, "
     "the failed zero-model-call v19 authentication setup, the failed "
     "zero-model-call v20 preflight, the failed zero-model-call v21 preflight, "
-    "the failed zero-model-call v22 interrupted authentication ceremony, and "
-    "the v23 preflight and production run."
+    "the failed zero-model-call v22 interrupted authentication ceremony, the "
+    "failed v23 six-call preflight release validation, and the v24 preflight "
+    "and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v3"
@@ -141,7 +142,7 @@ _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS = (0, 7, 2**31 - 2)
 _PREPARATION_EPISODE_STARTUP_REPETITIONS = 2
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "3c4d86960782690fbf894e694935c794c08d9090c5e07adf93a3717ee44ed7f7"
+    "fb946ccd972ae659a71b20d67d8fa1c537cf50d8c0214e34922cc0ce76ae46ef"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -178,7 +179,7 @@ _ROOT_MANAGED_EXECUTABLE_POLICY = (
     "root_owned_root_group_single_link_regular_nonwritable_executable"
 )
 _PRIVATE_STATE_STORAGE_SCHEMA = "epiagentbench.private_state_storage.v2"
-_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 590.0
+_CLAUDE_CUMULATIVE_AUTHORIZATION_CEILING_USD = 600.0
 _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION = {
     "codex": "unbounded",
     "cursor": "unbounded",
@@ -259,17 +260,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V23 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V24 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V23 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V24 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V23 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V24 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v23_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v24_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v23_cohort_freeze_completion.v1"
+    "epiagentbench.v24_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -1055,21 +1056,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V23 cohort destination")
+    return _canonical_new_private_path(value, label="V24 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V23 claim location paired with this owner-only key."""
+    """Return the one V24 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V23 authentication-key namespace is unavailable"
+            "V24 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1078,16 +1079,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V23 authentication-key namespace must be owner-only"
+            "V24 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V23 cohort freeze claim"
+        requested_path, label="V24 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V23 cohort freeze claim must use the canonical key-namespace path"
+            "V24 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1115,7 +1116,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V23 cohort freeze claim authentication failed")
+        raise ValueError("V24 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1138,7 +1139,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V23 cohort freeze completion authentication failed")
+        raise ValueError("V24 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1162,7 +1163,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V23 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V24 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1192,12 +1193,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V23 freeze attempt before any cohort randomness."""
+    """Burn the only V24 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V23 cohort freeze completion already exists; never rerun freeze"
+            "V24 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1214,11 +1215,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V23 cohort freeze already has a pending claim; interrupted "
+            "V24 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V23 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V24 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1236,7 +1237,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V23 cohort manifest must use its canonical filename")
+        raise ValueError("V24 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1247,7 +1248,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V23 frozen cohort manifest"
+            canonical_manifest_path, label="V24 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1265,11 +1266,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V23 cohort freeze completion already exists; never replace it"
+            "V24 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V23 cohort freeze completion failed its durable reload"
+            "V24 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1287,13 +1288,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V23 cohort has no authenticated create-once freeze claim"
+            "Frozen V24 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V23 cohort freeze remains pending; interrupted freezes are "
+            "V24 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1301,7 +1302,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V23 cohort manifest must use its canonical filename")
+        raise ValueError("V24 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1316,11 +1317,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V23 cohort freeze claim belongs to another freeze")
+        raise ValueError("V24 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V23 cohort freeze claim has no claim time")
+        raise ValueError("V24 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1331,7 +1332,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V23 frozen cohort manifest"
+            manifest_path, label="V24 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1341,12 +1342,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V23 cohort freeze completion differs from its manifest or claim"
+            "V24 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V23 cohort freeze completion has no completion time")
+        raise ValueError("V24 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -3443,12 +3444,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V23 key only when one stable inode owns its namespace."""
+    """Read the V24 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V23 authentication key is unavailable") from None
+        raise RuntimeError("V24 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3468,18 +3469,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V23 authentication key must be an owner-only single-link file"
+            "V24 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V23 authentication key is unavailable") from None
+        raise RuntimeError("V24 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V23 authentication key changed while reading")
+        raise RuntimeError("V24 authentication key changed while reading")
     return key
 
 
@@ -4381,7 +4382,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V23 runtime-cache environment does not match the exact contract"
+            "V24 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4395,17 +4396,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V23 runtime-cache contract is inconsistent")
+        raise RuntimeError("V24 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V23 runtime-cache environment is unavailable")
+        raise RuntimeError("V24 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V23 runtime-cache environment is invalid")
+        raise RuntimeError("V24 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4530,7 +4531,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v23-stop-direct-care",
+                        control_id="v24-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4563,14 +4564,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V23 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V24 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V23 Starsim golden smoke changed engine descriptors"
+                "V24 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4612,7 +4613,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V23 Starsim golden smoke lost its causal transmission/control "
+            "V24 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4640,12 +4641,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V23 Starsim golden smoke result drifted from its reviewed digest"
+            "V24 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v23_contact_transmission_with_matched_contact_stop"
+            "v24_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -4672,12 +4673,12 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
             for seed in _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS:
                 presentation_key = hashlib.sha256(
                     (
-                        "EpiAgentBench V23 provider-free episode startup "
+                        "EpiAgentBench V24 provider-free episode startup "
                         f"smoke v1|{family}|{seed}"
                     ).encode("ascii")
                 ).digest()
                 with TemporaryDirectory(
-                    prefix="eab23-", dir="/tmp"
+                    prefix="eab24-", dir="/tmp"
                 ) as directory:
                     socket_path = Path(directory) / "episode.sock"
                     session = launch_socket_episode(
@@ -4719,7 +4720,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                             session.close()
                     if socket_path.exists():
                         raise RuntimeError(
-                            "V23 episode-startup smoke left a broker socket"
+                            "V24 episode-startup smoke left a broker socket"
                         )
         case_digests_by_repetition.append(case_digests)
 
@@ -4729,7 +4730,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         != case_digests_by_repetition[1]
     ):
         raise RuntimeError(
-            "V23 episode-startup smoke is not serially reproducible"
+            "V24 episode-startup smoke is not serially reproducible"
         )
     expected_processes = (
         len(FAMILIES)
@@ -4738,7 +4739,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
     )
     if trusted_evaluator_processes_started != expected_processes:
         raise RuntimeError(
-            "V23 episode-startup smoke did not complete its fixed matrix"
+            "V24 episode-startup smoke did not complete its fixed matrix"
         )
     return {
         "schema_version": _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA,
@@ -4825,7 +4826,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V23 requires exact Starsim "
+            "V24 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -4843,7 +4844,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V23 Python executable must not be temporary")
+        raise RuntimeError("V24 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -4910,7 +4911,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V23 creation."""
+    """Attest every public preparation dependency before private V24 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -4931,7 +4932,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V23 runtime preflight is not at the expected pinned commit"
+            "V24 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -4942,7 +4943,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V23 runtime cache must be outside the repository"
+            "V24 runtime cache must be outside the repository"
         )
     previous_umask = os.umask(0o077)
     try:
@@ -4960,7 +4961,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V23 source changed during preparation runtime preflight"
+            "V24 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -4999,18 +5000,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V23 preparation runtime receipt must already be committed"
+            "V24 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V23 preparation runtime receipt",
+            label="V24 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V23 preparation runtime receipt is unavailable"
+            "V24 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -5081,7 +5082,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V23 preparation runtime receipt failed closed-schema validation"
+            "V24 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -5093,7 +5094,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V23 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V24 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -5110,14 +5111,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V23 runtime cache changed during receipt verification"
+            "V24 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V23 preparation runtime differs from the published receipt"
+            "V24 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v2",
@@ -5159,7 +5160,10 @@ def verify_preparation_runtime(
 
 
 def _validate_bound_preparation_runtime(
-    public: Mapping[str, Any], *, rerun_smoke: bool
+    public: Mapping[str, Any],
+    *,
+    rerun_smoke: bool,
+    validate_runtime_cache_exactly: bool = True,
 ) -> dict[str, Any]:
     bound = public.get("preparation_runtime_contract")
     if (
@@ -5235,25 +5239,26 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V23 preparation runtime is invalid")
-    runtime_cache = _runtime_cache_contract(
-        _runtime_cache_root_from_environment()
-    )
-    if bound.get("runtime_cache_contract_sha256") != _component_hash(
-        runtime_cache
-    ):
-        raise ValueError("Bound V23 runtime cache changed")
+        raise ValueError("Bound V24 preparation runtime is invalid")
+    if validate_runtime_cache_exactly:
+        runtime_cache = _runtime_cache_contract(
+            _runtime_cache_root_from_environment()
+        )
+        if bound.get("runtime_cache_contract_sha256") != _component_hash(
+            runtime_cache
+        ):
+            raise ValueError("Bound V24 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V23 Starsim smoke result changed")
+        raise ValueError("Bound V24 Starsim smoke result changed")
     if (
         rerun_smoke
         and _preparation_episode_startup_smoke()
         != bound.get("episode_startup_smoke_contract")
     ):
         raise ValueError(
-            "Bound V23 episode-startup smoke result changed"
+            "Bound V24 episode-startup smoke result changed"
         )
     return bound
 
@@ -5262,7 +5267,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v9",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v10",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -5385,6 +5390,33 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         "release_gate": (
             "two_phase_private_candidate_then_authenticated_supervisor_"
             "completed_status_lease_and_event_chain_before_public_success"
+        ),
+        "post_completion_scientific_identity": (
+            "sealed_public_hashes_private_preparation_binding_and_private_"
+            "cohort_pack_revalidation_without_live_scientific_reimport"
+        ),
+        "post_completion_runtime_cache": (
+            "stable_owner_inode_mode_boundary_with_safe_owner_only_"
+            "cache_content_evolution"
+        ),
+        "release_worker_status_schema": (
+            "epiagentbench.launchd_worker_status.v5"
+        ),
+        "release_failure_codes": [
+            "release_candidate_invalid",
+            "release_cohort_retirement_failed",
+            "release_completion_attestation_invalid",
+            "release_contract_binding_invalid",
+            "release_internal",
+            "release_postcommit_attestation_failed",
+            "release_private_commit_failed",
+            "release_private_state_invalid",
+            "release_public_commit_failed",
+            "release_public_watermark_invalid",
+            "release_runtime_binding_invalid",
+        ],
+        "release_failure_detail_policy": (
+            "finite_authenticated_code_only_no_exception_text"
         ),
         "manual_finalize_scope": "local_idempotent_publication_only_no_provider",
     }
@@ -5696,12 +5728,12 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
     )
-    prior_ceiling = 80.0
+    prior_ceiling = 90.0
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v23_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v23_authorization_breakdown": {
+        "claude_current_v24_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v24_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -5735,6 +5767,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v20_usd": 0.0,
             "v21_usd": 0.0,
             "v22_usd": 0.0,
+            "v23_usd": 10.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -5902,6 +5935,18 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v22_supersession": (
                 "results/development-matched-50x6-v22.superseded.json"
             ),
+            "v23_runtime_receipt": (
+                "results/development-matched-50x6-v23.runtime.json"
+            ),
+            "v23_manifest": (
+                "results/development-matched-50x6-v23.manifest.json"
+            ),
+            "v23_authentication_receipt": (
+                "results/development-matched-50x6-v23.authentication.json"
+            ),
+            "v23_supersession": (
+                "results/development-matched-50x6-v23.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -5922,7 +5967,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V23 exactly once after runtime re-attestation."""
+    """Claim and freeze V24 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -5956,7 +6001,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V23 runtime cache must not overlap the {label}"
+                f"V24 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -5977,13 +6022,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V23 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V24 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V23 cohort returned a noncanonical artifact location"
+            "Frozen V24 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -5996,9 +6041,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V23 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V24 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v23_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v24_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -6057,13 +6102,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V23 requires an exact 1800-second assignment timeout")
+        raise ValueError("V24 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V23 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V24 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -6088,7 +6133,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V23 runtime cache must not overlap the {label}"
+                f"V24 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -6100,7 +6145,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V23 source or CLI identity drifted after runtime verification"
+            "V24 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -6154,7 +6199,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V23 runtime cache must not overlap the {label}"
+                f"V24 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -6788,7 +6833,11 @@ def _validate_contracts(
         public=public,
     )
     bound_preparation_runtime = _validate_bound_preparation_runtime(
-        public, rerun_smoke=revalidate_live_identity_contracts
+        public,
+        rerun_smoke=revalidate_live_identity_contracts,
+        validate_runtime_cache_exactly=(
+            revalidate_live_identity_contracts
+        ),
     )
     private_preparation_runtime = private.get(
         "preparation_runtime_private_contract"
@@ -6805,24 +6854,63 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V23 preparation runtime binding is invalid"
+            "Private V24 preparation runtime binding is invalid"
         )
+    if not revalidate_live_identity_contracts:
+        runtime_cache_contract = private_preparation_runtime.get(
+            "runtime_cache_contract"
+        )
+        expected_environment = (
+            runtime_cache_contract.get("environment")
+            if isinstance(runtime_cache_contract, Mapping)
+            else None
+        )
+        if (
+            not isinstance(expected_environment, Mapping)
+            or {
+                name: os.environ.get(name)
+                for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+            }
+            != dict(expected_environment)
+        ):
+            raise ValueError(
+                "Post-start runtime cache environment changed"
+            )
+        from .launchd_agent import (
+            _validate_runtime_cache_contract_safety,
+        )
+
+        try:
+            _validate_runtime_cache_contract_safety(
+                runtime_cache_contract
+            )
+        except ValueError:
+            raise ValueError(
+                "Post-start runtime cache safety changed"
+            ) from None
     expected_contracts = {
-        "runtime_contract": _runtime_contract(),
         "replay_trace_contract": replay_trace_contract(),
         "persistent_supervisor_contract": _persistent_supervisor_contract(),
         "profiles": _profile_contract(),
+        # This provider-free tracked-source inventory is safe under the
+        # minimal ``-I -S`` worker and must be revalidated before publication.
+        # It protects transitive evaluator modules that the three-file outer
+        # launcher binding alone does not cover.
+        "source_contract": _source_contract(root),
     }
     if revalidate_live_identity_contracts:
         # Live prepare/preflight/production boundaries must prove that the
         # checked-out source and installed provider executables still match
         # the frozen manifest.  The post-supervisor release path deliberately
-        # skips these executable probes: its authenticated pending candidate
-        # was created only after the live child performed these checks, and
-        # finalization must not launch anything after outer completion.
+        # skips provider-executable and scientific-runtime probes: its
+        # authenticated pending candidate was created only after the live
+        # child performed them, while the minimal outer worker intentionally
+        # has no scientific site-packages on sys.path. Finalization still
+        # re-hashes the tracked source surface above, then validates the sealed
+        # public hashes and private preparation binding below.
         expected_contracts.update(
             {
-                "source_contract": _source_contract(root),
+                "runtime_contract": _runtime_contract(),
                 "cli_contract": _cli_contract(),
             }
         )
@@ -6862,9 +6950,20 @@ def _validate_contracts(
     expected_generator = cohort_contract.get("generator_fingerprint")
     if not isinstance(expected_generator, str):
         raise ValueError("Frozen cohort generator commitment is invalid")
-    installed = compute_generator_fingerprint()
-    if not hmac.compare_digest(installed, expected_generator):
-        raise ValueError("Installed generator differs from the frozen panel")
+    if revalidate_live_identity_contracts:
+        installed = compute_generator_fingerprint()
+        if not hmac.compare_digest(installed, expected_generator):
+            raise ValueError(
+                "Installed generator differs from the frozen panel"
+            )
+    else:
+        # The authenticated release worker is deliberately launched with
+        # ``-I -S`` and therefore has no scientific distributions available
+        # to re-inventory.  The supervised child already performed this live
+        # check before it staged the candidate.  Release instead revalidates
+        # every sealed manifest/pack reference against the same public
+        # generator commitment below.
+        installed = expected_generator
 
     manifest_path = _existing_path_without_final_symlink(
         str(private.get("cohort_manifest_path"))
@@ -6873,7 +6972,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V23 preparation runtime contract is missing")
+        raise ValueError("V24 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -6902,7 +7001,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V23 cohort freeze claim differs from private state"
+            "Authenticated V24 cohort freeze claim differs from private state"
         )
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     preparation_claim = _load_cohort_preparation_marker(
@@ -7247,7 +7346,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V23 spend authorization contract mismatch")
+        raise ValueError("V24 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -7275,7 +7374,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v23 spend authorization receipt is required "
+            "A manifest-bound exact v24 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -7290,14 +7389,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v23 spend authorization receipt is required "
+            "A manifest-bound exact v24 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v23 spend authorization receipt is required "
+            "A manifest-bound exact v24 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -7319,7 +7418,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v23 $590 cumulative spend acknowledgement text is required"
+            "The exact v24 $600 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -8780,7 +8879,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V23 panel cannot retry"
+                    "state; this V24 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -8793,7 +8892,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V23 panel cannot retry"
+                    "state; this V24 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -8806,7 +8905,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V23 panel cannot retry"
+                    "state; this V24 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -8828,7 +8927,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V23 panel cannot retry"
+                        "repository-contract state; this V24 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -8849,7 +8948,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V23 panel "
+                "Authentication process state is ambiguous; this V24 panel "
                 "cannot retry"
             )
         if (
@@ -8880,7 +8979,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -8912,7 +9011,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V23 panel cannot retry"
+                "state; this V24 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -8925,7 +9024,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -8938,7 +9037,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -8955,7 +9054,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -8974,7 +9073,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V23 panel cannot retry"
+                "state; this V24 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -9086,7 +9185,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V23 panel cannot retry"
+                    "state before provider launch; this V24 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9101,7 +9200,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V23 panel cannot retry"
+                    "state before provider launch; this V24 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -9118,7 +9217,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V23 panel cannot retry"
+                    "state before provider launch; this V24 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -9137,7 +9236,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V23 panel cannot retry"
+                    "state; this V24 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -9185,7 +9284,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V23 panel cannot retry"
+                    "V24 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -9203,7 +9302,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V23 panel cannot retry"
+                    "state after provider return; this V24 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9221,7 +9320,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V23 panel cannot retry"
+                    "state after provider return; this V24 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
@@ -9261,7 +9360,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V23 panel cannot retry"
+                    "state after provider return; this V24 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -9283,7 +9382,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V23 panel cannot retry"
+                    "this V24 panel cannot retry"
                 ) from None
 
         try:
@@ -9297,7 +9396,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -9310,7 +9409,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -9327,7 +9426,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V23 panel cannot retry"
+                "this V24 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -9346,7 +9445,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V23 panel cannot retry"
+                "state; this V24 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -13194,16 +13293,16 @@ def _completed_supervisor_binding(
             ],
         )
     except Exception:
-        raise ProviderExecutionIsolationError(
-            "Completed persistent-supervisor attestation failed"
+        raise _release_validation_error(
+            "release_completion_attestation_invalid"
         ) from None
     if (
         not isinstance(attestation, Mapping)
         or attestation.get("attested") is not True
         or attestation.get("lifecycle") != "completed"
     ):
-        raise ProviderExecutionIsolationError(
-            "Public release requires authenticated supervisor completion"
+        raise _release_validation_error(
+            "release_completion_attestation_invalid"
         )
     return _normalized_supervisor_binding(
         attestation,
@@ -13228,9 +13327,35 @@ def _require_existing_persistent_execution_binding(
             _canonical_bytes(dict(completed_binding)),
         )
     ):
-        raise ProviderExecutionIsolationError(
-            "Completed supervisor differs from the create-once runtime binding"
+        raise _release_validation_error(
+            "release_runtime_binding_invalid"
         )
+
+
+def _release_validation_error(code: str) -> Exception:
+    """Construct one content-free typed release refusal without a cycle."""
+
+    from .launchd_agent import (
+        ReleaseValidationError,
+        ReleaseValidationFailureCode,
+    )
+
+    return ReleaseValidationError(
+        ReleaseValidationFailureCode(code)
+    )
+
+
+def _release_gate(code: str, operation: Callable[[], Any]) -> Any:
+    """Map one trusted release gate onto a finite authenticated code."""
+
+    from .launchd_agent import ReleaseValidationError
+
+    try:
+        return operation()
+    except ReleaseValidationError:
+        raise
+    except Exception:
+        raise _release_validation_error(code) from None
 
 
 def finalize_supervised_release(
@@ -13256,28 +13381,53 @@ def finalize_supervised_release(
 
     if operation not in {"preflight", "production"}:
         raise ValueError("Supervised release operation is invalid")
-    _assert_canonical_public_output_path(
-        public_manifest_path,
-        public_output_path,
-        operation=operation,
+    _release_gate(
+        "release_runtime_binding_invalid",
+        lambda: _assert_canonical_public_output_path(
+            public_manifest_path,
+            public_output_path,
+            operation=operation,
+        ),
     )
-    assert_durable_live_execution_paths(
-        root=root,
-        private_state_path=private_state_path,
+    _release_gate(
+        "release_runtime_binding_invalid",
+        lambda: assert_durable_live_execution_paths(
+            root=root,
+            private_state_path=private_state_path,
+        ),
     )
-    _assert_distinct_paths(
-        authentication_key_file,
-        private_state_path,
-        public_manifest_path,
-        public_output_path,
+    _release_gate(
+        "release_runtime_binding_invalid",
+        lambda: _assert_distinct_paths(
+            authentication_key_file,
+            private_state_path,
+            public_manifest_path,
+            public_output_path,
+        ),
     )
     with _exclusive_run_lock(private_state_path):
-        authentication_key = _read_authentication_key(
-            _existing_path_without_final_symlink(authentication_key_file)
+        authentication_key = _release_gate(
+            "release_private_state_invalid",
+            lambda: _read_authentication_key(
+                _existing_path_without_final_symlink(
+                    authentication_key_file
+                )
+            ),
         )
-        private = _load_private_state(private_state_path, authentication_key)
-        public = _load_json(public_manifest_path)
-        _validate_public_hash(public)
+        private = _release_gate(
+            "release_private_state_invalid",
+            lambda: _load_private_state(
+                private_state_path, authentication_key
+            ),
+        )
+        public = _release_gate(
+            "release_contract_binding_invalid",
+            lambda: _load_json(public_manifest_path),
+        )
+        _release_gate(
+            "release_contract_binding_invalid",
+            lambda: _validate_public_hash(public),
+        )
         completed_binding = _completed_supervisor_binding(
             supervisor_runtime_dir=supervisor_runtime_dir,
             authentication_key_file=authentication_key_file,
@@ -13293,23 +13443,32 @@ def finalize_supervised_release(
             private.get(name) is not None
             for name in ("execution_incident", "codex_auth_incident")
         ):
-            raise ProviderExecutionIsolationError(
-                "A terminal execution incident blocks public release"
+            raise _release_validation_error(
+                "release_private_state_invalid"
             )
-        resolved_claude_storage = _validate_claude_secure_storage_dir(
-            claude_secure_storage_dir, root=root
+        resolved_claude_storage = _release_gate(
+            "release_contract_binding_invalid",
+            lambda: _validate_claude_secure_storage_dir(
+                claude_secure_storage_dir, root=root
+            ),
         )
-        resolved_codex_storage = _validate_codex_secure_storage_dir(
-            codex_secure_storage_dir, root=root
+        resolved_codex_storage = _release_gate(
+            "release_contract_binding_invalid",
+            lambda: _validate_codex_secure_storage_dir(
+                codex_secure_storage_dir, root=root
+            ),
         )
-        manifest, _, _ = _validate_contracts(
-            root=root,
-            private=private,
-            public=public,
-            authentication_key=authentication_key,
-            claude_secure_storage_dir=resolved_claude_storage,
-            codex_secure_storage_dir=resolved_codex_storage,
-            revalidate_live_identity_contracts=False,
+        manifest, _, _ = _release_gate(
+            "release_contract_binding_invalid",
+            lambda: _validate_contracts(
+                root=root,
+                private=private,
+                public=public,
+                authentication_key=authentication_key,
+                claude_secure_storage_dir=resolved_claude_storage,
+                codex_secure_storage_dir=resolved_codex_storage,
+                revalidate_live_identity_contracts=False,
+            ),
         )
 
         if operation == "preflight":
@@ -13318,8 +13477,8 @@ def finalize_supervised_release(
                 _PENDING_PREFLIGHT_STATUS,
                 "passed",
             }:
-                raise ProviderExecutionIsolationError(
-                    "No passed preflight candidate is pending release"
+                raise _release_validation_error(
+                    "release_candidate_invalid"
                 )
             candidate = preflight.get("pending_public_receipt")
             if (
@@ -13331,8 +13490,8 @@ def finalize_supervised_release(
                 or preflight.get("pending_public_receipt_sha256")
                 != _component_hash(candidate)
             ):
-                raise ProviderExecutionIsolationError(
-                    "Pending preflight release candidate is invalid"
+                raise _release_validation_error(
+                    "release_candidate_invalid"
                 )
             candidate_sha256 = _component_hash(candidate)
             release = preflight.get(_PUBLIC_RELEASE_KEY)
@@ -13349,14 +13508,17 @@ def finalize_supervised_release(
                     "operation": "preflight",
                 }
             ):
-                raise ProviderExecutionIsolationError(
-                    "Pending preflight release state is invalid"
+                raise _release_validation_error(
+                    "release_candidate_invalid"
                 )
             expected_pending = _public_preflight_pending(public, candidate)
-            existing = _load_json(public_output_path)
+            existing = _release_gate(
+                "release_public_watermark_invalid",
+                lambda: _load_json(public_output_path),
+            )
             if existing != expected_pending and existing != candidate:
-                raise ProviderExecutionIsolationError(
-                    "Public preflight path differs from its staged candidate"
+                raise _release_validation_error(
+                    "release_public_watermark_invalid"
                 )
             if preflight.get("status") == "passed":
                 binding = preflight.get("public_receipt_binding")
@@ -13366,53 +13528,70 @@ def finalize_supervised_release(
                     else None
                 )
                 if preflight.get("public_receipt_sha256") != candidate_sha256:
-                    raise ProviderExecutionIsolationError(
-                        "Released preflight receipt digest changed"
+                    raise _release_validation_error(
+                        "release_public_watermark_invalid"
                     )
-                _validate_repository_receipt_binding(
-                    binding,
-                    root=root,
-                    path=public_output_path,
-                    artifact_kind="preflight",
-                    content_sha256=candidate_sha256,
-                    payload=candidate,
-                    require_published_commit=published_commit is not None,
+                _release_gate(
+                    "release_public_watermark_invalid",
+                    lambda: _validate_repository_receipt_binding(
+                        binding,
+                        root=root,
+                        path=public_output_path,
+                        artifact_kind="preflight",
+                        content_sha256=candidate_sha256,
+                        payload=candidate,
+                        require_published_commit=(
+                            published_commit is not None
+                        ),
+                    ),
                 )
                 if existing == expected_pending:
                     if published_commit is not None:
-                        raise ProviderExecutionIsolationError(
-                            "A committed preflight receipt cannot regress "
-                            "to its pending watermark"
+                        raise _release_validation_error(
+                            "release_public_watermark_invalid"
                         )
-                    _atomic_json(public_output_path, candidate)
+                    _release_gate(
+                        "release_public_commit_failed",
+                        lambda: _atomic_json(
+                            public_output_path, candidate
+                        ),
+                    )
                 else:
-                    _assert_exact_public_json_bytes(
-                        public_output_path,
-                        candidate,
-                        label="preflight receipt",
+                    _release_gate(
+                        "release_public_watermark_invalid",
+                        lambda: _assert_exact_public_json_bytes(
+                            public_output_path,
+                            candidate,
+                            label="preflight receipt",
+                        ),
                     )
                 # Once released, finalization is a pure reconciliation step.
                 # In particular, never reconstruct the binding: doing so
                 # would erase a later create-once publishing commit.
                 return candidate
             if existing == candidate:
-                _assert_exact_public_json_bytes(
-                    public_output_path,
-                    candidate,
-                    label="preflight receipt",
+                _release_gate(
+                    "release_public_watermark_invalid",
+                    lambda: _assert_exact_public_json_bytes(
+                        public_output_path,
+                        candidate,
+                        label="preflight receipt",
+                    ),
                 )
+            receipt_binding = _release_gate(
+                "release_public_watermark_invalid",
+                lambda: _repository_receipt_binding(
+                    root=root,
+                    path=public_output_path,
+                    artifact_kind="preflight",
+                    content_sha256=candidate_sha256,
+                    payload=candidate,
+                ),
+            )
             preflight.update(
                 {
                     "status": "passed",
-                    "public_receipt_binding": (
-                        _repository_receipt_binding(
-                            root=root,
-                            path=public_output_path,
-                            artifact_kind="preflight",
-                            content_sha256=candidate_sha256,
-                            payload=candidate,
-                        )
-                    ),
+                    "public_receipt_binding": receipt_binding,
                     "public_receipt_sha256": candidate_sha256,
                     _PUBLIC_RELEASE_KEY: {
                         "status": "released",
@@ -13420,25 +13599,36 @@ def finalize_supervised_release(
                     },
                 }
             )
-            _write_private_state(
-                private_state_path, private, authentication_key
+            _release_gate(
+                "release_private_commit_failed",
+                lambda: _write_private_state(
+                    private_state_path, private, authentication_key
+                ),
             )
             # Public success is deliberately the final evaluator-side durable
             # write.  A crash before it leaves only the trace-free pending
             # watermark; a retry can verify the already-committed private
             # release marker and publish the exact same candidate.
             if existing == expected_pending:
-                _atomic_json(public_output_path, candidate)
+                _release_gate(
+                    "release_public_commit_failed",
+                    lambda: _atomic_json(
+                        public_output_path, candidate
+                    ),
+                )
             return candidate
 
         if private.get("status") not in {
             _PENDING_PRODUCTION_STATUS,
             "complete",
         }:
-            raise ProviderExecutionIsolationError(
-                "No complete production candidate is pending release"
+            raise _release_validation_error(
+                "release_candidate_invalid"
             )
-        artifact = _complete_artifact(public, private)
+        artifact = _release_gate(
+            "release_candidate_invalid",
+            lambda: _complete_artifact(public, private),
+        )
         release = private.get(_PUBLIC_RELEASE_KEY)
         if (
             not isinstance(release, Mapping)
@@ -13448,37 +13638,63 @@ def finalize_supervised_release(
             or release.get("candidate_results_sha256")
             != artifact.get("results_sha256")
         ):
-            raise ProviderExecutionIsolationError(
-                "Pending production release candidate is invalid"
+            raise _release_validation_error(
+                "release_candidate_invalid"
             )
         expected_pending = _public_running(
             public,
             private,
             status=_PENDING_PRODUCTION_STATUS,
         )
-        existing = _load_json(public_output_path)
-        if existing != expected_pending and existing != artifact:
-            raise ProviderExecutionIsolationError(
-                "Public results path differs from its staged candidate"
-            )
-        cohort_manifest_path = _existing_path_without_final_symlink(
-            str(private["cohort_manifest_path"])
+        existing = _release_gate(
+            "release_public_watermark_invalid",
+            lambda: _load_json(public_output_path),
         )
-        _ensure_terminal_cohort_retirement(
-            cohort_manifest_path=cohort_manifest_path,
-            manifest=manifest,
-            public_manifest=public,
-            artifact=artifact,
-            authentication_key=authentication_key,
+        if existing != expected_pending and existing != artifact:
+            raise _release_validation_error(
+                "release_public_watermark_invalid"
+            )
+        if existing == artifact:
+            _release_gate(
+                "release_public_watermark_invalid",
+                lambda: _assert_exact_public_json_bytes(
+                    public_output_path,
+                    artifact,
+                    label="production result",
+                ),
+            )
+        cohort_manifest_path = _release_gate(
+            "release_private_state_invalid",
+            lambda: _existing_path_without_final_symlink(
+                str(private["cohort_manifest_path"])
+            ),
+        )
+        _release_gate(
+            "release_cohort_retirement_failed",
+            lambda: _ensure_terminal_cohort_retirement(
+                cohort_manifest_path=cohort_manifest_path,
+                manifest=manifest,
+                public_manifest=public,
+                artifact=artifact,
+                authentication_key=authentication_key,
+            ),
         )
         private["status"] = "complete"
         private[_PUBLIC_RELEASE_KEY] = {
             **dict(release),
             "status": "released",
         }
-        _write_private_state(private_state_path, private, authentication_key)
+        _release_gate(
+            "release_private_commit_failed",
+            lambda: _write_private_state(
+                private_state_path, private, authentication_key
+            ),
+        )
         if existing == expected_pending:
-            _atomic_json(public_output_path, artifact)
+            _release_gate(
+                "release_public_commit_failed",
+                lambda: _atomic_json(public_output_path, artifact),
+            )
         return artifact
 
 

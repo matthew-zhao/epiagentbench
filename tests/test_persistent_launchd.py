@@ -523,7 +523,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 },
                 before,
             )
-
     def test_v18_start_self_bootstraps_and_restores_cache_environment(
         self,
     ) -> None:
@@ -902,6 +901,39 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.assertEqual(nested_directory["kind"], "directory")
         self.assertNotIn("mtime_ns", nested_directory)
+
+    def test_v24_post_completion_cache_safety_rejects_unsafe_evolution(
+        self,
+    ) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
+        contract = launchd_agent._runtime_cache_contract(cache_root)
+        safe_file = cache_root / "numba" / "generated.cache"
+        safe_file.write_bytes(b"owner-only-cache")
+        os.chmod(safe_file, 0o600)
+        launchd_agent._validate_runtime_cache_contract_safety(contract)
+
+        unsafe_link = cache_root / "xdg" / "escape"
+        unsafe_link.symlink_to(self.private_state)
+        with self.assertRaises(ValueError):
+            launchd_agent._validate_runtime_cache_contract_safety(
+                contract
+            )
+        unsafe_link.unlink()
+
+        os.chmod(safe_file, 0o644)
+        with self.assertRaises(ValueError):
+            launchd_agent._validate_runtime_cache_contract_safety(
+                contract
+            )
+        os.chmod(safe_file, 0o600)
+
+        original = cache_root / "matplotlib"
+        original.rename(cache_root / "matplotlib-original")
+        original.mkdir(mode=0o700)
+        with self.assertRaises(ValueError):
+            launchd_agent._validate_runtime_cache_contract_safety(
+                contract
+            )
 
     def test_v18_runtime_cache_must_be_dedicated_and_non_overlapping(
         self,
@@ -1472,7 +1504,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 "model_calls_started": 0,
             },
         ), patch(
-            "epiagentbench.launchd_agent.finalize_launch_agent",
+            "epiagentbench.launchd_agent._finalize_launch_agent_validated",
         ) as finalize:
             return_code = run_launch_agent_worker(
                 config_path,
@@ -1947,7 +1979,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.persistent_supervisor.run_supervised_command",
             side_effect=fake_supervised_command,
         ), patch(
-            "epiagentbench.launchd_agent.finalize_launch_agent",
+            "epiagentbench.launchd_agent._finalize_launch_agent_validated",
             return_value={"state": "released"},
         ):
             self.assertEqual(
@@ -2169,6 +2201,13 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             state="supervisor_running",
         )
         self._complete_core()
+        # Scientific libraries are expected to populate their dedicated cache
+        # while the supervised child runs.  Post-completion release must
+        # preserve the sealed cache boundary without requiring byte-identical
+        # cache contents.
+        generated_cache = cache_root / "numba" / "generated.cache"
+        generated_cache.write_bytes(b"safe-post-start-cache-growth")
+        os.chmod(generated_cache, 0o600)
 
         def assert_sealed_environment(_config):
             self.assertEqual(
@@ -2204,6 +2243,39 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 before,
             )
 
+        status = launch_agent_status(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=self._not_loaded_launchctl,
+        )
+        self.assertEqual(status["worker_state"], "released")
+
+        control_calls: list[list[str]] = []
+
+        def terminal_then_bootout(arguments, **_kwargs):
+            control_calls.append(list(arguments))
+            if arguments[1] == "print":
+                return subprocess.CompletedProcess(
+                    arguments,
+                    0,
+                    stdout=b"state = not running\n",
+                    stderr=b"",
+                )
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        uninstalled = uninstall_launch_agent(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=terminal_then_bootout,
+        )
+        self.assertEqual(uninstalled["state"], "uninstalled")
+        self.assertEqual(
+            [call[1] for call in control_calls],
+            ["print", "bootout"],
+        )
+
     def test_v18_finalize_refuses_alternating_authenticated_config_snapshot(
         self,
     ) -> None:
@@ -2229,6 +2301,11 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             alternate,
             authenticated[3],
         )
+        before = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
 
         with (
             patch(
@@ -2251,7 +2328,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             config=config,
             authentication_key=key,
         )
-        self.assertEqual(observed["state"], "supervisor_running")
+        self.assertEqual(observed, before)
 
     @unittest.skipUnless(hasattr(os, "fork"), "hard-crash recovery requires fork")
     def test_hard_crash_during_release_leaves_manual_finalize_recoverable(self) -> None:
@@ -2328,6 +2405,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.assertEqual(status["worker_state"], "terminal_incident")
         self.assertEqual(status["worker_reason"], "release_validation_failed")
+        self.assertEqual(
+            status["release_failure_code"],
+            "release_internal",
+        )
         self.assertNotIn("private provider output", json.dumps(status))
         with self.assertRaises(LaunchAgentError):
             finalize_launch_agent(
@@ -2335,6 +2416,102 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
         self.assertEqual(release.call_count, 1)
+
+    def test_release_validation_code_is_finite_authenticated_and_content_free(
+        self,
+    ) -> None:
+        self._generate()
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        self._complete_core()
+        secret_detail = "provider-output-DO-NOT-LEAK-database-row-42"
+
+        with (
+            patch(
+                "epiagentbench.launchd_agent._finalize_supervised_release",
+                side_effect=launchd_agent.ReleaseValidationError(
+                    launchd_agent.ReleaseValidationFailureCode
+                    .PUBLIC_COMMIT_FAILED
+                ),
+            ),
+            self.assertRaises(LaunchAgentError),
+        ):
+            finalize_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+        status = launch_agent_status(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=self._not_loaded_launchctl,
+        )
+        self.assertEqual(
+            status["release_failure_code"],
+            "release_public_commit_failed",
+        )
+        serialized = json.dumps(status, sort_keys=True)
+        self.assertNotIn(secret_detail, serialized)
+        self.assertNotIn("exception", serialized)
+
+    def test_release_validation_status_requires_exact_finite_code_pairing(
+        self,
+    ) -> None:
+        self._generate()
+        config, key = self._config_and_key()
+        with self.assertRaises(ValueError):
+            launchd_agent._atomic_worker_status(
+                self.runtime,
+                config=config,
+                authentication_key=key,
+                state="terminal_incident",
+                reason="release_validation_failed",
+            )
+        with self.assertRaises(ValueError):
+            launchd_agent._atomic_worker_status(
+                self.runtime,
+                config=config,
+                authentication_key=key,
+                state="starting",
+                release_failure_code=(
+                    launchd_agent.ReleaseValidationFailureCode.INTERNAL
+                ),
+            )
+
+        payload = {
+            "schema_version": launchd_agent._WORKER_STATUS_SCHEMA,
+            "label": config["label"],
+            "operation": config["operation"],
+            "panel_id": config["panel_id"],
+            "precommitment_sha256": config["precommitment_sha256"],
+            "execution_context_sha256": config[
+                "execution_context_sha256"
+            ],
+            "state": "terminal_incident",
+            "reason": "release_validation_failed",
+            "release_failure_code": "release_unbounded_exception_text",
+        }
+        record = launchd_agent._seal_payload(
+            launchd_agent._WORKER_STATUS_AUTH_DOMAIN,
+            payload,
+            key,
+        )
+        status_path = self.runtime / "launchd-worker-status.json"
+        status_path.write_bytes(
+            launchd_agent._canonical_bytes(record) + b"\n"
+        )
+        os.chmod(status_path, 0o600)
+        with self.assertRaises(ValueError):
+            launchd_agent._worker_status(
+                self.runtime,
+                config=config,
+                authentication_key=key,
+            )
 
     def test_tampered_worker_status_is_rejected(self) -> None:
         generated = self._generate()
@@ -2349,7 +2526,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.launchd_agent._run_core_supervisor",
             return_value=0,
         ), patch(
-            "epiagentbench.launchd_agent.finalize_launch_agent",
+            "epiagentbench.launchd_agent._finalize_launch_agent_validated",
             return_value={"state": "released"},
         ):
             self.assertEqual(
@@ -2523,6 +2700,76 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     command_runner=should_not_run,
                 )
         self.assertEqual(calls, [])
+
+    def test_finalize_lock_contention_is_read_only(self) -> None:
+        self._generate()
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        self._complete_core()
+        before = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+
+        with (
+            patch(
+                "epiagentbench.launchd_agent._finalize_supervised_release",
+            ) as release,
+            launchd_agent._LaunchControlLock(self.runtime),
+            self.assertRaises(LaunchAgentError),
+        ):
+            finalize_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+        release.assert_not_called()
+        after = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertEqual(after, before)
+
+    def test_premature_finalize_is_read_only(self) -> None:
+        self._generate()
+        config, key = self._commit_start()
+        launchd_agent._atomic_worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+            state="supervisor_running",
+        )
+        before = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+
+        with (
+            patch(
+                "epiagentbench.launchd_agent._finalize_supervised_release",
+            ) as release,
+            self.assertRaises(LaunchAgentError),
+        ):
+            finalize_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+            )
+
+        release.assert_not_called()
+        after = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertEqual(after, before)
 
     def test_live_attestation_checks_worker_core_heartbeat_and_bindings(self) -> None:
         self._generate()
