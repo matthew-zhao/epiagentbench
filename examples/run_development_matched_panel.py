@@ -291,6 +291,7 @@ from epiagentbench.development_matched_panel import (
     preflight_preparation_runtime,
     prepare_panel,
     publish_provider_free_public_json_once,
+    reconcile_authentication_ceremony,
     reconcile_terminal_receipt,
     run_environment_preflight,
     run_panel,
@@ -534,6 +535,14 @@ def main() -> int:
         help="Read the sanitized authentication state without invoking a provider",
     )
     _add_panel_state_arguments(authentication_status)
+    reconcile_authentication = commands.add_parser(
+        "reconcile-authentication",
+        help=(
+            "Terminalize an abandoned running authentication ceremony "
+            "without invoking a provider"
+        ),
+    )
+    _add_panel_state_arguments(reconcile_authentication)
     bind_receipt = commands.add_parser(
         "bind-receipt",
         help=(
@@ -758,6 +767,15 @@ def main() -> int:
             private_state_path=args.private_state,
             public_manifest_path=args.public_manifest,
         )
+    elif args.command == "reconcile-authentication":
+        payload = reconcile_authentication_ceremony(
+            root=root,
+            authentication_key_file=args.authentication_key,
+            claude_secure_storage_dir=args.claude_secure_storage_dir,
+            codex_secure_storage_dir=args.codex_secure_storage_dir,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+        )
     elif args.command == "bind-receipt":
         payload = bind_panel_receipt_commit(
             root=root,
@@ -805,7 +823,11 @@ def main() -> int:
                 args.acknowledge_unbounded_provider_spend
             ),
         )
-    if args.command in {"authenticate", "auth-status"}:
+    if args.command in {
+        "authenticate",
+        "auth-status",
+        "reconcile-authentication",
+    }:
         print(
             json.dumps(
                 _safe_authentication_summary(payload),

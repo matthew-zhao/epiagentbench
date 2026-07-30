@@ -1,6 +1,19 @@
 # EpiAgentBench V22 execution runbook
 
 > [!CAUTION]
+> **TERMINAL AND SUPERSEDED — DO NOT RUN OR REUSE V22.**
+>
+> V22 stopped during its foreground authentication ceremony with zero model
+> calls and no authentication receipt, preflight, production assignment,
+> score, or trace released. Its authenticated state is terminal, and none of
+> its cohort, key, credentials, state, cache, checkout, supervisor, runtime,
+> Keychain service, or claims may be reused. See the
+> [V22 supersession record](../results/development-matched-50x6-v22.superseded.json)
+> and use the [V23 execution runbook](V23_RUNBOOK.md) for any later attempt.
+>
+> The remainder of this file is preserved as the historical V22 procedure.
+
+> [!CAUTION]
 > **CONTROL PLANE ONLY — NO V22 RUN HAS BEEN PREPARED OR AUTHORIZED.**
 >
 > This runbook does not authorize authentication, a provider process, spend, a
