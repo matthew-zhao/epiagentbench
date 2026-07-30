@@ -321,7 +321,7 @@ execution and conservative Codex-authentication incidents; it cannot be reset,
 retried, or mixed into a replacement estimand.
 
 The replacement execution design is specified in the
-[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V24 is
+[persistent runner protocol](docs/PERSISTENT_RUNNER_PROTOCOL.md). V25 is
 designed to run as a
 finite user LaunchAgent under `caffeinate`, independent of a Codex task,
 terminal, PTY, or desktop-app turn. Its owner-only config, worker status,
@@ -685,6 +685,17 @@ defined in the [V24 runbook](docs/V24_RUNBOOK.md). This V24 control-plane
 change creates no runtime receipt, manifest, private state, credential
 namespace, authentication ceremony, supervisor, or model call.
 
+V24 was then superseded at the operator's direction before provider-free
+preparation. It created no runtime receipt, manifest, key, cohort, private
+state, credential namespace, authentication ceremony, supervisor, provider
+process, or model call. Those zero-call facts and the exact pinned V24 source
+milestone are preserved in the
+[V24 supersession record](results/development-matched-50x6-v24.superseded.json).
+V25 carries the same scientific design and hardened release boundary forward
+under fresh identifiers and namespaces; its provider-free preparation and
+later execution protocol are defined in the
+[V25 runbook](docs/V25_RUNBOOK.md).
+
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
 or production assignment](results/development-matched-50x6-v1.superseded.json)
@@ -695,7 +706,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each future V24 assignment is designed to record an evaluator-owned,
+Each future V25 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -739,9 +750,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V24 first completes an operator-owned Terminal,
+Before production, V25 first completes an operator-owned Terminal,
 foreground, zero-model authentication ceremony. Only after its sanitized
-receipt is committed does V24 run a disposable six-call, unscored
+receipt is committed does V25 run a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -759,7 +770,7 @@ base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V24 current-run Claude ceiling is $510: two
+a $5 per-call runner ceiling. The V25 current-run Claude ceiling is $510: two
 Claude preflight calls plus 100 production calls, or 102 current-run Claude
 calls × $5. Prior failed panels contribute a conservative $90 ceiling: two v2
 Claude preflight calls ($10), the ambiguous v5 attempt ($5), v7's two returned
@@ -769,37 +780,39 @@ two production Claude calls ($20), V14's two returned Claude preflight
 calls ($10), V16's one started-not-finished Claude preflight call ($5), and
 V18's legacy early-marker first Claude preflight call ($5), and V23's two
 returned Claude preflight calls ($10); v3, v4, v6, V10, V11, V12, V13, V15,
-V17, V19, V20, V21, and V22 started no Claude model call.
+V17, V19, V20, V21, V22, and V24 started no Claude model call.
 The exact acknowledgement's cumulative Claude ceiling is therefore $600
-($510 for V24 plus $90 for prior failed panels), not a claim about measured
+($510 for V25 plus $90 for prior failed panels), not a claim about measured
 billing. Codex and Cursor remain uncapped.
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
 
-V20, V21, V22, and V23 acknowledgements and authentication procedures are retained
+V20, V21, V22, V23, and V24 acknowledgements and authentication procedures are retained
 only in their terminal [V20](docs/V20_RUNBOOK.md),
 [V21](docs/V21_RUNBOOK.md), [V22](docs/V22_RUNBOOK.md), and
-[V23](docs/V23_RUNBOOK.md) runbooks; they must not be executed or reused.
-V24 preparation, authorization, authentication, and execution must
+[V23](docs/V23_RUNBOOK.md) runbooks and the superseded
+[V24 runbook](docs/V24_RUNBOOK.md); they must not be executed or reused.
+V25 preparation, authorization, authentication, and execution must
 follow the fresh namespaces and publication sequence in the
-[V24 runbook](docs/V24_RUNBOOK.md).
+[V25 runbook](docs/V25_RUNBOOK.md).
 
-V24 retains the `$510` current-run Claude ceiling and the conservative `$90`
+V25 retains the `$510` current-run Claude ceiling and the conservative `$90`
 allowance for prior panels. V20, V21, and V22 each add `$0`; V23 adds `$10`
-for its two Claude preflight calls. The cumulative ceiling is therefore
-`$600`. Codex and Cursor remain uncapped. V24 requires this new exact
+for its two Claude preflight calls; V24 adds `$0` because it remained
+control-plane-only. The cumulative ceiling is therefore
+`$600`. Codex and Cursor remain uncapped. V25 requires this new exact
 acknowledgement:
 
-> I acknowledge the replacement six-call v24 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $600 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, and the v24 preflight and production run.
+> I acknowledge the replacement six-call v25 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $600 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, and the v25 preflight and production run.
 
 Its SHA-256 is
-`f8537acb505ade8e734e6b41f690b64c61dc615e66f0f409f8c947e7986bbbce`.
+`4b9093c6a0b1f9743d48c60cc4f02050bcbc56e37e9d7e292d062634dac6fa83`.
 Publication alone is not authorization: the exact text must later be sealed
-against the final V24 manifest and public precommitment before authentication
+against the final V25 manifest and public precommitment before authentication
 or any provider-bearing operation.
 
-The V24 runner, runtime, hidden cohort, credential namespaces, and public manifest
+The V25 runner, runtime, hidden cohort, credential namespaces, and public manifest
 are frozen before any model-bearing provider call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
@@ -867,7 +880,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V24 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V25 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. Its tracked
 pre-private receipt hashes every enumerated regular file in each declared
@@ -875,7 +888,7 @@ scientific distribution rather than relying only on package name/version or
 `RECORD` metadata. The trusted computing base includes the root administrator
 and the installed Glean distribution; there is not yet an independently
 approved digest or cryptographic source-to-binary provenance for that helper
-bundle. V24 commits the exact installed helper bundle after acknowledgement and
+bundle. V25 commits the exact installed helper bundle after acknowledgement and
 detects persistent identity or ownership drift at every call boundary, but a
 malicious administrator capable of an ABA swap between attestation and
 execution is explicitly out of scope. Such an administrator could also
@@ -891,7 +904,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V24 detects the pipe-retaining form of that escape, but
+pipes; V25 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

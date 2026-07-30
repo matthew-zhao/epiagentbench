@@ -902,7 +902,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(nested_directory["kind"], "directory")
         self.assertNotIn("mtime_ns", nested_directory)
 
-    def test_v24_post_completion_cache_safety_rejects_unsafe_evolution(
+    def test_v25_post_completion_cache_safety_rejects_unsafe_evolution(
         self,
     ) -> None:
         cache_root, _ = self._enable_v18_runtime_binding()

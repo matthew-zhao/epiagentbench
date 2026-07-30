@@ -1,6 +1,17 @@
 # EpiAgentBench V24 execution runbook
 
 > [!CAUTION]
+> **SUPERSEDED BEFORE PREPARATION — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V24 remained a published control-plane-only milestone. It created no runtime
+> receipt, manifest, key, cohort, credential namespace, private state,
+> authentication ceremony, supervisor, provider process, or model call. Its
+> public facts are preserved in the
+> [V24 supersession record](../results/development-matched-50x6-v24.superseded.json).
+> Use the fresh [V25 runbook](V25_RUNBOOK.md) for any later preparation; never
+> reuse V24 identifiers, paths, or procedures.
+
+> [!CAUTION]
 > **CONTROL PLANE ONLY — NO V24 RUN HAS BEEN PREPARED OR AUTHORIZED.**
 >
 > This runbook does not authorize authentication, a provider process, spend, a
