@@ -341,7 +341,7 @@ class V20SupersessionTests(unittest.TestCase):
             self.assertIn("$510", document)
             self.assertIn("$80", document)
             self.assertIn("$590", document)
-        self.assertIn("$600", readme)
+        self.assertIn("$610", readme)
         self.assertIn(self.V21_ACKNOWLEDGEMENT_SHA256, runbook)
 
     def test_v20_runbook_is_terminal_and_points_to_v21(self) -> None:

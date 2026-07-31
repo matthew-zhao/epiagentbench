@@ -62,20 +62,31 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             "production_episodes_consumed": 0,
             "precommitment_sha256": public["precommitment_sha256"],
             "failure_reason": "one_or_more_profile_failures",
+            "model_invocations_conservatively_chargeable": 0,
             "scores_reported": False,
         }
+        preflight: dict[str, object] = {
+            "incident_envelope": matched._new_preflight_incident_envelope(),
+            "status": "failed",
+            "attempts": [],
+            "terminal_public_receipt": candidate,
+            "public_receipt_sha256": matched._component_hash(candidate),
+            "public_receipt_binding": {"test": "binding"},
+        }
+        matched._advance_preflight_incident_envelope(
+            preflight,
+            phase="terminal_candidate_commit",
+            attempts=[],
+            status="terminal",
+            incident_code="unexpected_control_path_failure",
+        )
         private = {
             "schema_version": matched.SCHEMA_VERSION,
             "panel_id": matched.PANEL_ID,
             "public_precommitment_sha256": public[
                 "precommitment_sha256"
             ],
-            "environment_preflight": {
-                "status": "failed",
-                "terminal_public_receipt": candidate,
-                "public_receipt_sha256": matched._component_hash(candidate),
-                "public_receipt_binding": {"test": "binding"},
-            }
+            "environment_preflight": preflight,
         }
         return private, public, candidate
 
@@ -232,6 +243,43 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         )
         private["environment_preflight"]["public_receipt_sha256"] = (
             matched._component_hash(candidate)
+        )
+        attempts: list[dict[str, object]] = []
+        for index in range(len(matched.PROFILES)):
+            attempt: dict[str, object] = {
+                "status": (
+                    "passed"
+                    if index == 0
+                    else (
+                        "failed"
+                        if index == 1
+                        else "not_started_terminal_abort"
+                    )
+                )
+            }
+            if index == 0:
+                attempt["model_invocation"] = {
+                    "status": "finished",
+                    "started_at_utc": "2026-01-01T00:00:00+00:00",
+                    "finished_at_utc": "2026-01-01T00:00:01+00:00",
+                }
+            attempts.append(attempt)
+        preflight = private["environment_preflight"]
+        preflight["attempts"] = attempts
+        preflight["incident_envelope"] = (
+            matched._new_preflight_incident_envelope()
+        )
+        matched._advance_preflight_incident_envelope(
+            preflight,
+            phase="before_model_spawn",
+            attempts=attempts,
+        )
+        matched._advance_preflight_incident_envelope(
+            preflight,
+            phase="terminal_candidate_commit",
+            attempts=attempts,
+            status="terminal",
+            incident_code="provider_cli_readiness_timeout",
         )
 
         attestation = self._attest_preflight(

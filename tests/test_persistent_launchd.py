@@ -1031,10 +1031,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v26_rejects_predecessor_launchd_schemas_before_control_action(
+    def test_v27_rejects_predecessor_launchd_schemas_before_control_action(
         self,
     ) -> None:
-        for version in (11, 12):
+        for version in (11, 12, 13):
             with self.subTest(schema_version=version):
                 runtime = self.root / f"legacy-v{version}-runtime"
                 generated = self._generate(
@@ -1544,6 +1544,172 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         for canary in _SECRET_CANARIES:
             self.assertNotIn(canary.encode(), persisted)
 
+    def test_worker_preserves_typed_core_failure_without_exception_text(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        config_path = Path(generated["config_path"])
+
+        def fake_keychain(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        failure = persistent_supervisor.RunnerFailedError(
+            persistent_supervisor.FailureCode.RUNNER_EXIT
+        )
+        failure.args = (_SECRET_CANARIES[2],)
+        with patch(
+            "epiagentbench.launchd_agent._run_core_supervisor",
+            side_effect=failure,
+        ):
+            return_code = run_launch_agent_worker(
+                config_path,
+                keychain_runner=fake_keychain,
+            )
+
+        self.assertEqual(return_code, 70)
+        config, key = self._config_and_key()
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertIsNotNone(status)
+        self.assertEqual(status["state"], "terminal_incident")
+        self.assertEqual(status["reason"], "supervisor_failed")
+        self.assertEqual(
+            status["supervisor_failure_code"],
+            "runner_nonzero_exit",
+        )
+        public = launch_agent_status(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=self._not_loaded_launchctl,
+        )
+        self.assertEqual(
+            public["supervisor_failure_code"],
+            "runner_nonzero_exit",
+        )
+        persisted = b"".join(
+            path.read_bytes() for path in self.runtime.iterdir()
+        )
+        self.assertNotIn(_SECRET_CANARIES[2].encode(), persisted)
+
+    def test_supervisor_failure_status_requires_exact_finite_code_pairing(
+        self,
+    ) -> None:
+        self._generate()
+        config, key = self._config_and_key()
+        with self.assertRaises(ValueError):
+            launchd_agent._atomic_worker_status(
+                self.runtime,
+                config=config,
+                authentication_key=key,
+                state="terminal_incident",
+                reason="supervisor_failed",
+            )
+        with self.assertRaises(ValueError):
+            launchd_agent._atomic_worker_status(
+                self.runtime,
+                config=config,
+                authentication_key=key,
+                state="starting",
+                supervisor_failure_code=(
+                    launchd_agent.SupervisorFailureCode.RUNNER_EXIT
+                ),
+            )
+
+        payload = {
+            "schema_version": launchd_agent._WORKER_STATUS_SCHEMA,
+            "label": config["label"],
+            "operation": config["operation"],
+            "panel_id": config["panel_id"],
+            "precommitment_sha256": config["precommitment_sha256"],
+            "execution_context_sha256": config[
+                "execution_context_sha256"
+            ],
+            "state": "terminal_incident",
+            "reason": "supervisor_failed",
+            "supervisor_failure_code": "provider-output-and-secret",
+        }
+        record = launchd_agent._seal_payload(
+            launchd_agent._WORKER_STATUS_AUTH_DOMAIN,
+            payload,
+            key,
+        )
+        status_path = self.runtime / "launchd-worker-status.json"
+        status_path.write_bytes(
+            launchd_agent._canonical_bytes(record) + b"\n"
+        )
+        os.chmod(status_path, 0o600)
+        with self.assertRaises(ValueError):
+            launchd_agent._worker_status(
+                self.runtime,
+                config=config,
+                authentication_key=key,
+            )
+
+    def test_core_supervisor_exception_classes_map_to_finite_codes(
+        self,
+    ) -> None:
+        audit_runner_code = (
+            persistent_supervisor.FailureCode
+            .RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
+        )
+        audit_worker_code = (
+            launchd_agent.SupervisorFailureCode
+            .RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
+        )
+        cases = (
+            (
+                persistent_supervisor.RunnerFailedError(
+                    persistent_supervisor.FailureCode.RUNNER_PROTOCOL
+                ),
+                launchd_agent.SupervisorFailureCode.RUNNER_PROTOCOL,
+            ),
+            (
+                persistent_supervisor.RunnerFailedError(
+                    audit_runner_code
+                ),
+                audit_worker_code,
+            ),
+            (
+                persistent_supervisor.IntegrityError(
+                    _SECRET_CANARIES[2]
+                ),
+                launchd_agent.SupervisorFailureCode.INTEGRITY,
+            ),
+            (
+                persistent_supervisor.UnsafeRecoveryError(
+                    _SECRET_CANARIES[2]
+                ),
+                launchd_agent.SupervisorFailureCode.UNSAFE_RECOVERY,
+            ),
+            (
+                persistent_supervisor.SupervisorBusyError(
+                    _SECRET_CANARIES[2]
+                ),
+                launchd_agent.SupervisorFailureCode.SUPERVISOR_BUSY,
+            ),
+        )
+        for error, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertIs(
+                    launchd_agent._classify_supervisor_failure(error),
+                    expected,
+                )
+        self.assertIs(
+            launchd_agent._classify_supervisor_failure(
+                RuntimeError(_SECRET_CANARIES[2])
+            ),
+            launchd_agent.SupervisorFailureCode.SUPERVISOR_INTERNAL,
+        )
+
     def test_worker_preserves_controlled_terminal_receipt_classification(
         self,
     ) -> None:
@@ -1573,6 +1739,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 "panel_id": "development-matched-50x6-v9-test",
                 "operation": "production",
                 "status": "attested",
+                "terminal_status": "stopped_supervisor_incident",
+                "terminal_assignments": 1,
                 "provider_processes_started": 0,
                 "model_calls_started": 0,
             },
@@ -1599,6 +1767,264 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(status["state"], "supervisor_exited")
         self.assertEqual(status["reason"], "benchmark_terminal_receipt")
 
+    def test_worker_preserves_authenticated_terminal_audit_required_exit(
+        self,
+    ) -> None:
+        generated = self._generate(
+            operation="preflight",
+            public_preflight_path=self.public_preflight,
+            public_results_path=None,
+        )
+        config, key = self._commit_start()
+        config_path = Path(generated["config_path"])
+
+        class AuditRequiredCommand:
+            def poll(self) -> int:
+                return persistent_supervisor.TERMINAL_AUDIT_REQUIRED_EXIT_CODE
+
+            def terminate(self) -> None:
+                return None
+
+            def kill(self) -> None:
+                return None
+
+        class AuditRequiredRunner:
+            def start(self) -> AuditRequiredCommand:
+                return AuditRequiredCommand()
+
+        with self.assertRaises(
+            persistent_supervisor.RunnerFailedError
+        ):
+            run_supervised_panel(
+                runner_argv=("offline-audit-required",),
+                environment={},
+                runtime_dir=self.runtime,
+                authentication_key=key,
+                execution_context_sha256=config[
+                    "execution_context_sha256"
+                ],
+                command_runner=AuditRequiredRunner(),
+            )
+
+        def fake_keychain(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        observed_environment: dict[str, str] = {}
+
+        def fake_core(
+            config,
+            *,
+            child_environment,
+            authentication_key,
+        ):
+            nonlocal observed_environment
+            observed_environment = child_environment
+            return persistent_supervisor.TERMINAL_AUDIT_REQUIRED_EXIT_CODE
+
+        file_sha256 = "sha256:" + "e" * 64
+        audit_result = {
+            "schema_version": "epiagentbench.terminal_audit.v1",
+            "panel_id": config["panel_id"],
+            "operation": "preflight",
+            "status": "reconciled_and_attested",
+            "terminal_status": "stopped_supervisor_incident",
+            "incident_phase": "provider_returned",
+            "model_invocations_conservatively_chargeable": 1,
+            "file_sha256": file_sha256,
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "model_calls_started": 0,
+        }
+        terminal_attestation = {
+            "schema_version": (
+                "epiagentbench.terminal_receipt_attestation.v1"
+            ),
+            "panel_id": config["panel_id"],
+            "operation": "preflight",
+            "status": "attested",
+            "terminal_status": "stopped_supervisor_incident",
+            "file_sha256": file_sha256,
+            "provider_processes_started": 0,
+            "model_calls_started": 0,
+        }
+
+        def audit_after_credential_scrub(**kwargs):
+            self.assertNotIn("CURSOR_API_KEY", observed_environment)
+            return audit_result
+
+        with patch(
+            "epiagentbench.launchd_agent._run_core_supervisor",
+            side_effect=fake_core,
+        ), patch.object(
+            development_matched_panel,
+            "audit_terminal_incident",
+            side_effect=audit_after_credential_scrub,
+        ), patch(
+            "epiagentbench.launchd_agent._attest_handled_terminal_receipt",
+            return_value=terminal_attestation,
+        ) as public_receipt_attestation:
+            return_code = run_launch_agent_worker(
+                config_path,
+                keychain_runner=fake_keychain,
+            )
+
+        self.assertEqual(
+            return_code,
+            persistent_supervisor.HANDLED_TERMINAL_RECEIPT_EXIT_CODE,
+        )
+        public_receipt_attestation.assert_called_once_with(config)
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertIsNotNone(status)
+        self.assertEqual(status["state"], "supervisor_exited")
+        self.assertEqual(status["reason"], "benchmark_terminal_receipt")
+        self.assertNotIn("supervisor_failure_code", status)
+
+    def test_terminal_audit_requires_closed_provider_free_attestation(
+        self,
+    ) -> None:
+        self._generate(
+            operation="preflight",
+            public_preflight_path=self.public_preflight,
+            public_results_path=None,
+        )
+        config, _ = self._config_and_key()
+        malformed = {
+            "schema_version": "epiagentbench.terminal_audit.v1",
+            "panel_id": config["panel_id"],
+            "operation": "preflight",
+            "status": "reconciled_and_attested",
+            "terminal_status": "failed",
+            "incident_phase": "provider_returned",
+            "model_invocations_conservatively_chargeable": 1,
+            "file_sha256": "sha256:" + "e" * 64,
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "model_calls_started": 0,
+            "provider_output": _SECRET_CANARIES[2],
+        }
+        with patch.object(
+            development_matched_panel,
+            "audit_terminal_incident",
+            return_value=malformed,
+        ) as audit, patch.object(
+            launchd_agent,
+            "_attest_handled_terminal_receipt",
+        ) as terminal_attestation:
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Terminal incident audit is invalid",
+            ):
+                launchd_agent._attest_terminal_audit_required_exit(
+                    config
+                )
+        audit.assert_called_once_with(
+            root=Path(config["repository_root"]),
+            operation="preflight",
+            authentication_key_file=Path(
+                config["authentication_key_file"]
+            ),
+            private_state_path=Path(config["private_state_path"]),
+            public_manifest_path=Path(config["public_manifest_path"]),
+            public_output_path=Path(config["public_output_path"]),
+        )
+        terminal_attestation.assert_not_called()
+
+    def test_worker_rejects_bare_terminal_audit_required_exit(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        config_path = Path(generated["config_path"])
+
+        def fake_keychain(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        with patch(
+            "epiagentbench.launchd_agent._run_core_supervisor",
+            return_value=persistent_supervisor.TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
+        ):
+            return_code = run_launch_agent_worker(
+                config_path,
+                keychain_runner=fake_keychain,
+            )
+
+        self.assertEqual(return_code, 70)
+        config, key = self._config_and_key()
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertIsNotNone(status)
+        self.assertEqual(status["state"], "terminal_incident")
+        self.assertEqual(status["reason"], "supervisor_failed")
+        self.assertEqual(
+            status["supervisor_failure_code"],
+            "supervisor_internal",
+        )
+
+    def test_worker_records_finite_code_when_terminal_audit_fails(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        config_path = Path(generated["config_path"])
+
+        def fake_keychain(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"offline-cursor-key\n",
+                stderr=b"",
+            )
+
+        with patch(
+            "epiagentbench.launchd_agent._run_core_supervisor",
+            return_value=persistent_supervisor.TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
+        ), patch(
+            "epiagentbench.launchd_agent._attest_terminal_audit_required_core",
+        ), patch(
+            "epiagentbench.launchd_agent._attest_terminal_audit_required_exit",
+            side_effect=RuntimeError(_SECRET_CANARIES[2]),
+        ):
+            return_code = run_launch_agent_worker(
+                config_path,
+                keychain_runner=fake_keychain,
+            )
+
+        self.assertEqual(return_code, 70)
+        config, key = self._config_and_key()
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertIsNotNone(status)
+        self.assertEqual(status["state"], "terminal_incident")
+        self.assertEqual(status["reason"], "supervisor_failed")
+        self.assertEqual(
+            status["supervisor_failure_code"],
+            "runner_reserved_terminal_audit_exit",
+        )
+        persisted = b"".join(
+            path.read_bytes() for path in self.runtime.iterdir()
+        )
+        self.assertNotIn(_SECRET_CANARIES[2].encode(), persisted)
+
     def test_outer_terminal_attestation_binds_the_generated_config(
         self,
     ) -> None:
@@ -1611,6 +2037,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "panel_id": config["panel_id"],
             "operation": config["operation"],
             "status": "attested",
+            "terminal_status": "stopped_supervisor_incident",
+            "terminal_assignments": 1,
             "provider_processes_started": 0,
             "model_calls_started": 0,
         }

@@ -193,10 +193,10 @@ class V19SupersessionTests(unittest.TestCase):
             "epiagentbench.authentication_setup.v3",
         )
         self.assertIn(
-            '_SCHEMA = "epiagentbench.launchd_agent.v13"', launcher
+            '_SCHEMA = "epiagentbench.launchd_agent.v14"', launcher
         )
         self.assertIn(
-            '_PROTOCOL_VERSION = "persistent-supervisor-v7"', launcher
+            '_PROTOCOL_VERSION = "persistent-supervisor-v8"', launcher
         )
 
     def test_v20_acknowledgement_and_budget_are_consistent(self) -> None:
@@ -231,7 +231,7 @@ class V19SupersessionTests(unittest.TestCase):
             self.assertIn("$510", document)
             self.assertIn("$80", document)
             self.assertIn("$590", document)
-        self.assertIn("$600", readme)
+        self.assertIn("$610", readme)
 
     def test_v19_runbook_is_terminal_and_points_to_v20(self) -> None:
         runbook = (self.root / "docs/V19_RUNBOOK.md").read_text(

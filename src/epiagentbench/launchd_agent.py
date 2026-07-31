@@ -36,8 +36,8 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .provider_cli_environment import SYSTEM_PROCESS_PATH
 
-_SCHEMA = "epiagentbench.launchd_agent.v13"
-_WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v5"
+_SCHEMA = "epiagentbench.launchd_agent.v14"
+_WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v6"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
 _CAFFEINATE = Path("/usr/bin/caffeinate")
@@ -47,8 +47,8 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v13\x00"
-_WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v5\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v14\x00"
+_WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v6\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
 _MAX_CONFIG_BYTES = 8 * 1024 * 1024
@@ -64,7 +64,7 @@ _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
-_PROTOCOL_VERSION = "persistent-supervisor-v7"
+_PROTOCOL_VERSION = "persistent-supervisor-v8"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -108,6 +108,7 @@ _DEVELOPMENT_MATCHED_PANEL_SOURCE = Path(
     "src/epiagentbench/development_matched_panel.py"
 )
 _HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64
+_TERMINAL_AUDIT_REQUIRED_EXIT_CODE = 65
 
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[bytes]]
@@ -165,6 +166,24 @@ class ReleaseValidationFailureCode(StrEnum):
         "release_postcommit_attestation_failed"
     )
     INTERNAL = "release_internal"
+
+
+class SupervisorFailureCode(StrEnum):
+    """Finite, non-sensitive failures emitted by the core supervisor."""
+
+    UNSAFE_RECOVERY = "unsafe_recovery"
+    SUPERVISOR_BUSY = "supervisor_busy"
+    RUNNER_START = "runner_start_failed"
+    RUNNER_EXIT = "runner_nonzero_exit"
+    RUNNER_RESERVED_TERMINAL_EXIT = "runner_reserved_terminal_exit"
+    RUNNER_RESERVED_TERMINAL_AUDIT_EXIT = (
+        "runner_reserved_terminal_audit_exit"
+    )
+    RUNNER_PROTOCOL = "runner_protocol_failure"
+    SUSPEND_GAP = "suspend_gap"
+    INTEGRITY = "integrity_failure"
+    EVENT_LIMIT = "event_limit"
+    SUPERVISOR_INTERNAL = "supervisor_internal"
 
 
 class ReleaseValidationError(LaunchAgentError):
@@ -2693,6 +2712,7 @@ def _atomic_worker_status(
     state: str,
     reason: str | None = None,
     release_failure_code: ReleaseValidationFailureCode | None = None,
+    supervisor_failure_code: SupervisorFailureCode | None = None,
 ) -> None:
     if (
         release_failure_code is None
@@ -2709,6 +2729,21 @@ def _atomic_worker_status(
         )
     ):
         raise ValueError("Invalid release-validation worker status")
+    if (
+        supervisor_failure_code is None
+        and state == "terminal_incident"
+        and reason == "supervisor_failed"
+    ) or (
+        supervisor_failure_code is not None
+        and (
+            not isinstance(
+                supervisor_failure_code, SupervisorFailureCode
+            )
+            or state != "terminal_incident"
+            or reason != "supervisor_failed"
+        )
+    ):
+        raise ValueError("Invalid supervisor-failure worker status")
     payload: dict[str, Any] = {
         "schema_version": _WORKER_STATUS_SCHEMA,
         "label": config["label"],
@@ -2722,6 +2757,10 @@ def _atomic_worker_status(
         payload["reason"] = reason
     if release_failure_code is not None:
         payload["release_failure_code"] = release_failure_code.value
+    if supervisor_failure_code is not None:
+        payload["supervisor_failure_code"] = (
+            supervisor_failure_code.value
+        )
     record = _seal_payload(
         _WORKER_STATUS_AUTH_DOMAIN,
         payload,
@@ -2838,6 +2877,24 @@ def _run_core_supervisor(
     )
 
 
+def _classify_supervisor_failure(
+    error: BaseException,
+) -> SupervisorFailureCode:
+    """Map every core failure to one bounded public classification."""
+
+    import epiagentbench.persistent_supervisor as persistent_supervisor
+
+    if not isinstance(error, persistent_supervisor.SupervisorError):
+        return SupervisorFailureCode.SUPERVISOR_INTERNAL
+    if isinstance(error, persistent_supervisor.SupervisorBusyError):
+        return SupervisorFailureCode.SUPERVISOR_BUSY
+    failure_code = getattr(error, "failure_code", None)
+    try:
+        return SupervisorFailureCode(failure_code.value)
+    except (AttributeError, ValueError):
+        return SupervisorFailureCode.SUPERVISOR_INTERNAL
+
+
 def _attest_handled_terminal_receipt(
     config: Mapping[str, Any],
 ) -> Mapping[str, Any]:
@@ -2860,13 +2917,55 @@ def _attest_handled_terminal_receipt(
         public_manifest_path=Path(str(config["public_manifest_path"])),
         public_output_path=Path(str(config["public_output_path"])),
     )
+    operation = config["operation"]
+    expected_keys = {
+        "schema_version",
+        "panel_id",
+        "operation",
+        "status",
+        "terminal_status",
+        "provider_processes_started",
+        "model_calls_started",
+    }
+    expected_keys.add(
+        "file_sha256"
+        if operation == "preflight"
+        else "terminal_assignments"
+    )
     if (
         not isinstance(attestation, Mapping)
+        or set(attestation) != expected_keys
         or attestation.get("schema_version")
         != "epiagentbench.terminal_receipt_attestation.v1"
         or attestation.get("panel_id") != config["panel_id"]
         or attestation.get("operation") != config["operation"]
         or attestation.get("status") != "attested"
+        or attestation.get("terminal_status")
+        not in {
+            "failed",
+            "stopped_supervisor_incident",
+            "stopped_transport_void",
+        }
+        or (
+            operation == "preflight"
+            and (
+                not isinstance(attestation.get("file_sha256"), str)
+                or not _SHA256.fullmatch(
+                    str(attestation["file_sha256"])
+                )
+            )
+        )
+        or (
+            operation == "production"
+            and (
+                type(attestation.get("terminal_assignments")) is not int
+                or not (
+                    0
+                    <= int(attestation["terminal_assignments"])
+                    <= 300
+                )
+            )
+        )
         or attestation.get("provider_processes_started") != 0
         or type(attestation.get("provider_processes_started")) is not int
         or attestation.get("model_calls_started") != 0
@@ -2874,6 +2973,113 @@ def _attest_handled_terminal_receipt(
     ):
         raise RuntimeError("Outer terminal receipt attestation is invalid")
     return attestation
+
+
+def _attest_terminal_audit_required_core(
+    config: Mapping[str, Any],
+    *,
+    authentication_key: bytes,
+) -> None:
+    """Authenticate the core record that gives reserved exit 65 meaning."""
+
+    core = _core_status(
+        Path(config["runtime_dir"]),
+        authentication_key=authentication_key,
+        expected_execution_context_sha256=str(
+            config["execution_context_sha256"]
+        ),
+    )
+    if (
+        core.get("state") != "authenticated"
+        or core.get("lifecycle") != "failed_closed"
+        or core.get("assignment_phase") != "terminal"
+        or core.get("health") != "terminal"
+        or core.get("runner_commands_completed") != 0
+        or core.get("runner_commands_total") != 1
+        or core.get("failure_code")
+        != "runner_reserved_terminal_audit_exit"
+    ):
+        raise RuntimeError(
+            "Supervisor terminal-audit exit attestation failed"
+        )
+
+
+def _attest_terminal_audit_required_exit(
+    config: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Reconcile and exactly attest reserved exit 65 provider-free."""
+
+    if config.get("operation") != "preflight":
+        raise RuntimeError("Terminal incident audit operation is invalid")
+    _, _, matched_panel_source = _verify_frozen_runtime_sources(config)
+    import epiagentbench.development_matched_panel as matched_panel
+
+    _require_loaded_module_source(
+        matched_panel.__file__,
+        matched_panel_source,
+    )
+    audit = matched_panel.audit_terminal_incident(
+        root=Path(str(config["repository_root"])),
+        operation=str(config["operation"]),
+        authentication_key_file=Path(
+            str(config["authentication_key_file"])
+        ),
+        private_state_path=Path(str(config["private_state_path"])),
+        public_manifest_path=Path(str(config["public_manifest_path"])),
+        public_output_path=Path(str(config["public_output_path"])),
+    )
+    expected_keys = {
+        "schema_version",
+        "panel_id",
+        "operation",
+        "status",
+        "terminal_status",
+        "incident_phase",
+        "model_invocations_conservatively_chargeable",
+        "file_sha256",
+        "provider_processes_started",
+        "authentication_processes_started",
+        "model_calls_started",
+    }
+    chargeable = (
+        audit.get("model_invocations_conservatively_chargeable")
+        if isinstance(audit, Mapping)
+        else None
+    )
+    if (
+        not isinstance(audit, Mapping)
+        or set(audit) != expected_keys
+        or audit.get("schema_version")
+        != "epiagentbench.terminal_audit.v1"
+        or audit.get("panel_id") != config["panel_id"]
+        or audit.get("operation") != config["operation"]
+        or audit.get("status") != "reconciled_and_attested"
+        or audit.get("terminal_status")
+        not in {"failed", "stopped_supervisor_incident"}
+        or not isinstance(audit.get("incident_phase"), str)
+        or not _SAFE_NAME.fullmatch(str(audit["incident_phase"]))
+        or type(chargeable) is not int
+        or not 0 <= chargeable <= 6
+        or not isinstance(audit.get("file_sha256"), str)
+        or not _SHA256.fullmatch(str(audit["file_sha256"]))
+        or any(
+            type(audit.get(field)) is not int
+            or audit.get(field) != 0
+            for field in (
+                "provider_processes_started",
+                "authentication_processes_started",
+                "model_calls_started",
+            )
+        )
+    ):
+        raise RuntimeError("Terminal incident audit is invalid")
+    terminal = _attest_handled_terminal_receipt(config)
+    if (
+        terminal.get("terminal_status") != audit["terminal_status"]
+        or terminal.get("file_sha256") != audit["file_sha256"]
+    ):
+        raise RuntimeError("Terminal incident audit is inconsistent")
+    return audit
 
 
 def _run_launch_agent_worker_validated(
@@ -2951,18 +3157,63 @@ def _run_launch_agent_worker_validated(
                 child_environment=environment,
                 authentication_key=authentication_key,
             )
-        except Exception:
+        except Exception as error:
+            supervisor_failure_code = _classify_supervisor_failure(
+                error
+            )
             _atomic_worker_status(
                 runtime,
                 config=config,
                 authentication_key=authentication_key,
                 state="terminal_incident",
-                reason="supervisor_exception",
+                reason="supervisor_failed",
+                supervisor_failure_code=supervisor_failure_code,
             )
             return 70
         finally:
             environment.pop("CURSOR_API_KEY", None)
             cursor_key = ""
+        if return_code == _TERMINAL_AUDIT_REQUIRED_EXIT_CODE:
+            try:
+                _attest_terminal_audit_required_core(
+                    config,
+                    authentication_key=authentication_key,
+                )
+            except Exception:
+                _atomic_worker_status(
+                    runtime,
+                    config=config,
+                    authentication_key=authentication_key,
+                    state="terminal_incident",
+                    reason="supervisor_failed",
+                    supervisor_failure_code=(
+                        SupervisorFailureCode.SUPERVISOR_INTERNAL
+                    ),
+                )
+                return 70
+            try:
+                _attest_terminal_audit_required_exit(config)
+            except Exception:
+                _atomic_worker_status(
+                    runtime,
+                    config=config,
+                    authentication_key=authentication_key,
+                    state="terminal_incident",
+                    reason="supervisor_failed",
+                    supervisor_failure_code=(
+                        SupervisorFailureCode
+                        .RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
+                    ),
+                )
+                return 70
+            _atomic_worker_status(
+                runtime,
+                config=config,
+                authentication_key=authentication_key,
+                state="supervisor_exited",
+                reason="benchmark_terminal_receipt",
+            )
+            return _HANDLED_TERMINAL_RECEIPT_EXIT_CODE
         if return_code == 0:
             try:
                 _finalize_launch_agent_validated(
@@ -3295,11 +3546,17 @@ def _worker_status(
     state = payload.get("state")
     reason = payload.get("reason")
     release_failure_code = payload.get("release_failure_code")
+    supervisor_failure_code = payload.get(
+        "supervisor_failure_code"
+    )
     allowed_key_sets = {
         frozenset(base_keys),
         frozenset(base_keys | {"reason"}),
         frozenset(
             base_keys | {"reason", "release_failure_code"}
+        ),
+        frozenset(
+            base_keys | {"reason", "supervisor_failure_code"}
         ),
     }
     if (
@@ -3317,7 +3574,7 @@ def _worker_status(
         or ("reason" in payload and reason not in {
             "benchmark_terminal_receipt",
             "cursor_keychain_unavailable",
-            "supervisor_exception",
+            "supervisor_failed",
             "release_validation_failed",
             "terminal_receipt_attestation_failed",
             "success",
@@ -3343,7 +3600,7 @@ def _worker_status(
             and reason
             not in {
                 "cursor_keychain_unavailable",
-                "supervisor_exception",
+                "supervisor_failed",
                 "release_validation_failed",
                 "terminal_receipt_attestation_failed",
             }
@@ -3361,6 +3618,21 @@ def _worker_status(
             and not (
                 state == "terminal_incident"
                 and reason == "release_validation_failed"
+            )
+        )
+        or (
+            state == "terminal_incident"
+            and reason == "supervisor_failed"
+            and supervisor_failure_code
+            not in {
+                code.value for code in SupervisorFailureCode
+            }
+        )
+        or (
+            supervisor_failure_code is not None
+            and not (
+                state == "terminal_incident"
+                and reason == "supervisor_failed"
             )
         )
         or payload.get("label") != config["label"]
@@ -3468,8 +3740,8 @@ def _core_status(
         "heartbeat_age_bucket": _heartbeat_age_bucket(
             status["heartbeat_wall_unix_seconds"]
         ),
-        "completed_assignments": status["completed_assignments"],
-        "total_assignments": status["total_assignments"],
+        "runner_commands_completed": status["completed_assignments"],
+        "runner_commands_total": status["total_assignments"],
         "active_assignment_ordinal": status["active_assignment_ordinal"],
         "pause_after_current": status["pause_after_current"],
         "failure_code": status["failure_code"],
@@ -3519,6 +3791,10 @@ def _status_snapshot(
         if "release_failure_code" in worker:
             status["release_failure_code"] = worker[
                 "release_failure_code"
+            ]
+        if "supervisor_failure_code" in worker:
+            status["supervisor_failure_code"] = worker[
+                "supervisor_failure_code"
             ]
     return status
 
@@ -3791,8 +4067,8 @@ def _attest_completed_launch_agent_validated(
         or core.get("lifecycle") != "completed"
         or core.get("assignment_phase") != "terminal"
         or core.get("health") != "terminal"
-        or core.get("completed_assignments") != 1
-        or core.get("total_assignments") != 1
+        or core.get("runner_commands_completed") != 1
+        or core.get("runner_commands_total") != 1
         or core.get("failure_code") != "none"
     ):
         raise ValueError("Launch-agent supervisor did not complete cleanly")
@@ -4142,6 +4418,7 @@ __all__ = [
     "LiveAttestationFailureCode",
     "ReleaseValidationError",
     "ReleaseValidationFailureCode",
+    "SupervisorFailureCode",
     "attest_completed_launch_agent",
     "attest_live_launch_agent",
     "finalize_launch_agent",

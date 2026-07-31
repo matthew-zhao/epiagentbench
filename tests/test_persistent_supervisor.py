@@ -48,7 +48,7 @@ EXECUTION_CONTEXT_DIGEST = compute_execution_context_sha256(
     launchd_label="org.epiagentbench.panel.offline-test",
     operation="offline-soak",
     panel_id="epiagentbench-v9-test",
-    protocol_version="persistent-supervisor-v7",
+    protocol_version="persistent-supervisor-v8",
     public_manifest_sha256="sha256:" + "3" * 64,
     python_executable_sha256="sha256:" + "8" * 64,
     runner_source_sha256="sha256:" + "4" * 64,
@@ -266,7 +266,7 @@ class PersistentSupervisorTests(unittest.TestCase):
             "launchd_label": "org.epiagentbench.panel.offline-test",
             "operation": "offline-soak",
             "panel_id": "epiagentbench-v9-test",
-            "protocol_version": "persistent-supervisor-v7",
+            "protocol_version": "persistent-supervisor-v8",
             "public_manifest_sha256": "sha256:" + "3" * 64,
             "python_executable_sha256": "sha256:" + "8" * 64,
             "runner_source_sha256": "sha256:" + "4" * 64,
@@ -348,6 +348,10 @@ class PersistentSupervisorTests(unittest.TestCase):
         )
         self.assertEqual(observed["state"], "authenticated")
         self.assertEqual(observed["health"], "terminal")
+        self.assertEqual(observed["runner_commands_completed"], 1)
+        self.assertEqual(observed["runner_commands_total"], 1)
+        self.assertNotIn("completed_assignments", observed)
+        self.assertNotIn("total_assignments", observed)
 
     def test_execution_context_mismatch_never_reuses_terminal_runtime(self) -> None:
         first = LedgerRunner(1, self.ledger)
@@ -605,8 +609,13 @@ class PersistentSupervisorTests(unittest.TestCase):
 
     def test_nonzero_child_exit_is_terminal_and_not_retried(self) -> None:
         failed = LedgerRunner(1, self.ledger, return_code=23)
-        with self.assertRaises(RunnerFailedError):
+        with self.assertRaises(RunnerFailedError) as raised:
             self._supervisor().run(failed)
+        self.assertIs(
+            raised.exception.failure_code,
+            FailureCode.RUNNER_EXIT,
+        )
+        self.assertNotIn(SECRET_CANARIES[0], str(raised.exception))
         self.assertEqual(self._ledger_values(), [1])
         with self.assertRaises(UnsafeRecoveryError):
             self._supervisor().run(LedgerRunner(1, self.ledger))
@@ -627,11 +636,12 @@ class PersistentSupervisorTests(unittest.TestCase):
             self.ledger,
             return_code=persistent.HANDLED_TERMINAL_RECEIPT_EXIT_CODE,
         )
-        with self.assertRaisesRegex(
-            RunnerFailedError,
-            "reserved terminal exit pending outer attestation",
-        ):
+        with self.assertRaises(RunnerFailedError) as raised:
             self._supervisor().run(failed)
+        self.assertIs(
+            raised.exception.failure_code,
+            FailureCode.RUNNER_RESERVED_TERMINAL_EXIT,
+        )
         self.assertEqual(self._ledger_values(), [1])
         status = read_supervisor_status(
             self.runtime,
@@ -648,6 +658,34 @@ class PersistentSupervisorTests(unittest.TestCase):
             self._supervisor().run(LedgerRunner(1, self.ledger))
         self.assertEqual(self._ledger_values(), [1])
 
+    def test_reserved_terminal_audit_exit_is_terminal_and_not_retried(
+        self,
+    ) -> None:
+        failed = LedgerRunner(
+            1,
+            self.ledger,
+            return_code=persistent.TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
+        )
+        with self.assertRaises(RunnerFailedError) as raised:
+            self._supervisor().run(failed)
+        self.assertIs(
+            raised.exception.failure_code,
+            FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT,
+        )
+        status = read_supervisor_status(
+            self.runtime,
+            authentication_key=AUTHENTICATION_KEY,
+        )
+        self.assertEqual(status["lifecycle"], LifecyclePhase.FAILED_CLOSED)
+        self.assertEqual(status["assignment_phase"], AssignmentPhase.TERMINAL)
+        self.assertEqual(
+            status["failure_code"],
+            FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT,
+        )
+        with self.assertRaises(UnsafeRecoveryError):
+            self._supervisor().run(LedgerRunner(1, self.ledger))
+        self.assertEqual(self._ledger_values(), [1])
+
     def test_supervised_command_forwards_authenticated_reserved_exit_state(
         self,
     ) -> None:
@@ -660,7 +698,9 @@ class PersistentSupervisorTests(unittest.TestCase):
         with patch.object(
             persistent,
             "run_supervised_panel",
-            side_effect=RunnerFailedError("controlled offline failure"),
+            side_effect=RunnerFailedError(
+                FailureCode.RUNNER_RESERVED_TERMINAL_EXIT
+            ),
         ), patch.object(
             persistent,
             "read_supervisor_status",
@@ -691,7 +731,7 @@ class PersistentSupervisorTests(unittest.TestCase):
             with self.subTest(untrusted_state=untrusted_state), patch.object(
                 persistent,
                 "run_supervised_panel",
-                side_effect=RunnerFailedError("unexpected offline failure"),
+                side_effect=RunnerFailedError(FailureCode.RUNNER_EXIT),
             ), patch.object(
                 persistent,
                 "read_supervisor_status",
@@ -716,10 +756,7 @@ class PersistentSupervisorTests(unittest.TestCase):
             "run_supervised_panel",
             return_value={"lifecycle": LifecyclePhase.PAUSED.value},
         ):
-            with self.assertRaisesRegex(
-                RunnerFailedError,
-                "returned before completion",
-            ):
+            with self.assertRaises(RunnerFailedError) as raised:
                 persistent.run_supervised_command(
                     runtime_dir=self.runtime,
                     operation="production",
@@ -728,6 +765,44 @@ class PersistentSupervisorTests(unittest.TestCase):
                     authentication_key=AUTHENTICATION_KEY,
                     execution_context_sha256=EXECUTION_CONTEXT_DIGEST,
                 )
+            self.assertIs(
+                raised.exception.failure_code,
+                FailureCode.SUPERVISOR_INTERNAL,
+            )
+
+    def test_supervised_command_forwards_authenticated_terminal_audit_exit(
+        self,
+    ) -> None:
+        self.runtime.mkdir(mode=0o700)
+        handled = {
+            "lifecycle": LifecyclePhase.FAILED_CLOSED.value,
+            "assignment_phase": AssignmentPhase.TERMINAL.value,
+            "failure_code": (
+                FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT.value
+            ),
+        }
+        with patch.object(
+            persistent,
+            "run_supervised_panel",
+            side_effect=RunnerFailedError(
+                FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
+            ),
+        ), patch.object(
+            persistent,
+            "read_supervisor_status",
+            return_value=handled,
+        ):
+            self.assertEqual(
+                persistent.run_supervised_command(
+                    runtime_dir=self.runtime,
+                    operation="preflight",
+                    command=("offline-command",),
+                    child_environment={},
+                    authentication_key=AUTHENTICATION_KEY,
+                    execution_context_sha256=EXECUTION_CONTEXT_DIGEST,
+                ),
+                persistent.TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
+            )
 
     def test_suspend_gap_is_distinct_from_provider_activity_and_fails_closed(self) -> None:
         self.assertFalse(

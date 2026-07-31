@@ -29,7 +29,7 @@ import time
 from typing import Callable, Mapping, Protocol, Sequence, runtime_checkable
 
 
-SCHEMA_VERSION = "epiagentbench.persistent_supervisor.v2"
+SCHEMA_VERSION = "epiagentbench.persistent_supervisor.v3"
 LEASE_FILE = "lease.json"
 STATUS_FILE = "status.json"
 EVENT_FILE = "events.jsonl"
@@ -45,10 +45,11 @@ MAX_JSON_BYTES = 32_768
 MAX_EVENT_LINE_BYTES = 4096
 MAX_KEY_BYTES = 4096
 HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64
+TERMINAL_AUDIT_REQUIRED_EXIT_CODE = 65
 
-_RECORD_DOMAIN = b"epiagentbench:persistent-supervisor:record:v2\x00"
-_EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v2\x00"
-_EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v2\x00"
+_RECORD_DOMAIN = b"epiagentbench:persistent-supervisor:record:v3\x00"
+_EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v3\x00"
+_EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v3\x00"
 _IDENTITY_DOMAIN = b"epiagentbench:persistent-supervisor:identity:v2\x00"
 _EXECUTION_CONTEXT_DOMAIN = (
     b"epiagentbench:persistent-supervisor:execution-context:v3\x00"
@@ -84,9 +85,13 @@ class RecoveryDecision(StrEnum):
 class FailureCode(StrEnum):
     NONE = "none"
     UNSAFE_RECOVERY = "unsafe_recovery"
+    SUPERVISOR_BUSY = "supervisor_busy"
     RUNNER_START = "runner_start_failed"
     RUNNER_EXIT = "runner_nonzero_exit"
     RUNNER_RESERVED_TERMINAL_EXIT = "runner_reserved_terminal_exit"
+    RUNNER_RESERVED_TERMINAL_AUDIT_EXIT = (
+        "runner_reserved_terminal_audit_exit"
+    )
     RUNNER_PROTOCOL = "runner_protocol_failure"
     SUSPEND_GAP = "suspend_gap"
     INTEGRITY = "integrity_failure"
@@ -127,21 +132,50 @@ class SupervisorHealth(StrEnum):
 class SupervisorError(RuntimeError):
     """Base class for fixed-message supervisor failures."""
 
+    failure_code = FailureCode.SUPERVISOR_INTERNAL
+
 
 class SupervisorBusyError(SupervisorError):
     """Another process holds the runtime directory's supervisor lock."""
+
+    failure_code = FailureCode.SUPERVISOR_BUSY
 
 
 class IntegrityError(SupervisorError):
     """A private file failed its closed-schema or HMAC checks."""
 
+    failure_code = FailureCode.INTEGRITY
+
 
 class UnsafeRecoveryError(SupervisorError):
     """A prior launch commitment makes automatic retry ambiguous."""
 
+    failure_code = FailureCode.UNSAFE_RECOVERY
+
 
 class RunnerFailedError(SupervisorError):
     """The injected runner failed after durable launch commitment."""
+
+    _ALLOWED_FAILURE_CODES = frozenset(
+        {
+            FailureCode.RUNNER_START,
+            FailureCode.RUNNER_EXIT,
+            FailureCode.RUNNER_RESERVED_TERMINAL_EXIT,
+            FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT,
+            FailureCode.RUNNER_PROTOCOL,
+            FailureCode.SUSPEND_GAP,
+            FailureCode.SUPERVISOR_INTERNAL,
+        }
+    )
+
+    def __init__(self, failure_code: FailureCode):
+        if (
+            not isinstance(failure_code, FailureCode)
+            or failure_code not in self._ALLOWED_FAILURE_CODES
+        ):
+            raise TypeError("Runner failure code is invalid")
+        self.failure_code = failure_code
+        super().__init__("Persistent supervisor runner failed")
 
 
 @dataclass(frozen=True)
@@ -1470,7 +1504,7 @@ class PersistentSupervisor:
                         raise TypeError
                 except BaseException:
                     self._fail_closed(FailureCode.RUNNER_START)
-                    raise RunnerFailedError("Runner failed after launch commitment") from None
+                    raise RunnerFailedError(FailureCode.RUNNER_START) from None
                 try:
                     self._transition(
                         assignment_phase=AssignmentPhase.RUNNING,
@@ -1482,7 +1516,9 @@ class PersistentSupervisor:
                         except BaseException:
                             self._terminate_ambiguous_command(running)
                             self._fail_closed(FailureCode.RUNNER_PROTOCOL)
-                            raise RunnerFailedError("Running command protocol failed") from None
+                            raise RunnerFailedError(
+                                FailureCode.RUNNER_PROTOCOL
+                            ) from None
                         if return_code is not None:
                             break
                         pause_requested = self._load_control()
@@ -1500,29 +1536,42 @@ class PersistentSupervisor:
                                     FailureCode.SUSPEND_GAP,
                                     event=EventType.SUSPEND_GAP_DETECTED,
                                 )
-                                raise RunnerFailedError("Suspend gap forced fail-closed stop")
+                                raise RunnerFailedError(
+                                    FailureCode.SUSPEND_GAP
+                                )
                         self._sleep(min(1.0, self.heartbeat_interval_seconds / 4.0))
                     if not isinstance(return_code, int) or isinstance(return_code, bool):
                         self._fail_closed(FailureCode.RUNNER_PROTOCOL)
-                        raise RunnerFailedError("Running command returned an invalid result")
+                        raise RunnerFailedError(
+                            FailureCode.RUNNER_PROTOCOL
+                        )
                     if return_code != 0:
                         handled_terminal_receipt = (
                             return_code
                             == HANDLED_TERMINAL_RECEIPT_EXIT_CODE
                         )
-                        self._fail_closed(
-                            (
+                        terminal_audit_required = (
+                            return_code
+                            == TERMINAL_AUDIT_REQUIRED_EXIT_CODE
+                        )
+                        if handled_terminal_receipt:
+                            failure_code = (
                                 FailureCode.RUNNER_RESERVED_TERMINAL_EXIT
-                                if handled_terminal_receipt
-                                else FailureCode.RUNNER_EXIT
+                            )
+                        elif terminal_audit_required:
+                            failure_code = (
+                                FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
+                            )
+                        else:
+                            failure_code = FailureCode.RUNNER_EXIT
+                        self._fail_closed(
+                            failure_code,
+                            terminal_ambiguity=not (
+                                handled_terminal_receipt
+                                or terminal_audit_required
                             ),
-                            terminal_ambiguity=not handled_terminal_receipt,
                         )
-                        raise RunnerFailedError(
-                            "Runner used the reserved terminal exit pending outer attestation"
-                            if handled_terminal_receipt
-                            else "Runner exited unexpectedly"
-                        )
+                        raise RunnerFailedError(failure_code)
                     self._status["completed_assignments"] = ordinal
                     self._transition(
                         assignment_phase=AssignmentPhase.RESULT_COMMITTED,
@@ -1635,17 +1684,24 @@ def run_supervised_command(
             == LifecyclePhase.FAILED_CLOSED.value
             and status.get("assignment_phase")
             == AssignmentPhase.TERMINAL.value
-            and status.get("failure_code")
-            == FailureCode.RUNNER_RESERVED_TERMINAL_EXIT.value
         ):
-            return HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+            if (
+                status.get("failure_code")
+                == FailureCode.RUNNER_RESERVED_TERMINAL_EXIT.value
+            ):
+                return HANDLED_TERMINAL_RECEIPT_EXIT_CODE
+            if (
+                status.get("failure_code")
+                == FailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT.value
+            ):
+                return TERMINAL_AUDIT_REQUIRED_EXIT_CODE
         raise
     if status.get("lifecycle") != LifecyclePhase.COMPLETED.value:
         # This layer authenticates only that the child used the reserved exit.
         # The launch worker must independently re-attest the benchmark receipt
         # before it labels that exit as handled. A pause or any other ordinary
         # non-completed return must not be relabeled as the reserved condition.
-        raise RunnerFailedError("Supervisor returned before completion")
+        raise RunnerFailedError(FailureCode.SUPERVISOR_INTERNAL)
     return 0
 
 
@@ -1667,6 +1723,7 @@ __all__ = [
     "SupervisorBusyError",
     "SupervisorError",
     "SupervisorHealth",
+    "TERMINAL_AUDIT_REQUIRED_EXIT_CODE",
     "UnsafeRecoveryError",
     "classify_recovery",
     "classify_supervisor_health",
