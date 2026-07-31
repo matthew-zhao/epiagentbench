@@ -30,6 +30,11 @@ import time
 import unicodedata
 from typing import Any, Callable, Mapping, Sequence
 
+from .provider_cli_environment import (
+    attest_provider_cli_resolution,
+    provider_cli_public_identity,
+    resolve_provider_cli,
+)
 from .trusted.service import (
     TRUSTED_EVALUATOR_STARTUP_STAGES,
     TrustedEvaluatorStartupError,
@@ -2559,6 +2564,7 @@ def evaluate_local_cli_agent(
     codex_auth_storage_dir: str | os.PathLike[str] | None = None,
     claude_secure_storage_dir: str | os.PathLike[str] | None = None,
     claude_glean_oauth_client_id: str | None = None,
+    expected_provider_cli_identity: Mapping[str, Any] | None = None,
 ) -> PilotRunResult:
     """Run and score one explicitly non-hermetic local CLI smoke episode."""
 
@@ -2655,11 +2661,35 @@ def evaluate_local_cli_agent(
                 )
         requested_model = model or DEFAULT_MODELS[system]
         executable_name = executable or DEFAULT_EXECUTABLES[system]
-        resolved = shutil.which(executable_name)
-        if resolved is None:
+        try:
+            provider_resolution = resolve_provider_cli(executable_name)
+            if expected_provider_cli_identity is not None:
+                observed_provider_cli_identity = provider_cli_public_identity(
+                    provider_resolution
+                )
+                if (
+                    dict(expected_provider_cli_identity)
+                    != observed_provider_cli_identity
+                ):
+                    raise ProviderStateIsolationError(
+                        "Provider CLI differs from the frozen benchmark contract"
+                    )
+            resolved = str(provider_resolution.target_path)
+        except ProviderExecutionIsolationError:
+            raise
+        except RuntimeError:
             raise ProviderCLIUnavailableError(
                 "Required provider CLI is unavailable"
-            )
+            ) from None
+
+        def attest_provider_installation() -> None:
+            try:
+                attest_provider_cli_resolution(provider_resolution)
+            except RuntimeError:
+                raise ProviderStateIsolationError(
+                    "Provider CLI installation changed after discovery"
+                ) from None
+
         temporary_directory = _ProviderTemporaryDirectory()
     except (
         CodexAuthenticationIncidentError,
@@ -2778,6 +2808,7 @@ def evaluate_local_cli_agent(
                 version_environment, root / "identity-readiness"
             )
             try:
+                attest_provider_installation()
                 version_process = _run_provider_process_group(
                     [resolved, "--version"],
                     cwd=workspace,
@@ -2815,6 +2846,7 @@ def evaluate_local_cli_agent(
                 assert cursor_api_key is not None
                 cursor_key_bytes = cursor_api_key.encode("utf-8")
                 try:
+                    attest_provider_installation()
                     enabled = _run_provider_process_group(
                         [resolved, "mcp", "enable", "epiagent"],
                         cwd=workspace,
@@ -2987,6 +3019,7 @@ def evaluate_local_cli_agent(
                     )
 
                     def persist_model_spawn_boundary() -> None:
+                        attest_provider_installation()
                         publish_pre_model_phase("model_spawn_boundary")
                         if model_invocation_start_callback is not None:
                             model_invocation_start_callback()

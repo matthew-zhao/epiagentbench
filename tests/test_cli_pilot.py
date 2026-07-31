@@ -65,6 +65,7 @@ from epiagentbench.pilot import (
     evaluate_paired_cli_agents,
     parse_agent_output,
 )
+from epiagentbench.provider_cli_environment import ProviderCLIResolution
 from epiagentbench.trusted.service import TrustedEvaluatorStartupError
 
 
@@ -108,7 +109,65 @@ def _claude_init(
     return record
 
 
+def _test_provider_resolution(
+    executable_name: str,
+    path_value: str | os.PathLike[str],
+) -> ProviderCLIResolution:
+    path = Path(path_value)
+    return ProviderCLIResolution(
+        executable_name=executable_name,
+        discovery_role="offline_test_role",
+        launch_path=path,
+        target_path=path,
+        entrypoint_kind="regular_file",
+        installation_kind="single_executable",
+        installation_file_count=1,
+        installation_total_bytes=1,
+        installation_sha256="sha256:" + "a" * 64,
+        target_sha256="sha256:" + "a" * 64,
+        execution_format="offline_test_regular_file",
+        external_runtime_policy="offline_test_runtime",
+        entrypoint_binding_sha256="sha256:" + "b" * 64,
+        ancestry_binding_sha256="sha256:" + "c" * 64,
+        installation_root_binding_sha256="sha256:" + "d" * 64,
+        _installation_root_path=path.parent,
+        _launch_identity=(0,) * 10,
+        _target_identity=(0,) * 10,
+        _installation_root_identity=(0,) * 10,
+    )
+
+
 class CliPilotTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._default_which = patch(
+            "epiagentbench.pilot.shutil.which",
+            side_effect=lambda executable: f"/{executable}",
+        )
+        self._default_which.start()
+
+        def resolve(executable: str) -> ProviderCLIResolution:
+            from epiagentbench import pilot as pilot_module
+
+            path = pilot_module.shutil.which(executable)
+            if path is None:
+                raise RuntimeError("offline test provider is unavailable")
+            return _test_provider_resolution(executable, path)
+
+        self._provider_resolver = patch(
+            "epiagentbench.pilot.resolve_provider_cli",
+            side_effect=resolve,
+        )
+        self._provider_resolver.start()
+        self._provider_attestation = patch(
+            "epiagentbench.pilot.attest_provider_cli_resolution",
+        )
+        self._provider_attestation.start()
+
+    def tearDown(self) -> None:
+        self._provider_attestation.stop()
+        self._provider_resolver.stop()
+        self._default_which.stop()
+
     def _command(
         self,
         system: str,

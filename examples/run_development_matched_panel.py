@@ -71,6 +71,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+import pwd
+import stat
 
 
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -83,6 +85,108 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
 )
 _SUPERVISED_COMMANDS = frozenset({"preflight", "run"})
 _CACHE_FREE_COMMANDS = frozenset({"publish-provider-free-json"})
+_PROVIDER_FREE_PREPARATION_COMMANDS = frozenset(
+    {
+        "freeze",
+        "preflight-preparation-runtime",
+        "prepare",
+        "smoke-episode-startup",
+        "verify-preparation-runtime",
+    }
+)
+_PROVIDER_FREE_COMMANDS = (
+    _PROVIDER_FREE_PREPARATION_COMMANDS | _CACHE_FREE_COMMANDS
+)
+_PROVIDER_FREE_SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+_PROVIDER_FREE_BASE_ENVIRONMENT_KEYS = frozenset(
+    {
+        "HOME",
+        "LC_ALL",
+        "LOGNAME",
+        "PATH",
+        "SHELL",
+        "TMPDIR",
+        "USER",
+        "__CF_USER_TEXT_ENCODING",
+    }
+)
+
+
+def _require_empty_provider_free_directory(
+    raw_value: str | None,
+    *,
+    account_home: Path,
+) -> Path:
+    if not isinstance(raw_value, str) or not raw_value or "\x00" in raw_value:
+        raise SystemExit(2)
+    candidate = Path(raw_value)
+    try:
+        metadata = candidate.lstat()
+        resolved = candidate.resolve(strict=True)
+        empty = not any(candidate.iterdir())
+    except (OSError, RuntimeError):
+        raise SystemExit(2) from None
+    if (
+        not candidate.is_absolute()
+        or raw_value != os.path.normpath(raw_value)
+        or candidate != resolved
+        or not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+        or not empty
+        or candidate == account_home
+        or account_home not in candidate.parents
+    ):
+        raise SystemExit(2)
+    return candidate
+
+
+def _require_provider_free_entry_environment(
+    argv: list[str],
+    *,
+    cache_environment_installed: bool,
+) -> None:
+    if len(argv) < 2 or argv[1] not in _PROVIDER_FREE_COMMANDS:
+        return
+    expected_keys = _PROVIDER_FREE_BASE_ENVIRONMENT_KEYS
+    if (
+        cache_environment_installed
+        and argv[1] in _PROVIDER_FREE_PREPARATION_COMMANDS
+    ):
+        expected_keys |= frozenset(_RUNTIME_CACHE_ENVIRONMENT_KEYS)
+    if set(os.environ) != expected_keys:
+        raise SystemExit(2)
+    try:
+        account = pwd.getpwuid(os.getuid())
+        account_name = str(account.pw_name)
+        account_home = Path(str(account.pw_dir)).resolve(strict=True)
+        account_shell = str(account.pw_shell)
+    except (KeyError, OSError, RuntimeError, ValueError):
+        raise SystemExit(2) from None
+    if (
+        not account_name
+        or os.environ.get("LC_ALL") != "C.UTF-8"
+        or os.environ.get("LOGNAME") != account_name
+        or os.environ.get("PATH") != _PROVIDER_FREE_SYSTEM_PATH
+        or os.environ.get("SHELL") != account_shell
+        or os.environ.get("USER") != account_name
+        or os.environ.get("__CF_USER_TEXT_ENCODING")
+        != f"0x{os.getuid():X}:0x0:0x0"
+    ):
+        raise SystemExit(2)
+    clean_home = _require_empty_provider_free_directory(
+        os.environ.get("HOME"), account_home=account_home
+    )
+    clean_tmp = _require_empty_provider_free_directory(
+        os.environ.get("TMPDIR"), account_home=account_home
+    )
+    if (
+        clean_home == clean_tmp
+        or clean_home in clean_tmp.parents
+        or clean_tmp in clean_home.parents
+    ):
+        raise SystemExit(2)
 
 
 def _install_exact_isolated_import_path(
@@ -226,8 +330,14 @@ def _restore_runtime_cache_environment(
 _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT: dict[str, str | None] = {}
 if __name__ == "__main__":
     _require_isolated_main_process()
+    _require_provider_free_entry_environment(
+        sys.argv, cache_environment_installed=False
+    )
     _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT = (
         _install_runtime_cache_environment(sys.argv)
+    )
+    _require_provider_free_entry_environment(
+        sys.argv, cache_environment_installed=True
     )
 
 
@@ -883,7 +993,15 @@ if __name__ == "__main__":
         _require_isolated_main_process()
         _exit_code = main()
     finally:
-        _restore_runtime_cache_environment(
-            _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT
-        )
+        try:
+            _require_provider_free_entry_environment(
+                sys.argv,
+                cache_environment_installed=bool(
+                    _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT
+                ),
+            )
+        finally:
+            _restore_runtime_cache_environment(
+                _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT
+            )
     raise SystemExit(_exit_code)

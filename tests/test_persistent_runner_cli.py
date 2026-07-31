@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import pwd
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -14,6 +15,82 @@ from epiagentbench.development_matched_panel import FAMILIES
 
 
 class PersistentRunnerCliTests(unittest.TestCase):
+    def test_provider_free_entrypoint_rejects_extra_environment_before_import(
+        self,
+    ) -> None:
+        runner = Path(matched_cli.__file__).resolve()
+        account = pwd.getpwuid(os.getuid())
+        with TemporaryDirectory(
+            prefix="eab26-provider-free-entry-", dir=Path.home()
+        ) as provider_free_root:
+            clean_home = Path(provider_free_root) / "clean-home"
+            clean_tmp = Path(provider_free_root) / "clean-tmp"
+            clean_home.mkdir(mode=0o700)
+            clean_tmp.mkdir(mode=0o700)
+            environment = {
+                "HOME": str(clean_home),
+                "LC_ALL": "C.UTF-8",
+                "LOGNAME": account.pw_name,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "SHELL": account.pw_shell,
+                "TMPDIR": str(clean_tmp),
+                "USER": account.pw_name,
+                "__CF_USER_TEXT_ENCODING": (
+                    f"0x{os.getuid():X}:0x0:0x0"
+                ),
+            }
+            command = [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                str(runner),
+                "publish-provider-free-json",
+                "--help",
+            ]
+            passed = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=environment,
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(
+                passed.returncode,
+                0,
+                passed.stderr.decode("utf-8", errors="replace"),
+            )
+            failed = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={**environment, "CURSOR_API_KEY": ""},
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(failed.returncode, 2)
+            self.assertEqual(failed.stdout, b"")
+            self.assertEqual(failed.stderr, b"")
+            for name in ("HOME", "TMPDIR"):
+                with self.subTest(noncanonical_directory=name):
+                    noncanonical = dict(environment)
+                    noncanonical[name] = environment[name] + "/"
+                    rejected = subprocess.run(
+                        command,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        env=noncanonical,
+                        check=False,
+                        timeout=30,
+                    )
+                    self.assertEqual(rejected.returncode, 2)
+                    self.assertEqual(rejected.stdout, b"")
+                    self.assertEqual(rejected.stderr, b"")
+
     def test_isolated_import_path_installs_once_and_spawn_replay_is_idempotent(
         self,
     ) -> None:
@@ -158,9 +235,19 @@ class PersistentRunnerCliTests(unittest.TestCase):
             self.skipTest("test requires exact Starsim 3.5.1")
 
         runner = Path(matched_cli.__file__).resolve()
-        with TemporaryDirectory(
-            prefix="eab22-runtime-", dir="/tmp"
-        ) as directory:
+        with (
+            TemporaryDirectory(
+                prefix="eab26-runtime-", dir="/tmp"
+            ) as directory,
+            TemporaryDirectory(
+                prefix="eab26-provider-free-", dir=Path.home()
+            ) as provider_free_root,
+        ):
+            clean_home = Path(provider_free_root) / "clean-home"
+            clean_tmp = Path(provider_free_root) / "clean-tmp"
+            clean_home.mkdir(mode=0o700)
+            clean_tmp.mkdir(mode=0o700)
+            account = pwd.getpwuid(os.getuid())
             completed = subprocess.run(
                 [
                     sys.executable,
@@ -175,7 +262,18 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env={},
+                env={
+                    "HOME": str(clean_home),
+                    "LC_ALL": "C.UTF-8",
+                    "LOGNAME": account.pw_name,
+                    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                    "SHELL": account.pw_shell,
+                    "TMPDIR": str(clean_tmp),
+                    "USER": account.pw_name,
+                    "__CF_USER_TEXT_ENCODING": (
+                        f"0x{os.getuid():X}:0x0:0x0"
+                    ),
+                },
                 check=False,
                 timeout=300,
             )
@@ -206,7 +304,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
     def test_preparation_runtime_preflight_bypasses_private_path_gate(self):
         payload = {
             "schema_version": (
-                "epiagentbench.preparation_runtime_preflight.v3"
+                "epiagentbench.preparation_runtime_preflight.v4"
             ),
             "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
@@ -251,7 +349,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
     def test_preparation_runtime_verification_can_publish_create_once(self):
         payload = {
             "schema_version": (
-                "epiagentbench.preparation_runtime_verification.v2"
+                "epiagentbench.preparation_runtime_verification.v3"
             ),
             "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
@@ -303,7 +401,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             Path("/private/verification.json"),
             {
                 "schema_version": (
-                    "epiagentbench.preparation_runtime_verification.v2"
+                    "epiagentbench.preparation_runtime_verification.v3"
                 ),
                 "panel_id": matched_cli.PANEL_ID,
                 "status": "passed",

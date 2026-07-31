@@ -1,5 +1,18 @@
 # EpiAgentBench V25 execution runbook
 
+> [!WARNING]
+> **TERMINAL ZERO-CALL FAILURE — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V25's sole provider-free preparation-runtime attempt stopped during static
+> CLI discovery because its `env -i` PATH omitted the installed
+> `cursor-agent` search directory. The failure preceded the scientific
+> runtime contract, both Starsim smokes, runtime-receipt creation, every
+> private artifact, authentication, provider processes, supervisors, and
+> model calls. V25 is non-resumable and its namespaces must not be reused.
+> Continue only with the [V26 runbook](V26_RUNBOOK.md); the public facts are
+> frozen in the
+> [V25 supersession record](../results/development-matched-50x6-v25.superseded.json).
+
 > [!CAUTION]
 > **PROVIDER-FREE PREPARATION ONLY — NO V25 EXECUTION IS AUTHORIZED.**
 >

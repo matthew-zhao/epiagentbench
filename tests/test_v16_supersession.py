@@ -211,7 +211,7 @@ class V16SupersessionTests(unittest.TestCase):
             requirements,
         )
         self.assertIn(
-            '"schema_version": "epiagentbench.persistent_supervisor_contract.v10"',
+            '"schema_version": "epiagentbench.persistent_supervisor_contract.v11"',
             source,
         )
 

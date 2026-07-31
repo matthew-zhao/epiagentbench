@@ -193,10 +193,10 @@ class V19SupersessionTests(unittest.TestCase):
             "epiagentbench.authentication_setup.v3",
         )
         self.assertIn(
-            '_SCHEMA = "epiagentbench.launchd_agent.v12"', launcher
+            '_SCHEMA = "epiagentbench.launchd_agent.v13"', launcher
         )
         self.assertIn(
-            '_PROTOCOL_VERSION = "persistent-supervisor-v6"', launcher
+            '_PROTOCOL_VERSION = "persistent-supervisor-v7"', launcher
         )
 
     def test_v20_acknowledgement_and_budget_are_consistent(self) -> None:

@@ -4,6 +4,7 @@ from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -11,7 +12,10 @@ from unittest.mock import patch
 from epiagentbench.development_pilot import (
     DIMENSION_MAXIMA,
     PANEL,
+    _closed_git_command,
+    _closed_git_environment,
     _derive_secret,
+    _git_output,
     _load_json,
     _reconstruct_public_results,
     _raise_on_harness_startup_failure,
@@ -91,6 +95,65 @@ class DevelopmentPilotTests(unittest.TestCase):
             self.assertEqual(os.stat(private_path).st_mode & 0o777, 0o600)
             self.assertEqual(public["planned_assignments"], 15)
             self.assertEqual(len(public["episodes"]), 5)
+
+    def test_git_reads_use_closed_system_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            marker = root / "fsmonitor-invoked"
+            helper = root / "fsmonitor-helper"
+            helper.write_text(
+                "#!/bin/sh\n"
+                f"echo invoked > {str(marker)!r}\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            helper.chmod(0o700)
+            subprocess.run(
+                ["/usr/bin/git", "init", "--quiet", str(root)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                [
+                    "/usr/bin/git",
+                    "-C",
+                    str(root),
+                    "config",
+                    "core.fsmonitor",
+                    str(helper),
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            hook = root / ".git" / "hooks" / "post-index-change"
+            hook.write_text(
+                "#!/bin/sh\n"
+                f"echo invoked > {str(marker)!r}\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            hook.chmod(0o700)
+            self.assertEqual(
+                _git_output(
+                    root,
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                ).splitlines(),
+                ["?? fsmonitor-helper"],
+            )
+            self.assertFalse(marker.exists())
+        command = _closed_git_command("rev-parse", "HEAD")
+        environment = _closed_git_environment()
+        self.assertEqual(command[0], "/usr/bin/git")
+        self.assertIn("core.fsmonitor=false", command)
+        self.assertEqual(environment["GIT_CONFIG_GLOBAL"], "/dev/null")
+        self.assertEqual(environment["GIT_OPTIONAL_LOCKS"], "0")
+        self.assertEqual(
+            environment["PATH"], "/usr/bin:/bin:/usr/sbin:/sbin"
+        )
 
     def test_sanitized_result_omits_submission_diagnostic_and_oracle_metrics(self) -> None:
         sanitized = _sanitize_result(

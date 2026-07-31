@@ -34,8 +34,9 @@ from pathlib import Path
 from secrets import token_hex
 from typing import Any, Callable, Mapping, Sequence
 
+from .provider_cli_environment import SYSTEM_PROCESS_PATH
 
-_SCHEMA = "epiagentbench.launchd_agent.v12"
+_SCHEMA = "epiagentbench.launchd_agent.v13"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v5"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -46,7 +47,7 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v12\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v13\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v5\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
@@ -63,7 +64,7 @@ _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
-_PROTOCOL_VERSION = "persistent-supervisor-v6"
+_PROTOCOL_VERSION = "persistent-supervisor-v7"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -1533,7 +1534,7 @@ def _manifest_binding(
             or not _SHA256.fullmatch(runtime_cache_contract_sha256)
             or not isinstance(preparation_runtime_contract, dict)
             or preparation_runtime_contract.get("schema_version")
-            != "epiagentbench.bound_preparation_runtime.v2"
+            != "epiagentbench.bound_preparation_runtime.v3"
             or isinstance(runtime_contract, dict)
             and (
                 "python_executable" in runtime_contract
@@ -1582,12 +1583,9 @@ def _safe_environment(
     runtime_environment: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     identity = pwd.getpwuid(os.getuid())
-    path_value = path_environment if path_environment is not None else os.environ.get("PATH", "")
-    if not path_value or "\x00" in path_value or any(
-        not component or not Path(component).is_absolute()
-        for component in path_value.split(os.pathsep)
-    ):
-        raise ValueError("PATH must be a non-empty list of absolute directories")
+    if path_environment not in (None, SYSTEM_PROCESS_PATH):
+        raise ValueError("PATH must match the source-owned system path")
+    path_value = SYSTEM_PROCESS_PATH
     environment = {
         "HOME": identity.pw_dir,
         "LOGNAME": identity.pw_name,

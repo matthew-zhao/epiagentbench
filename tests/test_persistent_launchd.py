@@ -226,7 +226,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "cursor_keychain_service": "epiagentbench-cursor-v9-test",
             "cursor_keychain_account": "offline-test-account",
             "operation": "production",
-            "path_environment": "/usr/bin:/bin",
+            "path_environment": "/usr/bin:/bin:/usr/sbin:/sbin",
             "instance_token": "1" * 24,
         }
         arguments.update(changes)
@@ -261,7 +261,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         ] = launchd_agent._component_sha256(python_binding)
         cache_contract = launchd_agent._runtime_cache_contract(cache_root)
         manifest["preparation_runtime_contract"] = {
-            "schema_version": "epiagentbench.bound_preparation_runtime.v2",
+            "schema_version": "epiagentbench.bound_preparation_runtime.v3",
             "runtime_cache_contract_sha256": (
                 launchd_agent._component_sha256(cache_contract)
             ),
@@ -275,6 +275,51 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             encoding="utf-8",
         )
         return cache_root, environment
+
+    def _copied_isolated_python(self, name: str) -> Path:
+        """Create a movable regular-file interpreter with a valid venv root."""
+
+        venv = self.root / name
+        binary_dir = venv / "bin"
+        site_packages = (
+            venv
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
+        binary_dir.mkdir(parents=True, mode=0o700)
+        site_packages.mkdir(parents=True, mode=0o700)
+        target = binary_dir / "python"
+        shutil.copy2(Path(sys.executable).resolve(), target)
+        os.chmod(target, 0o700)
+        dylib_source = (
+            Path(sys.base_prefix)
+            / "lib"
+            / f"libpython{sys.version_info.major}.{sys.version_info.minor}.dylib"
+        )
+        if dylib_source.is_file():
+            dylib_target = venv / "lib" / dylib_source.name
+            shutil.copy2(dylib_source, dylib_target)
+            os.chmod(dylib_target, 0o700)
+        pyvenv = venv / "pyvenv.cfg"
+        pyvenv.write_text(
+            "\n".join(
+                (
+                    f"home = {Path(sys.base_prefix) / 'bin'}",
+                    "include-system-site-packages = false",
+                    (
+                        "version = "
+                        f"{sys.version_info.major}.{sys.version_info.minor}."
+                        f"{sys.version_info.micro}"
+                    ),
+                    f"executable = {Path(sys.executable).resolve()}",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(pyvenv, 0o600)
+        return target
 
     @staticmethod
     def _not_loaded_launchctl(arguments, **kwargs):
@@ -902,7 +947,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(nested_directory["kind"], "directory")
         self.assertNotIn("mtime_ns", nested_directory)
 
-    def test_v25_post_completion_cache_safety_rejects_unsafe_evolution(
+    def test_v26_post_completion_cache_safety_rejects_unsafe_evolution(
         self,
     ) -> None:
         cache_root, _ = self._enable_v18_runtime_binding()
@@ -986,44 +1031,72 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v23_rejects_legacy_launchd_schema_before_control_action(
+    def test_v26_rejects_predecessor_launchd_schemas_before_control_action(
         self,
     ) -> None:
-        generated = self._generate()
-        config_path = Path(generated["config_path"])
-        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
-        unsigned = launchd_agent._open_payload(
-            launchd_agent._CONFIG_AUTH_DOMAIN,
-            raw_config,
-            b"a" * 32,
-        )
-        unsigned["schema_version"] = "epiagentbench.launchd_agent.v11"
-        resealed = launchd_agent._seal_payload(
-            launchd_agent._CONFIG_AUTH_DOMAIN,
-            unsigned,
-            b"a" * 32,
-        )
-        config_path.write_text(json.dumps(resealed), encoding="utf-8")
-        os.chmod(config_path, 0o600)
-        calls: list[list[str]] = []
+        for version in (11, 12):
+            with self.subTest(schema_version=version):
+                runtime = self.root / f"legacy-v{version}-runtime"
+                generated = self._generate(
+                    runtime_dir=runtime,
+                    instance_token=f"legacy-v{version}",
+                )
+                config_path = Path(generated["config_path"])
+                raw_config = json.loads(
+                    config_path.read_text(encoding="utf-8")
+                )
+                unsigned = launchd_agent._open_payload(
+                    launchd_agent._CONFIG_AUTH_DOMAIN,
+                    raw_config,
+                    b"a" * 32,
+                )
+                unsigned["schema_version"] = (
+                    f"epiagentbench.launchd_agent.v{version}"
+                )
+                resealed = launchd_agent._seal_payload(
+                    launchd_agent._CONFIG_AUTH_DOMAIN,
+                    unsigned,
+                    b"a" * 32,
+                )
+                config_path.write_text(
+                    json.dumps(resealed), encoding="utf-8"
+                )
+                os.chmod(config_path, 0o600)
+                calls: list[list[str]] = []
 
-        def forbidden_control(arguments, **_kwargs):
-            calls.append(list(arguments))
-            return subprocess.CompletedProcess(
-                arguments, 0, stdout=b"", stderr=b""
-            )
+                def forbidden_control(arguments, **_kwargs):
+                    calls.append(list(arguments))
+                    return subprocess.CompletedProcess(
+                        arguments, 0, stdout=b"", stderr=b""
+                    )
 
+                with self.assertRaises(LaunchAgentError):
+                    start_launch_agent(
+                        runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=forbidden_control,
+                    )
+                self.assertEqual(calls, [])
+                self.mock_cursor_readiness.assert_not_called()
+                self.assertFalse(
+                    (runtime / "launchd-start-request.json").exists()
+                )
+
+    def test_v26_rejects_predecessor_bound_runtime_schema(self) -> None:
+        cache_root, _ = self._enable_v18_runtime_binding()
+        manifest = json.loads(
+            self.public_manifest.read_text(encoding="utf-8")
+        )
+        manifest["preparation_runtime_contract"]["schema_version"] = (
+            "epiagentbench.bound_preparation_runtime.v2"
+        )
+        self.public_manifest.write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
         with self.assertRaises(LaunchAgentError):
-            start_launch_agent(
-                self.runtime,
-                authentication_key_file=self.authentication_key,
-                command_runner=forbidden_control,
-            )
-        self.assertEqual(calls, [])
-        self.mock_cursor_readiness.assert_not_called()
-        self.assertFalse(
-            (self.runtime / "launchd-start-request.json").exists()
-        )
+            self._generate(runtime_cache_dir=cache_root)
+        self.assertFalse(self.runtime.exists())
 
     def test_v18_generation_rejects_manifest_python_binding_hash_drift(
         self,
@@ -1693,12 +1766,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
 
     def test_python_entrypoint_binding_preserves_symlink_launch_path(self) -> None:
-        target = self.root / "python-target"
-        shutil.copy2(Path(sys.executable).resolve(), target)
-        os.chmod(target, target.stat().st_mode | 0o100)
+        target = Path(sys.executable).resolve()
         second_hop = self.root / "python3"
-        second_hop.symlink_to(target.name)
-        entrypoint = self.root / "python"
+        second_hop.symlink_to(target)
+        entrypoint = self.root / "python-entrypoint"
         entrypoint.symlink_to(second_hop.name)
         manifest = json.loads(self.public_manifest.read_text(encoding="utf-8"))
         manifest["runtime_contract"]["python_entrypoint_kind"] = "symlink_chain"
@@ -1725,7 +1796,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         alternate = self.root / "python-alternate"
         shutil.copy2(target, alternate)
         os.chmod(alternate, alternate.stat().st_mode | 0o100)
-        second_hop.symlink_to(alternate.name)
+        second_hop.symlink_to(alternate)
         with self.assertRaises(LaunchAgentError):
             inspect_launch_agent(
                 self.runtime,
@@ -1824,9 +1895,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             ),
         ):
             with self.subTest(drift=suffix):
-                target = self.root / f"python-{suffix}"
-                shutil.copy2(Path(sys.executable).resolve(), target)
-                os.chmod(target, 0o700)
+                target = self._copied_isolated_python(
+                    f"python-{suffix}-venv"
+                )
                 runtime = self.root / f"python-{suffix}-runtime"
                 self._generate(
                     python_executable=target,
@@ -1841,9 +1912,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     )
 
     def test_worker_rechecks_python_binding_before_keychain_access(self) -> None:
-        target = self.root / "python-worker"
-        shutil.copy2(Path(sys.executable).resolve(), target)
-        os.chmod(target, 0o700)
+        target = self._copied_isolated_python("python-worker-venv")
         generated = self._generate(python_executable=target)
         self._commit_start()
         target.write_bytes(target.read_bytes() + b"drift")

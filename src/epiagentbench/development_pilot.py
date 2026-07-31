@@ -48,6 +48,22 @@ DIMENSION_MAXIMA: Mapping[str, float] = {
     "handoff": 5.0,
     "prospective_forecast": 10.0,
 }
+_SYSTEM_GIT = "/usr/bin/git"
+_SYSTEM_PROCESS_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+_GIT_CONFIGURATION = (
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "core.untrackedCache=false",
+    "-c",
+    "submodule.recurse=false",
+    "-c",
+    "diff.external=",
+    "-c",
+    "credential.helper=",
+)
 
 # The seeds are derived without consulting simulator outcomes:
 # int(SHA256("epiagentbench:development-panel:v3:" + family)[:13], 16).
@@ -162,13 +178,41 @@ def _derived_seed(family: str) -> int:
     return int(digest[:13], 16)
 
 
+def _closed_git_environment() -> dict[str, str]:
+    return {
+        "GIT_ASKPASS": "/usr/bin/false",
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_PAGER": "cat",
+        "GIT_TERMINAL_PROMPT": "0",
+        "HOME": "/",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PAGER": "cat",
+        "PATH": _SYSTEM_PROCESS_PATH,
+        "SSH_ASKPASS": "/usr/bin/false",
+    }
+
+
+def _closed_git_command(*args: str) -> list[str]:
+    return [
+        _SYSTEM_GIT,
+        *_GIT_CONFIGURATION,
+        "--no-pager",
+        *args,
+    ]
+
+
 def _git_output(root: Path, *args: str) -> str:
     process = subprocess.run(
-        ["git", *args],
+        _closed_git_command(*args),
         cwd=root,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=_closed_git_environment(),
         check=False,
         timeout=20,
     )
