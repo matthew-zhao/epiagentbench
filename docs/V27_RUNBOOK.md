@@ -1,14 +1,23 @@
 # EpiAgentBench V27 execution runbook
 
 > [!CAUTION]
-> **PROVIDER-FREE PREPARATION ONLY — NO V27 EXECUTION IS AUTHORIZED.**
+> **IMMUTABLE TERMINAL RECORD — V27 IS FAILED CLOSED AND NON-RESUMABLE.**
 >
-> The current operator decision covers only sections 1–9: source publication,
-> the provider-free runtime receipt, fresh private preparation, and the public
-> manifest. It does not authorize authentication, a provider process, spend, a
-> supervisor, a preflight, production, or a model call. Stop after publishing
-> the manifest. Every later phase requires a separate operator decision and
-> the exact manifest-bound acknowledgement below.
+> Do not execute any command in this historical runbook. Never restart,
+> reconcile, retry, or reuse the V27 cohort, key, credentials, runtime cache,
+> private state, checkout, supervisor, receipts, Keychain service, or claim.
+> V27's authenticated preflight is terminal and production never started.
+> Continue only with the fresh [V28 runbook](V28_RUNBOOK.md).
+
+V27's immutable public [preflight receipt](../results/development-matched-50x6-v27.preflight.json)
+and [supersession record](../results/development-matched-50x6-v27.superseded.json)
+record a provider-free `contract_attestation` terminal failure before any
+profile completed or any model invocation became conservatively chargeable.
+The offline audit did not mutate or resume V27. It re-attested the surviving
+public/runtime contracts and localized the failure to contract validation or
+the immediately following durable checkpoint, but the V27 v1 incident envelope
+does not safely distinguish those operations. V28 introduces that typed,
+content-free distinction; this document remains historical evidence only.
 
 V27 supersedes the terminal, non-resumable V26 preflight. The V26 supervisor
 was generated, installed, audited, and started exactly once, and its first

@@ -675,12 +675,16 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "/public/preflight.json",
         ]
         payload = {
-            "schema_version": "epiagentbench.terminal_audit.v1",
+            "schema_version": "epiagentbench.terminal_audit.v2",
             "panel_id": matched_cli.PANEL_ID,
             "operation": "preflight",
             "status": "reconciled_and_attested",
             "terminal_status": "failed",
+            "incident_code": "supervisor_boundary_attestation_failed",
             "incident_phase": "repository_preflight",
+            "attempted_operation": None,
+            "completed_operation": None,
+            "contract_failure_code": None,
             "model_invocations_conservatively_chargeable": 0,
             "file_sha256": "sha256:" + "a" * 64,
             "provider_processes_started": 0,

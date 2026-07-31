@@ -109,6 +109,97 @@ _DEVELOPMENT_MATCHED_PANEL_SOURCE = Path(
 )
 _HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64
 _TERMINAL_AUDIT_REQUIRED_EXIT_CODE = 65
+_TERMINAL_AUDIT_INCIDENT_PHASES = frozenset(
+    {
+        "prelaunch_validation",
+        "authentication_prerequisite",
+        "supervisor_binding",
+        "spend_authorization",
+        "credential_binding",
+        "artifact_separation",
+        "contract_attestation",
+        "one_shot_state_validation",
+        "credential_precheck",
+        "repository_preflight",
+        "credential_postcheck",
+        "preflight_state_claim",
+        "before_model_spawn",
+        "model_spawn_committed",
+        "provider_returned",
+        "aggregate_projection",
+        "final_supervisor_attestation",
+        "success_candidate_commit",
+        "terminal_candidate_commit",
+        "public_receipt_commit",
+    }
+)
+_TERMINAL_AUDIT_CONTRACT_OPERATIONS = frozenset(
+    {
+        "schedule_design",
+        "public_manifest",
+        "authentication_binding",
+        "preparation_runtime",
+        "public_contract_surface",
+        "component_commitment",
+        "cohort_identity",
+        "cohort_freeze",
+        "cohort_manifest",
+        "cohort_preparation",
+        "cohort_retirement",
+        "episode_pack_integrity",
+        "cohort_balance",
+        "schedule_commitment",
+        "assignment_state",
+        "contract_internal",
+    }
+)
+_TERMINAL_AUDIT_CONTROL_OPERATIONS = frozenset(
+    {
+        *_TERMINAL_AUDIT_INCIDENT_PHASES,
+        *_TERMINAL_AUDIT_CONTRACT_OPERATIONS,
+        "one_shot_state_validation_checkpoint",
+    }
+)
+_TERMINAL_AUDIT_CONTROL_INCIDENT_CODES = frozenset(
+    {
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+        "control_phase_checkpoint_persist_failed",
+    }
+)
+_TERMINAL_AUDIT_INCIDENT_CODES = frozenset(
+    {
+        "credential_attestation_failed",
+        "evaluator_return_contract_failed",
+        "provider_adapter_execution_failed",
+        "provider_attempt_marker_persist_failed",
+        "provider_cli_unavailable",
+        "provider_cli_readiness_timeout",
+        "provider_cli_readiness_setup_failed",
+        "provider_cli_version_empty",
+        "provider_cli_version_nonzero",
+        "provider_completion_marker_persist_failed",
+        "provider_episode_start_failed",
+        "provider_environment_setup_failed",
+        "provider_execution_isolation_failed",
+        "model_invocation_marker_persist_failed",
+        "provider_mcp_readiness_failed",
+        "provider_output_isolation_failed",
+        "provider_pre_model_phase_checkpoint_persist_failed",
+        "provider_process_isolation_failed",
+        "provider_progress_checkpoint_persist_failed",
+        "provider_quarantine_checkpoint_persist_failed",
+        "provider_result_checkpoint_persist_failed",
+        "provider_interrupted_after_durable_attempt",
+        "provider_result_processing_failed",
+        "provider_spawn_failed",
+        "provider_state_isolation_failed",
+        "provider_workspace_setup_failed",
+        "supervisor_boundary_attestation_failed",
+        "unexpected_control_path_failure",
+        *_TERMINAL_AUDIT_CONTROL_INCIDENT_CODES,
+    }
+)
 
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[bytes]]
@@ -3034,7 +3125,11 @@ def _attest_terminal_audit_required_exit(
         "operation",
         "status",
         "terminal_status",
+        "incident_code",
         "incident_phase",
+        "attempted_operation",
+        "completed_operation",
+        "contract_failure_code",
         "model_invocations_conservatively_chargeable",
         "file_sha256",
         "provider_processes_started",
@@ -3046,18 +3141,69 @@ def _attest_terminal_audit_required_exit(
         if isinstance(audit, Mapping)
         else None
     )
+    incident_code = audit.get("incident_code")
+    incident_phase = audit.get("incident_phase")
+    attempted_operation = audit.get("attempted_operation")
+    completed_operation = audit.get("completed_operation")
+    contract_failure_code = audit.get("contract_failure_code")
+    typed_control_incident = (
+        incident_code in _TERMINAL_AUDIT_CONTROL_INCIDENT_CODES
+    )
+    typed_diagnostics_valid = (
+        attempted_operation in _TERMINAL_AUDIT_CONTROL_OPERATIONS
+        and (
+            completed_operation is None
+            or completed_operation in _TERMINAL_AUDIT_CONTROL_OPERATIONS
+        )
+        and (
+            (
+                incident_code == "contract_attestation_failed"
+                and attempted_operation
+                in _TERMINAL_AUDIT_CONTRACT_OPERATIONS
+                and contract_failure_code
+                == f"{attempted_operation}_failed"
+            )
+            or (
+                incident_code != "contract_attestation_failed"
+                and contract_failure_code is None
+            )
+        )
+        and (
+            incident_code != "control_phase_checkpoint_persist_failed"
+            or (
+                attempted_operation
+                == "one_shot_state_validation_checkpoint"
+                and completed_operation == "contract_attestation"
+            )
+        )
+    )
     if (
         not isinstance(audit, Mapping)
         or set(audit) != expected_keys
         or audit.get("schema_version")
-        != "epiagentbench.terminal_audit.v1"
+        != "epiagentbench.terminal_audit.v2"
         or audit.get("panel_id") != config["panel_id"]
         or audit.get("operation") != config["operation"]
         or audit.get("status") != "reconciled_and_attested"
         or audit.get("terminal_status")
         not in {"failed", "stopped_supervisor_incident"}
-        or not isinstance(audit.get("incident_phase"), str)
-        or not _SAFE_NAME.fullmatch(str(audit["incident_phase"]))
+        or incident_code not in _TERMINAL_AUDIT_INCIDENT_CODES
+        or incident_phase not in _TERMINAL_AUDIT_INCIDENT_PHASES
+        or (
+            typed_control_incident
+            and not typed_diagnostics_valid
+        )
+        or (
+            not typed_control_incident
+            and any(
+                value is not None
+                for value in (
+                    attempted_operation,
+                    completed_operation,
+                    contract_failure_code,
+                )
+            )
+        )
         or type(chargeable) is not int
         or not 0 <= chargeable <= 6
         or not isinstance(audit.get("file_sha256"), str)

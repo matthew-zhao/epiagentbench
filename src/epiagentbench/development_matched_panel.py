@@ -107,9 +107,9 @@ from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePa
 from .trusted.service import TRUSTED_EVALUATOR_STARTUP_STAGES
 
 
-PANEL_ID = "development-matched-50x6-v27"
+PANEL_ID = "development-matched-50x6-v28"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v27"
+SCHEMA_VERSION = "development_matched_panel_v28"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -117,7 +117,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v27 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v28 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $610 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -135,8 +135,8 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "zero-model-call v24 control-plane precommitment, the failed "
     "zero-model-call v25 provider-free preparation-runtime CLI discovery, "
     "the failed v26 preflight with indeterminate provider-call count and a "
-    "conservative $10 Claude allowance, and the v27 preflight and production "
-    "run."
+    "conservative $10 Claude allowance, the failed zero-model-call v27 "
+    "preflight, and the v28 preflight and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v4"
@@ -154,7 +154,7 @@ _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS = (0, 7, 2**31 - 2)
 _PREPARATION_EPISODE_STARTUP_REPETITIONS = 2
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "45857256aabe151a87d6026229492e2fe494611a5aad960ee3a257596c5c8363"
+    "58b483ed9fe0a572644aeeee2f28cf62ee8a14e5321e2ec87010b6ae473373e9"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -287,17 +287,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V27 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V28 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V27 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V28 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V27 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V28 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v27_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v28_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v27_cohort_freeze_completion.v1"
+    "epiagentbench.v28_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -377,9 +377,9 @@ _MAX_PANEL_JSON_BYTES = 64 * 1024 * 1024
 _PENDING_PREFLIGHT_STATUS = "passed_pending_supervisor_completion"
 _PENDING_PRODUCTION_STATUS = "complete_pending_supervisor_completion"
 _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA = (
-    "epiagentbench.preflight_incident_envelope.v1"
+    "epiagentbench.preflight_incident_envelope.v2"
 )
-_TERMINAL_AUDIT_SCHEMA = "epiagentbench.terminal_audit.v1"
+_TERMINAL_AUDIT_SCHEMA = "epiagentbench.terminal_audit.v2"
 _PREFLIGHT_INCIDENT_PHASES = (
     "prelaunch_validation",
     "authentication_prerequisite",
@@ -403,6 +403,41 @@ _PREFLIGHT_INCIDENT_PHASES = (
     "public_receipt_commit",
 )
 _PREFLIGHT_INCIDENT_PHASE_SET = frozenset(_PREFLIGHT_INCIDENT_PHASES)
+_CONTRACT_ATTESTATION_OPERATIONS = (
+    "schedule_design",
+    "public_manifest",
+    "authentication_binding",
+    "preparation_runtime",
+    "public_contract_surface",
+    "component_commitment",
+    "cohort_identity",
+    "cohort_freeze",
+    "cohort_manifest",
+    "cohort_preparation",
+    "cohort_retirement",
+    "episode_pack_integrity",
+    "cohort_balance",
+    "schedule_commitment",
+    "assignment_state",
+    "contract_internal",
+)
+_CONTRACT_ATTESTATION_OPERATION_SET = frozenset(
+    _CONTRACT_ATTESTATION_OPERATIONS
+)
+_CONTRACT_ATTESTATION_FAILURE_BY_OPERATION = {
+    operation: f"{operation}_failed"
+    for operation in _CONTRACT_ATTESTATION_OPERATIONS
+}
+_CONTRACT_ATTESTATION_FAILURE_CODES = frozenset(
+    _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION.values()
+)
+_PREFLIGHT_CONTROL_OPERATIONS = frozenset(
+    {
+        *_PREFLIGHT_INCIDENT_PHASES,
+        *_CONTRACT_ATTESTATION_OPERATIONS,
+        "one_shot_state_validation_checkpoint",
+    }
+)
 _PERSISTENT_EXECUTION_BINDINGS_KEY = "persistent_execution_bindings"
 _PUBLIC_RELEASE_KEY = "public_release"
 _SUPERVISOR_BINDING_FIELDS = frozenset(
@@ -486,6 +521,9 @@ _PROVIDER_INCIDENT_CODES = frozenset(
         "provider_state_isolation_failed",
         "provider_workspace_setup_failed",
         "supervisor_boundary_attestation_failed",
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+        "control_phase_checkpoint_persist_failed",
         "unexpected_control_path_failure",
     }
 )
@@ -1111,21 +1149,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V27 cohort destination")
+    return _canonical_new_private_path(value, label="V28 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V27 claim location paired with this owner-only key."""
+    """Return the one V28 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V27 authentication-key namespace is unavailable"
+            "V28 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1134,16 +1172,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V27 authentication-key namespace must be owner-only"
+            "V28 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V27 cohort freeze claim"
+        requested_path, label="V28 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V27 cohort freeze claim must use the canonical key-namespace path"
+            "V28 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1171,7 +1209,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V27 cohort freeze claim authentication failed")
+        raise ValueError("V28 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1194,7 +1232,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V27 cohort freeze completion authentication failed")
+        raise ValueError("V28 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1218,7 +1256,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V27 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V28 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1248,12 +1286,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V27 freeze attempt before any cohort randomness."""
+    """Burn the only V28 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V27 cohort freeze completion already exists; never rerun freeze"
+            "V28 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1270,11 +1308,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V27 cohort freeze already has a pending claim; interrupted "
+            "V28 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V27 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V28 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1292,7 +1330,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V27 cohort manifest must use its canonical filename")
+        raise ValueError("V28 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1303,7 +1341,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V27 frozen cohort manifest"
+            canonical_manifest_path, label="V28 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1321,11 +1359,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V27 cohort freeze completion already exists; never replace it"
+            "V28 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V27 cohort freeze completion failed its durable reload"
+            "V28 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1343,13 +1381,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V27 cohort has no authenticated create-once freeze claim"
+            "Frozen V28 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V27 cohort freeze remains pending; interrupted freezes are "
+            "V28 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1357,7 +1395,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V27 cohort manifest must use its canonical filename")
+        raise ValueError("V28 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1372,11 +1410,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V27 cohort freeze claim belongs to another freeze")
+        raise ValueError("V28 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V27 cohort freeze claim has no claim time")
+        raise ValueError("V28 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1387,7 +1425,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V27 frozen cohort manifest"
+            manifest_path, label="V28 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1397,12 +1435,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V27 cohort freeze completion differs from its manifest or claim"
+            "V28 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V27 cohort freeze completion has no completion time")
+        raise ValueError("V28 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -1958,20 +1996,20 @@ def _provider_free_empty_directory(
     account_home: Path,
 ) -> Path:
     if not isinstance(raw_value, str) or not raw_value or "\x00" in raw_value:
-        raise RuntimeError(f"V27 provider-free {label} is unavailable")
+        raise RuntimeError(f"V28 provider-free {label} is unavailable")
     candidate = Path(raw_value)
     if (
         not candidate.is_absolute()
         or raw_value != os.path.normpath(raw_value)
     ):
-        raise RuntimeError(f"V27 provider-free {label} is invalid")
+        raise RuntimeError(f"V28 provider-free {label} is invalid")
     try:
         metadata = candidate.lstat()
         resolved = candidate.resolve(strict=True)
         entries = list(candidate.iterdir())
     except (OSError, RuntimeError):
         raise RuntimeError(
-            f"V27 provider-free {label} is unavailable"
+            f"V28 provider-free {label} is unavailable"
         ) from None
     if (
         candidate != resolved
@@ -1986,7 +2024,7 @@ def _provider_free_empty_directory(
         or _paths_overlap(candidate, runtime_cache_root)
     ):
         raise RuntimeError(
-            f"V27 provider-free {label} failed directory isolation"
+            f"V28 provider-free {label} failed directory isolation"
         )
     return candidate
 
@@ -2004,14 +2042,14 @@ def _provider_free_preparation_environment_contract(
     )
     if set(os.environ) != expected_keys:
         raise RuntimeError(
-            "V27 provider-free preparation environment is not closed"
+            "V28 provider-free preparation environment is not closed"
         )
     account_name, raw_account_home, account_shell = current_account()
     try:
         account_home = raw_account_home.resolve(strict=True)
     except (OSError, RuntimeError):
         raise RuntimeError(
-            "V27 provider-free account home is unavailable"
+            "V28 provider-free account home is unavailable"
         ) from None
     expected_cf_encoding = f"0x{os.getuid():X}:0x0:0x0"
     if (
@@ -2024,7 +2062,7 @@ def _provider_free_preparation_environment_contract(
         != expected_cf_encoding
     ):
         raise RuntimeError(
-            "V27 provider-free preparation environment values are invalid"
+            "V28 provider-free preparation environment values are invalid"
         )
     clean_home = _provider_free_empty_directory(
         os.environ.get("HOME"),
@@ -2042,7 +2080,7 @@ def _provider_free_preparation_environment_contract(
     )
     if clean_home == clean_tmp or _paths_overlap(clean_home, clean_tmp):
         raise RuntimeError(
-            "V27 provider-free HOME and TMPDIR must be distinct"
+            "V28 provider-free HOME and TMPDIR must be distinct"
         )
     return {
         "schema_version": _PROVIDER_FREE_PREPARATION_ENVIRONMENT_SCHEMA,
@@ -3720,12 +3758,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V27 key only when one stable inode owns its namespace."""
+    """Read the V28 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V27 authentication key is unavailable") from None
+        raise RuntimeError("V28 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3745,18 +3783,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V27 authentication key must be an owner-only single-link file"
+            "V28 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V27 authentication key is unavailable") from None
+        raise RuntimeError("V28 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V27 authentication key changed while reading")
+        raise RuntimeError("V28 authentication key changed while reading")
     return key
 
 
@@ -4686,7 +4724,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V27 runtime-cache environment does not match the exact contract"
+            "V28 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4700,17 +4738,17 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V27 runtime-cache contract is inconsistent")
+        raise RuntimeError("V28 runtime-cache contract is inconsistent")
     return contract
 
 
 def _runtime_cache_root_from_environment() -> Path:
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V27 runtime-cache environment is unavailable")
+        raise RuntimeError("V28 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V27 runtime-cache environment is invalid")
+        raise RuntimeError("V28 runtime-cache environment is invalid")
     root = candidate.parent
     _runtime_cache_contract(root)
     return root
@@ -4835,7 +4873,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v27-stop-direct-care",
+                        control_id="v28-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4868,14 +4906,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V27 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V28 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V27 Starsim golden smoke changed engine descriptors"
+                "V28 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4917,7 +4955,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V27 Starsim golden smoke lost its causal transmission/control "
+            "V28 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4945,12 +4983,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V27 Starsim golden smoke result drifted from its reviewed digest"
+            "V28 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v27_contact_transmission_with_matched_contact_stop"
+            "v28_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -4977,12 +5015,12 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
             for seed in _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS:
                 presentation_key = hashlib.sha256(
                     (
-                        "EpiAgentBench V27 provider-free episode startup "
+                        "EpiAgentBench V28 provider-free episode startup "
                         f"smoke v1|{family}|{seed}"
                     ).encode("ascii")
                 ).digest()
                 with TemporaryDirectory(
-                    prefix="eab25-", dir="/tmp"
+                    prefix="eab28-", dir="/tmp"
                 ) as directory:
                     socket_path = Path(directory) / "episode.sock"
                     session = launch_socket_episode(
@@ -5024,7 +5062,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                             session.close()
                     if socket_path.exists():
                         raise RuntimeError(
-                            "V27 episode-startup smoke left a broker socket"
+                            "V28 episode-startup smoke left a broker socket"
                         )
         case_digests_by_repetition.append(case_digests)
 
@@ -5034,7 +5072,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         != case_digests_by_repetition[1]
     ):
         raise RuntimeError(
-            "V27 episode-startup smoke is not serially reproducible"
+            "V28 episode-startup smoke is not serially reproducible"
         )
     expected_processes = (
         len(FAMILIES)
@@ -5043,7 +5081,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
     )
     if trusted_evaluator_processes_started != expected_processes:
         raise RuntimeError(
-            "V27 episode-startup smoke did not complete its fixed matrix"
+            "V28 episode-startup smoke did not complete its fixed matrix"
         )
     return {
         "schema_version": _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA,
@@ -5130,7 +5168,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V27 requires exact Starsim "
+            "V28 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -5148,7 +5186,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V27 Python executable must not be temporary")
+        raise RuntimeError("V28 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -5218,7 +5256,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V27 creation."""
+    """Attest every public preparation dependency before private V28 creation."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -5239,7 +5277,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V27 runtime preflight is not at the expected pinned commit"
+            "V28 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -5248,7 +5286,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V27 runtime cache must be outside the repository"
+            "V28 runtime cache must be outside the repository"
         )
     provider_free_environment = (
         _provider_free_preparation_environment_contract(
@@ -5273,7 +5311,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V27 provider-free preparation environment changed"
+            "V28 provider-free preparation environment changed"
         )
     head_after = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -5283,7 +5321,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V27 source changed during preparation runtime preflight"
+            "V28 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -5326,18 +5364,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V27 preparation runtime receipt must already be committed"
+            "V28 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V27 preparation runtime receipt",
+            label="V28 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V27 preparation runtime receipt is unavailable"
+            "V28 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -5418,7 +5456,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V27 preparation runtime receipt failed closed-schema validation"
+            "V28 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -5430,7 +5468,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V27 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V28 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -5447,14 +5485,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V27 runtime cache changed during receipt verification"
+            "V28 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V27 preparation runtime differs from the published receipt"
+            "V28 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v3",
@@ -5591,7 +5629,7 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V27 preparation runtime is invalid")
+        raise ValueError("Bound V28 preparation runtime is invalid")
     if validate_runtime_cache_exactly:
         runtime_cache = _runtime_cache_contract(
             _runtime_cache_root_from_environment()
@@ -5599,18 +5637,18 @@ def _validate_bound_preparation_runtime(
         if bound.get("runtime_cache_contract_sha256") != _component_hash(
             runtime_cache
         ):
-            raise ValueError("Bound V27 runtime cache changed")
+            raise ValueError("Bound V28 runtime cache changed")
     if rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V27 Starsim smoke result changed")
+        raise ValueError("Bound V28 Starsim smoke result changed")
     if (
         rerun_smoke
         and _preparation_episode_startup_smoke()
         != bound.get("episode_startup_smoke_contract")
     ):
         raise ValueError(
-            "Bound V27 episode-startup smoke result changed"
+            "Bound V28 episode-startup smoke result changed"
         )
     return bound
 
@@ -5619,7 +5657,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v12",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v13",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -6111,8 +6149,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v27_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v27_authorization_breakdown": {
+        "claude_current_v28_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v28_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -6150,6 +6188,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v24_usd": 0.0,
             "v25_usd": 0.0,
             "v26_usd": 10.0,
+            "v27_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -6347,6 +6386,21 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v26_supersession": (
                 "results/development-matched-50x6-v26.superseded.json"
             ),
+            "v27_runtime_receipt": (
+                "results/development-matched-50x6-v27.runtime.json"
+            ),
+            "v27_manifest": (
+                "results/development-matched-50x6-v27.manifest.json"
+            ),
+            "v27_authentication_receipt": (
+                "results/development-matched-50x6-v27.authentication.json"
+            ),
+            "v27_preflight_artifact": (
+                "results/development-matched-50x6-v27.preflight.json"
+            ),
+            "v27_supersession": (
+                "results/development-matched-50x6-v27.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -6367,7 +6421,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V27 exactly once after runtime re-attestation."""
+    """Claim and freeze V28 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -6401,7 +6455,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V27 runtime cache must not overlap the {label}"
+                f"V28 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -6422,13 +6476,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V27 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V28 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V27 cohort returned a noncanonical artifact location"
+            "Frozen V28 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -6441,9 +6495,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V27 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V28 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v27_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v28_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -6502,13 +6556,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V27 requires an exact 1800-second assignment timeout")
+        raise ValueError("V28 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V27 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V28 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -6533,7 +6587,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V27 runtime cache must not overlap the {label}"
+                f"V28 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -6545,7 +6599,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V27 source or CLI identity drifted after runtime verification"
+            "V28 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -6599,7 +6653,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V27 runtime cache must not overlap the {label}"
+                f"V28 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -7194,12 +7248,21 @@ def _validate_contracts(
     claude_secure_storage_dir: Path,
     codex_secure_storage_dir: Path,
     revalidate_live_identity_contracts: bool = True,
+    operation_recorder: Callable[[str], None] | None = None,
 ) -> tuple[
     PrivateEpisodeCohortManifest,
     dict[str, PrivateEpisodePack],
     list[dict[str, Any]],
 ]:
+    def record_operation(operation: str) -> None:
+        if operation not in _CONTRACT_ATTESTATION_OPERATION_SET:
+            raise ValueError("Contract-attestation operation is invalid")
+        if operation_recorder is not None:
+            operation_recorder(operation)
+
+    record_operation("schedule_design")
     _validate_schedule_design()
+    record_operation("public_manifest")
     _validate_public_hash(public)
     if (
         public.get("panel_id") != PANEL_ID
@@ -7220,6 +7283,7 @@ def _validate_contracts(
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Matched-panel manifest contract mismatch")
+    record_operation("authentication_binding")
     _authentication_dependency_freeze(
         private,
         public,
@@ -7238,6 +7302,7 @@ def _validate_contracts(
         private=private,
         public=public,
     )
+    record_operation("preparation_runtime")
     bound_preparation_runtime = _validate_bound_preparation_runtime(
         public,
         rerun_smoke=revalidate_live_identity_contracts,
@@ -7260,7 +7325,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError(
-            "Private V27 preparation runtime binding is invalid"
+            "Private V28 preparation runtime binding is invalid"
         )
     if not revalidate_live_identity_contracts:
         runtime_cache_contract = private_preparation_runtime.get(
@@ -7294,6 +7359,7 @@ def _validate_contracts(
             raise ValueError(
                 "Post-start runtime cache safety changed"
             ) from None
+    record_operation("public_contract_surface")
     expected_contracts = {
         "replay_trace_contract": replay_trace_contract(),
         "persistent_supervisor_contract": _persistent_supervisor_contract(),
@@ -7323,6 +7389,7 @@ def _validate_contracts(
     for name, expected in expected_contracts.items():
         if public.get(name) != expected:
             raise ValueError(f"Pinned matched-panel contract drifted: {name}")
+    record_operation("component_commitment")
     hashes = public.get("contract_hashes")
     if not isinstance(hashes, dict) or any(
         hashes.get(field) != _component_hash(value)
@@ -7347,6 +7414,7 @@ def _validate_contracts(
         )
     ):
         raise ValueError("Matched-panel component commitment mismatch")
+    record_operation("cohort_identity")
     cohort_contract = public.get("cohort", {})
     if (
         not isinstance(cohort_contract, dict)
@@ -7371,6 +7439,7 @@ def _validate_contracts(
         # generator commitment below.
         installed = expected_generator
 
+    record_operation("cohort_freeze")
     manifest_path = _existing_path_without_final_symlink(
         str(private.get("cohort_manifest_path"))
     )
@@ -7378,7 +7447,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V27 preparation runtime contract is missing")
+        raise ValueError("V28 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -7407,9 +7476,11 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V27 cohort freeze claim differs from private state"
+            "Authenticated V28 cohort freeze claim differs from private state"
         )
+    record_operation("cohort_manifest")
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
+    record_operation("cohort_preparation")
     preparation_claim = _load_cohort_preparation_marker(
         _cohort_preparation_path(manifest_path), authentication_key
     )
@@ -7423,6 +7494,7 @@ def _validate_contracts(
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Cohort preparation claim differs from this panel")
+    record_operation("cohort_retirement")
     retirement = _cohort_retirement_if_present(
         manifest_path, authentication_key
     )
@@ -7437,6 +7509,7 @@ def _validate_contracts(
             manifest=manifest,
             public_manifest=public,
         )
+    record_operation("cohort_manifest")
     if (
         manifest.cohort_id != COHORT_ID
         or manifest.generator_fingerprint != installed
@@ -7444,6 +7517,7 @@ def _validate_contracts(
         != cohort_contract.get("pack_set_commitment")
     ):
         raise ValueError("Frozen set no longer matches the public commitment")
+    record_operation("episode_pack_integrity")
     private_episodes = private.get("episodes")
     if not isinstance(private_episodes, list) or len(private_episodes) != EPISODE_COUNT:
         raise ValueError("Private matched-panel episode state is invalid")
@@ -7468,10 +7542,12 @@ def _validate_contracts(
         ):
             raise ValueError("Private pack replay mismatch")
         packs[ref] = pack
+    record_operation("cohort_balance")
     if len(packs) != EPISODE_COUNT or Counter(
         str(pack.family) for pack in packs.values()
     ) != Counter({family: EPISODES_PER_FAMILY for family in FAMILIES}):
         raise ValueError("Private matched-panel cohort is not balanced")
+    record_operation("schedule_commitment")
     try:
         nonce = bytes.fromhex(str(private.get("schedule_nonce_hex")))
     except ValueError as error:
@@ -7486,6 +7562,7 @@ def _validate_contracts(
         != _family_map_commitment(private_episodes, nonce)
     ):
         raise ValueError("Private matched schedule or family map does not match its commitment")
+    record_operation("assignment_state")
     expected_keys = _assignment_keys(schedule)
     assignments = private.get("assignments")
     if not isinstance(assignments, list) or len(assignments) > ASSIGNMENT_COUNT:
@@ -7752,7 +7829,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V27 spend authorization contract mismatch")
+        raise ValueError("V28 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -7780,7 +7857,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v27 spend authorization receipt is required "
+            "A manifest-bound exact v28 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -7795,14 +7872,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v27 spend authorization receipt is required "
+            "A manifest-bound exact v28 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v27 spend authorization receipt is required "
+            "A manifest-bound exact v28 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -7824,7 +7901,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v27 $610 cumulative spend acknowledgement text is required"
+            "The exact v28 $610 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -9285,7 +9362,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V27 panel cannot retry"
+                    "state; this V28 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -9298,7 +9375,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V27 panel cannot retry"
+                    "state; this V28 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9311,7 +9388,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V27 panel cannot retry"
+                    "state; this V28 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -9333,7 +9410,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V27 panel cannot retry"
+                        "repository-contract state; this V28 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -9354,7 +9431,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V27 panel "
+                "Authentication process state is ambiguous; this V28 panel "
                 "cannot retry"
             )
         if (
@@ -9385,7 +9462,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -9417,7 +9494,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V27 panel cannot retry"
+                "state; this V28 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -9430,7 +9507,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -9443,7 +9520,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -9460,7 +9537,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -9479,7 +9556,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V27 panel cannot retry"
+                "state; this V28 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -9601,7 +9678,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V27 panel cannot retry"
+                    "state before provider launch; this V28 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9616,7 +9693,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V27 panel cannot retry"
+                    "state before provider launch; this V28 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -9633,7 +9710,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V27 panel cannot retry"
+                    "state before provider launch; this V28 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -9652,7 +9729,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V27 panel cannot retry"
+                    "state; this V28 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -9700,7 +9777,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V27 panel cannot retry"
+                    "V28 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -9718,7 +9795,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V27 panel cannot retry"
+                    "state after provider return; this V28 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9736,7 +9813,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V27 panel cannot retry"
+                    "state after provider return; this V28 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
@@ -9776,7 +9853,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V27 panel cannot retry"
+                    "state after provider return; this V28 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -9798,7 +9875,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V27 panel cannot retry"
+                    "this V28 panel cannot retry"
                 ) from None
 
         try:
@@ -9812,7 +9889,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -9825,7 +9902,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -9842,7 +9919,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V27 panel cannot retry"
+                "this V28 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -9861,7 +9938,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V27 panel cannot retry"
+                "state; this V28 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -10261,6 +10338,187 @@ def assert_environment_preflight_ready(
     }
 
 
+class _PreflightControlBoundaryError(RuntimeError):
+    """Carry only finite control diagnostics across the terminal seal."""
+
+    def __init__(
+        self,
+        *,
+        incident_code: str,
+        attempted_operation: str,
+        completed_operation: str | None,
+        contract_failure_code: str | None = None,
+    ) -> None:
+        if incident_code not in {
+            "contract_attestation_failed",
+            "contract_attestation_checkpoint_persist_failed",
+            "control_phase_checkpoint_persist_failed",
+        }:
+            raise ValueError("Preflight control incident code is invalid")
+        if attempted_operation not in _PREFLIGHT_CONTROL_OPERATIONS:
+            raise ValueError("Attempted preflight control operation is invalid")
+        if (
+            completed_operation is not None
+            and completed_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+        ):
+            raise ValueError("Completed preflight control operation is invalid")
+        if (
+            contract_failure_code is not None
+            and contract_failure_code
+            not in _CONTRACT_ATTESTATION_FAILURE_CODES
+        ):
+            raise ValueError("Contract-attestation failure code is invalid")
+        if (
+            incident_code == "contract_attestation_failed"
+        ) is (contract_failure_code is None):
+            raise ValueError("Contract-attestation failure projection is invalid")
+        super().__init__("Preflight control boundary failed")
+        self.incident_code = incident_code
+        self.attempted_operation = attempted_operation
+        self.completed_operation = completed_operation
+        self.contract_failure_code = contract_failure_code
+
+
+def _run_preflight_contract_attestation_boundary(
+    *,
+    persist_control_state: Callable[..., None],
+    validate_contracts: Callable[[Callable[[str], None]], Any],
+) -> Any:
+    """Run the provider-free attestation boundary with closed diagnostics."""
+
+    attempted_operation = "contract_attestation"
+    completed_operation: str | None = "artifact_separation"
+
+    def persist(
+        *,
+        phase: str,
+        attempted: str,
+        completed: str | None,
+        incident_code: str | None = None,
+        contract_failure_code: str | None = None,
+    ) -> None:
+        persist_control_state(
+            phase=phase,
+            attempted_operation=attempted,
+            completed_operation=completed,
+            incident_code=incident_code,
+            contract_failure_code=contract_failure_code,
+        )
+
+    def boundary_error(
+        incident_code: str,
+        *,
+        attempted: str,
+        completed: str | None,
+        contract_failure_code: str | None = None,
+    ) -> _PreflightControlBoundaryError:
+        return _PreflightControlBoundaryError(
+            incident_code=incident_code,
+            attempted_operation=attempted,
+            completed_operation=completed,
+            contract_failure_code=contract_failure_code,
+        )
+
+    try:
+        persist(
+            phase="contract_attestation",
+            attempted=attempted_operation,
+            completed=completed_operation,
+        )
+    except BaseException:
+        raise boundary_error(
+            "contract_attestation_checkpoint_persist_failed",
+            attempted=attempted_operation,
+            completed=completed_operation,
+        ) from None
+
+    def record_operation(operation: str) -> None:
+        nonlocal attempted_operation, completed_operation
+        invalid_operation = (
+            operation not in _CONTRACT_ATTESTATION_OPERATION_SET
+        )
+        if invalid_operation:
+            operation = "contract_internal"
+        if attempted_operation in _CONTRACT_ATTESTATION_OPERATION_SET:
+            completed_operation = attempted_operation
+        attempted_operation = operation
+        try:
+            persist(
+                phase="contract_attestation",
+                attempted=attempted_operation,
+                completed=completed_operation,
+            )
+        except BaseException:
+            raise boundary_error(
+                "contract_attestation_checkpoint_persist_failed",
+                attempted=attempted_operation,
+                completed=completed_operation,
+            ) from None
+        if invalid_operation:
+            raise ValueError("Contract-attestation operation is invalid")
+
+    try:
+        result = validate_contracts(record_operation)
+    except _PreflightControlBoundaryError:
+        raise
+    except BaseException:
+        if attempted_operation not in _CONTRACT_ATTESTATION_OPERATION_SET:
+            attempted_operation = "contract_internal"
+        failure_code = _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
+            attempted_operation
+        ]
+        error = boundary_error(
+            "contract_attestation_failed",
+            attempted=attempted_operation,
+            completed=completed_operation,
+            contract_failure_code=failure_code,
+        )
+        try:
+            persist(
+                phase="contract_attestation",
+                attempted=attempted_operation,
+                completed=completed_operation,
+                incident_code=error.incident_code,
+                contract_failure_code=error.contract_failure_code,
+            )
+        except BaseException:
+            pass
+        raise error from None
+
+    attempted_operation = "one_shot_state_validation_checkpoint"
+    completed_operation = "contract_attestation"
+    try:
+        # This marker is durable before the next phase is attempted, so a
+        # failed phase write cannot be confused with failed validation.
+        persist(
+            phase="contract_attestation",
+            attempted=attempted_operation,
+            completed=completed_operation,
+        )
+        persist(
+            phase="one_shot_state_validation",
+            attempted="one_shot_state_validation",
+            completed=completed_operation,
+        )
+    except BaseException:
+        error = boundary_error(
+            "control_phase_checkpoint_persist_failed",
+            attempted=attempted_operation,
+            completed=completed_operation,
+        )
+        try:
+            persist(
+                phase="contract_attestation",
+                attempted=attempted_operation,
+                completed=completed_operation,
+                incident_code=error.incident_code,
+            )
+        except BaseException:
+            pass
+        raise error from None
+    return result
+
+
 def _new_preflight_incident_envelope() -> dict[str, Any]:
     now = _utc_now()
     return {
@@ -10274,6 +10532,9 @@ def _new_preflight_incident_envelope() -> dict[str, Any]:
         "profiles_terminal": 0,
         "model_invocations_conservatively_chargeable": 0,
         "incident_code": None,
+        "attempted_operation": None,
+        "completed_operation": None,
+        "contract_failure_code": None,
     }
 
 
@@ -10291,6 +10552,9 @@ def _validate_preflight_incident_envelope(
         "profiles_terminal",
         "model_invocations_conservatively_chargeable",
         "incident_code",
+        "attempted_operation",
+        "completed_operation",
+        "contract_failure_code",
     }:
         raise ValueError("Preflight incident envelope is invalid")
     status = value.get("status")
@@ -10303,6 +10567,10 @@ def _validate_preflight_incident_envelope(
     chargeable = value.get(
         "model_invocations_conservatively_chargeable"
     )
+    incident_code = value.get("incident_code")
+    attempted_operation = value.get("attempted_operation")
+    completed_operation = value.get("completed_operation")
+    contract_failure_code = value.get("contract_failure_code")
     if (
         value.get("schema_version")
         != _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA
@@ -10322,10 +10590,40 @@ def _validate_preflight_incident_envelope(
         or type(chargeable) is not int
         or not 0 <= chargeable <= profiles_recorded
         or (
+            attempted_operation is not None
+            and attempted_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+        )
+        or (
+            completed_operation is not None
+            and completed_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+        )
+        or (
+            contract_failure_code is not None
+            and contract_failure_code
+            not in _CONTRACT_ATTESTATION_FAILURE_CODES
+        )
+        or (
+            contract_failure_code is not None
+            and (
+                attempted_operation
+                not in _CONTRACT_ATTESTATION_OPERATION_SET
+                or contract_failure_code
+                != _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
+                    attempted_operation
+                ]
+            )
+        )
+        or (
             status == "active"
             and (
                 finished_at is not None
-                or value.get("incident_code") is not None
+                or incident_code
+                not in {
+                    None,
+                    "contract_attestation_failed",
+                    "contract_attestation_checkpoint_persist_failed",
+                    "control_phase_checkpoint_persist_failed",
+                }
             )
         )
         or (
@@ -10333,7 +10631,7 @@ def _validate_preflight_incident_envelope(
             and (
                 not isinstance(finished_at, str)
                 or not finished_at
-                or value.get("incident_code") is not None
+                or incident_code is not None
             )
         )
         or (
@@ -10346,8 +10644,23 @@ def _validate_preflight_incident_envelope(
                 }
                 or not isinstance(finished_at, str)
                 or not finished_at
-                or value.get("incident_code")
-                not in _PROVIDER_INCIDENT_CODES
+                or incident_code not in _PROVIDER_INCIDENT_CODES
+            )
+        )
+        or (
+            incident_code == "contract_attestation_failed"
+            and contract_failure_code is None
+        )
+        or (
+            incident_code != "contract_attestation_failed"
+            and contract_failure_code is not None
+        )
+        or (
+            incident_code == "control_phase_checkpoint_persist_failed"
+            and (
+                attempted_operation
+                != "one_shot_state_validation_checkpoint"
+                or completed_operation != "contract_attestation"
             )
         )
     ):
@@ -10377,6 +10690,9 @@ def _advance_preflight_incident_envelope(
     attempts: Sequence[Mapping[str, Any]] = (),
     status: str = "active",
     incident_code: str | None = None,
+    attempted_operation: str | None = None,
+    completed_operation: str | None = None,
+    contract_failure_code: str | None = None,
 ) -> dict[str, Any]:
     if phase not in _PREFLIGHT_INCIDENT_PHASE_SET:
         raise ValueError("Preflight incident phase is invalid")
@@ -10390,6 +10706,21 @@ def _advance_preflight_incident_envelope(
         and incident_code not in _PROVIDER_INCIDENT_CODES
     ):
         raise ValueError("Preflight incident code is invalid")
+    if (
+        attempted_operation is not None
+        and attempted_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+    ):
+        raise ValueError("Attempted preflight control operation is invalid")
+    if (
+        completed_operation is not None
+        and completed_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+    ):
+        raise ValueError("Completed preflight control operation is invalid")
+    if (
+        contract_failure_code is not None
+        and contract_failure_code not in _CONTRACT_ATTESTATION_FAILURE_CODES
+    ):
+        raise ValueError("Contract-attestation failure code is invalid")
     terminal_incident_code = (
         incident_code
         if incident_code is not None
@@ -10421,7 +10752,22 @@ def _advance_preflight_incident_envelope(
             "incident_code": (
                 terminal_incident_code
                 if status == "terminal"
-                else None
+                else incident_code
+            ),
+            "attempted_operation": (
+                attempted_operation
+                if attempted_operation is not None
+                else envelope.get("attempted_operation")
+            ),
+            "completed_operation": (
+                completed_operation
+                if completed_operation is not None
+                else envelope.get("completed_operation")
+            ),
+            "contract_failure_code": (
+                contract_failure_code
+                if contract_failure_code is not None
+                else envelope.get("contract_failure_code")
             ),
         }
     )
@@ -10474,6 +10820,7 @@ def _minimal_terminal_preflight_candidate(
     *,
     private: dict[str, Any],
     public: Mapping[str, Any],
+    control_error: _PreflightControlBoundaryError | None = None,
 ) -> dict[str, Any]:
     preflight = private.get("environment_preflight")
     if not isinstance(preflight, dict):
@@ -10486,12 +10833,33 @@ def _minimal_terminal_preflight_candidate(
     active_envelope = _validate_preflight_incident_envelope(
         preflight.get("incident_envelope")
     )
+    if control_error is not None:
+        _advance_preflight_incident_envelope(
+            preflight,
+            phase=str(active_envelope["phase"]),
+            attempts=attempts,
+            incident_code=control_error.incident_code,
+            attempted_operation=control_error.attempted_operation,
+            completed_operation=control_error.completed_operation,
+            contract_failure_code=control_error.contract_failure_code,
+        )
+        active_envelope = _validate_preflight_incident_envelope(
+            preflight.get("incident_envelope")
+        )
     failure_phase = str(active_envelope["phase"])
+    incident_code = active_envelope.get("incident_code")
+    if incident_code not in {
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+        "control_phase_checkpoint_persist_failed",
+    }:
+        incident_code = "unexpected_control_path_failure"
     _advance_preflight_incident_envelope(
         preflight,
         phase="terminal_candidate_commit",
         attempts=attempts,
         status="terminal",
+        incident_code=str(incident_code),
     )
     envelope = _validate_preflight_incident_envelope(
         preflight["incident_envelope"]
@@ -10514,7 +10882,10 @@ def _minimal_terminal_preflight_candidate(
         ],
         "failure_reason": "terminal_abort",
         "failure_stage": "preflight_control_boundary",
-        "incident_code": "unexpected_control_path_failure",
+        "incident_code": incident_code,
+        "attempted_operation": envelope["attempted_operation"],
+        "completed_operation": envelope["completed_operation"],
+        "contract_failure_code": envelope["contract_failure_code"],
         "timed_out": False,
         "timeout_stages": [],
         "scores_reported": False,
@@ -10526,6 +10897,7 @@ def _seal_minimal_terminal_preflight_candidate(
     authentication_key_file: Path,
     private_state_path: Path,
     public_manifest_path: Path,
+    control_error: _PreflightControlBoundaryError | None = None,
 ) -> dict[str, Any]:
     authentication_key = _read_authentication_key(
         _existing_path_without_final_symlink(authentication_key_file)
@@ -10552,6 +10924,7 @@ def _seal_minimal_terminal_preflight_candidate(
         candidate = _minimal_terminal_preflight_candidate(
             private=private,
             public=public,
+            control_error=control_error,
         )
         private["environment_preflight"] = {
             **preflight,
@@ -10672,8 +11045,14 @@ def _terminal_preflight_candidate(
     terminal_envelope_schema = candidate.get(
         "terminal_envelope_schema"
     )
+    control_incident_codes = {
+        "unexpected_control_path_failure",
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+        "control_phase_checkpoint_persist_failed",
+    }
     control_envelope_incident = (
-        incident_code == "unexpected_control_path_failure"
+        incident_code in control_incident_codes
         and candidate.get("failure_stage")
         == "preflight_control_boundary"
     )
@@ -10693,6 +11072,9 @@ def _terminal_preflight_candidate(
             "failure_reason",
             "failure_stage",
             "incident_code",
+            "attempted_operation",
+            "completed_operation",
+            "contract_failure_code",
             "timed_out",
             "timeout_stages",
             "scores_reported",
@@ -10740,8 +11122,31 @@ def _terminal_preflight_candidate(
             or envelope.get("status") != "terminal"
             or envelope.get("phase")
             not in {"terminal_candidate_commit", "public_receipt_commit"}
-            or envelope.get("incident_code")
-            != "unexpected_control_path_failure"
+            or envelope.get("incident_code") != incident_code
+            or candidate.get("attempted_operation")
+            != envelope.get("attempted_operation")
+            or candidate.get("completed_operation")
+            != envelope.get("completed_operation")
+            or candidate.get("contract_failure_code")
+            != envelope.get("contract_failure_code")
+            or (
+                incident_code == "contract_attestation_failed"
+                and candidate.get("contract_failure_code")
+                not in _CONTRACT_ATTESTATION_FAILURE_CODES
+            )
+            or (
+                incident_code != "contract_attestation_failed"
+                and candidate.get("contract_failure_code") is not None
+            )
+            or (
+                incident_code == "control_phase_checkpoint_persist_failed"
+                and (
+                    candidate.get("attempted_operation")
+                    != "one_shot_state_validation_checkpoint"
+                    or candidate.get("completed_operation")
+                    != "contract_attestation"
+                )
+            )
             or envelope.get("profiles_recorded") != expected_recorded
             or envelope.get("profiles_terminal") != expected_terminal
             or envelope.get(
@@ -10982,9 +11387,74 @@ def _sealed_terminal_preflight_projection(
         or incident_phase not in history
     ):
         raise RuntimeError("Sealed terminal preflight projection is invalid")
+    candidate_incident_code = candidate.get("incident_code")
+    envelope_incident_code = envelope.get("incident_code")
+    incident_code = (
+        candidate_incident_code
+        if candidate_incident_code is not None
+        else envelope_incident_code
+    )
+    if (
+        not isinstance(incident_code, str)
+        or incident_code
+        not in {
+            *_PROVIDER_INCIDENT_CODES,
+            "unexpected_control_path_failure",
+            "contract_attestation_failed",
+            "contract_attestation_checkpoint_persist_failed",
+            "control_phase_checkpoint_persist_failed",
+        }
+        or (
+            candidate_incident_code is not None
+            and envelope_incident_code is not None
+            and candidate_incident_code != envelope_incident_code
+        )
+    ):
+        raise RuntimeError("Sealed terminal preflight projection is invalid")
+    typed_control_incident = incident_code in {
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+        "control_phase_checkpoint_persist_failed",
+    }
+    attempted_operation = (
+        candidate.get("attempted_operation")
+        if typed_control_incident
+        else None
+    )
+    completed_operation = (
+        candidate.get("completed_operation")
+        if typed_control_incident
+        else None
+    )
+    contract_failure_code = (
+        candidate.get("contract_failure_code")
+        if typed_control_incident
+        else None
+    )
+    if typed_control_incident and (
+        attempted_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+        or (
+            completed_operation is not None
+            and completed_operation not in _PREFLIGHT_CONTROL_OPERATIONS
+        )
+        or (
+            contract_failure_code is not None
+            and contract_failure_code
+            not in _CONTRACT_ATTESTATION_FAILURE_CODES
+        )
+        or (
+            incident_code == "contract_attestation_failed"
+        )
+        != (contract_failure_code is not None)
+    ):
+        raise RuntimeError("Sealed terminal preflight projection is invalid")
     return {
         "terminal_status": str(candidate["status"]),
+        "incident_code": incident_code,
         "incident_phase": incident_phase,
+        "attempted_operation": attempted_operation,
+        "completed_operation": completed_operation,
+        "contract_failure_code": contract_failure_code,
         "profiles_recorded": recorded,
         "profiles_terminal": terminal,
         "model_invocations_conservatively_chargeable": chargeable,
@@ -11050,7 +11520,7 @@ def assert_terminal_incident_ready_for_exit(
     )
     return {
         "schema_version": (
-            "epiagentbench.terminal_incident_attestation.v1"
+            "epiagentbench.terminal_incident_attestation.v2"
         ),
         "panel_id": PANEL_ID,
         "operation": operation,
@@ -11460,7 +11930,11 @@ def audit_terminal_incident(
         "operation": operation,
         "status": "reconciled_and_attested",
         "terminal_status": str(sealed["terminal_status"]),
+        "incident_code": str(sealed["incident_code"]),
         "incident_phase": str(sealed["incident_phase"]),
+        "attempted_operation": sealed["attempted_operation"],
+        "completed_operation": sealed["completed_operation"],
+        "contract_failure_code": sealed["contract_failure_code"],
         "model_invocations_conservatively_chargeable": int(
             sealed["model_invocations_conservatively_chargeable"]
         ),
@@ -12584,11 +13058,17 @@ def _run_environment_preflight_core(
             ),
         )
     except BaseException as original_error:
+        control_error = (
+            original_error
+            if isinstance(original_error, _PreflightControlBoundaryError)
+            else None
+        )
         try:
             _seal_minimal_terminal_preflight_candidate(
                 authentication_key_file=authentication_key_file,
                 private_state_path=private_state_path,
                 public_manifest_path=public_manifest_path,
+                control_error=control_error,
             )
         except BaseException:
             raise original_error from None
@@ -12614,7 +13094,13 @@ def _run_environment_preflight_core(
                 "status": "failed_incident_sealed",
                 "development_only": True,
                 "production_episodes_consumed": 0,
+                "incident_code": sealed["incident_code"],
                 "incident_phase": sealed["incident_phase"],
+                "attempted_operation": sealed["attempted_operation"],
+                "completed_operation": sealed["completed_operation"],
+                "contract_failure_code": sealed[
+                    "contract_failure_code"
+                ],
                 "profiles_recorded": sealed["profiles_recorded"],
                 "profiles_terminal": sealed["profiles_terminal"],
                 "model_invocations_conservatively_chargeable": sealed[
@@ -12684,7 +13170,14 @@ def _run_environment_preflight_core_claimed(
         public = _load_json(public_manifest_path)
         _validate_public_hash(public)
 
-        def persist_control_phase(phase: str) -> None:
+        def persist_control_state(
+            *,
+            phase: str,
+            attempted_operation: str | None = None,
+            completed_operation: str | None = None,
+            incident_code: str | None = None,
+            contract_failure_code: str | None = None,
+        ) -> None:
             preflight_state = private.get("environment_preflight")
             if not isinstance(preflight_state, dict):
                 raise RuntimeError("Durable preflight state is invalid")
@@ -12700,11 +13193,33 @@ def _run_environment_preflight_core_claimed(
                 preflight_state,
                 phase=phase,
                 attempts=durable_attempts,
+                incident_code=incident_code,
+                attempted_operation=attempted_operation,
+                completed_operation=completed_operation,
+                contract_failure_code=contract_failure_code,
             )
             _write_private_state(
                 private_state_path,
                 private,
                 authentication_key,
+            )
+
+        def persist_control_phase(phase: str) -> None:
+            preflight_state = private.get("environment_preflight")
+            if not isinstance(preflight_state, dict):
+                raise RuntimeError("Durable preflight state is invalid")
+            envelope = _validate_preflight_incident_envelope(
+                preflight_state.get("incident_envelope")
+            )
+            prior_operation = envelope.get("attempted_operation")
+            persist_control_state(
+                phase=phase,
+                attempted_operation=phase,
+                completed_operation=(
+                    str(prior_operation)
+                    if prior_operation in _PREFLIGHT_CONTROL_OPERATIONS
+                    else str(envelope["phase"])
+                ),
             )
 
         persist_control_phase("spend_authorization")
@@ -12785,16 +13300,22 @@ def _run_environment_preflight_core_claimed(
             public_manifest_path=public_manifest_path,
             additional_artifact_paths=(public_preflight_path,),
         )
-        persist_control_phase("contract_attestation")
-        _validate_contracts(
-            root=root,
-            private=private,
-            public=public,
-            authentication_key=authentication_key,
-            claude_secure_storage_dir=resolved_claude_secure_storage_dir,
-            codex_secure_storage_dir=resolved_codex_secure_storage_dir,
+        _run_preflight_contract_attestation_boundary(
+            persist_control_state=persist_control_state,
+            validate_contracts=lambda record_operation: _validate_contracts(
+                root=root,
+                private=private,
+                public=public,
+                authentication_key=authentication_key,
+                claude_secure_storage_dir=(
+                    resolved_claude_secure_storage_dir
+                ),
+                codex_secure_storage_dir=(
+                    resolved_codex_secure_storage_dir
+                ),
+                operation_recorder=record_operation,
+            ),
         )
-        persist_control_phase("one_shot_state_validation")
         if private.get("assignments") or private.get("status") != "prepared":
             raise RuntimeError("Environment preflight must precede production execution")
         preflight = private.get("environment_preflight")

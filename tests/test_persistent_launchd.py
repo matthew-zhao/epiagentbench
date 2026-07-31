@@ -1828,12 +1828,16 @@ class PersistentLaunchAgentTests(unittest.TestCase):
 
         file_sha256 = "sha256:" + "e" * 64
         audit_result = {
-            "schema_version": "epiagentbench.terminal_audit.v1",
+            "schema_version": "epiagentbench.terminal_audit.v2",
             "panel_id": config["panel_id"],
             "operation": "preflight",
             "status": "reconciled_and_attested",
             "terminal_status": "stopped_supervisor_incident",
+            "incident_code": "supervisor_boundary_attestation_failed",
             "incident_phase": "provider_returned",
+            "attempted_operation": None,
+            "completed_operation": None,
+            "contract_failure_code": None,
             "model_invocations_conservatively_chargeable": 1,
             "file_sha256": file_sha256,
             "provider_processes_started": 0,
@@ -1897,46 +1901,95 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             public_results_path=None,
         )
         config, _ = self._config_and_key()
-        malformed = {
-            "schema_version": "epiagentbench.terminal_audit.v1",
+        valid = {
+            "schema_version": "epiagentbench.terminal_audit.v2",
             "panel_id": config["panel_id"],
             "operation": "preflight",
             "status": "reconciled_and_attested",
             "terminal_status": "failed",
+            "incident_code": "supervisor_boundary_attestation_failed",
             "incident_phase": "provider_returned",
+            "attempted_operation": None,
+            "completed_operation": None,
+            "contract_failure_code": None,
             "model_invocations_conservatively_chargeable": 1,
             "file_sha256": "sha256:" + "e" * 64,
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
             "model_calls_started": 0,
-            "provider_output": _SECRET_CANARIES[2],
         }
-        with patch.object(
-            development_matched_panel,
-            "audit_terminal_incident",
-            return_value=malformed,
-        ) as audit, patch.object(
-            launchd_agent,
-            "_attest_handled_terminal_receipt",
-        ) as terminal_attestation:
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "Terminal incident audit is invalid",
-            ):
-                launchd_agent._attest_terminal_audit_required_exit(
-                    config
+        malformed_cases = {
+            "extra_key": {
+                **valid,
+                "provider_output": _SECRET_CANARIES[2],
+            },
+            "unknown_incident": {
+                **valid,
+                "incident_code": "arbitrary_safe_name",
+            },
+            "provider_incident_with_control_fields": {
+                **valid,
+                "attempted_operation": "provider_returned",
+                "completed_operation": "model_spawn_committed",
+            },
+            "mismatched_contract_failure": {
+                **valid,
+                "incident_code": "contract_attestation_failed",
+                "incident_phase": "contract_attestation",
+                "attempted_operation": "episode_pack_integrity",
+                "completed_operation": "cohort_manifest",
+                "contract_failure_code": "cohort_balance_failed",
+            },
+        }
+        for label, malformed in malformed_cases.items():
+            with self.subTest(label=label), patch.object(
+                development_matched_panel,
+                "audit_terminal_incident",
+                return_value=malformed,
+            ) as audit, patch.object(
+                launchd_agent,
+                "_attest_handled_terminal_receipt",
+            ) as terminal_attestation:
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "Terminal incident audit is invalid",
+                ):
+                    launchd_agent._attest_terminal_audit_required_exit(
+                        config
+                    )
+                audit.assert_called_once_with(
+                    root=Path(config["repository_root"]),
+                    operation="preflight",
+                    authentication_key_file=Path(
+                        config["authentication_key_file"]
+                    ),
+                    private_state_path=Path(config["private_state_path"]),
+                    public_manifest_path=Path(
+                        config["public_manifest_path"]
+                    ),
+                    public_output_path=Path(config["public_output_path"]),
                 )
-        audit.assert_called_once_with(
-            root=Path(config["repository_root"]),
-            operation="preflight",
-            authentication_key_file=Path(
-                config["authentication_key_file"]
-            ),
-            private_state_path=Path(config["private_state_path"]),
-            public_manifest_path=Path(config["public_manifest_path"]),
-            public_output_path=Path(config["public_output_path"]),
+                terminal_attestation.assert_not_called()
+
+    def test_terminal_audit_finite_catalogs_match_inner_projection(
+        self,
+    ) -> None:
+        self.assertEqual(
+            launchd_agent._TERMINAL_AUDIT_INCIDENT_PHASES,
+            development_matched_panel._PREFLIGHT_INCIDENT_PHASE_SET,
         )
-        terminal_attestation.assert_not_called()
+        self.assertEqual(
+            launchd_agent._TERMINAL_AUDIT_CONTRACT_OPERATIONS,
+            development_matched_panel._CONTRACT_ATTESTATION_OPERATION_SET,
+        )
+        self.assertEqual(
+            launchd_agent._TERMINAL_AUDIT_CONTROL_OPERATIONS,
+            development_matched_panel._PREFLIGHT_CONTROL_OPERATIONS,
+        )
+        self.assertEqual(
+            launchd_agent._TERMINAL_AUDIT_INCIDENT_CODES,
+            development_matched_panel._PROVIDER_INCIDENT_CODES,
+        )
 
     def test_worker_rejects_bare_terminal_audit_required_exit(
         self,

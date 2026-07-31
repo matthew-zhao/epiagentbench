@@ -1,0 +1,19 @@
+{
+  "development_only": true,
+  "failure_reason": "terminal_abort",
+  "failure_stage": "preflight_control_boundary",
+  "incident_code": "unexpected_control_path_failure",
+  "incident_phase": "contract_attestation",
+  "model_invocations_conservatively_chargeable": 0,
+  "panel_id": "development-matched-50x6-v27",
+  "precommitment_sha256": "sha256:bb21ad5e93267da6dbe255d0e91aa18fe20aeb5ff18ab9cc3a5b2051e692fd17",
+  "production_episodes_consumed": 0,
+  "profiles_recorded": 0,
+  "profiles_terminal": 0,
+  "schema_version": "development_matched_panel_v27",
+  "scores_reported": false,
+  "status": "failed",
+  "terminal_envelope_schema": "epiagentbench.preflight_incident_envelope.v1",
+  "timed_out": false,
+  "timeout_stages": []
+}

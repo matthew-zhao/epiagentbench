@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 import hashlib
 import json
 from pathlib import Path
+import re
 import unittest
 
 
@@ -179,10 +180,14 @@ class V17SupersessionTests(unittest.TestCase):
         self.assertIn(
             "def _assert_authenticated_config_snapshot", launcher
         )
-        self.assertIn(
-            '"schema_version": "epiagentbench.persistent_supervisor_contract.v12"',
+        contract = re.search(
+            r'"schema_version": "epiagentbench\.'
+            r'persistent_supervisor_contract\.v(\d+)"',
             panel,
         )
+        self.assertIsNotNone(contract)
+        assert contract is not None
+        self.assertGreaterEqual(int(contract.group(1)), 12)
 
     def test_v17_runbook_is_terminal_and_points_to_v18(self) -> None:
         runbook = (self.root / "docs/V17_RUNBOOK.md").read_text(

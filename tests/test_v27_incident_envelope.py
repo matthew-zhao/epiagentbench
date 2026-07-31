@@ -380,7 +380,11 @@ class V27IncidentEnvelopeTests(unittest.TestCase):
                 "operation",
                 "status",
                 "terminal_status",
+                "incident_code",
                 "incident_phase",
+                "attempted_operation",
+                "completed_operation",
+                "contract_failure_code",
                 "model_invocations_conservatively_chargeable",
                 "file_sha256",
                 "provider_processes_started",
@@ -388,7 +392,14 @@ class V27IncidentEnvelopeTests(unittest.TestCase):
                 "model_calls_started",
             }
             self.assertEqual(set(audit), expected_keys)
+            self.assertEqual(
+                audit["incident_code"],
+                "unexpected_control_path_failure",
+            )
             self.assertEqual(audit["incident_phase"], "aggregate_projection")
+            self.assertIsNone(audit["attempted_operation"])
+            self.assertIsNone(audit["completed_operation"])
+            self.assertIsNone(audit["contract_failure_code"])
             self.assertEqual(
                 audit["model_invocations_conservatively_chargeable"],
                 2,
@@ -613,9 +624,16 @@ class V27IncidentEnvelopeTests(unittest.TestCase):
                 "stopped_supervisor_incident",
             )
             self.assertEqual(
+                audit["incident_code"],
+                "supervisor_boundary_attestation_failed",
+            )
+            self.assertEqual(
                 audit["incident_phase"],
                 "final_supervisor_attestation",
             )
+            self.assertIsNone(audit["attempted_operation"])
+            self.assertIsNone(audit["completed_operation"])
+            self.assertIsNone(audit["contract_failure_code"])
             self.assertEqual(
                 audit["model_invocations_conservatively_chargeable"],
                 2,

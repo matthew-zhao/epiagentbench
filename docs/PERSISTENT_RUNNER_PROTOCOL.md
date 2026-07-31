@@ -1,11 +1,11 @@
 # Persistent matched-panel runner protocol
 
-Status at control-plane publication: versioned V27 persistent-supervisor
-contract schema v12, execution-context protocol v8, launchd config schema v14,
+Status at control-plane publication: versioned V28 persistent-supervisor
+contract schema v13, execution-context protocol v8, launchd config schema v14,
 and authentication-setup schema v4. The finite pre-model phase contract,
 source contract, panel/schema
 identifiers, spend
-accounting, path namespace, and [V27 runbook](V27_RUNBOOK.md) are defined. The
+accounting, path namespace, and [V28 runbook](V28_RUNBOOK.md) are defined. The
 runtime receipt, cohort, and manifest are created only by the later runbook
 phases; this document does not itself authorize authentication, a provider
 process, spend, a supervisor start, or a model call.
@@ -45,7 +45,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V27 key, cohort, credential namespace, schedule, private state, or
+8. No V28 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -85,6 +85,12 @@ terminate that job.
     every public family and fixed public boundary seed twice serially, and
     bind only content-free aggregate evidence. A direct engine-only smoke or
     `-c` import probe is insufficient.
+17. Provider-free preflight contract attestation durably records one finite
+    attempted operation before each contract group and the last completed
+    operation only after return. A validation failure, attestation-checkpoint
+    persistence failure, and following-phase checkpoint persistence failure
+    remain distinct through the private incident, public terminal candidate,
+    terminal-incident attestation, and provider-free outer audit.
 
 ## Durable assignment phases and the current adapter
 
@@ -113,7 +119,7 @@ execution and fails closed.
 
 V21 introduced the separation of attempt accounting from model-invocation
 accounting and its durable, ordered, content-free pre-model phase field. V22
-added a finite trusted-evaluator startup substage. V27 retains both boundaries.
+added a finite trusted-evaluator startup substage. V28 retains both boundaries.
 The only permitted transitions are `provider_environment_setup`,
 `provider_cli_readiness`, `episode_startup`, and `model_spawn_boundary`.
 Unknown, duplicate, skipped, out-of-order, or provider-supplied phase values
@@ -140,7 +146,7 @@ provider-free exact-file reproduction showed that multiprocessing `spawn`
 inherited the parent’s manually extended isolated `sys.path`, replayed the
 runner as `__mp_main__`, and the runner appended the same two paths again. The
 strict validator correctly rejected the duplicates. V22 first accepted only
-the pristine parent or an exact one-copy inherited ordered tail; V27 retains
+the pristine parent or an exact one-copy inherited ordered tail; V28 retains
 that rule. Partial, duplicate, reversed, displaced, or trailing states still
 fail closed.
 
@@ -182,8 +188,8 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V27 retains the provider-free boundary before the private panel exists. One
-operator-supplied, absolute, attested isolated interpreter runs every V27 CLI
+V28 retains the provider-free boundary before the private panel exists. One
+operator-supplied, absolute, attested isolated interpreter runs every V28 CLI
 and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order in
@@ -250,10 +256,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v27.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v28.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V27 freezer or `prepare` command can create or read a key, cohort,
+the matched V28 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -331,9 +337,44 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. Persistent-supervisor contract schema v12 intentionally rejects
-schema-v11/V26 manifests; a run must be freshly versioned, prepared, and
+evaluator. Persistent-supervisor contract schema v13 intentionally rejects
+schema-v12/V27 manifests; a run must be freshly versioned, prepared, and
 authorized under the new contract.
+
+## Typed provider-free preflight control diagnostics
+
+V27 failed closed after its one-shot preflight claim at the provider-free
+`contract_attestation` phase. Its immutable public
+[preflight receipt](../results/development-matched-50x6-v27.preflight.json) and
+[supersession record](../results/development-matched-50x6-v27.superseded.json)
+prove zero conservatively chargeable model invocations, zero completed
+profiles, and zero production episodes, but its v1 envelope cannot distinguish
+which inner contract group failed from a failure to persist the immediately
+following control checkpoint. V27 is terminal and non-resumable.
+
+V28 records that distinction before any provider boundary. The authenticated
+v2 incident envelope persists a finite `attempted_operation` before each
+contract group and advances `completed_operation` only after the previous
+group returned. Contract validation failures use a finite
+`contract_failure_code`; an attestation-state write failure uses
+`contract_attestation_checkpoint_persist_failed`, while failure to persist the
+following phase uses `control_phase_checkpoint_persist_failed`. The finite
+groups cover schedule design, the public manifest, authentication binding,
+preparation runtime, public contract surface, component commitments, cohort
+identity/freeze/manifest/preparation/retirement, episode-pack integrity,
+cohort balance, schedule commitment, and assignment state, plus one closed
+internal fallback.
+
+The same attempted/completed operation and optional contract failure code are
+exact-compared across the authenticated private incident, sanitized public
+candidate, `epiagentbench.terminal_incident_attestation.v2`, and
+`epiagentbench.terminal_audit.v2`. No exception text, provider output, prompt,
+observation, hidden episode identity or family, credential, private path,
+schedule, score, or trace is admitted. These diagnostics classify a terminal
+failure; they never authorize a retry or continuation. The no-site outer
+worker maintains an independent finite catalog and rejects unknown safe names,
+typed control fields on non-control incidents, and failure codes that do not
+match their attempted contract operation.
 
 The child reserves exit 64 only after a second read proves the public terminal
 receipt is byte-for-byte and semantically identical to its HMAC-authenticated
@@ -350,7 +391,7 @@ authenticated private state contains a closed, minimal preflight incident
 candidate but the exact public terminal receipt has not been attested. The
 supervisor authenticates that finite state; after the Cursor credential is
 removed from memory, the outer worker performs provider-free reconciliation,
-validates the exact-key `epiagentbench.terminal_audit.v1` projection with zero
+validates the exact-key `epiagentbench.terminal_audit.v2` projection with zero
 authentication, provider, and model starts, and independently repeats the exit
 64 receipt attestation. Only that complete chain is normalized to exit 64 and
 `benchmark_terminal_receipt`. A bare 65, a spoofed core record, a conflicting
@@ -378,7 +419,7 @@ publication step. It cannot relaunch the worker, evaluator, authentication
 bootstrap, or provider. A terminal release-validation incident is never
 retryable.
 
-V27's intentionally no-site outer worker does not re-import Starsim or
+V28's intentionally no-site outer worker does not re-import Starsim or
 re-inventory installed scientific distributions. Those live checks remain
 mandatory before and after provider calls. Release instead revalidates the
 sealed public component hashes, authenticated preparation/runtime-cache
@@ -450,7 +491,7 @@ property list, command line, repository, status, and logs. LaunchAgent stdout
 and stderr are `/dev/null`; a bounded private event log contains only
 allowlisted event codes and finite scalar fields.
 
-For V27, generation also requires the exact manifest-bound runtime-cache root.
+For V28, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -518,7 +559,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V27 model call may start until all of the following pass through the
+No V28 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -701,7 +742,7 @@ mandatory for matched cohort freeze, prepare, LaunchAgent generation,
 preflight, and production. The preparation phase makes no authentication,
 provider, or model call and stops before the operator separately supplies the
 exact manifest-bound acknowledgement.
-The current V27 panel's Claude ceiling is $510 (102 calls × $5); the exact
+The V27 panel's Claude ceiling was $510 (102 calls × $5); the exact
 acknowledgement's $610 cumulative ceiling adds the conservative $100 allowance
 for prior failed panels, including V18's retained $5 legacy-marker call,
 V23's two returned Claude preflight calls ($10), and V26's conservative $10
@@ -714,6 +755,12 @@ Codex and Cursor remain unbounded.
 Historical completed records and transport voids remain audit evidence only
 and are never mixed into the new estimand.
 
+V27 later failed closed during provider-free contract attestation before any
+model invocation became conservatively chargeable. Its public preflight
+receipt remains immutable audit evidence; its cohort, key, credentials,
+runtime, supervisor, and execution namespaces are terminal and forbidden for
+reuse. V27 adds zero dollars to the conservative prior-panel allowance.
+
 V20 completed its runtime receipt, private freeze, manifest, spend
 authorization, and foreground authentication, then stopped on the first Claude
 preflight profile. The sanitized receipt records
@@ -723,14 +770,16 @@ projection cannot distinguish CLI-identity readiness from trusted episode
 startup, so its supersession preserves that uncertainty. V20 is terminal,
 non-resumable, and forbidden for namespace or cohort reuse.
 
-V27 versions the panel/cohort as `development-matched-50x6-v27`, the top-level
-schema as `development_matched_panel_v27`, and every private/execution
+V28 versions the panel/cohort as `development-matched-50x6-v28`, the top-level
+schema as `development_matched_panel_v28`, and every private/execution
 namespace. It retains the `$510` current-run and `$100` prior conservative
 Claude ceilings; V20, V21, V22, V24, and V25 add zero, V23 adds `$10`, and
-V26 adds a conservative `$10`, so the
-exact cumulative acknowledgement is `$610`. Before any V27 runtime receipt, manifest,
+V26 adds a conservative `$10`, while V27 adds zero, so the
+exact cumulative acknowledgement is `$610`. Before any V28 runtime receipt, manifest,
 private state,
 authentication, supervisor, or provider call is created, the provider-free
-control-plane and phase-accounting tests must be published and pinned. The
-[V27 runbook](V27_RUNBOOK.md) is authoritative for the later create-once
-sequence.
+control-plane, phase-accounting, typed contract-attestation, terminal-
+attestation, and provider-free outer-audit tests must be published and pinned.
+The [V28 runbook](V28_RUNBOOK.md) is authoritative for the later create-once
+sequence. The [V27 runbook](V27_RUNBOOK.md) is immutable historical evidence
+and must not be executed.
