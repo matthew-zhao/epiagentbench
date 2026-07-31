@@ -1,5 +1,20 @@
 # EpiAgentBench V26 execution runbook
 
+> [!WARNING]
+> **TERMINAL, NON-RESUMABLE PREFLIGHT FAILURE — DO NOT EXECUTE THIS RUNBOOK.**
+>
+> V26 was started exactly once. Its supervised preflight child later exited
+> nonzero without sealing a valid terminal preflight candidate or publishing a
+> public preflight receipt. The exact provider/model call count is
+> indeterminate; the public record therefore uses only a conservative upper
+> bound of six calls and a $10 Claude allowance. Production started zero
+> assignments, and no scores, traces, or result were released. The sole
+> provider-free reconciliation attempt refused the invalid candidate and made
+> zero provider/model calls. Never restart, resume, retry, or reuse any V26
+> namespace. See the
+> [V26 supersession record](../results/development-matched-50x6-v26.superseded.json)
+> and the replacement [V27 runbook](V27_RUNBOOK.md).
+
 > [!CAUTION]
 > **PROVIDER-FREE PREPARATION ONLY — NO V26 EXECUTION IS AUTHORIZED.**
 >

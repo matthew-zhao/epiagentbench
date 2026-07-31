@@ -84,7 +84,9 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
     "XDG_CACHE_HOME",
 )
 _SUPERVISED_COMMANDS = frozenset({"preflight", "run"})
-_CACHE_FREE_COMMANDS = frozenset({"publish-provider-free-json"})
+_CACHE_FREE_COMMANDS = frozenset(
+    {"publish-provider-free-json", "terminal-audit"}
+)
 _PROVIDER_FREE_PREPARATION_COMMANDS = frozenset(
     {
         "freeze",
@@ -390,8 +392,10 @@ if sys.flags.isolated:
 from epiagentbench.development_matched_panel import (
     PANEL_ID,
     _preparation_episode_startup_smoke,
+    assert_terminal_incident_ready_for_exit,
     assert_durable_live_execution_paths,
     assert_terminal_receipt_ready_for_exit,
+    audit_terminal_incident,
     authenticate_panel,
     authorize_panel_spend,
     bind_panel_receipt_commit,
@@ -409,6 +413,7 @@ from epiagentbench.development_matched_panel import (
 )
 from epiagentbench.persistent_supervisor import (
     HANDLED_TERMINAL_RECEIPT_EXIT_CODE,
+    TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
 )
 
 _AUTHENTICATION_STATUSES = frozenset(
@@ -693,6 +698,30 @@ def main() -> int:
     reconcile_terminal.add_argument(
         "--runtime-cache-dir", required=True, type=Path
     )
+    terminal_audit = commands.add_parser(
+        "terminal-audit",
+        help=(
+            "Provider-free reconciliation and exact attestation of a privately "
+            "sealed preflight incident"
+        ),
+    )
+    terminal_audit.add_argument(
+        "--operation",
+        required=True,
+        choices=("preflight",),
+    )
+    terminal_audit.add_argument(
+        "--authentication-key", required=True, type=Path
+    )
+    terminal_audit.add_argument(
+        "--private-state", required=True, type=Path
+    )
+    terminal_audit.add_argument(
+        "--public-manifest", required=True, type=Path
+    )
+    terminal_audit.add_argument(
+        "--public-output", required=True, type=Path
+    )
     preflight = commands.add_parser("preflight")
     _add_panel_state_arguments(preflight, include_runtime_cache=False)
     preflight.add_argument("--public-preflight", required=True, type=Path)
@@ -905,6 +934,15 @@ def main() -> int:
             public_manifest_path=args.public_manifest,
             public_output_path=args.public_output,
         )
+    elif args.command == "terminal-audit":
+        payload = audit_terminal_incident(
+            root=root,
+            operation=args.operation,
+            authentication_key_file=args.authentication_key,
+            private_state_path=args.private_state,
+            public_manifest_path=args.public_manifest,
+            public_output_path=args.public_output,
+        )
     elif args.command == "preflight":
         payload = run_environment_preflight(
             root=root,
@@ -933,7 +971,9 @@ def main() -> int:
                 args.acknowledge_unbounded_provider_spend
             ),
         )
-    if args.command in {
+    if args.command == "terminal-audit":
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif args.command in {
         "authenticate",
         "auth-status",
         "reconcile-authentication",
@@ -964,6 +1004,16 @@ def main() -> int:
     if args.command == "preflight":
         if payload["status"] == "passed_pending_supervisor_completion":
             return 0
+        if payload["status"] == "failed_incident_sealed":
+            assert_terminal_incident_ready_for_exit(
+                root=root,
+                operation="preflight",
+                authentication_key_file=args.authentication_key,
+                private_state_path=args.private_state,
+                public_manifest_path=args.public_manifest,
+                public_output_path=args.public_preflight,
+            )
+            return TERMINAL_AUDIT_REQUIRED_EXIT_CODE
         assert_terminal_receipt_ready_for_exit(
             root=root,
             operation="preflight",

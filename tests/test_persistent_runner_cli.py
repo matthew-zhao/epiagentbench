@@ -600,6 +600,12 @@ class PersistentRunnerCliTests(unittest.TestCase):
             ),
             ("preflight", "failed", 64, "run_environment_preflight"),
             (
+                "preflight",
+                "failed_incident_sealed",
+                65,
+                "run_environment_preflight",
+            ),
+            (
                 "run",
                 "complete_pending_supervisor_completion",
                 0,
@@ -627,6 +633,10 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     matched_cli,
                     "assert_terminal_receipt_ready_for_exit",
                 ) as terminal_receipt,
+                patch.object(
+                    matched_cli,
+                    "assert_terminal_incident_ready_for_exit",
+                ) as terminal_incident,
                 patch("builtins.print"),
             ):
                 self.assertEqual(matched_cli.main(), expected)
@@ -644,6 +654,68 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 terminal_receipt.assert_called_once()
             else:
                 terminal_receipt.assert_not_called()
+            if expected == 65:
+                terminal_incident.assert_called_once()
+            else:
+                terminal_incident.assert_not_called()
+
+    def test_terminal_audit_dispatches_only_to_provider_free_audit(self) -> None:
+        arguments = [
+            "runner",
+            "terminal-audit",
+            "--operation",
+            "preflight",
+            "--authentication-key",
+            "/private/authentication.key",
+            "--private-state",
+            "/private/state.json",
+            "--public-manifest",
+            "/public/manifest.json",
+            "--public-output",
+            "/public/preflight.json",
+        ]
+        payload = {
+            "schema_version": "epiagentbench.terminal_audit.v1",
+            "panel_id": matched_cli.PANEL_ID,
+            "operation": "preflight",
+            "status": "reconciled_and_attested",
+            "terminal_status": "failed",
+            "incident_phase": "repository_preflight",
+            "model_invocations_conservatively_chargeable": 0,
+            "file_sha256": "sha256:" + "a" * 64,
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "model_calls_started": 0,
+        }
+        with (
+            patch.object(sys, "argv", arguments),
+            patch.object(
+                matched_cli,
+                "assert_durable_live_execution_paths",
+            ) as durable_paths,
+            patch.object(
+                matched_cli,
+                "audit_terminal_incident",
+                return_value=payload,
+            ) as audit,
+            patch.object(
+                matched_cli,
+                "reconcile_terminal_receipt",
+            ) as legacy_reconcile,
+            patch("builtins.print") as safe_print,
+        ):
+            self.assertEqual(matched_cli.main(), 0)
+        durable_paths.assert_called_once()
+        legacy_reconcile.assert_not_called()
+        audit.assert_called_once_with(
+            root=Path(matched_cli.__file__).resolve().parents[1],
+            operation="preflight",
+            authentication_key_file=Path("/private/authentication.key"),
+            private_state_path=Path("/private/state.json"),
+            public_manifest_path=Path("/public/manifest.json"),
+            public_output_path=Path("/public/preflight.json"),
+        )
+        self.assertEqual(json.loads(safe_print.call_args.args[0]), payload)
 
     def test_disposable_execution_root_fails_before_runner_invocation(self) -> None:
         with (
