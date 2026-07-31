@@ -1,0 +1,413 @@
+{
+  "authentication_processes_started": 0,
+  "benchmark_base_commit": "8c0aa9e29d57b3085604edcbaf08d52a50e2d490",
+  "cli_contract_sha256": "sha256:a46b701acb983912faf07b3d69bca6a6a3585e83dcf90b0b700428d6d6413196",
+  "episode_startup_smoke_contract": {
+    "authentication_processes_started": 0,
+    "backend": "starsim-ltc-v3",
+    "model_calls_started": 0,
+    "private_artifacts_required": false,
+    "provider_processes_started": 0,
+    "public_families": [
+      "institution_person_to_person",
+      "restaurant_point_source",
+      "repeated_introduction",
+      "coincidental_venue",
+      "reporting_artifact"
+    ],
+    "public_seeds": [
+      0,
+      7,
+      2147483646
+    ],
+    "public_transcript_reproducible": true,
+    "public_transcript_sha256": "sha256:4c1abecc4c3ab87a5bccd293d01432654866590b84051d5ca558cd8961c7f1f3",
+    "schema_version": "epiagentbench.preparation_episode_startup_smoke.v1",
+    "serial_repetitions": 2,
+    "trusted_evaluator_processes_started": 30
+  },
+  "episode_startup_smoke_contract_sha256": "sha256:a6504161f025c928a3616e9fd23914bb3686a615dd30f59dda97a156c0abc02a",
+  "model_calls_started": 0,
+  "panel_id": "development-matched-50x6-v26",
+  "private_artifacts_required": false,
+  "provider_free_environment_contract": {
+    "ambient_environment": "discarded_before_python_start",
+    "authentication_processes_started": 0,
+    "clean_home_policy": "fresh_empty_current_owner_0700_nonsymlink_value_not_disclosed",
+    "clean_tmp_policy": "fresh_empty_current_owner_0700_nonsymlink_value_not_disclosed",
+    "locale": "C.UTF-8",
+    "model_calls_started": 0,
+    "process_environment_keys": [
+      "HOME",
+      "LC_ALL",
+      "LOGNAME",
+      "MPLBACKEND",
+      "MPLCONFIGDIR",
+      "NUMBA_CACHE_DIR",
+      "PATH",
+      "PYTHONDONTWRITEBYTECODE",
+      "SHELL",
+      "STARSIM_INSTALL_FONTS",
+      "TMPDIR",
+      "USER",
+      "XDG_CACHE_HOME",
+      "__CF_USER_TEXT_ENCODING"
+    ],
+    "process_path_policy": "fixed_system_only_value_not_disclosed",
+    "provider_cli_discovery_policy": "source_owned_allowlist_independent_of_environment_path_and_home",
+    "provider_cli_discovery_roles": [
+      "root_managed_usr_local_bin",
+      "root_managed_homebrew_bin",
+      "current_account_local_bin",
+      "system_usr_bin",
+      "system_bin",
+      "system_usr_sbin",
+      "system_sbin"
+    ],
+    "provider_processes_started": 0,
+    "schema_version": "epiagentbench.provider_free_preparation_environment.v1",
+    "status": "passed"
+  },
+  "provider_free_environment_contract_sha256": "sha256:e8fa50295b04cd90ddc3c76348ac76d3718d1e8f6d1e37f414a61ec8f5f50156",
+  "provider_processes_started": 0,
+  "required_starsim_version": "3.5.1",
+  "runtime_cache_contract_sha256": "sha256:fbae62841055e12b3e8254b5cfa4e1f118615af31230faefc90a1232436f72cc",
+  "runtime_contract": {
+    "machine": "arm64",
+    "platform": "Darwin",
+    "python": "3.12.13",
+    "python_cache_tag": "cpython-312",
+    "python_entrypoint_kind": "symlink_chain",
+    "python_executable_binding_policy": "full_path_symlink_inode_and_content_binding_private_only",
+    "python_executable_binding_sha256": "sha256:dc19dbe58623762dee85a76540481449a85b5afdc4cdcbc7fc9905cc16ddf491",
+    "python_executable_sha256": "sha256:36984af9f922aec72ba5b03e811ee92512268785007192e20f826cbd07cf8d04",
+    "python_implementation": "cpython",
+    "scientific_distributions": {
+      "epiagentbench": {
+        "installed_content_sha256": "sha256:a2121a57b06459cc516bf9102d7935a8adff14a3e18ac75bc47645f8fcf62129",
+        "installed_file_bytes": 2241,
+        "installed_file_count": 12,
+        "record_sha256": "05317eb4fdefcd8994ffec98bcacf792015cc59f495e2ee40a7323deb571614c",
+        "version": "0.1.0"
+      },
+      "matplotlib": {
+        "installed_content_sha256": "sha256:b31dd09c69b4c029f55471044b17931f4fc65d5d1c8f822f186def0d902ebdf3",
+        "installed_file_bytes": 23747759,
+        "installed_file_count": 604,
+        "record_sha256": "b7c4a76954f5a1c8b13046d0e1a3ecadb54a8fb6236417ad9c51868aa794df2d",
+        "version": "3.11.0"
+      },
+      "networkx": {
+        "installed_content_sha256": "sha256:66f679b4186f687ed3068a2f71e71c859d109b3f271d93ef9125bccfb406d718",
+        "installed_file_bytes": 7038797,
+        "installed_file_count": 603,
+        "record_sha256": "f6833bb525b720a7809dd6280817601af3dbd78efef02d9e55d4b887ec1f52da",
+        "version": "3.6.1"
+      },
+      "numba": {
+        "installed_content_sha256": "sha256:76c80a332e040bee52d87198ae1350b34f64364314dcecfa307d0f35b4e997d9",
+        "installed_file_bytes": 12240856,
+        "installed_file_count": 812,
+        "record_sha256": "de2eb12b4212c953805b13d954b8fcf170b74e0a02a6ac9f778ae3cd576f3d74",
+        "version": "0.66.0"
+      },
+      "numpy": {
+        "installed_content_sha256": "sha256:043df432aa2e9ac3533f0cc79044821d4c3c2bb933add761c503e0e1d6d99122",
+        "installed_file_bytes": 19514077,
+        "installed_file_count": 915,
+        "record_sha256": "7dd957a261a6868d985ab98f8e24b0d3a48a2f196db203bf6f77d274094ac909",
+        "version": "2.4.6"
+      },
+      "pandas": {
+        "installed_content_sha256": "sha256:c6c81343aa13e8ef7f5e8996c7944087c834207e21aa9720582078dfb7c4d18f",
+        "installed_file_bytes": 38744328,
+        "installed_file_count": 1523,
+        "record_sha256": "19578b8711f6fd767182c5e68a19a47e16d0f7f3bfd1768a7adaf7babc310d70",
+        "version": "3.0.3"
+      },
+      "scipy": {
+        "installed_content_sha256": "sha256:b08619e01225389f0ecb3d57630471fb399bff777ff018ab40f3b22919a2f2c8",
+        "installed_file_bytes": 70321507,
+        "installed_file_count": 1431,
+        "record_sha256": "aafb70587d827e9fde1d1cc1df24274324450cc6994f5c40623fb8dc37353479",
+        "version": "1.18.0"
+      },
+      "sciris": {
+        "installed_content_sha256": "sha256:74bdfa67ba4b81b0a7b0329c3fce2c9639453f25b755fa6685d617a04106dbf7",
+        "installed_file_bytes": 905153,
+        "installed_file_count": 31,
+        "record_sha256": "66b5c2c762c4b13bbdf8baf81625207d3b931f2cee2fcc3a3bb5a3e83f5a41c8",
+        "version": "3.2.9"
+      },
+      "seaborn": {
+        "installed_content_sha256": "sha256:421c9127f60559ce5e5b16c04ce6720ed929b4fcdb3dc191be212db12043d21d",
+        "installed_file_bytes": 1042769,
+        "installed_file_count": 60,
+        "record_sha256": "28cc11a75b9a326c2f28947db88e83b1215702c219ca61a9470cbc7439d447cd",
+        "version": "0.13.2"
+      },
+      "starsim": {
+        "installed_content_sha256": "sha256:9672de5d364ce1fd023d629f6ecbcc7745746a9c8545f63483c422d4776497c7",
+        "installed_file_bytes": 2279506,
+        "installed_file_count": 63,
+        "record_sha256": "5773ab42340e942d7b7b0ce8255c8da6668941b064b9a55812684aca78344761",
+        "version": "3.5.1"
+      }
+    },
+    "scientific_module_origins": {
+      "epiagentbench": {
+        "distribution_file": "src/epiagentbench/__init__.py",
+        "origin_role": "tracked_repository_source",
+        "sha256": "sha256:74579e1549d7c1095ef8e6372f7656ba199c5173464ce6f4dc729e506066d31b"
+      },
+      "matplotlib": {
+        "distribution_file": "matplotlib/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:5b9d9dbfb0cd52e0ee4185f1c46f17f8c105a442e2d3367dfa7186c421952a1c"
+      },
+      "networkx": {
+        "distribution_file": "networkx/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:39537c0bec78e0b81e25629c6fbeeff96c1f315ec462a89e69f92841d9409791"
+      },
+      "numba": {
+        "distribution_file": "numba/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:3cf4989d0de4bdcc2627fc4be07e5989ade72acad47e6551771b016bb8819b05"
+      },
+      "numpy": {
+        "distribution_file": "numpy/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:92a46f791e453926d3292af2582b89995a289475f0eaaea71a949823200b838a"
+      },
+      "pandas": {
+        "distribution_file": "pandas/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:742f85c135ee654bff1203efcee7664bf82fc7305ac3912ff304a063f5f7ea3c"
+      },
+      "scipy": {
+        "distribution_file": "scipy/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:39ccae300a4739cc53719bd3b39ce3f8f66e736c6eb672006e338a4c5cc3dc76"
+      },
+      "sciris": {
+        "distribution_file": "sciris/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:cd731179407a24e6f926062a9a962c7a99ae526ca63c57400b78f62ebc2522f7"
+      },
+      "seaborn": {
+        "distribution_file": "seaborn/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:3d276ab16e9d9edd73e73f7747a3f637a586833f6c0d90d12863f9dfd1bbeff4"
+      },
+      "starsim": {
+        "distribution_file": "starsim/__init__.py",
+        "origin_role": "installed_distribution_file",
+        "sha256": "sha256:499d694f78c013b63534ce4ccfe1f3576e67edc78ddc7821ad53ea75dae80236"
+      }
+    },
+    "starsim": "3.5.1"
+  },
+  "runtime_contract_sha256": "sha256:f47f0d3440055652dc4204f8f6cae5bea524ef60029c44b89967670439a80384",
+  "runtime_identity_sha256": "sha256:5a631e69d27d3489601937e643a7936b33f4ba7141c73c5d78326b70bc745395",
+  "schema_version": "epiagentbench.preparation_runtime_preflight.v4",
+  "source_contract_sha256": "sha256:b3c85a9faa76ca87df9daafcf286493dd84bd244a89b8e85ae0be3c5afe6d4c8",
+  "starsim_smoke_contract": {
+    "fixed_public_scenario": "v26_contact_transmission_with_matched_contact_stop",
+    "result": {
+      "branch_runs_per_policy": 2,
+      "contact_stop_action": {
+        "boundaries": [
+          {
+            "applied_control_ids": [],
+            "minute": 0,
+            "state_counts": {
+              "exposed_incubating": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 1440,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [
+              "v26-stop-direct-care"
+            ],
+            "minute": 2880,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [
+              "v26-stop-direct-care"
+            ],
+            "minute": 4320,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [
+              "v26-stop-direct-care"
+            ],
+            "minute": 5760,
+            "state_counts": {
+              "recovered": 1,
+              "susceptible": 2
+            },
+            "terminal": true,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          }
+        ],
+        "transmission_events": [
+          {
+            "infection_minute": 0,
+            "mechanism": "seed",
+            "source_person_id": null,
+            "target_person_id": "golden-index"
+          }
+        ]
+      },
+      "engine_descriptor": {
+        "engine_family": "institutional_disease_simulator",
+        "model_status": "development_only_not_calibrated"
+      },
+      "fixed_scenario": {
+        "explicit_contact_edges": 1,
+        "horizon_days": 4,
+        "index_seed_count": 1,
+        "intervention": {
+          "effective_minute": 1440,
+          "kind": "ltc_contact_reduction_level",
+          "magnitude": 0.0
+        },
+        "population_by_role": {
+          "resident": 2,
+          "staff": 1
+        }
+      },
+      "no_action": {
+        "boundaries": [
+          {
+            "applied_control_ids": [],
+            "minute": 0,
+            "state_counts": {
+              "exposed_incubating": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 1440,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "susceptible": 2
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 2880,
+            "state_counts": {
+              "exposed_incubating": 1,
+              "infectious_symptomatic": 1,
+              "susceptible": 1
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "person_to_person": 1,
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 4320,
+            "state_counts": {
+              "infectious_symptomatic": 2,
+              "susceptible": 1
+            },
+            "terminal": false,
+            "transmission_counts_by_mechanism": {
+              "person_to_person": 1,
+              "seed": 1
+            }
+          },
+          {
+            "applied_control_ids": [],
+            "minute": 5760,
+            "state_counts": {
+              "infectious_symptomatic": 1,
+              "recovered": 1,
+              "susceptible": 1
+            },
+            "terminal": true,
+            "transmission_counts_by_mechanism": {
+              "person_to_person": 1,
+              "seed": 1
+            }
+          }
+        ],
+        "transmission_events": [
+          {
+            "infection_minute": 0,
+            "mechanism": "seed",
+            "source_person_id": null,
+            "target_person_id": "golden-index"
+          },
+          {
+            "infection_minute": 2880,
+            "mechanism": "person_to_person",
+            "source_person_id": "golden-index",
+            "target_person_id": "golden-contact"
+          }
+        ]
+      },
+      "paired_checks": {
+        "action_person_to_person_secondary_count": 0,
+        "known_branch_divergence": true,
+        "matched_opening": true,
+        "matched_through_day_one": true,
+        "no_action_person_to_person_secondary_count": 1,
+        "prevented_person_to_person_secondary_count": 1
+      },
+      "scientific_scope": "deterministic_capability_smoke_not_calibration_evidence"
+    },
+    "result_sha256": "sha256:d8f073ab6c5dc7a4edfa7f3df9acd42ba3cb3c4a7a4c602e3b19badefa91522d",
+    "schema_version": "epiagentbench.preparation_runtime_smoke.v2"
+  },
+  "starsim_smoke_contract_sha256": "sha256:30d38000623beb96f75ffe6000fd202ebdf191c3604f0377447060c9a5e4d473",
+  "status": "passed"
+}
