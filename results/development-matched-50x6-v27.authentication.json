@@ -1,0 +1,37 @@
+{
+  "authentication_contract_hashes": {
+    "budgets_sha256": "sha256:4697f45abdaafb3f7e0091c3778edecb5f8dcda5c9ed57bf46ce5d60efa8108a",
+    "claude_auth_sha256": "sha256:1b77b7e83df33a6a95e8b6cdfb77e46a1b3d20ca591f80eb492faa148307c2be",
+    "cli_sha256": "sha256:a46b701acb983912faf07b3d69bca6a6a3585e83dcf90b0b700428d6d6413196",
+    "codex_auth_sha256": "sha256:f7779fa68499845793669f0497827ccd00d49af4c2e08ba0d20c2f4d6cd5943d",
+    "preparation_runtime_sha256": "sha256:15b026217a8ac6017f442e2c0a3e39c8a44bb2961dbbe8daabc287d95c3d410e",
+    "runtime_sha256": "sha256:8ad738b8169307fb14c621557924b32dc235794263728df98a70bcf7223e6384",
+    "source_sha256": "sha256:f93ea5ae2ff0dc6fbfc1b811fbd0a0aeee7ea456bd795a6e2aaf1955d726e48d",
+    "supervisor_sha256": "sha256:ddcc28d3b687682ce78467c2a8163d4bea0af5cfdd84eb4cd050886b9cdf7d5d"
+  },
+  "authentication_dependency_identity": {
+    "exact_bundle_identity_withheld": true,
+    "identity_sha256": "sha256:b8696677845b68513e6eddc995687a8f029e3d410a19dd93ace15f731f3e01a1",
+    "raw_machine_paths_published": false,
+    "raw_provider_output_published": false,
+    "root_owned_single_link_regular_executable_policy_attested": true,
+    "schema_version": "epiagentbench.authentication_dependency_freeze.v1"
+  },
+  "authentication_prerequisite": {
+    "codex": "passed_before_preflight",
+    "codex_method": "pinned_cli_device_auth",
+    "managed_glean": "passed_before_preflight",
+    "managed_glean_method": "pinned_managed_oauth_helper",
+    "model_calls": 0
+  },
+  "development_only": true,
+  "model_calls_started": 0,
+  "panel_id": "development-matched-50x6-v27",
+  "precommitment_sha256": "sha256:bb21ad5e93267da6dbe255d0e91aa18fe20aeb5ff18ab9cc3a5b2051e692fd17",
+  "production_episodes_consumed": 0,
+  "receipt_sha256": "sha256:d6b0efa21794a990d7447da073700f19395bb81e1b9bc1d85433cd591d60eec9",
+  "schema_version": "epiagentbench.authentication_receipt.v2",
+  "scores_reported": false,
+  "spend_authorization_receipt_sha256": "sha256:400f93976bd3fa641bf0287f95528a495ff1f19e17ce3bc4befa88d3fd033db8",
+  "status": "passed"
+}
