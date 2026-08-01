@@ -72,7 +72,9 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import stat
+import subprocess
 
 
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -100,6 +102,12 @@ _PROVIDER_FREE_COMMANDS = (
     _PROVIDER_FREE_PREPARATION_COMMANDS | _CACHE_FREE_COMMANDS
 )
 _PROVIDER_FREE_SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+_SECURITY = Path("/usr/bin/security")
+_KEYCHAIN_TIMEOUT_SECONDS = 15
+_PROVIDER_FREE_TMPDIR_MAX_BYTES = 72
+_SAFE_KEYCHAIN_LOCATOR = re.compile(
+    r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z"
+)
 _PROVIDER_FREE_BASE_ENVIRONMENT_KEYS = frozenset(
     {
         "HOME",
@@ -187,8 +195,77 @@ def _require_provider_free_entry_environment(
         clean_home == clean_tmp
         or clean_home in clean_tmp.parents
         or clean_tmp in clean_home.parents
+        or len(os.fsencode(str(clean_tmp)))
+        > _PROVIDER_FREE_TMPDIR_MAX_BYTES
     ):
         raise SystemExit(2)
+
+
+def _require_supervised_entry_credential_free(argv: list[str]) -> None:
+    """Reject a provider secret inherited across the child spawn boundary."""
+
+    if len(argv) >= 2 and argv[1] in _SUPERVISED_COMMANDS:
+        if "CURSOR_API_KEY" in os.environ:
+            raise SystemExit(2)
+
+
+def _read_cursor_keychain_credential(
+    *,
+    service: str,
+    account: str,
+    command_runner=subprocess.run,
+) -> str:
+    """Retrieve one Cursor key in the runner child without exposing errors."""
+
+    if (
+        not isinstance(service, str)
+        or not _SAFE_KEYCHAIN_LOCATOR.fullmatch(service)
+        or not isinstance(account, str)
+        or not _SAFE_KEYCHAIN_LOCATOR.fullmatch(account)
+    ):
+        raise RuntimeError("Cursor credential retrieval failed")
+    environment = {
+        name: value
+        for name in (
+            "HOME",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "LOGNAME",
+            "PATH",
+            "SHELL",
+            "TMPDIR",
+            "USER",
+        )
+        if isinstance((value := os.environ.get(name)), str) and value
+    }
+    try:
+        completed = command_runner(
+            [
+                str(_SECURITY),
+                "find-generic-password",
+                "-a",
+                account,
+                "-s",
+                service,
+                "-w",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            env=environment,
+            timeout=_KEYCHAIN_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise RuntimeError("Cursor credential retrieval failed") from None
+    raw = completed.stdout.rstrip(b"\r\n") if completed.returncode == 0 else b""
+    if not raw or len(raw) > 8192 or b"\x00" in raw:
+        raise RuntimeError("Cursor credential retrieval failed")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise RuntimeError("Cursor credential retrieval failed") from None
 
 
 def _install_exact_isolated_import_path(
@@ -332,6 +409,7 @@ def _restore_runtime_cache_environment(
 _RUNTIME_CACHE_ENVIRONMENT_SNAPSHOT: dict[str, str | None] = {}
 if __name__ == "__main__":
     _require_isolated_main_process()
+    _require_supervised_entry_credential_free(sys.argv)
     _require_provider_free_entry_environment(
         sys.argv, cache_environment_installed=False
     )
@@ -726,6 +804,8 @@ def main() -> int:
     _add_panel_state_arguments(preflight, include_runtime_cache=False)
     preflight.add_argument("--public-preflight", required=True, type=Path)
     preflight.add_argument("--supervisor-runtime", required=True, type=Path)
+    preflight.add_argument("--cursor-keychain-service", required=True)
+    preflight.add_argument("--cursor-keychain-account", required=True)
     preflight.add_argument(
         "--acknowledge-unbounded-provider-spend", action="store_true", required=True
     )
@@ -733,6 +813,8 @@ def main() -> int:
     _add_panel_state_arguments(run, include_runtime_cache=False)
     run.add_argument("--public-results", required=True, type=Path)
     run.add_argument("--supervisor-runtime", required=True, type=Path)
+    run.add_argument("--cursor-keychain-service", required=True)
+    run.add_argument("--cursor-keychain-account", required=True)
     run.add_argument(
         "--acknowledge-unbounded-provider-spend", action="store_true", required=True
     )
@@ -956,6 +1038,12 @@ def main() -> int:
             acknowledge_unbounded_provider_spend=(
                 args.acknowledge_unbounded_provider_spend
             ),
+            cursor_credential_loader=lambda: (
+                _read_cursor_keychain_credential(
+                    service=args.cursor_keychain_service,
+                    account=args.cursor_keychain_account,
+                )
+            ),
         )
     else:
         payload = run_panel(
@@ -969,6 +1057,12 @@ def main() -> int:
             supervisor_runtime_dir=args.supervisor_runtime,
             acknowledge_unbounded_provider_spend=(
                 args.acknowledge_unbounded_provider_spend
+            ),
+            cursor_credential_loader=lambda: (
+                _read_cursor_keychain_credential(
+                    service=args.cursor_keychain_service,
+                    account=args.cursor_keychain_account,
+                )
             ),
         )
     if args.command == "terminal-audit":
@@ -1044,6 +1138,7 @@ if __name__ == "__main__":
         _exit_code = main()
     finally:
         try:
+            _require_supervised_entry_credential_free(sys.argv)
             _require_provider_free_entry_environment(
                 sys.argv,
                 cache_environment_installed=bool(

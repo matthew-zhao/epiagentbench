@@ -336,6 +336,11 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
     def test_live_entrypoints_reject_noncanonical_output_before_evaluator(
         self,
     ) -> None:
+        cursor_credential_loader = unittest.mock.Mock(
+            side_effect=AssertionError(
+                "noncanonical output reached Cursor Keychain loading"
+            )
+        )
         with (
             patch.object(matched, "assert_durable_live_execution_paths"),
             patch.object(matched, "_execution_evaluator") as evaluator,
@@ -349,9 +354,11 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 private_state_path=self.private_state,
                 public_manifest_path=self.public_manifest,
                 public_preflight_path=self.results / "wrong-preflight.json",
+                cursor_credential_loader=cursor_credential_loader,
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluator.assert_not_called()
+        cursor_credential_loader.assert_not_called()
 
         with (
             patch.object(matched, "assert_durable_live_execution_paths"),
@@ -366,9 +373,11 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 private_state_path=self.private_state,
                 public_manifest_path=self.public_manifest,
                 public_results_path=self.results / "wrong-results.json",
+                cursor_credential_loader=cursor_credential_loader,
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluator.assert_not_called()
+        cursor_credential_loader.assert_not_called()
 
     def test_finalizer_rejects_noncanonical_output_before_any_write(
         self,
@@ -743,6 +752,10 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             str(self.public_preflight),
             "--supervisor-runtime",
             str(self.root / "supervisor"),
+            "--cursor-keychain-service",
+            "epiagentbench-cursor-v29",
+            "--cursor-keychain-account",
+            "test-account",
             "--acknowledge-unbounded-provider-spend",
         ]
         payload = {

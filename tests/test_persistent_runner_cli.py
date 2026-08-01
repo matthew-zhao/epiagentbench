@@ -20,13 +20,17 @@ class PersistentRunnerCliTests(unittest.TestCase):
     ) -> None:
         runner = Path(matched_cli.__file__).resolve()
         account = pwd.getpwuid(os.getuid())
-        with TemporaryDirectory(
-            prefix="eab26-provider-free-entry-", dir=Path.home()
-        ) as provider_free_root:
-            clean_home = Path(provider_free_root) / "clean-home"
-            clean_tmp = Path(provider_free_root) / "clean-tmp"
-            clean_home.mkdir(mode=0o700)
-            clean_tmp.mkdir(mode=0o700)
+        provider_free_parent = Path.home()
+        with (
+            TemporaryDirectory(
+                prefix="e29h-", dir=provider_free_parent
+            ) as clean_home_raw,
+            TemporaryDirectory(
+                prefix="e29t-", dir=provider_free_parent
+            ) as clean_tmp_raw,
+        ):
+            clean_home = Path(clean_home_raw)
+            clean_tmp = Path(clean_tmp_raw)
             environment = {
                 "HOME": str(clean_home),
                 "LC_ALL": "C.UTF-8",
@@ -227,26 +231,55 @@ class PersistentRunnerCliTests(unittest.TestCase):
     def test_real_isolated_file_entrypoint_replays_under_spawn_and_starts_broker(
         self,
     ) -> None:
-        try:
-            import starsim  # type: ignore
-        except ImportError:
-            self.skipTest("exact Starsim scientific runtime is unavailable")
+        with TemporaryDirectory(
+            prefix="e29-import-cache-", dir="/private/tmp"
+        ) as import_cache_raw:
+            import_cache = Path(import_cache_raw)
+            import_environment = matched_cli._runtime_cache_environment(
+                import_cache
+            )
+            for name in (
+                "MPLCONFIGDIR",
+                "NUMBA_CACHE_DIR",
+                "XDG_CACHE_HOME",
+            ):
+                Path(import_environment[name]).mkdir(mode=0o700)
+            try:
+                with patch.dict(
+                    os.environ, import_environment, clear=False
+                ):
+                    import starsim  # type: ignore
+            except ImportError:
+                self.skipTest(
+                    "exact Starsim scientific runtime is unavailable"
+                )
         if str(getattr(starsim, "__version__", "")) != "3.5.1":
             self.skipTest("test requires exact Starsim 3.5.1")
 
         runner = Path(matched_cli.__file__).resolve()
+        provider_free_parent = Path.home()
         with (
             TemporaryDirectory(
-                prefix="eab26-runtime-", dir="/tmp"
+                prefix="eab29-runtime-", dir="/private/tmp"
             ) as directory,
             TemporaryDirectory(
-                prefix="eab26-provider-free-", dir=Path.home()
-            ) as provider_free_root,
+                prefix="e29h-", dir=provider_free_parent
+            ) as clean_home_raw,
+            TemporaryDirectory(
+                prefix="e29t-", dir=provider_free_parent
+            ) as clean_tmp_raw,
         ):
-            clean_home = Path(provider_free_root) / "clean-home"
-            clean_tmp = Path(provider_free_root) / "clean-tmp"
-            clean_home.mkdir(mode=0o700)
-            clean_tmp.mkdir(mode=0o700)
+            clean_home = Path(clean_home_raw)
+            clean_tmp = Path(clean_tmp_raw)
+            runtime_cache_environment = (
+                matched_cli._runtime_cache_environment(Path(directory))
+            )
+            for name in (
+                "MPLCONFIGDIR",
+                "NUMBA_CACHE_DIR",
+                "XDG_CACHE_HOME",
+            ):
+                Path(runtime_cache_environment[name]).mkdir(mode=0o700)
             account = pwd.getpwuid(os.getuid())
             completed = subprocess.run(
                 [
@@ -466,6 +499,10 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "/public/output.json",
             "--supervisor-runtime",
             "/private/supervisor",
+            "--cursor-keychain-service",
+            "epiagentbench-cursor-v29",
+            "--cursor-keychain-account",
+            "test-account",
             "--acknowledge-unbounded-provider-spend",
         ]
 
@@ -675,7 +712,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "/public/preflight.json",
         ]
         payload = {
-            "schema_version": "epiagentbench.terminal_audit.v2",
+            "schema_version": "epiagentbench.terminal_audit.v3",
             "panel_id": matched_cli.PANEL_ID,
             "operation": "preflight",
             "status": "reconciled_and_attested",

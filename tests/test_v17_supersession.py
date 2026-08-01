@@ -168,9 +168,13 @@ class V17SupersessionTests(unittest.TestCase):
         panel = (
             self.root / "src/epiagentbench/development_matched_panel.py"
         ).read_text(encoding="utf-8")
-        self.assertIn(
-            '_SCHEMA = "epiagentbench.launchd_agent.v14"', launcher
+        launchd_schema = re.search(
+            r'_SCHEMA = "epiagentbench\.launchd_agent\.v(\d+)"',
+            launcher,
         )
+        self.assertIsNotNone(launchd_schema)
+        assert launchd_schema is not None
+        self.assertGreaterEqual(int(launchd_schema.group(1)), 15)
         self.assertIn(
             '_PROTOCOL_VERSION = "persistent-supervisor-v8"', launcher
         )

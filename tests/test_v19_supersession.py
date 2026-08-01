@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 import hashlib
 import json
 from pathlib import Path
+import re
 import unittest
 
 
@@ -192,9 +193,13 @@ class V19SupersessionTests(unittest.TestCase):
             ],
             "epiagentbench.authentication_setup.v3",
         )
-        self.assertIn(
-            '_SCHEMA = "epiagentbench.launchd_agent.v14"', launcher
+        launchd_schema = re.search(
+            r'_SCHEMA = "epiagentbench\.launchd_agent\.v(\d+)"',
+            launcher,
         )
+        self.assertIsNotNone(launchd_schema)
+        assert launchd_schema is not None
+        self.assertGreaterEqual(int(launchd_schema.group(1)), 15)
         self.assertIn(
             '_PROTOCOL_VERSION = "persistent-supervisor-v8"', launcher
         )

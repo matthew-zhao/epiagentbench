@@ -2,9 +2,10 @@
 
 The launchd property list intentionally contains only the path to an owner-only
 configuration file.  In particular, it never contains credentials, provider
-environment variables, panel arguments, or log paths.  The worker resolves the
-Cursor credential from Keychain after launch and passes it to the supervised
-child in memory.
+environment variables, panel arguments, or log paths.  The worker passes only
+an authenticated, non-secret Keychain locator to the supervised child.  That
+child resolves the Cursor credential in memory only after its provider-free
+preclaim has passed and the paid preflight is claimed atomically.
 
 This module never changes launchd state automatically. Explicit install,
 start, and uninstall controls are the only mutating ``launchctl`` entry points;
@@ -36,7 +37,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .provider_cli_environment import SYSTEM_PROCESS_PATH
 
-_SCHEMA = "epiagentbench.launchd_agent.v14"
+_SCHEMA = "epiagentbench.launchd_agent.v15"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v6"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -47,7 +48,7 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v14\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v15\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v6\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
@@ -60,9 +61,9 @@ _MAX_RUNTIME_CACHE_FILES = 10_000
 _MAX_RUNTIME_CACHE_FILE_BYTES = 512 * 1024 * 1024
 _MAX_RUNTIME_CACHE_BYTES = 4 * 1024 * 1024 * 1024
 _MAX_AUTHENTICATION_KEY_BYTES = 4096
+_MAX_EPISODE_TMPDIR_BYTES = 72
 _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
-_KEYCHAIN_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v8"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
@@ -122,6 +123,7 @@ _TERMINAL_AUDIT_INCIDENT_PHASES = frozenset(
         "credential_precheck",
         "repository_preflight",
         "credential_postcheck",
+        "provider_free_preclaim_validation",
         "preflight_state_claim",
         "before_model_spawn",
         "model_spawn_committed",
@@ -138,7 +140,11 @@ _TERMINAL_AUDIT_CONTRACT_OPERATIONS = frozenset(
         "schedule_design",
         "public_manifest",
         "authentication_binding",
-        "preparation_runtime",
+        "preparation_runtime_bound_contract",
+        "preparation_runtime_starsim_smoke",
+        "preparation_runtime_episode_startup_smoke",
+        "preparation_runtime_cache_identity",
+        "preparation_runtime_private_cache_binding",
         "public_contract_surface",
         "component_commitment",
         "cohort_identity",
@@ -165,6 +171,8 @@ _TERMINAL_AUDIT_CONTROL_INCIDENT_CODES = frozenset(
         "contract_attestation_failed",
         "contract_attestation_checkpoint_persist_failed",
         "control_phase_checkpoint_persist_failed",
+        "preflight_prerequisite_reattest_failed",
+        "preflight_state_claim_checkpoint_persist_failed",
     }
 )
 _TERMINAL_AUDIT_INCIDENT_CODES = frozenset(
@@ -1696,12 +1704,26 @@ def _safe_environment(
     if path_environment not in (None, SYSTEM_PROCESS_PATH):
         raise ValueError("PATH must match the source-owned system path")
     path_value = SYSTEM_PROCESS_PATH
+    try:
+        temporary_root = Path(tempfile.gettempdir()).resolve(strict=True)
+        temporary_metadata = temporary_root.lstat()
+    except (OSError, RuntimeError):
+        raise ValueError("Owner-scoped temporary directory is unavailable") from None
+    if (
+        not stat.S_ISDIR(temporary_metadata.st_mode)
+        or stat.S_ISLNK(temporary_metadata.st_mode)
+        or temporary_metadata.st_uid != os.getuid()
+        or stat.S_IMODE(temporary_metadata.st_mode) != 0o700
+        or len(os.fsencode(str(temporary_root)))
+        > _MAX_EPISODE_TMPDIR_BYTES
+    ):
+        raise ValueError("Owner-scoped temporary directory is unsafe")
     environment = {
         "HOME": identity.pw_dir,
         "LOGNAME": identity.pw_name,
         "PATH": path_value,
         "SHELL": identity.pw_shell or "/bin/zsh",
-        "TMPDIR": tempfile.gettempdir(),
+        "TMPDIR": str(temporary_root),
         "USER": identity.pw_name,
     }
     for key in ("LANG", "LC_ALL", "LC_CTYPE"):
@@ -2080,15 +2102,12 @@ def generate_launch_agent(
             persistent_supervisor.__file__,
             persistent_supervisor_source,
         )
-        matched_panel.assert_panel_authentication_ready(
-            root=root,
-            authentication_key_file=auth_key,
-            claude_secure_storage_dir=claude_storage,
-            codex_secure_storage_dir=codex_storage,
-            private_state_path=private_state,
-            public_manifest_path=public_manifest,
-            require_clean_checkout=True,
-        )
+        # Generation is deliberately credential-blind.  Authentication state,
+        # receipt, repository, and credential readiness are re-attested by the
+        # supervised runner in the same child that durably records the V29
+        # provider-free preclaim.  Calling the foreground readiness helper here
+        # would inspect credential metadata (including macOS Keychain state)
+        # before that claim existed.
         public_authentication_file_sha256 = _file_sha256(
             public_authentication,
             maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
@@ -2099,7 +2118,7 @@ def generate_launch_agent(
             != public_authentication_file_sha256_before
         ):
             raise ValueError(
-                "Public authentication receipt changed during readiness validation"
+                "Public authentication receipt changed during generation validation"
             )
 
         label = f"{_LABEL_PREFIX}.{os.getuid()}.{token}"
@@ -2729,6 +2748,10 @@ def _runner_command(config: Mapping[str, Any]) -> list[str]:
         str(config["public_manifest_path"]),
         "--supervisor-runtime",
         str(config["runtime_dir"]),
+        "--cursor-keychain-service",
+        str(config["cursor_keychain"]["service"]),
+        "--cursor-keychain-account",
+        str(config["cursor_keychain"]["account"]),
     ]
     if config["operation"] == "preflight":
         command.extend(["--public-preflight", str(config["public_output_path"])])
@@ -2868,68 +2891,6 @@ def _atomic_worker_status(
     os.replace(temporary, destination)
     _require_regular(destination, label="worker status", exact_mode=0o600)
     _fsync_directory(runtime)
-
-
-def _read_cursor_key(config: Mapping[str, Any], *, command_runner: CommandRunner = subprocess.run) -> str:
-    locator = config["cursor_keychain"]
-    try:
-        completed = command_runner(
-            [
-                str(_SECURITY),
-                "find-generic-password",
-                "-a",
-                locator["account"],
-                "-s",
-                locator["service"],
-                "-w",
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            env=dict(config["base_environment"]),
-            timeout=_KEYCHAIN_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        raise RuntimeError("Cursor Keychain lookup failed") from None
-    raw = completed.stdout.rstrip(b"\r\n") if completed.returncode == 0 else b""
-    if not raw or len(raw) > 8192 or b"\x00" in raw:
-        raise RuntimeError("Cursor Keychain lookup failed")
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError:
-        raise RuntimeError("Cursor Keychain lookup failed") from None
-
-
-def _attest_cursor_keychain(
-    config: Mapping[str, Any],
-    *,
-    command_runner: CommandRunner = subprocess.run,
-) -> None:
-    """Confirm the Cursor credential exists without retrieving its value."""
-
-    locator = config["cursor_keychain"]
-    try:
-        completed = command_runner(
-            [
-                str(_SECURITY),
-                "find-generic-password",
-                "-a",
-                locator["account"],
-                "-s",
-                locator["service"],
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            env=dict(config["base_environment"]),
-            timeout=_KEYCHAIN_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        raise RuntimeError("Cursor Keychain attestation failed") from None
-    if completed.returncode != 0:
-        raise RuntimeError("Cursor Keychain attestation failed")
 
 
 def _run_core_supervisor(
@@ -3181,7 +3142,7 @@ def _attest_terminal_audit_required_exit(
         not isinstance(audit, Mapping)
         or set(audit) != expected_keys
         or audit.get("schema_version")
-        != "epiagentbench.terminal_audit.v2"
+        != "epiagentbench.terminal_audit.v3"
         or audit.get("panel_id") != config["panel_id"]
         or audit.get("operation") != config["operation"]
         or audit.get("status") != "reconciled_and_attested"
@@ -3233,9 +3194,11 @@ def _run_launch_agent_worker_validated(
     *,
     config: Mapping[str, Any],
     authentication_key: bytes,
-    keychain_runner: CommandRunner = subprocess.run,
 ) -> int:
-    """Run one already-authenticated worker inside its sealed environment."""
+    """Run one authenticated worker without retrieving provider secrets.
+
+    Only the supervised runner child may invoke ``security``.
+    """
 
     if config_file != Path(config["config_path"]):
         raise ValueError("Worker config path mismatch")
@@ -3272,25 +3235,17 @@ def _run_launch_agent_worker_validated(
             authentication_key=authentication_key,
             state="starting",
         )
-        # Re-hash the enforcement modules immediately before any provider
-        # credential is retrieved.  This closes the validation-to-Keychain
-        # window and fails without invoking ``security`` on mismatch.
+        # Re-hash the enforcement modules immediately before the credential-
+        # free supervised child is entered.  That child must pass its full
+        # provider-free preclaim before it can query Keychain.
         _validate_python_entrypoint_binding(config)
         _validate_runtime_cache_binding(config)
         _verify_frozen_runtime_sources(config)
-        try:
-            cursor_key = _read_cursor_key(config, command_runner=keychain_runner)
-        except RuntimeError:
-            _atomic_worker_status(
-                runtime,
-                config=config,
-                authentication_key=authentication_key,
-                state="terminal_incident",
-                reason="cursor_keychain_unavailable",
-            )
-            return 70
         environment = dict(config["base_environment"])
-        environment["CURSOR_API_KEY"] = cursor_key
+        if "CURSOR_API_KEY" in environment:
+            raise ValueError(
+                "LaunchAgent base environment contains a provider credential"
+            )
         _atomic_worker_status(
             runtime,
             config=config,
@@ -3316,9 +3271,6 @@ def _run_launch_agent_worker_validated(
                 supervisor_failure_code=supervisor_failure_code,
             )
             return 70
-        finally:
-            environment.pop("CURSOR_API_KEY", None)
-            cursor_key = ""
         if return_code == _TERMINAL_AUDIT_REQUIRED_EXIT_CODE:
             try:
                 _attest_terminal_audit_required_core(
@@ -3400,8 +3352,6 @@ def _run_launch_agent_worker_validated(
 @_public_errors
 def run_launch_agent_worker(
     config_path: Path,
-    *,
-    keychain_runner: CommandRunner = subprocess.run,
 ) -> int:
     """Run the one-shot worker inside its authenticated cache environment."""
 
@@ -3413,7 +3363,6 @@ def run_launch_agent_worker(
             config_file,
             config=config,
             authentication_key=authentication_key,
-            keychain_runner=keychain_runner,
         )
 
 
@@ -3596,19 +3545,11 @@ def _start_launch_agent_validated(
             root=Path(config["repository_root"]),
             private_state_path=Path(config["private_state_path"]),
         )
-        matched_panel.assert_panel_authentication_ready(
-            root=Path(config["repository_root"]),
-            authentication_key_file=Path(config["authentication_key_file"]),
-            claude_secure_storage_dir=Path(
-                config["claude_secure_storage_dir"]
-            ),
-            codex_secure_storage_dir=Path(
-                config["codex_secure_storage_dir"]
-            ),
-            private_state_path=Path(config["private_state_path"]),
-            public_manifest_path=Path(config["public_manifest_path"]),
-            require_clean_checkout=True,
-        )
+        # Start remains credential-blind for the same reason as generation:
+        # the supervised runner must first create and reconcile its same-child
+        # provider-free preclaim.  In particular, do not call the foreground
+        # authentication-readiness helper here because it may query credential
+        # metadata and macOS Keychain before that durable boundary.
         if config["operation"] == "production":
             matched_panel.assert_environment_preflight_ready(
                 root=Path(config["repository_root"]),
@@ -3623,7 +3564,6 @@ def _start_launch_agent_validated(
             operation=str(config["operation"]),
             public_manifest_path=Path(config["public_manifest_path"]),
         )
-        _attest_cursor_keychain(config, command_runner=command_runner)
         # This durable HMAC marker is the launch commitment for launchctl.  It
         # is written and directory-fsynced before kickstart, and intentionally
         # survives every nonzero or ambiguous kickstart outcome.

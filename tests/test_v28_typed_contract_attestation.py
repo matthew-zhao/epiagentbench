@@ -198,12 +198,16 @@ class V28TypedContractAttestationTests(unittest.TestCase):
         expected_payload = {"status": "failed", "incident_code": "typed"}
 
         with (
-            patch.dict(os.environ, {"CURSOR_API_KEY": "offline-test-key"}),
+            patch.dict(os.environ, {}, clear=True),
             self._forbid_provider_and_auth_helpers() as forbidden_helpers,
             patch.object(
                 matched,
-                "_claim_preflight_incident_envelope",
+                "_claim_offline_test_preflight_incident_envelope",
             ) as claim,
+            patch.object(
+                matched,
+                "_assert_ephemeral_offline_test_namespace",
+            ),
             patch.object(
                 matched,
                 "_run_environment_preflight_core_claimed",
@@ -297,11 +301,11 @@ class V28TypedContractAttestationTests(unittest.TestCase):
         for forbidden in ("/hidden/", "exception", "provider_output"):
             self.assertNotIn(forbidden, serialized)
 
-    def test_v28_incident_envelope_schema_remains_closed(self) -> None:
+    def test_v29_live_incident_envelope_schema_remains_closed(self) -> None:
         envelope = matched._new_preflight_incident_envelope()
         self.assertEqual(
             envelope["schema_version"],
-            "epiagentbench.preflight_incident_envelope.v2",
+            "epiagentbench.preflight_incident_envelope.v3",
         )
         self.assertEqual(
             set(envelope),

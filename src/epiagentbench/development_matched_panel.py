@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import Counter
 from contextlib import contextmanager
+import copy
 from dataclasses import asdict, replace
 import fcntl
 import hashlib
@@ -107,9 +108,9 @@ from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePa
 from .trusted.service import TRUSTED_EVALUATOR_STARTUP_STAGES
 
 
-PANEL_ID = "development-matched-50x6-v28"
+PANEL_ID = "development-matched-50x6-v29"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v28"
+SCHEMA_VERSION = "development_matched_panel_v29"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -117,7 +118,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v28 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v29 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $610 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -136,7 +137,8 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "zero-model-call v25 provider-free preparation-runtime CLI discovery, "
     "the failed v26 preflight with indeterminate provider-call count and a "
     "conservative $10 Claude allowance, the failed zero-model-call v27 "
-    "preflight, and the v28 preflight and production run."
+    "preflight, the failed zero-model-call v28 preflight, and the v29 "
+    "preflight and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v4"
@@ -152,9 +154,18 @@ _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA = (
 )
 _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS = (0, 7, 2**31 - 2)
 _PREPARATION_EPISODE_STARTUP_REPETITIONS = 2
+_PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES = 100
+_PREPARATION_EPISODE_SOCKET_PATH_SUFFIX_BYTES = len(
+    os.fsencode("/eab29-xxxxxxxx/episode.sock")
+)
+_PREPARATION_EPISODE_TMPDIR_MAX_BYTES = (
+    _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
+    - _PREPARATION_EPISODE_SOCKET_PATH_SUFFIX_BYTES
+)
+_PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS = 3
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "58b483ed9fe0a572644aeeee2f28cf62ee8a14e5321e2ec87010b6ae473373e9"
+    "24314598e132fc6eebfdf17ea693414da699f51d0f5f61c8b9c16202b9fac4e8"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -166,7 +177,7 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
     "XDG_CACHE_HOME",
 )
 _PROVIDER_FREE_PREPARATION_ENVIRONMENT_SCHEMA = (
-    "epiagentbench.provider_free_preparation_environment.v1"
+    "epiagentbench.provider_free_preparation_environment.v2"
 )
 _PROVIDER_FREE_PREPARATION_BASE_ENVIRONMENT_KEYS = frozenset(
     {
@@ -287,17 +298,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V28 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V29 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V28 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V29 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V28 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V29 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v28_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v29_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v28_cohort_freeze_completion.v1"
+    "epiagentbench.v29_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -377,10 +388,17 @@ _MAX_PANEL_JSON_BYTES = 64 * 1024 * 1024
 _PENDING_PREFLIGHT_STATUS = "passed_pending_supervisor_completion"
 _PENDING_PRODUCTION_STATUS = "complete_pending_supervisor_completion"
 _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA = (
-    "epiagentbench.preflight_incident_envelope.v2"
+    "epiagentbench.preflight_incident_envelope.v3"
 )
-_TERMINAL_AUDIT_SCHEMA = "epiagentbench.terminal_audit.v2"
+_PROVIDER_FREE_PRECLAIM_SCHEMA = (
+    "epiagentbench.provider_free_preclaim.v3"
+)
+_PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA = (
+    "epiagentbench.provider_free_preclaim_prerequisites.v1"
+)
+_TERMINAL_AUDIT_SCHEMA = "epiagentbench.terminal_audit.v3"
 _PREFLIGHT_INCIDENT_PHASES = (
+    "provider_free_preclaim_validation",
     "prelaunch_validation",
     "authentication_prerequisite",
     "supervisor_binding",
@@ -407,7 +425,11 @@ _CONTRACT_ATTESTATION_OPERATIONS = (
     "schedule_design",
     "public_manifest",
     "authentication_binding",
-    "preparation_runtime",
+    "preparation_runtime_bound_contract",
+    "preparation_runtime_starsim_smoke",
+    "preparation_runtime_episode_startup_smoke",
+    "preparation_runtime_cache_identity",
+    "preparation_runtime_private_cache_binding",
     "public_contract_surface",
     "component_commitment",
     "cohort_identity",
@@ -420,6 +442,13 @@ _CONTRACT_ATTESTATION_OPERATIONS = (
     "schedule_commitment",
     "assignment_state",
     "contract_internal",
+)
+_PREPARATION_RUNTIME_OPERATIONS = (
+    "preparation_runtime_bound_contract",
+    "preparation_runtime_starsim_smoke",
+    "preparation_runtime_episode_startup_smoke",
+    "preparation_runtime_cache_identity",
+    "preparation_runtime_private_cache_binding",
 )
 _CONTRACT_ATTESTATION_OPERATION_SET = frozenset(
     _CONTRACT_ATTESTATION_OPERATIONS
@@ -436,6 +465,15 @@ _PREFLIGHT_CONTROL_OPERATIONS = frozenset(
         *_PREFLIGHT_INCIDENT_PHASES,
         *_CONTRACT_ATTESTATION_OPERATIONS,
         "one_shot_state_validation_checkpoint",
+    }
+)
+_PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES = frozenset(
+    {
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+        "control_phase_checkpoint_persist_failed",
+        "preflight_prerequisite_reattest_failed",
+        "preflight_state_claim_checkpoint_persist_failed",
     }
 )
 _PERSISTENT_EXECUTION_BINDINGS_KEY = "persistent_execution_bindings"
@@ -524,6 +562,8 @@ _PROVIDER_INCIDENT_CODES = frozenset(
         "contract_attestation_failed",
         "contract_attestation_checkpoint_persist_failed",
         "control_phase_checkpoint_persist_failed",
+        "preflight_prerequisite_reattest_failed",
+        "preflight_state_claim_checkpoint_persist_failed",
         "unexpected_control_path_failure",
     }
 )
@@ -1149,21 +1189,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V28 cohort destination")
+    return _canonical_new_private_path(value, label="V29 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V28 claim location paired with this owner-only key."""
+    """Return the one V29 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V28 authentication-key namespace is unavailable"
+            "V29 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1172,16 +1212,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V28 authentication-key namespace must be owner-only"
+            "V29 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V28 cohort freeze claim"
+        requested_path, label="V29 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V28 cohort freeze claim must use the canonical key-namespace path"
+            "V29 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1209,7 +1249,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V28 cohort freeze claim authentication failed")
+        raise ValueError("V29 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1232,7 +1272,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V28 cohort freeze completion authentication failed")
+        raise ValueError("V29 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1256,7 +1296,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V28 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V29 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1286,12 +1326,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V28 freeze attempt before any cohort randomness."""
+    """Burn the only V29 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V28 cohort freeze completion already exists; never rerun freeze"
+            "V29 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1308,11 +1348,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V28 cohort freeze already has a pending claim; interrupted "
+            "V29 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V28 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V29 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1330,7 +1370,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V28 cohort manifest must use its canonical filename")
+        raise ValueError("V29 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1341,7 +1381,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V28 frozen cohort manifest"
+            canonical_manifest_path, label="V29 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1359,11 +1399,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V28 cohort freeze completion already exists; never replace it"
+            "V29 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V28 cohort freeze completion failed its durable reload"
+            "V29 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1381,13 +1421,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V28 cohort has no authenticated create-once freeze claim"
+            "Frozen V29 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V28 cohort freeze remains pending; interrupted freezes are "
+            "V29 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1395,7 +1435,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V28 cohort manifest must use its canonical filename")
+        raise ValueError("V29 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1410,11 +1450,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V28 cohort freeze claim belongs to another freeze")
+        raise ValueError("V29 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V28 cohort freeze claim has no claim time")
+        raise ValueError("V29 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1425,7 +1465,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V28 frozen cohort manifest"
+            manifest_path, label="V29 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1435,12 +1475,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V28 cohort freeze completion differs from its manifest or claim"
+            "V29 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V28 cohort freeze completion has no completion time")
+        raise ValueError("V29 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -1987,6 +2027,31 @@ def _paths_overlap(first: Path, second: Path) -> bool:
     return _path_is_within(first, second) or _path_is_within(second, first)
 
 
+def _provider_free_directory_observation(
+    candidate: Path,
+    *,
+    label: str,
+) -> tuple[os.stat_result, Path, tuple[Path, ...]]:
+    """Read one directory identity, retrying only a finite EINTR."""
+
+    for _attempt in range(_PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS):
+        try:
+            return (
+                candidate.lstat(),
+                candidate.resolve(strict=True),
+                tuple(candidate.iterdir()),
+            )
+        except InterruptedError:
+            continue
+        except (OSError, RuntimeError):
+            raise RuntimeError(
+                f"V29 provider-free {label} is unavailable"
+            ) from None
+    raise RuntimeError(
+        f"V29 provider-free {label} attestation was interrupted"
+    )
+
+
 def _provider_free_empty_directory(
     raw_value: str | None,
     *,
@@ -1996,21 +2061,17 @@ def _provider_free_empty_directory(
     account_home: Path,
 ) -> Path:
     if not isinstance(raw_value, str) or not raw_value or "\x00" in raw_value:
-        raise RuntimeError(f"V28 provider-free {label} is unavailable")
+        raise RuntimeError(f"V29 provider-free {label} is unavailable")
     candidate = Path(raw_value)
     if (
         not candidate.is_absolute()
         or raw_value != os.path.normpath(raw_value)
     ):
-        raise RuntimeError(f"V28 provider-free {label} is invalid")
-    try:
-        metadata = candidate.lstat()
-        resolved = candidate.resolve(strict=True)
-        entries = list(candidate.iterdir())
-    except (OSError, RuntimeError):
-        raise RuntimeError(
-            f"V28 provider-free {label} is unavailable"
-        ) from None
+        raise RuntimeError(f"V29 provider-free {label} is invalid")
+    metadata, resolved, entries = _provider_free_directory_observation(
+        candidate,
+        label=label,
+    )
     if (
         candidate != resolved
         or not stat.S_ISDIR(metadata.st_mode)
@@ -2024,9 +2085,127 @@ def _provider_free_empty_directory(
         or _paths_overlap(candidate, runtime_cache_root)
     ):
         raise RuntimeError(
-            f"V28 provider-free {label} failed directory isolation"
+            f"V29 provider-free {label} failed directory isolation"
         )
     return candidate
+
+
+def _assert_preparation_socket_path_budget(tmpdir: Path) -> None:
+    if (
+        len(os.fsencode(str(tmpdir)))
+        > _PREPARATION_EPISODE_TMPDIR_MAX_BYTES
+    ):
+        raise RuntimeError(
+            "V29 provider-free TMPDIR exceeds the episode socket path budget"
+        )
+
+
+@contextmanager
+def _provider_free_directory_identity_guard(
+    *,
+    repository_root: Path,
+    runtime_cache_root: Path,
+):
+    """Hold non-inheritable FDs and re-attest HOME/TMPDIR after each stage."""
+
+    account_home = current_account()[1].resolve(strict=True)
+    paths = {
+        "HOME": _provider_free_empty_directory(
+            os.environ.get("HOME"),
+            label="HOME",
+            repository_root=repository_root,
+            runtime_cache_root=runtime_cache_root,
+            account_home=account_home,
+        ),
+        "TMPDIR": _provider_free_empty_directory(
+            os.environ.get("TMPDIR"),
+            label="TMPDIR",
+            repository_root=repository_root,
+            runtime_cache_root=runtime_cache_root,
+            account_home=account_home,
+        ),
+    }
+    _assert_preparation_socket_path_budget(paths["TMPDIR"])
+    descriptors: dict[str, int] = {}
+    identities: dict[str, tuple[int, int, int, int]] = {}
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(
+        os, "O_NOFOLLOW", 0
+    )
+    try:
+        for label, path in paths.items():
+            descriptor: int | None = None
+            for _attempt in range(
+                _PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS
+            ):
+                try:
+                    descriptor = os.open(path, flags)
+                    break
+                except InterruptedError:
+                    continue
+                except OSError:
+                    raise RuntimeError(
+                        f"V29 provider-free {label} identity is unavailable"
+                    ) from None
+            if descriptor is None:
+                raise RuntimeError(
+                    f"V29 provider-free {label} identity attestation was "
+                    "interrupted"
+                )
+            os.set_inheritable(descriptor, False)
+            descriptors[label] = descriptor
+            metadata = os.fstat(descriptor)
+            identities[label] = (
+                int(metadata.st_dev),
+                int(metadata.st_ino),
+                int(metadata.st_uid),
+                int(stat.S_IMODE(metadata.st_mode)),
+            )
+
+        def reattest() -> None:
+            for label, path in paths.items():
+                current = _provider_free_empty_directory(
+                    str(path),
+                    label=label,
+                    repository_root=repository_root,
+                    runtime_cache_root=runtime_cache_root,
+                    account_home=account_home,
+                )
+                path_metadata, resolved, _entries = (
+                    _provider_free_directory_observation(
+                        current,
+                        label=label,
+                    )
+                )
+                descriptor_metadata = os.fstat(descriptors[label])
+                observed = (
+                    int(descriptor_metadata.st_dev),
+                    int(descriptor_metadata.st_ino),
+                    int(descriptor_metadata.st_uid),
+                    int(stat.S_IMODE(descriptor_metadata.st_mode)),
+                )
+                pathname_identity = (
+                    int(path_metadata.st_dev),
+                    int(path_metadata.st_ino),
+                    int(path_metadata.st_uid),
+                    int(stat.S_IMODE(path_metadata.st_mode)),
+                )
+                if (
+                    resolved != current
+                    or observed != identities[label]
+                    or pathname_identity != identities[label]
+                ):
+                    raise RuntimeError(
+                        f"V29 provider-free {label} identity changed"
+                    )
+
+        reattest()
+        yield reattest
+    finally:
+        for descriptor in descriptors.values():
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
 
 def _provider_free_preparation_environment_contract(
@@ -2042,14 +2221,14 @@ def _provider_free_preparation_environment_contract(
     )
     if set(os.environ) != expected_keys:
         raise RuntimeError(
-            "V28 provider-free preparation environment is not closed"
+            "V29 provider-free preparation environment is not closed"
         )
     account_name, raw_account_home, account_shell = current_account()
     try:
         account_home = raw_account_home.resolve(strict=True)
     except (OSError, RuntimeError):
         raise RuntimeError(
-            "V28 provider-free account home is unavailable"
+            "V29 provider-free account home is unavailable"
         ) from None
     expected_cf_encoding = f"0x{os.getuid():X}:0x0:0x0"
     if (
@@ -2062,7 +2241,7 @@ def _provider_free_preparation_environment_contract(
         != expected_cf_encoding
     ):
         raise RuntimeError(
-            "V28 provider-free preparation environment values are invalid"
+            "V29 provider-free preparation environment values are invalid"
         )
     clean_home = _provider_free_empty_directory(
         os.environ.get("HOME"),
@@ -2080,8 +2259,9 @@ def _provider_free_preparation_environment_contract(
     )
     if clean_home == clean_tmp or _paths_overlap(clean_home, clean_tmp):
         raise RuntimeError(
-            "V28 provider-free HOME and TMPDIR must be distinct"
+            "V29 provider-free HOME and TMPDIR must be distinct"
         )
+    _assert_preparation_socket_path_budget(clean_tmp)
     return {
         "schema_version": _PROVIDER_FREE_PREPARATION_ENVIRONMENT_SCHEMA,
         "status": "passed",
@@ -2107,6 +2287,15 @@ def _provider_free_preparation_environment_contract(
         "clean_tmp_policy": (
             "fresh_empty_current_owner_0700_nonsymlink_value_not_disclosed"
         ),
+        "directory_identity_policy": (
+            "noninheritable_fd_and_path_revalidated_between_stages"
+        ),
+        "episode_socket_path_max_bytes": (
+            _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
+        ),
+        "episode_tmpdir_max_bytes": (
+            _PREPARATION_EPISODE_TMPDIR_MAX_BYTES
+        ),
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
         "model_calls_started": 0,
@@ -2124,6 +2313,9 @@ def _valid_provider_free_preparation_environment_contract(
             "authentication_processes_started",
             "clean_home_policy",
             "clean_tmp_policy",
+            "directory_identity_policy",
+            "episode_socket_path_max_bytes",
+            "episode_tmpdir_max_bytes",
             "locale",
             "model_calls_started",
             "process_environment_keys",
@@ -2171,6 +2363,14 @@ def _valid_provider_free_preparation_environment_contract(
             "fresh_empty_current_owner_0700_nonsymlink_"
             "value_not_disclosed"
         )
+        and value.get("directory_identity_policy")
+        == "noninheritable_fd_and_path_revalidated_between_stages"
+        and value.get("episode_socket_path_max_bytes")
+        == _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
+        and type(value.get("episode_socket_path_max_bytes")) is int
+        and value.get("episode_tmpdir_max_bytes")
+        == _PREPARATION_EPISODE_TMPDIR_MAX_BYTES
+        and type(value.get("episode_tmpdir_max_bytes")) is int
         and value.get("provider_processes_started") == 0
         and type(value.get("provider_processes_started")) is int
         and value.get("authentication_processes_started") == 0
@@ -2202,6 +2402,31 @@ def _is_temporary_storage_path(path: Path) -> bool:
     return any(
         _path_is_within(resolved, temporary_root)
         for temporary_root in _temporary_storage_roots()
+    )
+
+
+def _is_ephemeral_offline_secure_storage(
+    path: Path,
+    *,
+    root: Path,
+) -> bool:
+    """Allow only sibling credential fixtures in one owner-only temp root."""
+
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved_path = path.resolve(strict=True)
+        namespace = resolved_root.parent
+        namespace_metadata = namespace.lstat()
+    except (OSError, RuntimeError):
+        return False
+    return bool(
+        _is_temporary_storage_path(resolved_root)
+        and resolved_path.parent == namespace
+        and resolved_path != resolved_root
+        and not stat.S_ISLNK(namespace_metadata.st_mode)
+        and stat.S_ISDIR(namespace_metadata.st_mode)
+        and namespace_metadata.st_uid == os.getuid()
+        and stat.S_IMODE(namespace_metadata.st_mode) == 0o700
     )
 
 
@@ -2449,7 +2674,12 @@ def _validate_claude_secure_storage_dir(path: Path, *, root: Path) -> Path:
             "Claude secure storage directory must be outside the repository"
         )
     resolved_tmp = Path("/tmp").resolve(strict=True)
-    if _path_is_within(resolved, resolved_tmp):
+    if _path_is_within(
+        resolved, resolved_tmp
+    ) and not _is_ephemeral_offline_secure_storage(
+        resolved,
+        root=root,
+    ):
         raise ValueError("Claude secure storage directory must be outside /tmp")
     return resolved
 
@@ -2589,7 +2819,12 @@ def _validate_codex_secure_storage_dir(path: Path, *, root: Path) -> Path:
             "Codex secure storage directory must be outside the repository"
         )
     resolved_tmp = Path("/tmp").resolve(strict=True)
-    if _path_is_within(resolved, resolved_tmp):
+    if _path_is_within(
+        resolved, resolved_tmp
+    ) and not _is_ephemeral_offline_secure_storage(
+        resolved,
+        root=root,
+    ):
         raise ValueError("Codex secure storage directory must be outside /tmp")
     return resolved
 
@@ -3758,12 +3993,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V28 key only when one stable inode owns its namespace."""
+    """Read the V29 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V28 authentication key is unavailable") from None
+        raise RuntimeError("V29 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -3783,18 +4018,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V28 authentication key must be an owner-only single-link file"
+            "V29 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V28 authentication key is unavailable") from None
+        raise RuntimeError("V29 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V28 authentication key changed while reading")
+        raise RuntimeError("V29 authentication key changed while reading")
     return key
 
 
@@ -4724,7 +4959,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V28 runtime-cache environment does not match the exact contract"
+            "V29 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4738,18 +4973,24 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V28 runtime-cache contract is inconsistent")
+        raise RuntimeError("V29 runtime-cache contract is inconsistent")
     return contract
 
 
-def _runtime_cache_root_from_environment() -> Path:
+def _runtime_cache_root_path_from_environment() -> Path:
+    """Resolve the bound cache root without inventorying its contents."""
+
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V28 runtime-cache environment is unavailable")
+        raise RuntimeError("V29 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V28 runtime-cache environment is invalid")
-    root = candidate.parent
+        raise RuntimeError("V29 runtime-cache environment is invalid")
+    return candidate.parent
+
+
+def _runtime_cache_root_from_environment() -> Path:
+    root = _runtime_cache_root_path_from_environment()
     _runtime_cache_contract(root)
     return root
 
@@ -4873,7 +5114,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v28-stop-direct-care",
+                        control_id="v29-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -4906,14 +5147,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V28 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V29 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V28 Starsim golden smoke changed engine descriptors"
+                "V29 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -4955,7 +5196,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V28 Starsim golden smoke lost its causal transmission/control "
+            "V29 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -4983,12 +5224,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V28 Starsim golden smoke result drifted from its reviewed digest"
+            "V29 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v28_contact_transmission_with_matched_contact_stop"
+            "v29_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -5007,6 +5248,38 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
 
     from .trusted.service import launch_socket_episode
 
+    raw_tmpdir = os.environ.get("TMPDIR")
+    if (
+        not isinstance(raw_tmpdir, str)
+        or not raw_tmpdir
+        or "\x00" in raw_tmpdir
+        or not Path(raw_tmpdir).is_absolute()
+        or raw_tmpdir != os.path.normpath(raw_tmpdir)
+    ):
+        raise RuntimeError(
+            "V29 episode-startup smoke requires the validated provider-free "
+            "TMPDIR"
+        )
+    smoke_tmpdir = Path(raw_tmpdir)
+    try:
+        tmpdir_metadata = smoke_tmpdir.lstat()
+        resolved_tmpdir = smoke_tmpdir.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise RuntimeError(
+            "V29 episode-startup smoke provider-free TMPDIR is unavailable"
+        ) from None
+    if (
+        smoke_tmpdir != resolved_tmpdir
+        or not stat.S_ISDIR(tmpdir_metadata.st_mode)
+        or stat.S_ISLNK(tmpdir_metadata.st_mode)
+        or tmpdir_metadata.st_uid != os.getuid()
+        or stat.S_IMODE(tmpdir_metadata.st_mode) != 0o700
+    ):
+        raise RuntimeError(
+            "V29 episode-startup smoke provider-free TMPDIR is unsafe"
+        )
+    _assert_preparation_socket_path_budget(smoke_tmpdir)
+
     case_digests_by_repetition: list[list[str]] = []
     trusted_evaluator_processes_started = 0
     for repetition in range(_PREPARATION_EPISODE_STARTUP_REPETITIONS):
@@ -5015,14 +5288,22 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
             for seed in _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS:
                 presentation_key = hashlib.sha256(
                     (
-                        "EpiAgentBench V28 provider-free episode startup "
+                        "EpiAgentBench V29 provider-free episode startup "
                         f"smoke v1|{family}|{seed}"
                     ).encode("ascii")
                 ).digest()
                 with TemporaryDirectory(
-                    prefix="eab28-", dir="/tmp"
+                    prefix="eab29-", dir=smoke_tmpdir
                 ) as directory:
                     socket_path = Path(directory) / "episode.sock"
+                    if (
+                        len(os.fsencode(str(socket_path)))
+                        > _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
+                    ):
+                        raise RuntimeError(
+                            "V29 episode-startup smoke socket path exceeds "
+                            "its bound"
+                        )
                     session = launch_socket_episode(
                         public_socket_path=str(socket_path),
                         seed=seed,
@@ -5062,7 +5343,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                             session.close()
                     if socket_path.exists():
                         raise RuntimeError(
-                            "V28 episode-startup smoke left a broker socket"
+                            "V29 episode-startup smoke left a broker socket"
                         )
         case_digests_by_repetition.append(case_digests)
 
@@ -5072,7 +5353,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         != case_digests_by_repetition[1]
     ):
         raise RuntimeError(
-            "V28 episode-startup smoke is not serially reproducible"
+            "V29 episode-startup smoke is not serially reproducible"
         )
     expected_processes = (
         len(FAMILIES)
@@ -5081,7 +5362,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
     )
     if trusted_evaluator_processes_started != expected_processes:
         raise RuntimeError(
-            "V28 episode-startup smoke did not complete its fixed matrix"
+            "V29 episode-startup smoke did not complete its fixed matrix"
         )
     return {
         "schema_version": _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA,
@@ -5168,7 +5449,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V28 requires exact Starsim "
+            "V29 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -5186,7 +5467,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V28 Python executable must not be temporary")
+        raise RuntimeError("V29 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -5250,13 +5531,13 @@ def _preparation_runtime_identity(receipt: Mapping[str, Any]) -> str:
     )
 
 
-def preflight_preparation_runtime(
+def _preflight_preparation_runtime_with_cache_contract(
     *,
     root: Path,
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
-) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V28 creation."""
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Attest preparation dependencies with one cache inventory."""
 
     head_before = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -5277,7 +5558,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V28 runtime preflight is not at the expected pinned commit"
+            "V29 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -5286,7 +5567,7 @@ def preflight_preparation_runtime(
     cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V28 runtime cache must be outside the repository"
+            "V29 runtime cache must be outside the repository"
         )
     provider_free_environment = (
         _provider_free_preparation_environment_contract(
@@ -5294,16 +5575,25 @@ def preflight_preparation_runtime(
             runtime_cache_root=cache_root,
         )
     )
-    source = _source_contract(root)
-    cli = _cli_contract()
-    previous_umask = os.umask(0o077)
-    try:
-        runtime = _runtime_contract()
-        smoke = _preparation_runtime_smoke()
-        episode_startup_smoke = _preparation_episode_startup_smoke()
-        runtime_cache = _runtime_cache_contract(runtime_cache_dir)
-    finally:
-        os.umask(previous_umask)
+    with _provider_free_directory_identity_guard(
+        repository_root=root.resolve(strict=True),
+        runtime_cache_root=cache_root,
+    ) as reattest_provider_free_directories:
+        source = _source_contract(root)
+        cli = _cli_contract()
+        reattest_provider_free_directories()
+        previous_umask = os.umask(0o077)
+        try:
+            runtime = _runtime_contract()
+            reattest_provider_free_directories()
+            smoke = _preparation_runtime_smoke()
+            reattest_provider_free_directories()
+            episode_startup_smoke = _preparation_episode_startup_smoke()
+            reattest_provider_free_directories()
+            runtime_cache = _runtime_cache_contract(runtime_cache_dir)
+            reattest_provider_free_directories()
+        finally:
+            os.umask(previous_umask)
     if provider_free_environment != (
         _provider_free_preparation_environment_contract(
             repository_root=root.resolve(strict=True),
@@ -5311,7 +5601,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V28 provider-free preparation environment changed"
+            "V29 provider-free preparation environment changed"
         )
     head_after = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -5321,7 +5611,7 @@ def preflight_preparation_runtime(
         )
     ):
         raise RuntimeError(
-            "V28 source changed during preparation runtime preflight"
+            "V29 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -5352,6 +5642,22 @@ def preflight_preparation_runtime(
     receipt["runtime_identity_sha256"] = _preparation_runtime_identity(
         receipt
     )
+    return receipt, runtime_cache
+
+
+def preflight_preparation_runtime(
+    *,
+    root: Path,
+    expected_benchmark_base_commit: str,
+    runtime_cache_dir: Path,
+) -> dict[str, Any]:
+    """Attest every public preparation dependency before private V29 creation."""
+
+    receipt, _ = _preflight_preparation_runtime_with_cache_contract(
+        root=root,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        runtime_cache_dir=runtime_cache_dir,
+    )
     return receipt
 
 
@@ -5364,18 +5670,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V28 preparation runtime receipt must already be committed"
+            "V29 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V28 preparation runtime receipt",
+            label="V29 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V28 preparation runtime receipt is unavailable"
+            "V29 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -5456,7 +5762,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V28 preparation runtime receipt failed closed-schema validation"
+            "V29 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -5468,31 +5774,32 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V28 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V29 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
             root=root, receipt_path=receipt_path
         )
     )
-    current = preflight_preparation_runtime(
-        root=root,
-        expected_benchmark_base_commit=expected_benchmark_base_commit,
-        runtime_cache_dir=runtime_cache_dir,
+    current, current_runtime_cache = (
+        _preflight_preparation_runtime_with_cache_contract(
+            root=root,
+            expected_benchmark_base_commit=expected_benchmark_base_commit,
+            runtime_cache_dir=runtime_cache_dir,
+        )
     )
-    current_runtime_cache = _runtime_cache_contract(runtime_cache_dir)
     if current.get("runtime_cache_contract_sha256") != _component_hash(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V28 runtime cache changed during receipt verification"
+            "V29 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V28 preparation runtime differs from the published receipt"
+            "V29 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v3",
@@ -5544,7 +5851,14 @@ def _validate_bound_preparation_runtime(
     *,
     rerun_smoke: bool,
     validate_runtime_cache_exactly: bool = True,
+    operation_recorder: Callable[[str], None] | None = None,
+    provider_free_preclaim: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    def record(operation: str) -> None:
+        if operation_recorder is not None:
+            operation_recorder(operation)
+
+    record("preparation_runtime_bound_contract")
     bound = public.get("preparation_runtime_contract")
     if (
         not isinstance(bound, dict)
@@ -5629,27 +5943,68 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V28 preparation runtime is invalid")
-    if validate_runtime_cache_exactly:
-        runtime_cache = _runtime_cache_contract(
-            _runtime_cache_root_from_environment()
+        raise ValueError("Bound V29 preparation runtime is invalid")
+
+    validated_preclaim: dict[str, Any] | None = None
+    if provider_free_preclaim is not None:
+        hashes = public.get("contract_hashes")
+        preparation_runtime_sha256 = (
+            hashes.get("preparation_runtime_sha256")
+            if isinstance(hashes, Mapping)
+            else None
         )
-        if bound.get("runtime_cache_contract_sha256") != _component_hash(
-            runtime_cache
-        ):
-            raise ValueError("Bound V28 runtime cache changed")
-    if rerun_smoke and _preparation_runtime_smoke() != bound.get(
+        validated_preclaim = _validate_provider_free_preclaim(
+            provider_free_preclaim,
+            public_precommitment_sha256=public.get(
+                "precommitment_sha256"
+            ),
+            preparation_runtime_contract_sha256=(
+                preparation_runtime_sha256
+            ),
+            required_status="passed",
+        )
+
+    record("preparation_runtime_starsim_smoke")
+    if validated_preclaim is not None:
+        _require_provider_free_preclaim_operation(
+            validated_preclaim,
+            "preparation_runtime_starsim_smoke",
+        )
+    elif rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V28 Starsim smoke result changed")
-    if (
+        raise ValueError("Bound V29 Starsim smoke result changed")
+
+    record("preparation_runtime_episode_startup_smoke")
+    if validated_preclaim is not None:
+        _require_provider_free_preclaim_operation(
+            validated_preclaim,
+            "preparation_runtime_episode_startup_smoke",
+        )
+    elif (
         rerun_smoke
         and _preparation_episode_startup_smoke()
         != bound.get("episode_startup_smoke_contract")
     ):
-        raise ValueError(
-            "Bound V28 episode-startup smoke result changed"
+        raise ValueError("Bound V29 episode-startup smoke result changed")
+
+    # Both smoke tests are allowed to populate deterministic caches.  Bind the
+    # complete cache only afterwards so no mutation can occur beyond the sole
+    # live inventory used by the preclaim.
+    record("preparation_runtime_cache_identity")
+    if validated_preclaim is not None:
+        _require_provider_free_preclaim_operation(
+            validated_preclaim,
+            "preparation_runtime_cache_identity",
         )
+    elif validate_runtime_cache_exactly:
+        runtime_cache = _runtime_cache_contract(
+            _runtime_cache_root_path_from_environment()
+        )
+        if bound.get("runtime_cache_contract_sha256") != _component_hash(
+            runtime_cache
+        ):
+            raise ValueError("Bound V29 runtime cache changed")
     return bound
 
 
@@ -5657,7 +6012,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v13",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v14",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -5700,6 +6055,43 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         },
         "provider_free_prelaunch_attestation": True,
         "provider_free_terminal_receipt_reconciliation": True,
+        "provider_free_preclaim_before_claim": {
+            "same_child": True,
+            "exact_prerequisite_bundle": [
+                "authenticated_live_supervisor_execution_binding",
+                "manifest_bound_spend_authorization",
+                (
+                    "canonical_published_authentication_receipt_and_"
+                    "repository_binding"
+                ),
+            ],
+            "passed_trace": (
+                "durably_sealed_then_exactly_revalidated_before_claim"
+            ),
+            "claim": (
+                "same_child_exact_bundle_reattestation_then_exactly_once_"
+                "reconciled_transition"
+            ),
+            "credential_provider_model_access_before_claim": "forbidden",
+        },
+        "deferred_cursor_credential_lifecycle": {
+            "load": (
+                "one_shot_lazy_keychain_read_after_reconciled_claim_on_"
+                "first_cursor_evaluator"
+            ),
+            "cache": (
+                "same_supervised_child_memory_only_reused_across_cursor_calls"
+            ),
+            "environment_scope": (
+                "CURSOR_API_KEY_around_cursor_subprocess_only"
+            ),
+            "non_cursor_scope": (
+                "absent_during_starsim_broker_claude_and_codex"
+            ),
+            "final_wipe": (
+                "cached_value_and_CURSOR_API_KEY_in_outer_finally_on_every_exit"
+            ),
+        },
         "model_invocation_accounting": {
             "readiness_phase": (
                 "non_model_cli_readiness_before_chargeable_boundary"
@@ -6149,8 +6541,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v28_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v28_authorization_breakdown": {
+        "claude_current_v29_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v29_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -6189,6 +6581,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v25_usd": 0.0,
             "v26_usd": 10.0,
             "v27_usd": 0.0,
+            "v28_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -6401,6 +6794,18 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v27_supersession": (
                 "results/development-matched-50x6-v27.superseded.json"
             ),
+            "v28_runtime_receipt": (
+                "results/development-matched-50x6-v28.runtime.json"
+            ),
+            "v28_manifest": (
+                "results/development-matched-50x6-v28.manifest.json"
+            ),
+            "v28_authentication_receipt": (
+                "results/development-matched-50x6-v28.authentication.json"
+            ),
+            "v28_supersession": (
+                "results/development-matched-50x6-v28.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -6421,7 +6826,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V28 exactly once after runtime re-attestation."""
+    """Claim and freeze V29 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -6455,7 +6860,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V28 runtime cache must not overlap the {label}"
+                f"V29 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -6476,13 +6881,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V28 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V29 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V28 cohort returned a noncanonical artifact location"
+            "Frozen V29 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -6495,9 +6900,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V28 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V29 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v28_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v29_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -6556,13 +6961,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V28 requires an exact 1800-second assignment timeout")
+        raise ValueError("V29 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V28 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V29 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -6587,7 +6992,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V28 runtime cache must not overlap the {label}"
+                f"V29 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -6599,7 +7004,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V28 source or CLI identity drifted after runtime verification"
+            "V29 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -6653,7 +7058,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V28 runtime cache must not overlap the {label}"
+                f"V29 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -7239,6 +7644,75 @@ def _assert_private_public_panel_binding(
         )
 
 
+def _validate_preparation_runtime_last(
+    *,
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+    revalidate_live_identity_contracts: bool,
+    provider_free_preclaim: Mapping[str, Any] | None,
+    record_operation: Callable[[str], None],
+) -> None:
+    """Run cache-mutating smokes, then make cache binding the final check."""
+
+    recorded: list[str] = []
+
+    def record(operation: str) -> None:
+        record_operation(operation)
+        recorded.append(operation)
+
+    bound = _validate_bound_preparation_runtime(
+        public,
+        rerun_smoke=revalidate_live_identity_contracts,
+        validate_runtime_cache_exactly=revalidate_live_identity_contracts,
+        operation_recorder=record,
+        provider_free_preclaim=provider_free_preclaim,
+    )
+    if not recorded:
+        for operation in _PREPARATION_RUNTIME_OPERATIONS[:4]:
+            record_operation(operation)
+    elif tuple(recorded) != _PREPARATION_RUNTIME_OPERATIONS[:4]:
+        raise ValueError("Preparation-runtime operation sequence is invalid")
+
+    record_operation("preparation_runtime_private_cache_binding")
+    private_contract = private.get("preparation_runtime_private_contract")
+    if (
+        not isinstance(private_contract, dict)
+        or set(private_contract) != {"runtime_cache_contract"}
+        or _component_hash(private_contract.get("runtime_cache_contract"))
+        != bound.get("runtime_cache_contract_sha256")
+    ):
+        raise ValueError("Private V29 preparation runtime binding is invalid")
+    runtime_cache_contract = private_contract.get("runtime_cache_contract")
+    expected_environment = (
+        runtime_cache_contract.get("environment")
+        if isinstance(runtime_cache_contract, Mapping)
+        else None
+    )
+    if provider_free_preclaim is not None:
+        _require_provider_free_preclaim_operation(
+            provider_free_preclaim,
+            "preparation_runtime_private_cache_binding",
+        )
+    elif not revalidate_live_identity_contracts:
+        if (
+            not isinstance(expected_environment, Mapping)
+            or {
+                name: os.environ.get(name)
+                for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+            }
+            != dict(expected_environment)
+        ):
+            raise ValueError("Post-start runtime cache environment changed")
+        from .launchd_agent import _validate_runtime_cache_contract_safety
+
+        try:
+            _validate_runtime_cache_contract_safety(runtime_cache_contract)
+        except ValueError:
+            raise ValueError(
+                "Post-start runtime cache safety changed"
+            ) from None
+
+
 def _validate_contracts(
     *,
     root: Path,
@@ -7249,6 +7723,7 @@ def _validate_contracts(
     codex_secure_storage_dir: Path,
     revalidate_live_identity_contracts: bool = True,
     operation_recorder: Callable[[str], None] | None = None,
+    provider_free_preclaim: Mapping[str, Any] | None = None,
 ) -> tuple[
     PrivateEpisodeCohortManifest,
     dict[str, PrivateEpisodePack],
@@ -7302,63 +7777,6 @@ def _validate_contracts(
         private=private,
         public=public,
     )
-    record_operation("preparation_runtime")
-    bound_preparation_runtime = _validate_bound_preparation_runtime(
-        public,
-        rerun_smoke=revalidate_live_identity_contracts,
-        validate_runtime_cache_exactly=(
-            revalidate_live_identity_contracts
-        ),
-    )
-    private_preparation_runtime = private.get(
-        "preparation_runtime_private_contract"
-    )
-    if (
-        not isinstance(private_preparation_runtime, dict)
-        or set(private_preparation_runtime)
-        != {"runtime_cache_contract"}
-        or _component_hash(
-            private_preparation_runtime.get("runtime_cache_contract")
-        )
-        != bound_preparation_runtime.get(
-            "runtime_cache_contract_sha256"
-        )
-    ):
-        raise ValueError(
-            "Private V28 preparation runtime binding is invalid"
-        )
-    if not revalidate_live_identity_contracts:
-        runtime_cache_contract = private_preparation_runtime.get(
-            "runtime_cache_contract"
-        )
-        expected_environment = (
-            runtime_cache_contract.get("environment")
-            if isinstance(runtime_cache_contract, Mapping)
-            else None
-        )
-        if (
-            not isinstance(expected_environment, Mapping)
-            or {
-                name: os.environ.get(name)
-                for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
-            }
-            != dict(expected_environment)
-        ):
-            raise ValueError(
-                "Post-start runtime cache environment changed"
-            )
-        from .launchd_agent import (
-            _validate_runtime_cache_contract_safety,
-        )
-
-        try:
-            _validate_runtime_cache_contract_safety(
-                runtime_cache_contract
-            )
-        except ValueError:
-            raise ValueError(
-                "Post-start runtime cache safety changed"
-            ) from None
     record_operation("public_contract_surface")
     expected_contracts = {
         "replay_trace_contract": replay_trace_contract(),
@@ -7447,7 +7865,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V28 preparation runtime contract is missing")
+        raise ValueError("V29 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -7476,7 +7894,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V28 cohort freeze claim differs from private state"
+            "Authenticated V29 cohort freeze claim differs from private state"
         )
     record_operation("cohort_manifest")
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
@@ -7784,6 +8202,18 @@ def _validate_contracts(
         for name in ("execution_incident", "codex_auth_incident")
     ):
         raise ValueError("Completed private state contains a terminal incident")
+    # Nothing live may run after this boundary.  The smokes execute first;
+    # cache identity and its private binding are the final two operations
+    # immediately preceding the caller's atomic one-shot claim.
+    _validate_preparation_runtime_last(
+        private=private,
+        public=public,
+        revalidate_live_identity_contracts=(
+            revalidate_live_identity_contracts
+        ),
+        provider_free_preclaim=provider_free_preclaim,
+        record_operation=record_operation,
+    )
     return manifest, packs, schedule
 
 
@@ -7829,7 +8259,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V28 spend authorization contract mismatch")
+        raise ValueError("V29 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -7857,7 +8287,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v28 spend authorization receipt is required "
+            "A manifest-bound exact v29 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -7872,14 +8302,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v28 spend authorization receipt is required "
+            "A manifest-bound exact v29 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v28 spend authorization receipt is required "
+            "A manifest-bound exact v29 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -7901,7 +8331,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v28 $610 cumulative spend acknowledgement text is required"
+            "The exact v29 $610 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -9362,7 +9792,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V28 panel cannot retry"
+                    "state; this V29 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -9375,7 +9805,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V28 panel cannot retry"
+                    "state; this V29 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9388,7 +9818,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V28 panel cannot retry"
+                    "state; this V29 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -9410,7 +9840,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V28 panel cannot retry"
+                        "repository-contract state; this V29 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -9431,7 +9861,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V28 panel "
+                "Authentication process state is ambiguous; this V29 panel "
                 "cannot retry"
             )
         if (
@@ -9462,7 +9892,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -9494,7 +9924,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V28 panel cannot retry"
+                "state; this V29 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -9507,7 +9937,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -9520,7 +9950,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -9537,7 +9967,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -9556,7 +9986,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V28 panel cannot retry"
+                "state; this V29 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -9678,7 +10108,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V28 panel cannot retry"
+                    "state before provider launch; this V29 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9693,7 +10123,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V28 panel cannot retry"
+                    "state before provider launch; this V29 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -9710,7 +10140,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V28 panel cannot retry"
+                    "state before provider launch; this V29 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -9729,7 +10159,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V28 panel cannot retry"
+                    "state; this V29 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -9777,7 +10207,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V28 panel cannot retry"
+                    "V29 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -9795,7 +10225,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V28 panel cannot retry"
+                    "state after provider return; this V29 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -9813,7 +10243,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V28 panel cannot retry"
+                    "state after provider return; this V29 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
@@ -9853,7 +10283,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V28 panel cannot retry"
+                    "state after provider return; this V29 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -9875,7 +10305,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V28 panel cannot retry"
+                    "this V29 panel cannot retry"
                 ) from None
 
         try:
@@ -9889,7 +10319,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -9902,7 +10332,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -9919,7 +10349,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V28 panel cannot retry"
+                "this V29 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -9938,7 +10368,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V28 panel cannot retry"
+                "state; this V29 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -10349,11 +10779,7 @@ class _PreflightControlBoundaryError(RuntimeError):
         completed_operation: str | None,
         contract_failure_code: str | None = None,
     ) -> None:
-        if incident_code not in {
-            "contract_attestation_failed",
-            "contract_attestation_checkpoint_persist_failed",
-            "control_phase_checkpoint_persist_failed",
-        }:
+        if incident_code not in _PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES:
             raise ValueError("Preflight control incident code is invalid")
         if attempted_operation not in _PREFLIGHT_CONTROL_OPERATIONS:
             raise ValueError("Attempted preflight control operation is invalid")
@@ -10370,13 +10796,128 @@ class _PreflightControlBoundaryError(RuntimeError):
             raise ValueError("Contract-attestation failure code is invalid")
         if (
             incident_code == "contract_attestation_failed"
-        ) is (contract_failure_code is None):
+        ) != (contract_failure_code is not None):
             raise ValueError("Contract-attestation failure projection is invalid")
         super().__init__("Preflight control boundary failed")
         self.incident_code = incident_code
         self.attempted_operation = attempted_operation
         self.completed_operation = completed_operation
         self.contract_failure_code = contract_failure_code
+
+
+class _PreclaimStorageAmbiguityError(RuntimeError):
+    """The authenticated checkpoint cannot prove prior or next state."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Provider-free preclaim storage state is ambiguous"
+        )
+
+
+class _PreclaimTransitionNotCommittedError(RuntimeError):
+    """A terminal transition was proven not committed and is not retried."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Provider-free preclaim terminal transition was not committed"
+        )
+
+
+class _DeferredCursorCredentialError(ProviderEnvironmentSetupError):
+    """A finite, secret-free failure to install the deferred Cursor key."""
+
+
+class _DeferredCursorCredentialSession:
+    """Load one Cursor key lazily and expose it only to Cursor calls."""
+
+    def __init__(self, loader: Callable[[], str] | None) -> None:
+        self._loader = loader
+        self._credential: bytearray | None = None
+        self._load_attempted = False
+        self._closed = False
+
+    @property
+    def deferred_loading_enabled(self) -> bool:
+        return self._loader is not None and not self._closed
+
+    def _load_once(self) -> None:
+        if self._loader is None:
+            return
+        if self._closed or "CURSOR_API_KEY" in os.environ:
+            raise _DeferredCursorCredentialError(
+                "Deferred Cursor credential retrieval failed"
+            )
+        if self._load_attempted:
+            if self._credential is None:
+                raise _DeferredCursorCredentialError(
+                    "Deferred Cursor credential retrieval failed"
+                )
+            return
+        self._load_attempted = True
+        loaded = ""
+        try:
+            try:
+                loaded = self._loader()
+            except BaseException:
+                raise _DeferredCursorCredentialError(
+                    "Deferred Cursor credential retrieval failed"
+                ) from None
+            if (
+                not isinstance(loaded, str)
+                or not loaded.strip()
+                or "\x00" in loaded
+            ):
+                raise _DeferredCursorCredentialError(
+                    "Deferred Cursor credential retrieval failed"
+                )
+            encoded = loaded.encode("utf-8")
+            if len(encoded) > 8192:
+                raise _DeferredCursorCredentialError(
+                    "Deferred Cursor credential retrieval failed"
+                )
+            self._credential = bytearray(encoded)
+        finally:
+            loaded = ""
+
+    def invoke(
+        self,
+        evaluator: Callable[..., PilotRunResult],
+        system: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> PilotRunResult:
+        if self._closed:
+            raise _DeferredCursorCredentialError(
+                "Deferred Cursor credential retrieval failed"
+            )
+        if self._loader is not None and "CURSOR_API_KEY" in os.environ:
+            raise _DeferredCursorCredentialError(
+                "Deferred Cursor credential retrieval failed"
+            )
+        if system != "cursor" or self._loader is None:
+            return evaluator(system, *args, **kwargs)
+        self._load_once()
+        if self._credential is None:
+            raise _DeferredCursorCredentialError(
+                "Deferred Cursor credential retrieval failed"
+            )
+        credential = ""
+        try:
+            credential = self._credential.decode("utf-8")
+            os.environ["CURSOR_API_KEY"] = credential
+            return evaluator(system, *args, **kwargs)
+        finally:
+            os.environ.pop("CURSOR_API_KEY", None)
+            credential = ""
+
+    def close(self) -> None:
+        os.environ.pop("CURSOR_API_KEY", None)
+        if self._credential is not None:
+            for index in range(len(self._credential)):
+                self._credential[index] = 0
+        self._credential = None
+        self._loader = None
+        self._closed = True
 
 
 def _run_preflight_contract_attestation_boundary(
@@ -10618,12 +11159,7 @@ def _validate_preflight_incident_envelope(
             and (
                 finished_at is not None
                 or incident_code
-                not in {
-                    None,
-                    "contract_attestation_failed",
-                    "contract_attestation_checkpoint_persist_failed",
-                    "control_phase_checkpoint_persist_failed",
-                }
+                not in {None, *_PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES}
             )
         )
         or (
@@ -10777,13 +11313,716 @@ def _advance_preflight_incident_envelope(
     return preflight["incident_envelope"]
 
 
-def _claim_preflight_incident_envelope(
+def _provider_free_preclaim_contract_sha256(
+    public: Mapping[str, Any],
+) -> str:
+    hashes = public.get("contract_hashes")
+    value = (
+        hashes.get("preparation_runtime_sha256")
+        if isinstance(hashes, Mapping)
+        else None
+    )
+    if not _is_sha256(value):
+        raise ValueError(
+            "Provider-free preclaim contract commitment is invalid"
+        )
+    return str(value)
+
+
+def _validate_provider_free_preclaim_prerequisite_bundle(
+    value: Any,
     *,
+    public_precommitment_sha256: Any,
+) -> dict[str, Any]:
+    keys = {
+        "schema_version",
+        "panel_id",
+        "public_precommitment_sha256",
+        "spend_authorization_receipt_sha256",
+        "authentication_receipt_sha256",
+        "authentication_repository_binding",
+        "supervisor_execution_binding",
+        "provider_processes_started",
+        "authentication_processes_started",
+        "model_calls_started",
+    }
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(
+            "Provider-free preclaim prerequisite bundle is invalid"
+        )
+    repository_binding = value.get("authentication_repository_binding")
+    supervisor_binding = value.get("supervisor_execution_binding")
+    published_commit = (
+        repository_binding.get("published_commit")
+        if isinstance(repository_binding, Mapping)
+        else None
+    )
+    repository_relative_path = (
+        repository_binding.get("repository_relative_path")
+        if isinstance(repository_binding, Mapping)
+        else None
+    )
+    supervisor_label = (
+        supervisor_binding.get("label")
+        if isinstance(supervisor_binding, Mapping)
+        else None
+    )
+    if (
+        value.get("schema_version")
+        != _PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA
+        or value.get("panel_id") != PANEL_ID
+        or not _is_sha256(public_precommitment_sha256)
+        or value.get("public_precommitment_sha256")
+        != public_precommitment_sha256
+        or not _is_sha256(
+            value.get("spend_authorization_receipt_sha256")
+        )
+        or not _is_sha256(value.get("authentication_receipt_sha256"))
+        or not isinstance(repository_binding, dict)
+        or set(repository_binding) != _PUBLIC_RECEIPT_BINDING_KEYS
+        or repository_binding.get("schema_version")
+        != _PUBLIC_RECEIPT_BINDING_SCHEMA
+        or repository_binding.get("artifact_kind") != "authentication"
+        or not isinstance(repository_relative_path, str)
+        or not repository_relative_path
+        or "\x00" in repository_relative_path
+        or Path(repository_relative_path).is_absolute()
+        or Path(repository_relative_path) != Path(
+            os.path.normpath(repository_relative_path)
+        )
+        or not _is_sha256(repository_binding.get("file_sha256"))
+        or repository_binding.get("content_sha256")
+        != value.get("authentication_receipt_sha256")
+        or not isinstance(published_commit, str)
+        or len(published_commit) != 40
+        or any(
+            character not in "0123456789abcdef"
+            for character in published_commit
+        )
+        or not isinstance(supervisor_binding, dict)
+        or set(supervisor_binding) != _SUPERVISOR_BINDING_FIELDS
+        or supervisor_binding.get("operation") != "preflight"
+        or supervisor_binding.get("panel_id") != PANEL_ID
+        or supervisor_binding.get("precommitment_sha256")
+        != public_precommitment_sha256
+        or not isinstance(supervisor_label, str)
+        or not supervisor_label
+        or len(supervisor_label) > 255
+        or any(
+            character
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.@+-"
+            for character in supervisor_label
+        )
+        or any(
+            not _is_sha256(supervisor_binding.get(name))
+            for name in (
+                "execution_context_sha256",
+                "config_file_sha256",
+            )
+        )
+        or any(
+            value.get(name) != 0
+            for name in (
+                "provider_processes_started",
+                "authentication_processes_started",
+                "model_calls_started",
+            )
+        )
+    ):
+        raise ValueError(
+            "Provider-free preclaim prerequisite bundle is invalid"
+        )
+    return copy.deepcopy(value)
+
+
+def _provider_free_preclaim_prerequisite_bundle(
+    *,
+    root: Path,
     authentication_key_file: Path,
+    private: Mapping[str, Any],
+    public: Mapping[str, Any],
+    public_manifest_path: Path,
+    supervisor_runtime_dir: Path,
+) -> dict[str, Any]:
+    """Attest sealed prerequisites without invoking auth/provider helpers."""
+
+    spend = _assert_spend_authorization(private, public)
+    setup = _require_completed_authentication_state(private, public)
+    if setup.get("status") != "passed":
+        raise RuntimeError(
+            "Published authentication must pass before preflight preclaim"
+        )
+    authentication_receipt_path = _authentication_receipt_path(
+        public_manifest_path
+    )
+    authentication_receipt = _load_json(authentication_receipt_path)
+    _validate_authentication_receipt(
+        authentication_receipt,
+        private=private,
+        public=public,
+    )
+    if setup.get("public_receipt_sha256") != authentication_receipt.get(
+        "receipt_sha256"
+    ):
+        raise RuntimeError("Authentication receipt binding changed")
+    repository_binding = _validate_repository_receipt_binding(
+        setup.get("public_receipt_binding"),
+        root=root,
+        path=authentication_receipt_path,
+        artifact_kind="authentication",
+        content_sha256=str(authentication_receipt["receipt_sha256"]),
+        payload=authentication_receipt,
+        require_published_commit=True,
+    )
+    authentication_receipt_file_sha256 = (
+        _assert_exact_public_json_bytes(
+            authentication_receipt_path,
+            authentication_receipt,
+            label="authentication receipt",
+        )
+    )
+    if not hmac.compare_digest(
+        authentication_receipt_file_sha256,
+        str(repository_binding["file_sha256"]),
+    ):
+        raise RuntimeError("Authentication receipt bytes changed")
+    supervisor_binding = _attest_with_transient_snapshot_retry(
+        lambda: _attest_required_persistent_execution(
+            required=True,
+            supervisor_runtime_dir=supervisor_runtime_dir,
+            authentication_key_file=authentication_key_file,
+            operation="preflight",
+            public_manifest=public,
+        )
+    )
+    if supervisor_binding is None:
+        raise RuntimeError("Persistent preflight supervisor is required")
+    return _validate_provider_free_preclaim_prerequisite_bundle(
+        {
+            "schema_version": (
+                _PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA
+            ),
+            "panel_id": PANEL_ID,
+            "public_precommitment_sha256": public.get(
+                "precommitment_sha256"
+            ),
+            "spend_authorization_receipt_sha256": spend[
+                "receipt_sha256"
+            ],
+            "authentication_receipt_sha256": authentication_receipt[
+                "receipt_sha256"
+            ],
+            "authentication_repository_binding": dict(repository_binding),
+            "supervisor_execution_binding": dict(supervisor_binding),
+            "provider_processes_started": 0,
+            "authentication_processes_started": 0,
+            "model_calls_started": 0,
+        },
+        public_precommitment_sha256=public.get("precommitment_sha256"),
+    )
+
+
+def _new_provider_free_preclaim(
+    public: Mapping[str, Any],
+    *,
+    prerequisite_bundle: Mapping[str, Any],
+) -> dict[str, Any]:
+    validated_prerequisites = (
+        _validate_provider_free_preclaim_prerequisite_bundle(
+            dict(prerequisite_bundle),
+            public_precommitment_sha256=public.get(
+                "precommitment_sha256"
+            ),
+        )
+    )
+    return {
+        "schema_version": _PROVIDER_FREE_PRECLAIM_SCHEMA,
+        "panel_id": PANEL_ID,
+        "status": "running",
+        "public_precommitment_sha256": public.get(
+            "precommitment_sha256"
+        ),
+        "preparation_runtime_contract_sha256": (
+            _provider_free_preclaim_contract_sha256(public)
+        ),
+        "prerequisite_bundle": validated_prerequisites,
+        "prerequisite_bundle_sha256": _component_hash(
+            validated_prerequisites
+        ),
+        "attempted_operation": None,
+        "completed_operation": None,
+        "completed_preparation_operations": [],
+        "incident_code": None,
+        "contract_failure_code": None,
+        "provider_processes_started": 0,
+        "authentication_processes_started": 0,
+        "model_calls_started": 0,
+    }
+
+
+def _validate_provider_free_preclaim(
+    value: Any,
+    *,
+    public_precommitment_sha256: Any,
+    preparation_runtime_contract_sha256: Any,
+    required_status: str | None = None,
+) -> dict[str, Any]:
+    keys = {
+        "schema_version",
+        "panel_id",
+        "status",
+        "public_precommitment_sha256",
+        "preparation_runtime_contract_sha256",
+        "prerequisite_bundle",
+        "prerequisite_bundle_sha256",
+        "attempted_operation",
+        "completed_operation",
+        "completed_preparation_operations",
+        "incident_code",
+        "contract_failure_code",
+        "provider_processes_started",
+        "authentication_processes_started",
+        "model_calls_started",
+    }
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError("Provider-free preclaim is invalid")
+    status = value.get("status")
+    attempted_operation = value.get("attempted_operation")
+    completed_operation = value.get("completed_operation")
+    completed_preparation = value.get(
+        "completed_preparation_operations"
+    )
+    incident_code = value.get("incident_code")
+    contract_failure_code = value.get("contract_failure_code")
+    try:
+        prerequisite_bundle = (
+            _validate_provider_free_preclaim_prerequisite_bundle(
+                value.get("prerequisite_bundle"),
+                public_precommitment_sha256=(
+                    public_precommitment_sha256
+                ),
+            )
+        )
+    except ValueError:
+        prerequisite_bundle = None
+    preparation_attempt_index = (
+        _PREPARATION_RUNTIME_OPERATIONS.index(attempted_operation)
+        if attempted_operation in _PREPARATION_RUNTIME_OPERATIONS
+        else None
+    )
+    expected_preparation_predecessor = (
+        (
+            "assignment_state"
+            if preparation_attempt_index == 0
+            else _PREPARATION_RUNTIME_OPERATIONS[
+                preparation_attempt_index - 1
+            ]
+        )
+        if preparation_attempt_index is not None
+        else None
+    )
+    running_shape_valid = (
+        status == "running"
+        and (
+            (
+                attempted_operation is None
+                and completed_operation is None
+                and completed_preparation == []
+            )
+            or (
+                attempted_operation
+                in _CONTRACT_ATTESTATION_OPERATION_SET
+                and (
+                    (
+                        preparation_attempt_index is None
+                        and completed_preparation == []
+                    )
+                    or (
+                        preparation_attempt_index is not None
+                        and completed_preparation
+                        == list(
+                            _PREPARATION_RUNTIME_OPERATIONS[
+                                :preparation_attempt_index
+                            ]
+                        )
+                        and completed_operation
+                        == expected_preparation_predecessor
+                    )
+                )
+            )
+        )
+    )
+    passed_shape_valid = (
+        status == "passed"
+        and attempted_operation == _PREPARATION_RUNTIME_OPERATIONS[-1]
+        and completed_operation == _PREPARATION_RUNTIME_OPERATIONS[-1]
+        and completed_preparation == list(_PREPARATION_RUNTIME_OPERATIONS)
+    )
+    failed_shape_valid = (
+        status == "failed"
+        and attempted_operation in _CONTRACT_ATTESTATION_OPERATION_SET
+        and (
+            (
+                preparation_attempt_index is None
+                and completed_preparation == []
+            )
+            or (
+                preparation_attempt_index is not None
+                and completed_preparation
+                == list(
+                    _PREPARATION_RUNTIME_OPERATIONS[
+                        :preparation_attempt_index
+                    ]
+                )
+                and completed_operation
+                == expected_preparation_predecessor
+            )
+        )
+    )
+    if (
+        value.get("schema_version") != _PROVIDER_FREE_PRECLAIM_SCHEMA
+        or value.get("panel_id") != PANEL_ID
+        or status not in {"running", "passed", "failed"}
+        or (required_status is not None and status != required_status)
+        or not _is_sha256(public_precommitment_sha256)
+        or not _is_sha256(preparation_runtime_contract_sha256)
+        or value.get("public_precommitment_sha256")
+        != public_precommitment_sha256
+        or value.get("preparation_runtime_contract_sha256")
+        != preparation_runtime_contract_sha256
+        or prerequisite_bundle is None
+        or value.get("prerequisite_bundle_sha256")
+        != _component_hash(prerequisite_bundle)
+        or (
+            attempted_operation is not None
+            and attempted_operation
+            not in _CONTRACT_ATTESTATION_OPERATION_SET
+        )
+        or (
+            completed_operation is not None
+            and completed_operation
+            not in _CONTRACT_ATTESTATION_OPERATION_SET
+        )
+        or not isinstance(completed_preparation, list)
+        or completed_preparation
+        != list(
+            _PREPARATION_RUNTIME_OPERATIONS[
+                : len(completed_preparation)
+            ]
+        )
+        or len(completed_preparation)
+        > len(_PREPARATION_RUNTIME_OPERATIONS)
+        or not (
+            running_shape_valid
+            or passed_shape_valid
+            or failed_shape_valid
+        )
+        or any(
+            value.get(name) != 0
+            for name in (
+                "provider_processes_started",
+                "authentication_processes_started",
+                "model_calls_started",
+            )
+        )
+        or (
+            status in {"running", "passed"}
+            and (
+                incident_code is not None
+                or contract_failure_code is not None
+            )
+        )
+        or (
+            status == "failed"
+            and (
+                attempted_operation
+                not in _CONTRACT_ATTESTATION_OPERATION_SET
+                or incident_code
+                not in {
+                    "contract_attestation_failed",
+                    "contract_attestation_checkpoint_persist_failed",
+                }
+                or (
+                    incident_code == "contract_attestation_failed"
+                    and contract_failure_code
+                    != _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
+                        attempted_operation
+                    ]
+                )
+                or (
+                    incident_code
+                    == "contract_attestation_checkpoint_persist_failed"
+                    and contract_failure_code is not None
+                )
+            )
+        )
+    ):
+        raise ValueError("Provider-free preclaim is invalid")
+    return dict(value)
+
+
+def _require_provider_free_preclaim_operation(
+    value: Mapping[str, Any],
+    operation: str,
+) -> None:
+    if (
+        operation not in _PREPARATION_RUNTIME_OPERATIONS
+        or operation
+        not in value.get("completed_preparation_operations", [])
+    ):
+        raise ValueError(
+            "Provider-free preparation-runtime preclaim is incomplete"
+        )
+
+
+def _advance_provider_free_preclaim_operation(
+    value: Mapping[str, Any],
+    *,
+    operation: str,
+) -> dict[str, Any]:
+    if (
+        operation not in _CONTRACT_ATTESTATION_OPERATION_SET
+        or value.get("status") != "running"
+    ):
+        raise ValueError("Provider-free preclaim operation is invalid")
+    advanced = dict(value)
+    previous = advanced.get("attempted_operation")
+    completed_preparation = list(
+        advanced.get("completed_preparation_operations", [])
+    )
+    if previous in _PREPARATION_RUNTIME_OPERATIONS:
+        previous_index = _PREPARATION_RUNTIME_OPERATIONS.index(previous)
+        if (
+            previous_index != len(completed_preparation)
+            or previous_index + 1 >= len(_PREPARATION_RUNTIME_OPERATIONS)
+            or operation
+            != _PREPARATION_RUNTIME_OPERATIONS[previous_index + 1]
+        ):
+            raise ValueError("Provider-free preclaim operation is invalid")
+    elif completed_preparation:
+        raise ValueError("Provider-free preclaim operation is invalid")
+    if operation in _PREPARATION_RUNTIME_OPERATIONS:
+        operation_index = _PREPARATION_RUNTIME_OPERATIONS.index(operation)
+        expected_operation_index = len(completed_preparation) + int(
+            previous in _PREPARATION_RUNTIME_OPERATIONS
+        )
+        if (
+            operation_index != expected_operation_index
+            or (
+                operation_index == 0
+                and previous != "assignment_state"
+            )
+        ):
+            raise ValueError("Provider-free preclaim operation is invalid")
+    if previous in _CONTRACT_ATTESTATION_OPERATION_SET:
+        advanced["completed_operation"] = previous
+        if (
+            previous in _PREPARATION_RUNTIME_OPERATIONS
+            and previous not in completed_preparation
+        ):
+            completed_preparation.append(str(previous))
+    advanced.update(
+        {
+            "status": "running",
+            "attempted_operation": operation,
+            "completed_preparation_operations": completed_preparation,
+            "incident_code": None,
+            "contract_failure_code": None,
+        }
+    )
+    return advanced
+
+
+def _complete_provider_free_preclaim(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    completed = dict(value)
+    operation = completed.get("attempted_operation")
+    completed_preparation = list(
+        completed.get("completed_preparation_operations", [])
+    )
+    if (
+        completed.get("status") != "running"
+        or operation != _PREPARATION_RUNTIME_OPERATIONS[-1]
+        or completed_preparation
+        != list(_PREPARATION_RUNTIME_OPERATIONS[:-1])
+        or completed.get("completed_operation")
+        != _PREPARATION_RUNTIME_OPERATIONS[-2]
+    ):
+        raise ValueError("Provider-free preclaim operation is invalid")
+    if (
+        operation in _PREPARATION_RUNTIME_OPERATIONS
+        and operation not in completed_preparation
+    ):
+        completed_preparation.append(str(operation))
+    completed.update(
+        {
+            "status": "passed",
+            "completed_operation": operation,
+            "completed_preparation_operations": completed_preparation,
+            "incident_code": None,
+            "contract_failure_code": None,
+        }
+    )
+    return completed
+
+
+def _fail_provider_free_preclaim(
+    value: Mapping[str, Any],
+    *,
+    incident_code: str = "contract_attestation_failed",
+    attempted_operation: str | None = None,
+    completed_operation: str | None = None,
+) -> dict[str, Any]:
+    if value.get("status") != "running":
+        raise ValueError("Provider-free preclaim transition is invalid")
+    failed = dict(value)
+    operation = (
+        attempted_operation
+        if attempted_operation is not None
+        else failed.get("attempted_operation")
+    )
+    if operation not in _CONTRACT_ATTESTATION_OPERATION_SET:
+        operation = "contract_internal"
+    if incident_code not in {
+        "contract_attestation_failed",
+        "contract_attestation_checkpoint_persist_failed",
+    }:
+        raise ValueError("Provider-free preclaim incident is invalid")
+    failed.update(
+        {
+            "status": "failed",
+            "attempted_operation": operation,
+            "completed_operation": (
+                completed_operation
+                if completed_operation is not None
+                else failed.get("completed_operation")
+            ),
+            "incident_code": incident_code,
+            "contract_failure_code": (
+                _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[operation]
+                if incident_code == "contract_attestation_failed"
+                else None
+            ),
+        }
+    )
+    return failed
+
+
+def _provider_free_preclaim_terminal_candidate(
+    *,
+    preflight: Mapping[str, Any],
+    public: Mapping[str, Any],
+) -> dict[str, Any]:
+    trace = _validate_provider_free_preclaim(
+        preflight.get("provider_free_preclaim"),
+        public_precommitment_sha256=public.get(
+            "precommitment_sha256"
+        ),
+        preparation_runtime_contract_sha256=(
+            _provider_free_preclaim_contract_sha256(public)
+        ),
+        required_status="failed",
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "panel_id": PANEL_ID,
+        "status": "failed",
+        "development_only": True,
+        "production_episodes_consumed": 0,
+        "precommitment_sha256": public["precommitment_sha256"],
+        "terminal_envelope_schema": _PROVIDER_FREE_PRECLAIM_SCHEMA,
+        "incident_phase": "provider_free_preclaim_validation",
+        "profiles_recorded": 0,
+        "profiles_terminal": 0,
+        "model_invocations_conservatively_chargeable": 0,
+        "failure_reason": "terminal_abort",
+        "failure_stage": "preflight_control_boundary",
+        "incident_code": trace["incident_code"],
+        "attempted_operation": trace["attempted_operation"],
+        "completed_operation": trace["completed_operation"],
+        "contract_failure_code": trace["contract_failure_code"],
+        "timed_out": False,
+        "timeout_stages": [],
+        "scores_reported": False,
+    }
+
+
+def _persist_or_reconcile_preclaim_transition(
+    *,
+    private_state_path: Path,
+    authentication_key: bytes,
+    prior_private: Mapping[str, Any],
+    next_private: Mapping[str, Any],
+) -> bool:
+    """Write once, then prove exact prior or next after an exception."""
+
+    prior = copy.deepcopy(dict(prior_private))
+    next_state = copy.deepcopy(dict(next_private))
+    if hmac.compare_digest(
+        _canonical_bytes(prior), _canonical_bytes(next_state)
+    ):
+        raise ValueError("Provider-free preclaim transition is empty")
+    try:
+        _write_private_state(
+            private_state_path,
+            next_state,
+            authentication_key,
+        )
+    except BaseException:
+        try:
+            observed = _load_private_state(
+                private_state_path,
+                authentication_key,
+            )
+        except BaseException:
+            raise _PreclaimStorageAmbiguityError() from None
+        observed_bytes = _canonical_bytes(observed)
+        if hmac.compare_digest(
+            observed_bytes, _canonical_bytes(next_state)
+        ):
+            return True
+        if hmac.compare_digest(
+            observed_bytes, _canonical_bytes(prior)
+        ):
+            return False
+        raise _PreclaimStorageAmbiguityError() from None
+    return True
+
+
+def _claim_offline_test_preflight_incident_envelope(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
     private_state_path: Path,
     public_manifest_path: Path,
     public_preflight_path: Path,
 ) -> None:
+    """Claim the deterministic test seam without weakening the live gate.
+
+    Live preflight always enters through ``_claim_preflight_incident_envelope``
+    below and therefore requires the authenticated persistent supervisor and
+    the complete provider-free prerequisite trace.  Unit tests use an
+    explicitly injected offline evaluator and cannot possess that live
+    supervisor binding; this private seam preserves the older incident-envelope
+    state machine solely for those deterministic tests.
+    """
+
+    _assert_ephemeral_offline_test_namespace(
+        root=root,
+        mutable_paths=(
+            authentication_key_file,
+            private_state_path,
+            public_manifest_path,
+            public_preflight_path,
+        ),
+        secure_storage_paths=(
+            claude_secure_storage_dir,
+            codex_secure_storage_dir,
+        ),
+    )
     authentication_key = _read_authentication_key(
         _existing_path_without_final_symlink(authentication_key_file)
     )
@@ -10812,8 +12051,357 @@ def _claim_preflight_incident_envelope(
             "incident_envelope": _new_preflight_incident_envelope(),
         }
         _write_private_state(
-            private_state_path, private, authentication_key
+            private_state_path,
+            private,
+            authentication_key,
         )
+
+
+def _claim_preflight_incident_envelope(
+    *,
+    root: Path,
+    authentication_key_file: Path,
+    claude_secure_storage_dir: Path,
+    codex_secure_storage_dir: Path,
+    private_state_path: Path,
+    public_manifest_path: Path,
+    public_preflight_path: Path,
+    supervisor_runtime_dir: Path | None,
+    require_persistent_supervisor: bool,
+) -> dict[str, Any]:
+    """Validate provider-free contracts, then atomically claim paid preflight."""
+
+    if type(require_persistent_supervisor) is not bool:
+        raise ValueError("Persistent-supervisor requirement must be boolean")
+    if not require_persistent_supervisor or supervisor_runtime_dir is None:
+        raise RuntimeError(
+            "Provider-free preclaim requires the live persistent supervisor"
+        )
+    authentication_key = _read_authentication_key(
+        _existing_path_without_final_symlink(authentication_key_file)
+    )
+    with _exclusive_run_lock(private_state_path):
+        private = _load_private_state(private_state_path, authentication_key)
+        public = _load_json(public_manifest_path)
+        _validate_public_hash(public)
+        _assert_private_public_panel_binding(private, public)
+        preflight = private.get("environment_preflight")
+        if (
+            private.get("status") != "prepared"
+            or private.get("assignments") != []
+            or not isinstance(preflight, dict)
+            or preflight.get("status") != "required"
+        ):
+            raise RuntimeError(
+                "Environment preflight is not in its one-shot required state"
+            )
+        if public_preflight_path.exists() or public_preflight_path.is_symlink():
+            raise FileExistsError(
+                "Refusing to replace an environment preflight receipt"
+            )
+        if preflight.get("provider_free_preclaim") is not None:
+            raise RuntimeError(
+                "Provider-free preclaim is no longer in its fresh state"
+            )
+        prerequisite_bundle = _provider_free_preclaim_prerequisite_bundle(
+            root=root,
+            authentication_key_file=authentication_key_file,
+            private=private,
+            public=public,
+            public_manifest_path=public_manifest_path,
+            supervisor_runtime_dir=supervisor_runtime_dir,
+        )
+        trace = _validate_provider_free_preclaim(
+            _new_provider_free_preclaim(
+                public,
+                prerequisite_bundle=prerequisite_bundle,
+            ),
+            public_precommitment_sha256=public.get(
+                "precommitment_sha256"
+            ),
+            preparation_runtime_contract_sha256=(
+                _provider_free_preclaim_contract_sha256(public)
+            ),
+            required_status="running",
+        )
+
+        def persist_transition(
+            next_private: Mapping[str, Any],
+        ) -> bool:
+            nonlocal private
+            prior_private = copy.deepcopy(private)
+            committed = _persist_or_reconcile_preclaim_transition(
+                private_state_path=private_state_path,
+                authentication_key=authentication_key,
+                prior_private=prior_private,
+                next_private=next_private,
+            )
+            if committed:
+                private = copy.deepcopy(dict(next_private))
+            return committed
+
+        def terminalize_preclaim_failure(
+            *,
+            source_trace: Mapping[str, Any],
+            error: _PreflightControlBoundaryError,
+        ) -> None:
+            failed_trace = _validate_provider_free_preclaim(
+                _fail_provider_free_preclaim(
+                    source_trace,
+                    incident_code=error.incident_code,
+                    attempted_operation=error.attempted_operation,
+                    completed_operation=error.completed_operation,
+                ),
+                public_precommitment_sha256=public.get(
+                    "precommitment_sha256"
+                ),
+                preparation_runtime_contract_sha256=(
+                    _provider_free_preclaim_contract_sha256(public)
+                ),
+                required_status="failed",
+            )
+            next_private = copy.deepcopy(private)
+            next_preflight = copy.deepcopy(
+                next_private["environment_preflight"]
+            )
+            next_preflight["provider_free_preclaim"] = failed_trace
+            candidate = _provider_free_preclaim_terminal_candidate(
+                preflight=next_preflight,
+                public=public,
+            )
+            next_private["environment_preflight"] = {
+                **next_preflight,
+                "status": "failed",
+                "finished_at_utc": _utc_now(),
+                "attempts": [],
+                "terminal_public_receipt": candidate,
+                "public_receipt_sha256": _component_hash(candidate),
+            }
+            if not persist_transition(next_private):
+                raise _PreclaimTransitionNotCommittedError() from None
+            raise error from None
+
+        initial_private = copy.deepcopy(private)
+        initial_preflight = copy.deepcopy(preflight)
+        initial_preflight["provider_free_preclaim"] = trace
+        initial_private["environment_preflight"] = initial_preflight
+        _claim_persistent_execution_binding(
+            initial_private,
+            operation="preflight",
+            binding=prerequisite_bundle["supervisor_execution_binding"],
+        )
+        if not persist_transition(initial_private):
+            terminalize_preclaim_failure(
+                source_trace=trace,
+                error=_PreflightControlBoundaryError(
+                    incident_code=(
+                        "contract_attestation_checkpoint_persist_failed"
+                    ),
+                    attempted_operation="contract_internal",
+                    completed_operation=None,
+                ),
+            )
+
+        def record_operation(operation: str) -> None:
+            nonlocal trace
+            next_trace = _validate_provider_free_preclaim(
+                _advance_provider_free_preclaim_operation(
+                    trace,
+                    operation=operation,
+                ),
+                public_precommitment_sha256=public.get(
+                    "precommitment_sha256"
+                ),
+                preparation_runtime_contract_sha256=(
+                    _provider_free_preclaim_contract_sha256(public)
+                ),
+                required_status="running",
+            )
+            next_private = copy.deepcopy(private)
+            next_private["environment_preflight"][
+                "provider_free_preclaim"
+            ] = next_trace
+            if not persist_transition(next_private):
+                terminalize_preclaim_failure(
+                    source_trace=next_trace,
+                    error=_PreflightControlBoundaryError(
+                        incident_code=(
+                            "contract_attestation_checkpoint_persist_failed"
+                        ),
+                        attempted_operation=operation,
+                        completed_operation=next_trace.get(
+                            "completed_operation"
+                        ),
+                    ),
+                )
+            trace = next_trace
+
+        try:
+            record_operation("contract_internal")
+            resolved_claude = _validate_claude_secure_storage_dir(
+                claude_secure_storage_dir,
+                root=root,
+            )
+            resolved_codex = _validate_codex_secure_storage_dir(
+                codex_secure_storage_dir,
+                root=root,
+            )
+            if _paths_overlap(resolved_claude, resolved_codex):
+                raise ValueError(
+                    "Claude and Codex secure storage directories must not "
+                    "overlap"
+                )
+            _validate_contracts(
+                root=root,
+                private=private,
+                public=public,
+                authentication_key=authentication_key,
+                claude_secure_storage_dir=resolved_claude,
+                codex_secure_storage_dir=resolved_codex,
+                operation_recorder=record_operation,
+            )
+        except (
+            _PreclaimStorageAmbiguityError,
+            _PreclaimTransitionNotCommittedError,
+            _PreflightControlBoundaryError,
+        ):
+            raise
+        except BaseException:
+            operation = trace.get("attempted_operation")
+            if operation not in _CONTRACT_ATTESTATION_OPERATION_SET:
+                operation = "contract_internal"
+            terminalize_preclaim_failure(
+                source_trace=trace,
+                error=_PreflightControlBoundaryError(
+                    incident_code="contract_attestation_failed",
+                    attempted_operation=str(operation),
+                    completed_operation=trace.get("completed_operation"),
+                    contract_failure_code=(
+                        _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
+                            str(operation)
+                        ]
+                    ),
+                ),
+            )
+
+        passed_trace = _validate_provider_free_preclaim(
+            _complete_provider_free_preclaim(trace),
+            public_precommitment_sha256=public.get(
+                "precommitment_sha256"
+            ),
+            preparation_runtime_contract_sha256=(
+                _provider_free_preclaim_contract_sha256(public)
+            ),
+            required_status="passed",
+        )
+        passed_private = copy.deepcopy(private)
+        passed_private["environment_preflight"][
+            "provider_free_preclaim"
+        ] = passed_trace
+        if not persist_transition(passed_private):
+            terminalize_preclaim_failure(
+                source_trace=trace,
+                error=_PreflightControlBoundaryError(
+                    incident_code=(
+                        "contract_attestation_checkpoint_persist_failed"
+                    ),
+                    attempted_operation=str(trace["attempted_operation"]),
+                    completed_operation=trace.get("completed_operation"),
+                ),
+            )
+
+        def terminalize_post_pass_failure(
+            *,
+            error: _PreflightControlBoundaryError,
+            phase: str,
+        ) -> None:
+            terminal_private = copy.deepcopy(private)
+            terminal_preflight = copy.deepcopy(
+                terminal_private["environment_preflight"]
+            )
+            terminal_preflight.update(
+                {
+                    "status": "claimed",
+                    "attempts": [],
+                    "incident_envelope": _new_preflight_incident_envelope(),
+                }
+            )
+            _advance_preflight_incident_envelope(
+                terminal_preflight,
+                phase=phase,
+                attempts=[],
+                attempted_operation=error.attempted_operation,
+                completed_operation=error.completed_operation,
+            )
+            terminal_private["environment_preflight"] = terminal_preflight
+            candidate = _minimal_terminal_preflight_candidate(
+                private=terminal_private,
+                public=public,
+                control_error=error,
+            )
+            terminal_private["environment_preflight"] = {
+                **terminal_preflight,
+                "status": "failed",
+                "finished_at_utc": _utc_now(),
+                "terminal_public_receipt": candidate,
+                "public_receipt_sha256": _component_hash(candidate),
+            }
+            if not persist_transition(terminal_private):
+                raise _PreclaimTransitionNotCommittedError() from None
+            raise error from None
+
+        try:
+            reattested_prerequisites = (
+                _provider_free_preclaim_prerequisite_bundle(
+                    root=root,
+                    authentication_key_file=authentication_key_file,
+                    private=private,
+                    public=public,
+                    public_manifest_path=public_manifest_path,
+                    supervisor_runtime_dir=supervisor_runtime_dir,
+                )
+            )
+        except BaseException:
+            terminalize_post_pass_failure(
+                error=_PreflightControlBoundaryError(
+                    incident_code="preflight_prerequisite_reattest_failed",
+                    attempted_operation="supervisor_binding",
+                    completed_operation=_PREPARATION_RUNTIME_OPERATIONS[-1],
+                ),
+                phase="supervisor_binding",
+            )
+        if not hmac.compare_digest(
+            _canonical_bytes(reattested_prerequisites),
+            _canonical_bytes(passed_trace["prerequisite_bundle"]),
+        ):
+            terminalize_post_pass_failure(
+                error=_PreflightControlBoundaryError(
+                    incident_code="preflight_prerequisite_reattest_failed",
+                    attempted_operation="supervisor_binding",
+                    completed_operation=_PREPARATION_RUNTIME_OPERATIONS[-1],
+                ),
+                phase="supervisor_binding",
+            )
+
+        claimed_private = copy.deepcopy(private)
+        claimed_private["environment_preflight"] = {
+            **copy.deepcopy(private["environment_preflight"]),
+            "status": "claimed",
+            "provider_free_preclaim": passed_trace,
+            "incident_envelope": _new_preflight_incident_envelope(),
+        }
+        if not persist_transition(claimed_private):
+            terminalize_post_pass_failure(
+                error=_PreflightControlBoundaryError(
+                    incident_code=(
+                        "preflight_state_claim_checkpoint_persist_failed"
+                    ),
+                    attempted_operation="preflight_state_claim",
+                    completed_operation=_PREPARATION_RUNTIME_OPERATIONS[-1],
+                ),
+                phase="preflight_state_claim",
+            )
+        return passed_trace
 
 
 def _minimal_terminal_preflight_candidate(
@@ -10848,11 +12436,7 @@ def _minimal_terminal_preflight_candidate(
         )
     failure_phase = str(active_envelope["phase"])
     incident_code = active_envelope.get("incident_code")
-    if incident_code not in {
-        "contract_attestation_failed",
-        "contract_attestation_checkpoint_persist_failed",
-        "control_phase_checkpoint_persist_failed",
-    }:
+    if incident_code not in _PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES:
         incident_code = "unexpected_control_path_failure"
     _advance_preflight_incident_envelope(
         preflight,
@@ -10972,12 +12556,13 @@ def _publish_terminal_preflight_candidate(
                 raise RuntimeError(
                     "Durable preflight attempt state is invalid"
                 )
-            _advance_preflight_incident_envelope(
-                preflight,
-                phase="public_receipt_commit",
-                attempts=attempts,
-                status="terminal",
-            )
+            if preflight.get("incident_envelope") is not None:
+                _advance_preflight_incident_envelope(
+                    preflight,
+                    phase="public_receipt_commit",
+                    attempts=attempts,
+                    status="terminal",
+                )
             preflight["public_receipt_binding"] = binding
             _write_private_state(
                 private_state_path, private, authentication_key
@@ -11047,38 +12632,80 @@ def _terminal_preflight_candidate(
     )
     control_incident_codes = {
         "unexpected_control_path_failure",
-        "contract_attestation_failed",
-        "contract_attestation_checkpoint_persist_failed",
-        "control_phase_checkpoint_persist_failed",
+        *_PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES,
     }
     control_envelope_incident = (
         incident_code in control_incident_codes
         and candidate.get("failure_stage")
         == "preflight_control_boundary"
     )
-    if control_envelope_incident:
-        control_candidate_keys = {
-            "schema_version",
-            "panel_id",
-            "status",
-            "development_only",
-            "production_episodes_consumed",
-            "precommitment_sha256",
-            "terminal_envelope_schema",
-            "incident_phase",
-            "profiles_recorded",
-            "profiles_terminal",
-            "model_invocations_conservatively_chargeable",
-            "failure_reason",
-            "failure_stage",
-            "incident_code",
-            "attempted_operation",
-            "completed_operation",
-            "contract_failure_code",
-            "timed_out",
-            "timeout_stages",
-            "scores_reported",
-        }
+    control_candidate_keys = {
+        "schema_version",
+        "panel_id",
+        "status",
+        "development_only",
+        "production_episodes_consumed",
+        "precommitment_sha256",
+        "terminal_envelope_schema",
+        "incident_phase",
+        "profiles_recorded",
+        "profiles_terminal",
+        "model_invocations_conservatively_chargeable",
+        "failure_reason",
+        "failure_stage",
+        "incident_code",
+        "attempted_operation",
+        "completed_operation",
+        "contract_failure_code",
+        "timed_out",
+        "timeout_stages",
+        "scores_reported",
+    }
+    provider_free_preclaim_incident = (
+        terminal_envelope_schema == _PROVIDER_FREE_PRECLAIM_SCHEMA
+        and incident_phase == "provider_free_preclaim_validation"
+        and candidate.get("failure_stage")
+        == "preflight_control_boundary"
+    )
+    if provider_free_preclaim_incident:
+        attempts = preflight.get("attempts", [])
+        trace = _validate_provider_free_preclaim(
+            preflight.get("provider_free_preclaim"),
+            public_precommitment_sha256=public.get(
+                "precommitment_sha256"
+            ),
+            preparation_runtime_contract_sha256=(
+                _provider_free_preclaim_contract_sha256(public)
+            ),
+            required_status="failed",
+        )
+        if (
+            set(candidate) != control_candidate_keys
+            or attempts != []
+            or preflight.get("incident_envelope") is not None
+            or candidate.get("status") != "failed"
+            or candidate.get("failure_reason") != "terminal_abort"
+            or candidate.get("incident_code")
+            != trace.get("incident_code")
+            or candidate.get("attempted_operation")
+            != trace.get("attempted_operation")
+            or candidate.get("completed_operation")
+            != trace.get("completed_operation")
+            or candidate.get("contract_failure_code")
+            != trace.get("contract_failure_code")
+            or candidate.get("profiles_recorded") != 0
+            or candidate.get("profiles_terminal") != 0
+            or candidate.get(
+                "model_invocations_conservatively_chargeable"
+            )
+            != 0
+            or candidate.get("timed_out") is not False
+            or candidate.get("timeout_stages") != []
+        ):
+            raise RuntimeError(
+                "Terminal provider-free preclaim receipt is invalid"
+            )
+    elif control_envelope_incident:
         attempts = preflight.get("attempts", [])
         envelope_value = preflight.get("incident_envelope")
         if not isinstance(attempts, list) or any(
@@ -11320,6 +12947,65 @@ def _sealed_terminal_preflight_projection(
         not isinstance(attempt, Mapping) for attempt in attempts
     ):
         raise RuntimeError("Sealed terminal preflight attempts are invalid")
+    if (
+        candidate.get("terminal_envelope_schema")
+        == _PROVIDER_FREE_PRECLAIM_SCHEMA
+    ):
+        required_hashes = preflight.get("required_contract_hashes")
+        preparation_runtime_sha256 = (
+            required_hashes.get("preparation_runtime_sha256")
+            if isinstance(required_hashes, Mapping)
+            else None
+        )
+        try:
+            trace = _validate_provider_free_preclaim(
+                preflight.get("provider_free_preclaim"),
+                public_precommitment_sha256=candidate.get(
+                    "precommitment_sha256"
+                ),
+                preparation_runtime_contract_sha256=(
+                    preparation_runtime_sha256
+                ),
+                required_status="failed",
+            )
+        except ValueError as error:
+            raise RuntimeError(
+                "Sealed provider-free preclaim is invalid"
+            ) from error
+        if (
+            attempts != []
+            or preflight.get("incident_envelope") is not None
+            or candidate.get("incident_phase")
+            != "provider_free_preclaim_validation"
+            or candidate.get("incident_code")
+            != trace.get("incident_code")
+            or candidate.get("attempted_operation")
+            != trace.get("attempted_operation")
+            or candidate.get("completed_operation")
+            != trace.get("completed_operation")
+            or candidate.get("contract_failure_code")
+            != trace.get("contract_failure_code")
+            or candidate.get("profiles_recorded") != 0
+            or candidate.get("profiles_terminal") != 0
+            or candidate.get(
+                "model_invocations_conservatively_chargeable"
+            )
+            != 0
+        ):
+            raise RuntimeError(
+                "Sealed provider-free preclaim projection is invalid"
+            )
+        return {
+            "terminal_status": str(candidate["status"]),
+            "incident_code": str(trace["incident_code"]),
+            "incident_phase": "provider_free_preclaim_validation",
+            "attempted_operation": trace["attempted_operation"],
+            "completed_operation": trace["completed_operation"],
+            "contract_failure_code": trace["contract_failure_code"],
+            "profiles_recorded": 0,
+            "profiles_terminal": 0,
+            "model_invocations_conservatively_chargeable": 0,
+        }
     try:
         envelope = _validate_preflight_incident_envelope(
             preflight.get("incident_envelope")
@@ -11411,11 +13097,9 @@ def _sealed_terminal_preflight_projection(
         )
     ):
         raise RuntimeError("Sealed terminal preflight projection is invalid")
-    typed_control_incident = incident_code in {
-        "contract_attestation_failed",
-        "contract_attestation_checkpoint_persist_failed",
-        "control_phase_checkpoint_persist_failed",
-    }
+    typed_control_incident = (
+        incident_code in _PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES
+    )
     attempted_operation = (
         candidate.get("attempted_operation")
         if typed_control_incident
@@ -12011,9 +13695,27 @@ def _assert_environment_preflight(
         "managed_glean": "passed_before_preflight",
         "model_calls": 0,
     }
+    provider_free_preclaim_valid = False
+    if isinstance(preflight, Mapping):
+        try:
+            _validate_provider_free_preclaim(
+                preflight.get("provider_free_preclaim"),
+                public_precommitment_sha256=public.get(
+                    "precommitment_sha256"
+                ),
+                preparation_runtime_contract_sha256=(
+                    _provider_free_preclaim_contract_sha256(public)
+                ),
+                required_status="passed",
+            )
+        except (KeyError, TypeError, ValueError):
+            pass
+        else:
+            provider_free_preclaim_valid = True
 
     if (
         not isinstance(preflight, dict)
+        or not provider_free_preclaim_valid
         or authentication_setup.get("status") != "passed"
         or not isinstance(
             authentication_setup.get("public_receipt_sha256"), str
@@ -12667,6 +14369,10 @@ def _provider_incident_code(
         fallback = "unexpected_control_path_failure"
     trusted_types = (
         (
+            _DeferredCursorCredentialError,
+            "credential_attestation_failed",
+        ),
+        (
             ProviderPreModelPhasePersistenceError,
             "provider_pre_model_phase_checkpoint_persist_failed",
         ),
@@ -12730,6 +14436,8 @@ def _provider_incident_code(
 def _provider_failure_stage(error: BaseException, *, fallback: str) -> str:
     """Project an exception onto a finite, content-free failure stage."""
 
+    if isinstance(error, _DeferredCursorCredentialError):
+        return "credential_attestation"
     if isinstance(
         error,
         (
@@ -12997,6 +14705,18 @@ def _execution_evaluator(
     return offline_test_evaluator
 
 
+def _deferred_cursor_evaluator(
+    evaluator: Callable[..., PilotRunResult],
+    session: _DeferredCursorCredentialSession,
+) -> Callable[..., PilotRunResult]:
+    """Scope the deferred credential to Cursor evaluator calls only."""
+
+    def invoke(system: str, *args: Any, **kwargs: Any) -> PilotRunResult:
+        return session.invoke(evaluator, system, *args, **kwargs)
+
+    return invoke
+
+
 def _run_environment_preflight_core(
     *,
     root: Path,
@@ -13009,6 +14729,7 @@ def _run_environment_preflight_core(
     supervisor_runtime_dir: Path | None = None,
     require_persistent_supervisor: bool = True,
     offline_test_evaluator: Callable[..., PilotRunResult] | None = None,
+    cursor_credential_loader: Callable[[], str] | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
     """Run one preflight behind an authenticated terminal incident envelope."""
@@ -13017,6 +14738,20 @@ def _run_environment_preflight_core(
         raise RuntimeError(
             "Explicit acknowledgement of unbounded preflight provider spend "
             "is required"
+        )
+    if not require_persistent_supervisor:
+        _assert_ephemeral_offline_test_namespace(
+            root=root,
+            mutable_paths=(
+                authentication_key_file,
+                private_state_path,
+                public_manifest_path,
+                public_preflight_path,
+            ),
+            secure_storage_paths=(
+                claude_secure_storage_dir,
+                codex_secure_storage_dir,
+            ),
         )
     _assert_distinct_paths(
         authentication_key_file,
@@ -13030,19 +14765,20 @@ def _run_environment_preflight_core(
             public_preflight_path,
             operation="preflight",
         )
-    if not os.environ.get("CURSOR_API_KEY", "").strip():
+    if require_persistent_supervisor and "CURSOR_API_KEY" in os.environ:
         raise RuntimeError(
-            "Disposable six-profile preflight requires CURSOR_API_KEY before "
-            "any provider call"
+            "Supervised preflight must start without CURSOR_API_KEY"
         )
-    _claim_preflight_incident_envelope(
-        authentication_key_file=authentication_key_file,
-        private_state_path=private_state_path,
-        public_manifest_path=public_manifest_path,
-        public_preflight_path=public_preflight_path,
-    )
-    try:
-        return _run_environment_preflight_core_claimed(
+    if require_persistent_supervisor and not callable(
+        cursor_credential_loader
+    ):
+        raise RuntimeError(
+            "Supervised preflight requires a deferred Cursor credential loader"
+        )
+    paid_preflight_claimed = False
+    provider_free_preclaim: Mapping[str, Any] | None = None
+    if not require_persistent_supervisor:
+        _claim_offline_test_preflight_incident_envelope(
             root=root,
             authentication_key_file=authentication_key_file,
             claude_secure_storage_dir=claude_secure_storage_dir,
@@ -13050,28 +14786,75 @@ def _run_environment_preflight_core(
             private_state_path=private_state_path,
             public_manifest_path=public_manifest_path,
             public_preflight_path=public_preflight_path,
-            supervisor_runtime_dir=supervisor_runtime_dir,
-            require_persistent_supervisor=require_persistent_supervisor,
-            offline_test_evaluator=offline_test_evaluator,
-            acknowledge_unbounded_provider_spend=(
-                acknowledge_unbounded_provider_spend
-            ),
         )
+        paid_preflight_claimed = True
+    try:
+        if require_persistent_supervisor:
+            provider_free_preclaim = _claim_preflight_incident_envelope(
+                root=root,
+                authentication_key_file=authentication_key_file,
+                claude_secure_storage_dir=claude_secure_storage_dir,
+                codex_secure_storage_dir=codex_secure_storage_dir,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+                public_preflight_path=public_preflight_path,
+                supervisor_runtime_dir=supervisor_runtime_dir,
+                require_persistent_supervisor=True,
+            )
+            paid_preflight_claimed = True
+        cursor_credential_session = _DeferredCursorCredentialSession(
+            cursor_credential_loader
+        )
+        try:
+            return _run_environment_preflight_core_claimed(
+                root=root,
+                authentication_key_file=authentication_key_file,
+                claude_secure_storage_dir=claude_secure_storage_dir,
+                codex_secure_storage_dir=codex_secure_storage_dir,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+                public_preflight_path=public_preflight_path,
+                supervisor_runtime_dir=supervisor_runtime_dir,
+                require_persistent_supervisor=require_persistent_supervisor,
+                offline_test_evaluator=offline_test_evaluator,
+                acknowledge_unbounded_provider_spend=(
+                    acknowledge_unbounded_provider_spend
+                ),
+                provider_free_preclaim=provider_free_preclaim,
+                cursor_credential_session=cursor_credential_session,
+            )
+        finally:
+            cursor_credential_session.close()
+    except (
+        _PreclaimStorageAmbiguityError,
+        _PreclaimTransitionNotCommittedError,
+    ):
+        # No later read, seal, publication, credential, or provider action is
+        # safe after an unresolved/known-unsealed checkpoint outcome.
+        raise
     except BaseException as original_error:
         control_error = (
             original_error
             if isinstance(original_error, _PreflightControlBoundaryError)
             else None
         )
-        try:
-            _seal_minimal_terminal_preflight_candidate(
-                authentication_key_file=authentication_key_file,
-                private_state_path=private_state_path,
-                public_manifest_path=public_manifest_path,
-                control_error=control_error,
-            )
-        except BaseException:
-            raise original_error from None
+        if not paid_preflight_claimed and control_error is None:
+            # A prerequisite or other pre-trace failure has no authenticated
+            # terminal candidate to seal or publish.  Preserve the original
+            # failure and let the already-started one-shot supervisor record
+            # the terminal ambiguity; do not perform a speculative follow-on
+            # read or mutation.
+            raise
+        if paid_preflight_claimed:
+            try:
+                _seal_minimal_terminal_preflight_candidate(
+                    authentication_key_file=authentication_key_file,
+                    private_state_path=private_state_path,
+                    public_manifest_path=public_manifest_path,
+                    control_error=control_error,
+                )
+            except BaseException:
+                raise original_error from None
         try:
             return _publish_terminal_preflight_candidate(
                 root=root,
@@ -13123,12 +14906,28 @@ def _run_environment_preflight_core_claimed(
     require_persistent_supervisor: bool = True,
     offline_test_evaluator: Callable[..., PilotRunResult] | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
+    provider_free_preclaim: Mapping[str, Any] | None = None,
+    cursor_credential_session: _DeferredCursorCredentialSession | None = None,
 ) -> dict[str, Any]:
     """Exercise every provider profile on one disposable, unscored episode."""
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError(
             "Explicit acknowledgement of unbounded preflight provider spend is required"
+        )
+    if not require_persistent_supervisor:
+        _assert_ephemeral_offline_test_namespace(
+            root=root,
+            mutable_paths=(
+                authentication_key_file,
+                private_state_path,
+                public_manifest_path,
+                public_preflight_path,
+            ),
+            secure_storage_paths=(
+                claude_secure_storage_dir,
+                codex_secure_storage_dir,
+            ),
         )
     if require_persistent_supervisor:
         _assert_canonical_public_output_path(
@@ -13139,6 +14938,11 @@ def _run_environment_preflight_core_claimed(
     evaluator = _execution_evaluator(
         require_persistent_supervisor=require_persistent_supervisor,
         offline_test_evaluator=offline_test_evaluator,
+    )
+    if cursor_credential_session is None:
+        cursor_credential_session = _DeferredCursorCredentialSession(None)
+    evaluator = _deferred_cursor_evaluator(
+        evaluator, cursor_credential_session
     )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -13157,11 +14961,6 @@ def _run_environment_preflight_core_claimed(
         public_manifest_path,
         public_preflight_path,
     )
-    if not os.environ.get("CURSOR_API_KEY", "").strip():
-        raise RuntimeError(
-            "Disposable six-profile preflight requires CURSOR_API_KEY before "
-            "any provider call"
-        )
     with _exclusive_run_lock(private_state_path):
         authentication_key = _read_authentication_key(
             _existing_path_without_final_symlink(authentication_key_file)
@@ -13169,6 +14968,78 @@ def _run_environment_preflight_core_claimed(
         private = _load_private_state(private_state_path, authentication_key)
         public = _load_json(public_manifest_path)
         _validate_public_hash(public)
+        preflight_state = private.get("environment_preflight")
+        durable_provider_free_preclaim = (
+            preflight_state.get("provider_free_preclaim")
+            if isinstance(preflight_state, Mapping)
+            else None
+        )
+        validated_provider_free_preclaim: dict[str, Any] | None = None
+        if provider_free_preclaim is not None:
+            validated_provider_free_preclaim = (
+                _validate_provider_free_preclaim(
+                    dict(provider_free_preclaim),
+                    public_precommitment_sha256=public.get(
+                        "precommitment_sha256"
+                    ),
+                    preparation_runtime_contract_sha256=(
+                        _provider_free_preclaim_contract_sha256(public)
+                    ),
+                    required_status="passed",
+                )
+            )
+            if durable_provider_free_preclaim != (
+                validated_provider_free_preclaim
+            ):
+                raise RuntimeError(
+                    "Durable provider-free preclaim changed"
+                )
+        elif isinstance(durable_provider_free_preclaim, Mapping):
+            validated_provider_free_preclaim = (
+                _validate_provider_free_preclaim(
+                    dict(durable_provider_free_preclaim),
+                    public_precommitment_sha256=public.get(
+                        "precommitment_sha256"
+                    ),
+                    preparation_runtime_contract_sha256=(
+                        _provider_free_preclaim_contract_sha256(public)
+                    ),
+                    required_status="passed",
+                )
+            )
+        if require_persistent_supervisor and (
+            provider_free_preclaim is None
+            or validated_provider_free_preclaim is None
+        ):
+            raise RuntimeError(
+                "Supervised preflight requires its passed preclaim argument"
+            )
+        expected_supervisor_binding = (
+            validated_provider_free_preclaim.get("prerequisite_bundle", {}).get(
+                "supervisor_execution_binding"
+            )
+            if validated_provider_free_preclaim is not None
+            else None
+        )
+        persistent_bindings = private.get(
+            _PERSISTENT_EXECUTION_BINDINGS_KEY
+        )
+        durable_supervisor_binding = (
+            persistent_bindings.get("preflight")
+            if isinstance(persistent_bindings, Mapping)
+            else None
+        )
+        if require_persistent_supervisor and (
+            not isinstance(expected_supervisor_binding, Mapping)
+            or not isinstance(durable_supervisor_binding, Mapping)
+            or not hmac.compare_digest(
+                _canonical_bytes(dict(expected_supervisor_binding)),
+                _canonical_bytes(dict(durable_supervisor_binding)),
+            )
+        ):
+            raise RuntimeError(
+                "Durable preflight supervisor binding changed"
+            )
 
         def persist_control_state(
             *,
@@ -13235,31 +15106,33 @@ def _run_environment_preflight_core_claimed(
             require_clean_checkout=require_persistent_supervisor,
             revalidate_live_identity_contracts=False,
         )
-        persist_control_phase("supervisor_binding")
-        _, binding_created = _attest_with_transient_snapshot_retry(
-            lambda: _attest_and_match_persistent_execution(
-                required=require_persistent_supervisor,
-                supervisor_runtime_dir=supervisor_runtime_dir,
-                authentication_key_file=authentication_key_file,
-                operation="preflight",
-                public_manifest=public,
-                private=private,
-            )
-        )
-        if binding_created:
-            # Authentication is already sealed and committed.  The exact
-            # label/context is now burned before any model-bearing call.
-            _write_private_state(private_state_path, private, authentication_key)
 
         def attest_current_supervisor() -> None:
-            _attest_and_match_persistent_execution(
+            observed_binding = _attest_required_persistent_execution(
                 required=require_persistent_supervisor,
                 supervisor_runtime_dir=supervisor_runtime_dir,
                 authentication_key_file=authentication_key_file,
                 operation="preflight",
                 public_manifest=public,
-                private=private,
             )
+            if expected_supervisor_binding is None:
+                if observed_binding is not None:
+                    raise _persistent_attestation_error(
+                        "private_binding_invalid"
+                    )
+                return
+            if not isinstance(observed_binding, Mapping) or not (
+                hmac.compare_digest(
+                    _canonical_bytes(dict(observed_binding)),
+                    _canonical_bytes(dict(expected_supervisor_binding)),
+                )
+            ):
+                raise _persistent_attestation_error("runtime_replacement")
+
+        persist_control_phase("supervisor_binding")
+        _attest_with_transient_snapshot_retry(
+            attest_current_supervisor
+        )
 
         persist_control_phase("spend_authorization")
         _assert_spend_authorization(private, public)
@@ -13314,6 +15187,9 @@ def _run_environment_preflight_core_claimed(
                     resolved_codex_secure_storage_dir
                 ),
                 operation_recorder=record_operation,
+                provider_free_preclaim=(
+                    validated_provider_free_preclaim
+                ),
             ),
         )
         if private.get("assignments") or private.get("status") != "prepared":
@@ -13389,6 +15265,15 @@ def _run_environment_preflight_core_claimed(
         attempts: list[dict[str, Any]] = []
         private["environment_preflight"] = {
             "incident_envelope": preflight["incident_envelope"],
+            **(
+                {
+                    "provider_free_preclaim": (
+                        validated_provider_free_preclaim
+                    )
+                }
+                if validated_provider_free_preclaim is not None
+                else {}
+            ),
             "status": "running",
             "started_at_utc": _utc_now(),
             "attempts": attempts,
@@ -14350,6 +16235,7 @@ def run_environment_preflight(
     public_manifest_path: Path,
     public_preflight_path: Path,
     supervisor_runtime_dir: Path | None = None,
+    cursor_credential_loader: Callable[[], str] | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
     """Exercise every provider profile under authenticated supervision.
@@ -14363,6 +16249,10 @@ def run_environment_preflight(
         root=root,
         private_state_path=private_state_path,
     )
+    if not callable(cursor_credential_loader):
+        raise RuntimeError(
+            "Supervised preflight requires a deferred Cursor credential loader"
+        )
     return _run_environment_preflight_core(
         root=root,
         authentication_key_file=authentication_key_file,
@@ -14374,10 +16264,85 @@ def run_environment_preflight(
         supervisor_runtime_dir=supervisor_runtime_dir,
         require_persistent_supervisor=True,
         offline_test_evaluator=None,
+        cursor_credential_loader=cursor_credential_loader,
         acknowledge_unbounded_provider_spend=(
             acknowledge_unbounded_provider_spend
         ),
     )
+
+
+def _assert_ephemeral_offline_test_namespace(
+    *,
+    root: Path,
+    mutable_paths: Sequence[Path],
+    secure_storage_paths: Sequence[Path],
+) -> None:
+    """Keep injected evaluators outside every repository/live namespace.
+
+    These helpers exist solely so deterministic tests can exercise state
+    transitions without a provider.  They must never be usable against a Git
+    checkout or against mutable artifacts outside their disposable test root.
+    """
+
+    try:
+        resolved_root = root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise RuntimeError(
+            "Offline test evaluation requires an existing ephemeral root"
+        ) from None
+    if any(
+        (ancestor / ".git").exists()
+        or (ancestor / ".git").is_symlink()
+        for ancestor in (resolved_root, *resolved_root.parents)
+    ):
+        raise RuntimeError(
+            "Offline test evaluation is forbidden in a repository namespace"
+        )
+    namespace_root = resolved_root.parent
+    try:
+        namespace_metadata = namespace_root.lstat()
+        resolved_namespace_root = namespace_root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise RuntimeError(
+            "Offline test evaluation requires an isolated namespace"
+        ) from None
+    if (
+        namespace_root != resolved_namespace_root
+        or namespace_root
+        in {Path("/"), Path("/tmp"), Path("/private/tmp")}
+        or not stat.S_ISDIR(namespace_metadata.st_mode)
+        or stat.S_ISLNK(namespace_metadata.st_mode)
+        or namespace_metadata.st_uid != os.getuid()
+        or stat.S_IMODE(namespace_metadata.st_mode) != 0o700
+    ):
+        raise RuntimeError(
+            "Offline test evaluation requires an isolated namespace"
+        )
+    for path in mutable_paths:
+        try:
+            resolved_path = path.resolve(strict=False)
+        except (OSError, RuntimeError):
+            raise RuntimeError(
+                "Offline test evaluation has an invalid mutable path"
+            ) from None
+        if not _path_is_within(resolved_path, resolved_root):
+            raise RuntimeError(
+                "Offline test evaluation cannot target a live namespace"
+            )
+    for path in secure_storage_paths:
+        try:
+            resolved_path = path.resolve(strict=False)
+        except (OSError, RuntimeError):
+            raise RuntimeError(
+                "Offline test evaluation has an invalid secure-storage path"
+            ) from None
+        if (
+            not _path_is_within(resolved_path, namespace_root)
+            or _path_is_within(resolved_path, resolved_root)
+        ):
+            raise RuntimeError(
+                "Offline test evaluation cannot target live credentials"
+            )
 
 
 def _run_environment_preflight_for_offline_test(
@@ -14394,6 +16359,19 @@ def _run_environment_preflight_for_offline_test(
 ) -> dict[str, Any]:
     """Private deterministic seam for unit tests; never a live run path."""
 
+    _assert_ephemeral_offline_test_namespace(
+        root=root,
+        mutable_paths=(
+            authentication_key_file,
+            private_state_path,
+            public_manifest_path,
+            public_preflight_path,
+        ),
+        secure_storage_paths=(
+            claude_secure_storage_dir,
+            codex_secure_storage_dir,
+        ),
+    )
     return _run_environment_preflight_core(
         root=root,
         authentication_key_file=authentication_key_file,
@@ -15338,6 +17316,24 @@ def finalize_supervised_release(
             "release_contract_binding_invalid",
             lambda: _validate_public_hash(public),
         )
+        durable_preflight = private.get("environment_preflight")
+        validated_release_preclaim = _release_gate(
+            "release_candidate_invalid",
+            lambda: _validate_provider_free_preclaim(
+                (
+                    durable_preflight.get("provider_free_preclaim")
+                    if isinstance(durable_preflight, Mapping)
+                    else None
+                ),
+                public_precommitment_sha256=public.get(
+                    "precommitment_sha256"
+                ),
+                preparation_runtime_contract_sha256=(
+                    _provider_free_preclaim_contract_sha256(public)
+                ),
+                required_status="passed",
+            ),
+        )
         completed_binding = _completed_supervisor_binding(
             supervisor_runtime_dir=supervisor_runtime_dir,
             authentication_key_file=authentication_key_file,
@@ -15378,6 +17374,7 @@ def finalize_supervised_release(
                 claude_secure_storage_dir=resolved_claude_storage,
                 codex_secure_storage_dir=resolved_codex_storage,
                 revalidate_live_identity_contracts=False,
+                provider_free_preclaim=validated_release_preclaim,
             ),
         )
 
@@ -15387,6 +17384,12 @@ def finalize_supervised_release(
                 _PENDING_PREFLIGHT_STATUS,
                 "passed",
             }:
+                raise _release_validation_error(
+                    "release_candidate_invalid"
+                )
+            if preflight.get("provider_free_preclaim") != (
+                validated_release_preclaim
+            ):
                 raise _release_validation_error(
                     "release_candidate_invalid"
                 )
@@ -15620,12 +17623,27 @@ def _run_panel_locked(
     supervisor_runtime_dir: Path | None = None,
     require_persistent_supervisor: bool = True,
     offline_test_evaluator: Callable[..., PilotRunResult] | None = None,
+    cursor_credential_session: _DeferredCursorCredentialSession | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
     """Run or resume the 300 assignments, never retrying a durable start."""
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError("Explicit acknowledgement of unbounded provider spend is required")
+    if not require_persistent_supervisor:
+        _assert_ephemeral_offline_test_namespace(
+            root=root,
+            mutable_paths=(
+                authentication_key_file,
+                private_state_path,
+                public_manifest_path,
+                public_results_path,
+            ),
+            secure_storage_paths=(
+                claude_secure_storage_dir,
+                codex_secure_storage_dir,
+            ),
+        )
     if require_persistent_supervisor:
         _assert_canonical_public_output_path(
             public_manifest_path,
@@ -15635,6 +17653,11 @@ def _run_panel_locked(
     evaluator = _execution_evaluator(
         require_persistent_supervisor=require_persistent_supervisor,
         offline_test_evaluator=offline_test_evaluator,
+    )
+    if cursor_credential_session is None:
+        cursor_credential_session = _DeferredCursorCredentialSession(None)
+    evaluator = _deferred_cursor_evaluator(
+        evaluator, cursor_credential_session
     )
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
@@ -15701,6 +17724,26 @@ def _run_panel_locked(
             private=private,
         )
     _assert_spend_authorization(private, public_manifest)
+    preflight_state = private.get("environment_preflight")
+    if not isinstance(preflight_state, Mapping):
+        raise RuntimeError(
+            "Production requires a passed provider-free preclaim"
+        )
+    try:
+        provider_free_preclaim = _validate_provider_free_preclaim(
+            preflight_state.get("provider_free_preclaim"),
+            public_precommitment_sha256=public_manifest.get(
+                "precommitment_sha256"
+            ),
+            preparation_runtime_contract_sha256=(
+                _provider_free_preclaim_contract_sha256(public_manifest)
+            ),
+            required_status="passed",
+        )
+    except (KeyError, TypeError, ValueError):
+        raise RuntimeError(
+            "Production requires a passed provider-free preclaim"
+        ) from None
     manifest, packs, schedule = _validate_contracts(
         root=root,
         private=private,
@@ -15708,6 +17751,7 @@ def _run_panel_locked(
         authentication_key=authentication_key,
         claude_secure_storage_dir=resolved_claude_secure_storage_dir,
         codex_secure_storage_dir=resolved_codex_secure_storage_dir,
+        provider_free_preclaim=provider_free_preclaim,
     )
     claude_secure_storage_identity = _private_claude_storage_identity(private)
     codex_secure_storage_identity = _private_codex_storage_identity(private)
@@ -15885,6 +17929,7 @@ def _run_panel_locked(
         )
     if (
         "cursor" in remaining_systems
+        and not cursor_credential_session.deferred_loading_enabled
         and not os.environ.get("CURSOR_API_KEY", "").strip()
     ):
         raise RuntimeError(
@@ -16530,6 +18575,7 @@ def run_panel(
     public_manifest_path: Path,
     public_results_path: Path,
     supervisor_runtime_dir: Path | None = None,
+    cursor_credential_loader: Callable[[], str] | None = None,
     acknowledge_unbounded_provider_spend: bool = False,
 ) -> dict[str, Any]:
     """Run or resume the panel under authenticated persistent supervision."""
@@ -16542,20 +18588,35 @@ def run_panel(
         root=root,
         private_state_path=private_state_path,
     )
-    with _exclusive_run_lock(private_state_path):
-        return _run_panel_locked(
-            root=root,
-            authentication_key_file=authentication_key_file,
-            claude_secure_storage_dir=claude_secure_storage_dir,
-            codex_secure_storage_dir=codex_secure_storage_dir,
-            private_state_path=private_state_path,
-            public_manifest_path=public_manifest_path,
-            public_results_path=public_results_path,
-            supervisor_runtime_dir=supervisor_runtime_dir,
-            require_persistent_supervisor=True,
-            offline_test_evaluator=None,
-            acknowledge_unbounded_provider_spend=True,
+    if not callable(cursor_credential_loader):
+        raise RuntimeError(
+            "Supervised production requires a deferred Cursor credential loader"
         )
+    if "CURSOR_API_KEY" in os.environ:
+        raise RuntimeError(
+            "Supervised production must start without CURSOR_API_KEY"
+        )
+    cursor_credential_session = _DeferredCursorCredentialSession(
+        cursor_credential_loader
+    )
+    try:
+        with _exclusive_run_lock(private_state_path):
+            return _run_panel_locked(
+                root=root,
+                authentication_key_file=authentication_key_file,
+                claude_secure_storage_dir=claude_secure_storage_dir,
+                codex_secure_storage_dir=codex_secure_storage_dir,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
+                public_results_path=public_results_path,
+                supervisor_runtime_dir=supervisor_runtime_dir,
+                require_persistent_supervisor=True,
+                offline_test_evaluator=None,
+                cursor_credential_session=cursor_credential_session,
+                acknowledge_unbounded_provider_spend=True,
+            )
+    finally:
+        cursor_credential_session.close()
 
 
 def _run_panel_for_offline_test(
@@ -16576,6 +18637,19 @@ def _run_panel_for_offline_test(
         raise RuntimeError(
             "Explicit acknowledgement of unbounded provider spend is required"
         )
+    _assert_ephemeral_offline_test_namespace(
+        root=root,
+        mutable_paths=(
+            authentication_key_file,
+            private_state_path,
+            public_manifest_path,
+            public_results_path,
+        ),
+        secure_storage_paths=(
+            claude_secure_storage_dir,
+            codex_secure_storage_dir,
+        ),
+    )
     with _exclusive_run_lock(private_state_path):
         return _run_panel_locked(
             root=root,

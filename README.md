@@ -339,12 +339,18 @@ record. A local-only `finalize` recovery can reconcile a crash after that
 completion proof, but cannot restart a worker, authentication flow, or provider.
 Those implementation tests themselves authorize no provider call.
 
-V28 retains that detached execution boundary under fresh panel, cohort, and
-private namespaces. Its current public contract is
-`epiagentbench.persistent_supervisor_contract.v13`; the low-level supervisor
-state, worker-status, LaunchAgent, and execution-context protocol versions are
-unchanged. The V28-specific change is the typed, provider-free contract-
-attestation boundary described below.
+V28 retained that detached execution boundary under fresh panel, cohort, and
+private namespaces, then failed closed during provider-free preparation-runtime
+attestation before any profile or model call. It is terminal and non-resumable.
+V29 preserves the detached boundary while splitting preparation-runtime
+attestation into five content-free substages and adding a provider-free
+phase in the same supervised LaunchAgent child before the irreversible
+preflight claim. Its control-plane schemas are versioned, while unpublished
+commit IDs, receipts, and manifest remain explicit placeholders in the
+[V29 runbook](docs/V29_RUNBOOK.md). Its exact acknowledgement and hash are
+source-owned but are not manifest-bound authorization. No V29 runtime receipt,
+manifest, authentication receipt, supervisor run, provider/model call, result,
+trace, or score exists yet.
 
 The separately authorized live V9
 [preflight](results/development-matched-50x6-v9.preflight.json) passed all six
@@ -743,19 +749,63 @@ failure from failure to persist the immediately following checkpoint. V27 is
 terminal, non-resumable, and forbidden for cohort or namespace reuse. Its
 [runbook](docs/V27_RUNBOOK.md) is immutable historical evidence only.
 
-V28 closes that specific ambiguity under fresh identifiers
+V28 was designed to close that specific ambiguity under fresh identifiers
 `development-matched-50x6-v28` and `development_matched_panel_v28`. Before
-each provider-free contract group it durably records a finite
+each provider-free contract group it durably recorded a finite
 `attempted_operation` and last `completed_operation`; validation failures also
-carry a finite `contract_failure_code`. Checkpoint-persistence failures keep
+carried a finite `contract_failure_code`. Checkpoint-persistence failures kept
 separate codes, so they cannot be misreported as failed validation. The same
-content-free fields are exact-compared through incident envelope v2, terminal-
-incident attestation v2, and provider-free terminal audit v2. They expose no
+content-free fields were exact-compared through incident envelope v2, terminal-
+incident attestation v2, and provider-free terminal audit v2. They exposed no
 exception text, private path, provider output, prompt, observation, hidden
 episode identity or family, credential, schedule, score, or trace. The full
-fresh sequence is in the [V28 runbook](docs/V28_RUNBOOK.md). The no-site outer
+historical sequence is preserved in the terminal
+[V28 runbook](docs/V28_RUNBOOK.md). The no-site outer
 worker independently rejects invented finite-looking names, control fields on
 provider incidents, and failure codes that do not match the attempted check.
+
+V28 later failed at the still-coarse `preparation_runtime` operation after
+`authentication_binding` completed. Its authenticated terminal projection
+records zero completed profiles, zero conservatively chargeable model
+invocations, zero production episodes, and no scores. Public receipt and
+commit-order checks passed during the offline audit, and the surviving cache
+still matched its opaque public commitment; the record cannot safely
+distinguish the cache identity, either live smoke, or private cache binding.
+V28 and every V28 namespace are terminal and forbidden for retry or reuse. Its
+[runbook](docs/V28_RUNBOOK.md) is immutable historical evidence only.
+
+V29 supersedes V28 under fresh identifiers `development-matched-50x6-v29` and
+`development_matched_panel_v29`. The five ordered operations are
+`preparation_runtime_bound_contract`,
+`preparation_runtime_starsim_smoke`,
+`preparation_runtime_episode_startup_smoke`,
+`preparation_runtime_cache_identity`, and
+`preparation_runtime_private_cache_binding`, each with its matching finite
+`_failed` code. Cache identity performs one complete inventory per boundary
+after both smokes, so their final cache state is what crosses the claim.
+Before the irreversible six-call preflight claim, the same supervised child
+runs a provider-free phase containing all five operations—including the
+complete 30-start broker smoke—in
+the exact later LaunchAgent panel-child environment. It cannot read a provider
+credential, claim preflight, consume an episode, invoke a provider, or project
+a score. Before its first trace mutation it exact-checks the sealed spend
+receipt, canonical committed authentication-receipt bytes and repository
+binding, and authenticated supervisor execution binding. The first trace seals
+that prerequisite bundle. After a separately durable passed trace, the same
+child exact-re-attests the bundle and performs one exactly-once claim with
+full-state reconciliation and no repair of ambiguous state. Production and
+success finalization independently require that exact passed trace. See the
+[V29 runbook](docs/V29_RUNBOOK.md).
+
+V29 also makes the broker's filesystem assumptions executable: provider-free
+`TMPDIR` is capped at 72 UTF-8 bytes so the fixed 28-byte episode/socket suffix
+fits the 100-byte Unix-socket limit. The LaunchAgent seals that `TMPDIR` as a
+canonical, current-owner, exact-`0700` directory before it writes the runtime
+configuration. Clean `HOME` and `TMPDIR` are held by
+non-inheritable directory descriptors and re-attested between scientific
+substages; only finite `EINTR` is retried. The offline evaluator seams are
+confined to one owner-only ephemeral namespace and reject Git worktrees,
+external result/state paths, and external credential directories.
 
 The unused [v1 precommitment](results/development-matched-50x6-v1.manifest.json)
 is preserved for audit history but was [abandoned before any provider preflight
@@ -767,7 +817,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each future V28 assignment is designed to record an evaluator-owned,
+Each future V29 assignment is designed to record an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -812,9 +862,13 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V28 first completes an operator-owned Terminal,
+Before production, V29 first completes an operator-owned Terminal,
 foreground, zero-model authentication ceremony. Only after its sanitized
-receipt is committed does V28 run a disposable six-call, unscored
+receipt is committed does V29 start its supervised LaunchAgent child. That
+same child exact-checks its spend, published-authentication, and supervisor
+prerequisite bundle; completes the provider-free preclaim; durably seals its
+passed trace; re-attests those prerequisites; reconciles the one-shot claim;
+and only then begins a disposable six-call, unscored
 infrastructure/routing handshake on one shared synthetic episode. The handshake
 checks the frozen runtime and routing surfaces, exact model identity where
 receipts exist, evaluator replay plumbing, and the public tool boundary where
@@ -822,8 +876,13 @@ the provider exposes it. It deliberately does not require a valid final report,
 a minimum tool count, or a passing score: those are model capabilities measured
 in the fixed production denominator. The receipt reports finite durable call
 states and a conservative chargeable-call count, but no scores and no production
-episode is consumed. Cursor requires an explicit `CURSOR_API_KEY`; host login
-state is not copied into assignments. The terminal analysis predeclares
+episode is consumed. Cursor's narrow provider adapter requires an explicit
+`CURSOR_API_KEY`; host login state is not copied into assignments. The outer
+worker does not read the key. After claim, the child reads it exactly once,
+only when the first Cursor evaluator is reached; caches it only in child
+memory; adds it to the environment only around Cursor subprocesses; and wipes
+both cache and environment in the outer `finally`. Starsim/broker work and
+Claude and Codex calls never receive it. The terminal analysis predeclares
 20,000-draw family-stratified bootstrap intervals and adjusts all 15 exploratory
 pairwise comparisons together.
 
@@ -831,23 +890,14 @@ This remains development evidence—not held-out epidemiological calibration, a
 base-model leaderboard, or a real-world superiority claim. Prior medium-effort
 runs suggested roughly 19–21 serial hours, but Luna Max has not yet been timed
 on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
-150 hours; observed runtime should be reported rather than inferred. Claude has
-a $5 per-call runner ceiling. The V28 current-run Claude ceiling is $510: two
-Claude preflight calls plus 100 production calls, or 102 current-run Claude
-calls × $5. Prior failed panels contribute a conservative $100 ceiling: two v2
-Claude preflight calls ($10), the ambiguous v5 attempt ($5), v7's two returned
-Claude preflight calls ($10), v8's two
-preflight plus one production Claude calls ($15), V9's two preflight plus
-two production Claude calls ($20), V14's two returned Claude preflight
-calls ($10), V16's one started-not-finished Claude preflight call ($5), and
-V18's legacy early-marker first Claude preflight call ($5), and V23's two
-returned Claude preflight calls ($10), plus V26's conservative two-call
-allowance ($10) because its exact call count is indeterminate; v3, v4, v6,
-V10, V11, V12, V13, V15, V17, V19, V20, V21, V22, V24, V25, and V27
-started no Claude model call.
-The exact acknowledgement's cumulative Claude ceiling is therefore $610
-($510 for V28 plus $100 for prior failed panels), not a claim about measured
-billing. Codex and Cursor remain uncapped.
+150 hours; observed runtime should be reported rather than inferred. V28 was
+authorized under a historical `$610` cumulative Claude ceiling but failed
+before any model invocation, so it adds zero realized or conservative model
+calls. V29 retains a `$510` current-run Claude ceiling and the conservative
+`$100` allowance for prior panels, for `$610` cumulative; Codex and Cursor
+remain uncapped. Its exact acknowledgement text and hash are now source-owned,
+but no manifest-bound spend receipt exists. None of these limits authorizes V29
+spend; see the [V29 runbook](docs/V29_RUNBOOK.md).
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
@@ -858,10 +908,10 @@ only in their terminal [V20](docs/V20_RUNBOOK.md),
 [V23](docs/V23_RUNBOOK.md) runbooks and the superseded
 [V24 runbook](docs/V24_RUNBOOK.md) and
 [V25 runbook](docs/V25_RUNBOOK.md); they must not be executed or reused.
-V26 and V27 are terminal and must not be resumed or reused. V28 preparation,
-authorization, authentication, and execution must
-follow the fresh namespaces and publication sequence in the
-[V28 runbook](docs/V28_RUNBOOK.md).
+V26, V27, and V28 are terminal and must not be resumed or reused. Any future
+V29 preparation must follow the fresh namespaces, provider-free preclaim
+boundary, and placeholder discipline in the
+[V29 runbook](docs/V29_RUNBOOK.md).
 
 V27 retained the `$510` current-run Claude ceiling and used a conservative
 `$100` allowance for prior panels. V20, V21, and V22 each add `$0`; V23 adds `$10`
@@ -878,22 +928,47 @@ Its SHA-256 is
 `47c3e8d7eb79a574acffaf6f480b84fe8f44494775af994d4b1d40b3752f59f4`.
 V27 is terminal; this text no longer authorizes authentication or execution.
 
-V28 retains the `$510` current-run Claude ceiling and the conservative `$100`
+V28 retained the `$510` current-run Claude ceiling and the conservative `$100`
 allowance for prior panels. V27 adds `$0` because its authenticated terminal
 receipt proves that no model invocation became conservatively chargeable. The
-cumulative ceiling remains `$610`; Codex and Cursor remain uncapped. V28
-requires this new exact acknowledgement:
+cumulative ceiling remained `$610`; Codex and Cursor remained uncapped. V28
+used this exact historical acknowledgement:
 
 > I acknowledge the replacement six-call v28 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $610 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, and the v28 preflight and production run.
 
 Its SHA-256 is
 `dfdeadc9722bdd5112c8189d4512542cb101a805dd625990c9e8af3b46e63e4e`.
-Publication alone is not authorization: the exact text must later be sealed
-against the final V28 manifest and public precommitment before authentication
-or any provider-bearing operation.
+V28 is terminal with zero model calls, zero completed profiles, zero production
+episodes, and no scores. This text and hash no longer authorize any action.
 
-The V28 runner, runtime, hidden cohort, credential namespaces, and public manifest
-are frozen before any model-bearing provider call. Its Claude contract keeps
+V29's budget decomposition is fixed at `$510` for the current run plus the
+conservative `$100` prior-panel allowance, or `$610` cumulative; Codex and
+Cursor remain uncapped. Its source-owned exact acknowledgement is:
+
+> I acknowledge the replacement six-call v29 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $610 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, and the v29 preflight and production run.
+
+Its SHA-256 is
+`46b3b9477b44a3c6312746bd2632b40a825c30a774f66d1ca3eb4d6f684338cc`.
+This text and hash alone authorize nothing: a later explicit operator
+acknowledgement must be sealed against the exact published V29 manifest and
+public precommitment before authentication or execution.
+
+The V29 control plane uses runtime receipt schema
+`epiagentbench.preparation_runtime_preflight.v4`, bound preparation schema
+`epiagentbench.bound_preparation_runtime.v3`, persistent-supervisor contract
+`epiagentbench.persistent_supervisor_contract.v14`, LaunchAgent config
+`epiagentbench.launchd_agent.v15`, provider-free preclaim
+`epiagentbench.provider_free_preclaim.v3`, prerequisite bundle
+`epiagentbench.provider_free_preclaim_prerequisites.v1`, preflight incident
+envelope `epiagentbench.preflight_incident_envelope.v3`, and terminal audit
+`epiagentbench.terminal_audit.v3`. The clean preparation environment is
+`epiagentbench.provider_free_preparation_environment.v2`. These version
+constants authorize no
+authentication, supervisor start, provider call, or spend.
+
+The V29 design requires the runner, runtime, hidden cohort, credential
+namespaces, and public manifest to be frozen before any model-bearing provider
+call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
 while an evaluator-created link exposes exactly one panel-specific managed
 Glean credential directory to the trusted helper. That directory must be empty
@@ -960,7 +1035,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V28 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V29 also pins the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. Its tracked
 pre-private receipt hashes every enumerated regular file in each declared
@@ -968,7 +1043,7 @@ scientific distribution rather than relying only on package name/version or
 `RECORD` metadata. The trusted computing base includes the root administrator
 and the installed Glean distribution; there is not yet an independently
 approved digest or cryptographic source-to-binary provenance for that helper
-bundle. V28 commits the exact installed helper bundle after acknowledgement and
+bundle. V29 commits the exact installed helper bundle after acknowledgement and
 detects persistent identity or ownership drift at every call boundary, but a
 malicious administrator capable of an ABA swap between attestation and
 execution is explicitly out of scope. Such an administrator could also
@@ -984,7 +1059,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V28 detects the pipe-retaining form of that escape, but
+pipes; V29 detects the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

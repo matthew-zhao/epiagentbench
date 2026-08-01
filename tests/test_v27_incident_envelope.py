@@ -436,6 +436,11 @@ class V27IncidentEnvelopeTests(unittest.TestCase):
         ) -> dict[str, object]:
             return copy.deepcopy(state)
 
+        def forbidden_cursor_credential_load() -> str:
+            raise AssertionError(
+                "terminal publication test must not load Cursor credentials"
+            )
+
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             results = root / "results"
@@ -447,11 +452,7 @@ class V27IncidentEnvelopeTests(unittest.TestCase):
                 results / f"{matched.PANEL_ID}.preflight.json"
             )
             with (
-                patch.dict(
-                    os.environ,
-                    {"CURSOR_API_KEY": "offline-test-key"},
-                    clear=False,
-                ),
+                patch.dict(os.environ, {}, clear=True),
                 patch.object(
                     matched,
                     "_existing_path_without_final_symlink",
@@ -505,6 +506,9 @@ class V27IncidentEnvelopeTests(unittest.TestCase):
                     private_state_path=root / "private.json",
                     public_manifest_path=manifest_path,
                     public_preflight_path=output_path,
+                    cursor_credential_loader=(
+                        forbidden_cursor_credential_load
+                    ),
                     acknowledge_unbounded_provider_spend=True,
                 )
                 sealed = matched.assert_terminal_incident_ready_for_exit(

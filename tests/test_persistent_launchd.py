@@ -81,6 +81,16 @@ class _BlockingRunner:
 
 
 class PersistentLaunchAgentTests(unittest.TestCase):
+    def test_v29_schema_identity_keeps_launchd_v15_protocol_v8(self) -> None:
+        self.assertEqual(
+            launchd_agent._SCHEMA,
+            "epiagentbench.launchd_agent.v15",
+        )
+        self.assertEqual(
+            launchd_agent._PROTOCOL_VERSION,
+            "persistent-supervisor-v8",
+        )
+
     def setUp(self) -> None:
         self.temporary = TemporaryDirectory()
         self.root = Path(self.temporary.name).resolve()
@@ -147,11 +157,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             development_matched_panel,
             "assert_panel_authentication_ready",
             create=True,
-            return_value={
-                "panel_id": "development-matched-50x6-v9-test",
-                "status": "passed",
-                "model_calls_started": 0,
-            },
+            side_effect=AssertionError(
+                "outer LaunchAgent control plane entered credential readiness"
+            ),
         )
         self.mock_authentication_readiness = (
             self.authentication_readiness.start()
@@ -187,14 +195,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.mock_provider_free_prelaunch = (
             self.provider_free_prelaunch.start()
         )
-        self.real_cursor_attestation = (
-            launchd_agent._attest_cursor_keychain
-        )
-        self.cursor_readiness = patch.object(
-            launchd_agent,
-            "_attest_cursor_keychain",
-        )
-        self.mock_cursor_readiness = self.cursor_readiness.start()
         self.isolated_process = patch.object(
             launchd_agent,
             "_validate_isolated_python_process",
@@ -204,7 +204,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.isolated_process.stop()
-        self.cursor_readiness.stop()
         self.provider_free_prelaunch.stop()
         self.environment_preflight_readiness.stop()
         self.durable_readiness.stop()
@@ -442,6 +441,22 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertNotIn("cursor_api_key", config)
         self.assertNotIn("environment", config)
 
+    def test_generated_agent_uses_canonical_owner_only_socket_tmpdir(self) -> None:
+        self._generate()
+        config, _ = self._config_and_key()
+
+        temporary_root = Path(config["base_environment"]["TMPDIR"])
+        metadata = temporary_root.lstat()
+        self.assertEqual(temporary_root, temporary_root.resolve(strict=True))
+        self.assertFalse(temporary_root.is_symlink())
+        self.assertTrue(temporary_root.is_dir())
+        self.assertEqual(metadata.st_uid, os.getuid())
+        self.assertEqual(metadata.st_mode & 0o777, 0o700)
+        self.assertLessEqual(
+            len(os.fsencode(str(temporary_root))),
+            launchd_agent._MAX_EPISODE_TMPDIR_BYTES,
+        )
+
     def test_generation_rejects_noncanonical_public_output_before_runtime(
         self,
     ) -> None:
@@ -543,7 +558,11 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
         }
 
-        def assert_sealed_environment(**_kwargs):
+        original_compute_execution_context = (
+            persistent_supervisor.compute_execution_context_sha256
+        )
+
+        def assert_sealed_environment(**kwargs):
             self.assertEqual(
                 {
                     name: os.environ.get(name)
@@ -551,12 +570,16 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 },
                 expected_environment,
             )
-            return {"status": "passed", "model_calls_started": 0}
+            return original_compute_execution_context(**kwargs)
 
-        self.mock_authentication_readiness.side_effect = (
-            assert_sealed_environment
-        )
-        with patch.dict(os.environ, poisoned, clear=False):
+        with (
+            patch.object(
+                persistent_supervisor,
+                "compute_execution_context_sha256",
+                side_effect=assert_sealed_environment,
+            ),
+            patch.dict(os.environ, poisoned, clear=False),
+        ):
             before = {
                 name: os.environ.get(name) for name in expected_environment
             }
@@ -568,6 +591,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 },
                 before,
             )
+
     def test_v18_start_self_bootstraps_and_restores_cache_environment(
         self,
     ) -> None:
@@ -683,7 +707,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             (self.runtime / "launchd-start-request.json").exists()
         )
         self.assertEqual(calls, [])
-        self.mock_cursor_readiness.assert_not_called()
 
     def test_v18_all_config_controls_self_bootstrap_and_restore_environment(
         self,
@@ -888,7 +911,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 command_runner=forbidden_control,
             )
         self.assertEqual(calls, [])
-        self.mock_cursor_readiness.assert_not_called()
         self.assertFalse(
             (self.runtime / "launchd-start-request.json").exists()
         )
@@ -1031,10 +1053,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v27_rejects_predecessor_launchd_schemas_before_control_action(
+    def test_v29_rejects_predecessor_launchd_schemas_before_control_action(
         self,
     ) -> None:
-        for version in (11, 12, 13):
+        for version in (11, 12, 13, 14):
             with self.subTest(schema_version=version):
                 runtime = self.root / f"legacy-v{version}-runtime"
                 generated = self._generate(
@@ -1077,7 +1099,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                         command_runner=forbidden_control,
                     )
                 self.assertEqual(calls, [])
-                self.mock_cursor_readiness.assert_not_called()
                 self.assertFalse(
                     (runtime / "launchd-start-request.json").exists()
                 )
@@ -1232,26 +1253,13 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         with self.assertRaises(LaunchAgentError):
             self._generate(claude_secure_storage_dir=not_a_directory)
 
-    def test_generator_requires_authentication_readiness_before_runtime_creation(
+    def test_generator_defers_authentication_readiness_to_claimed_child(
         self,
     ) -> None:
-        self.mock_authentication_readiness.side_effect = ValueError(
-            "authentication not ready"
-        )
+        generated = self._generate()
 
-        with self.assertRaises(LaunchAgentError):
-            self._generate()
-
-        self.assertFalse(self.runtime.exists())
-        self.mock_authentication_readiness.assert_called_once_with(
-            root=self.repository,
-            authentication_key_file=self.authentication_key,
-            claude_secure_storage_dir=self.claude_storage,
-            codex_secure_storage_dir=self.codex_storage,
-            private_state_path=self.private_state,
-            public_manifest_path=self.public_manifest,
-            require_clean_checkout=True,
-        )
+        self.assertTrue(Path(generated["config_path"]).is_file())
+        self.mock_authentication_readiness.assert_not_called()
 
     def test_authentication_receipt_is_derived_sealed_and_revalidated(
         self,
@@ -1342,38 +1350,34 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
         self.assertEqual(len(calls), 1)
 
-    def test_start_rechecks_authentication_before_irreversible_marker(
+    def test_start_defers_authentication_readiness_to_claimed_child(
         self,
     ) -> None:
         self._generate()
-        self.mock_authentication_readiness.side_effect = RuntimeError(
-            "credential identity changed"
-        )
         calls: list[list[str]] = []
 
-        def should_not_run(arguments, **kwargs):
+        def launchctl_only(arguments, **kwargs):
             calls.append(list(arguments))
             return subprocess.CompletedProcess(
                 arguments, 0, stdout=b"", stderr=b""
             )
 
-        with self.assertRaises(LaunchAgentError):
-            start_launch_agent(
-                self.runtime,
-                authentication_key_file=self.authentication_key,
-                command_runner=should_not_run,
-            )
+        response = start_launch_agent(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=launchctl_only,
+        )
 
-        self.assertFalse(
+        self.assertEqual(response["state"], "start_requested")
+        self.assertTrue(
             (self.runtime / "launchd-start-request.json").exists()
         )
-        self.assertEqual(calls, [])
+        self.assertEqual(len(calls), 1)
         self.mock_durable_readiness.assert_called_once_with(
             root=self.repository,
             private_state_path=self.private_state,
         )
-        self.assertEqual(self.mock_authentication_readiness.call_count, 2)
-        self.mock_cursor_readiness.assert_not_called()
+        self.mock_authentication_readiness.assert_not_called()
 
     def test_start_rechecks_preflight_before_keychain_and_start_marker(
         self,
@@ -1408,7 +1412,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             public_manifest_path=self.public_manifest,
         )
         self.mock_provider_free_prelaunch.assert_not_called()
-        self.mock_cursor_readiness.assert_not_called()
 
     def test_start_rechecks_prelaunch_before_keychain_and_start_marker(
         self,
@@ -1447,62 +1450,42 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             operation="production",
             public_manifest_path=self.public_manifest,
         )
-        self.mock_cursor_readiness.assert_not_called()
 
-    def test_start_requires_cursor_keychain_before_irreversible_marker(
+    def test_start_never_accesses_cursor_keychain_before_marker(
         self,
     ) -> None:
         self._generate()
-        self.mock_cursor_readiness.side_effect = RuntimeError(
-            "Cursor key unavailable"
-        )
         calls: list[list[str]] = []
 
-        def should_not_run(arguments, **kwargs):
+        def launchctl_only(arguments, **kwargs):
             calls.append(list(arguments))
             return subprocess.CompletedProcess(
                 arguments, 0, stdout=b"", stderr=b""
             )
 
-        with self.assertRaises(LaunchAgentError):
-            start_launch_agent(
-                self.runtime,
-                authentication_key_file=self.authentication_key,
-                command_runner=should_not_run,
-            )
+        start_launch_agent(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=launchctl_only,
+        )
 
-        self.assertFalse(
+        self.assertTrue(
             (self.runtime / "launchd-start-request.json").exists()
         )
-        self.assertEqual(calls, [])
-        self.mock_cursor_readiness.assert_called_once()
-
-    def test_cursor_keychain_attestation_never_retrieves_secret(self) -> None:
-        self._generate()
-        config, _ = self._config_and_key()
-        observed: dict[str, object] = {}
-
-        def fake_security(arguments, **kwargs):
-            observed["arguments"] = list(arguments)
-            observed["stdin"] = kwargs["stdin"]
-            observed["stdout"] = kwargs["stdout"]
-            observed["stderr"] = kwargs["stderr"]
-            return subprocess.CompletedProcess(arguments, 0)
-
-        self.real_cursor_attestation(
-            config,
-            command_runner=fake_security,
+        self.assertTrue(calls)
+        self.assertFalse(
+            any("security" in argument for call in calls for argument in call)
         )
 
-        arguments = observed["arguments"]
-        self.assertEqual(arguments[0:2], [
-            "/usr/bin/security",
-            "find-generic-password",
-        ])
-        self.assertNotIn("-w", arguments)
-        self.assertEqual(observed["stdin"], subprocess.DEVNULL)
-        self.assertEqual(observed["stdout"], subprocess.DEVNULL)
-        self.assertEqual(observed["stderr"], subprocess.DEVNULL)
+    def test_runner_receives_only_cursor_keychain_locator(self) -> None:
+        self._generate()
+        config, _ = self._config_and_key()
+        command = launchd_agent._runner_command(config)
+        self.assertIn("--cursor-keychain-service", command)
+        self.assertIn("epiagentbench-cursor-v9-test", command)
+        self.assertIn("--cursor-keychain-account", command)
+        self.assertIn("offline-test-account", command)
+        self.assertNotIn("CURSOR_API_KEY", " ".join(command))
 
     def test_worker_child_exit_is_finite_and_never_persists_keychain_value(self) -> None:
         generated = self._generate()
@@ -1510,16 +1493,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         config_path = Path(generated["config_path"])
         observed: dict[str, str] = {}
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=(_SECRET_CANARIES[0] + "\n").encode(),
-                stderr=b"ignored provider diagnostic",
-            )
-
         def fake_child(config, *, child_environment, authentication_key):
-            observed["cursor"] = child_environment["CURSOR_API_KEY"]
+            observed["cursor_absent"] = str(
+                "CURSOR_API_KEY" not in child_environment
+            )
             observed["authentication_key"] = authentication_key.decode("ascii")
             return 19
 
@@ -1527,13 +1504,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.launchd_agent._run_core_supervisor",
             side_effect=fake_child,
         ):
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(return_code, 19)
-        self.assertEqual(observed["cursor"], _SECRET_CANARIES[0])
+        self.assertEqual(observed["cursor_absent"], "True")
         self.assertEqual(observed["authentication_key"], "a" * 32)
         status_path = self.runtime / "launchd-worker-status.json"
         self.assertEqual(status_path.stat().st_mode & 0o777, 0o600)
@@ -1551,14 +1525,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self._commit_start()
         config_path = Path(generated["config_path"])
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=b"offline-cursor-key\n",
-                stderr=b"",
-            )
-
         failure = persistent_supervisor.RunnerFailedError(
             persistent_supervisor.FailureCode.RUNNER_EXIT
         )
@@ -1567,10 +1533,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.launchd_agent._run_core_supervisor",
             side_effect=failure,
         ):
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(return_code, 70)
         config, key = self._config_and_key()
@@ -1717,14 +1680,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self._commit_start()
         config_path = Path(generated["config_path"])
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=b"offline-cursor-key\n",
-                stderr=b"",
-            )
-
         with patch(
             "epiagentbench.launchd_agent._run_core_supervisor",
             return_value=(
@@ -1747,10 +1702,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         ), patch(
             "epiagentbench.launchd_agent._finalize_launch_agent_validated",
         ) as finalize:
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(
             return_code,
@@ -1806,14 +1758,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 command_runner=AuditRequiredRunner(),
             )
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=b"offline-cursor-key\n",
-                stderr=b"",
-            )
-
         observed_environment: dict[str, str] = {}
 
         def fake_core(
@@ -1828,7 +1772,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
 
         file_sha256 = "sha256:" + "e" * 64
         audit_result = {
-            "schema_version": "epiagentbench.terminal_audit.v2",
+            "schema_version": "epiagentbench.terminal_audit.v3",
             "panel_id": config["panel_id"],
             "operation": "preflight",
             "status": "reconciled_and_attested",
@@ -1872,10 +1816,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.launchd_agent._attest_handled_terminal_receipt",
             return_value=terminal_attestation,
         ) as public_receipt_attestation:
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(
             return_code,
@@ -1902,7 +1843,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         config, _ = self._config_and_key()
         valid = {
-            "schema_version": "epiagentbench.terminal_audit.v2",
+            "schema_version": "epiagentbench.terminal_audit.v3",
             "panel_id": config["panel_id"],
             "operation": "preflight",
             "status": "reconciled_and_attested",
@@ -1998,22 +1939,11 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self._commit_start()
         config_path = Path(generated["config_path"])
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=b"offline-cursor-key\n",
-                stderr=b"",
-            )
-
         with patch(
             "epiagentbench.launchd_agent._run_core_supervisor",
             return_value=persistent_supervisor.TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
         ):
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(return_code, 70)
         config, key = self._config_and_key()
@@ -2037,14 +1967,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self._commit_start()
         config_path = Path(generated["config_path"])
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=b"offline-cursor-key\n",
-                stderr=b"",
-            )
-
         with patch(
             "epiagentbench.launchd_agent._run_core_supervisor",
             return_value=persistent_supervisor.TERMINAL_AUDIT_REQUIRED_EXIT_CODE,
@@ -2054,10 +1976,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.launchd_agent._attest_terminal_audit_required_exit",
             side_effect=RuntimeError(_SECRET_CANARIES[2]),
         ):
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(return_code, 70)
         config, key = self._config_and_key()
@@ -2152,14 +2071,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self._commit_start()
         config_path = Path(generated["config_path"])
 
-        def fake_keychain(arguments, **kwargs):
-            return subprocess.CompletedProcess(
-                arguments,
-                0,
-                stdout=b"offline-cursor-key\n",
-                stderr=b"",
-            )
-
         with patch(
             "epiagentbench.launchd_agent._run_core_supervisor",
             return_value=(
@@ -2169,10 +2080,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "epiagentbench.launchd_agent._attest_handled_terminal_receipt",
             side_effect=RuntimeError("offline missing receipt"),
         ):
-            return_code = run_launch_agent_worker(
-                config_path,
-                keychain_runner=fake_keychain,
-            )
+            return_code = run_launch_agent_worker(config_path)
 
         self.assertEqual(return_code, 70)
         config, key = self._config_and_key()
@@ -2210,7 +2118,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             with self.assertRaises(LaunchAgentError):
                 run_launch_agent_worker(
                     Path(generated["config_path"]),
-                    keychain_runner=forbidden_keychain,
                 )
         finally:
             self.mock_isolated_process = self.isolated_process.start()
@@ -2409,7 +2316,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         with self.assertRaises(LaunchAgentError):
             run_launch_agent_worker(
                 Path(generated["config_path"]),
-                keychain_runner=forbidden_keychain,
             )
         self.assertEqual(keychain_calls, 0)
 
@@ -2492,7 +2398,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     with self.assertRaises(LaunchAgentError):
                         run_launch_agent_worker(
                             Path(generated["config_path"]),
-                            keychain_runner=forbidden_keychain,
                         )
                     self.assertEqual(keychain_calls, 0)
 
@@ -2535,7 +2440,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self.assertEqual(
                 run_launch_agent_worker(
                     Path(generated["config_path"]),
-                    keychain_runner=fake_keychain,
                 ),
                 0,
             )
@@ -2616,7 +2520,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self.assertEqual(
                 run_launch_agent_worker(
                     Path(generated["config_path"]),
-                    keychain_runner=fake_keychain,
                 ),
                 9,
             )
@@ -2627,30 +2530,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 },
                 before,
             )
-
-    def test_keychain_timeout_fails_closed_with_authenticated_status(self) -> None:
-        generated = self._generate()
-        self._commit_start()
-
-        def timed_out(arguments, **kwargs):
-            self.assertEqual(kwargs["timeout"], 15)
-            raise subprocess.TimeoutExpired(arguments, kwargs["timeout"])
-
-        self.assertEqual(
-            run_launch_agent_worker(
-                Path(generated["config_path"]),
-                keychain_runner=timed_out,
-            ),
-            70,
-        )
-        status = launch_agent_status(
-            self.runtime,
-            authentication_key_file=self.authentication_key,
-            command_runner=self._not_loaded_launchctl,
-        )
-        self.assertEqual(status["worker_state"], "terminal_incident")
-        self.assertEqual(status["worker_reason"], "cursor_keychain_unavailable")
-        self.assertIs(status["worker_authenticated"], True)
 
     def test_launchctl_not_found_is_distinct_from_query_failure(self) -> None:
         self._generate()
@@ -3082,7 +2961,6 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self.assertEqual(
                 run_launch_agent_worker(
                     Path(generated["config_path"]),
-                    keychain_runner=fake_keychain,
                 ),
                 0,
             )
