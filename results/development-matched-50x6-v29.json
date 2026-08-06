@@ -1,0 +1,22 @@
+{
+  "attestation_failure_code": "core_unhealthy",
+  "completed_assignments": 25,
+  "development_only": true,
+  "failure_stage": "supervisor_attestation_after_provider",
+  "hermetic": false,
+  "incident_code": "provider_execution_isolation_failed",
+  "leaderboard_eligible": false,
+  "model_invocations_conservatively_chargeable": 26,
+  "panel_id": "development-matched-50x6-v29",
+  "planned_assignments": 300,
+  "precommitment_sha256": "sha256:f22a0b6b3967051e82f60f79625bc83e2c45d92b7be3e182c6513a5b86c445f4",
+  "results": [],
+  "schema_version": "development_matched_panel_v29",
+  "started_at_utc": "2026-08-06T05:44:42.869975Z",
+  "status": "stopped_supervisor_incident",
+  "summary": {
+    "primary_estimand": "pending"
+  },
+  "terminal_assignments": 26,
+  "transport_voids": 1
+}
