@@ -21,6 +21,7 @@ from epiagentbench.persistent_supervisor import (
     PersistentSupervisor,
     ProcessDiagnostic,
     ProcessIdentity,
+    ProcessIdentityUnavailableError,
     RecoveryDecision,
     RunnerFailedError,
     SupervisorBusyError,
@@ -48,7 +49,7 @@ EXECUTION_CONTEXT_DIGEST = compute_execution_context_sha256(
     launchd_label="org.epiagentbench.panel.offline-test",
     operation="offline-soak",
     panel_id="epiagentbench-v9-test",
-    protocol_version="persistent-supervisor-v8",
+    protocol_version="persistent-supervisor-v9",
     public_manifest_sha256="sha256:" + "3" * 64,
     python_executable_sha256="sha256:" + "8" * 64,
     runner_source_sha256="sha256:" + "4" * 64,
@@ -231,6 +232,32 @@ class PersistentSupervisorTests(unittest.TestCase):
             return []
         return [int(value) for value in self.ledger.read_text().splitlines()]
 
+    def test_v30_schema_and_authentication_domains_are_cut(self) -> None:
+        self.assertEqual(
+            persistent.SCHEMA_VERSION,
+            "epiagentbench.persistent_supervisor.v4",
+        )
+        self.assertEqual(
+            persistent._RECORD_DOMAIN,
+            b"epiagentbench:persistent-supervisor:record:v4\x00",
+        )
+        self.assertEqual(
+            persistent._EVENT_HASH_DOMAIN,
+            b"epiagentbench:persistent-supervisor:event-hash:v4\x00",
+        )
+        self.assertEqual(
+            persistent._EVENT_HMAC_DOMAIN,
+            b"epiagentbench:persistent-supervisor:event-hmac:v4\x00",
+        )
+        self.assertEqual(
+            persistent._IDENTITY_DOMAIN,
+            b"epiagentbench:persistent-supervisor:identity:v3\x00",
+        )
+        self.assertEqual(
+            persistent._EXECUTION_CONTEXT_DOMAIN,
+            b"epiagentbench:persistent-supervisor:execution-context:v4\x00",
+        )
+
     def test_recovery_classifier_permits_only_provably_unlaunched_boundaries(self) -> None:
         for phase in (
             AssignmentPhase.CLEAN_BOUNDARY,
@@ -266,7 +293,7 @@ class PersistentSupervisorTests(unittest.TestCase):
             "launchd_label": "org.epiagentbench.panel.offline-test",
             "operation": "offline-soak",
             "panel_id": "epiagentbench-v9-test",
-            "protocol_version": "persistent-supervisor-v8",
+            "protocol_version": "persistent-supervisor-v9",
             "public_manifest_sha256": "sha256:" + "3" * 64,
             "python_executable_sha256": "sha256:" + "8" * 64,
             "runner_source_sha256": "sha256:" + "4" * 64,
@@ -320,6 +347,115 @@ class PersistentSupervisorTests(unittest.TestCase):
                     loader(self.runtime, authentication_key=AUTHENTICATION_KEY)
                 path.write_bytes(original)
                 os.chmod(path, 0o600)
+
+    def test_v30_rejects_predecessor_and_open_supervisor_records(self) -> None:
+        self._supervisor().run(LedgerRunner(1, self.ledger))
+        for name, record_type, loader in (
+            ("status.json", "status", read_supervisor_status),
+            ("lease.json", "lease", read_supervisor_lease),
+        ):
+            with self.subTest(name=name):
+                path = self.runtime / name
+                original = path.read_bytes()
+                sealed = json.loads(original)
+                payload = {
+                    key: value
+                    for key, value in sealed.items()
+                    if key != "authentication"
+                }
+                for mutation, replacement in (
+                    (
+                        "predecessor",
+                        {
+                            "schema_version": (
+                                "epiagentbench.persistent_supervisor.v3"
+                            )
+                        },
+                    ),
+                    ("open", {"unexpected_field": "not-allowed"}),
+                ):
+                    with self.subTest(name=name, mutation=mutation):
+                        mutated = {**payload, **replacement}
+                        path.write_bytes(
+                            persistent._canonical_bytes(
+                                persistent._seal_record(
+                                    record_type,
+                                    mutated,
+                                    AUTHENTICATION_KEY,
+                                )
+                            )
+                            + b"\n"
+                        )
+                        os.chmod(path, 0o600)
+                        with self.assertRaises(IntegrityError):
+                            loader(
+                                self.runtime,
+                                authentication_key=AUTHENTICATION_KEY,
+                            )
+                path.write_bytes(original)
+                os.chmod(path, 0o600)
+
+    def test_v30_rejects_predecessor_and_open_event_schemas(self) -> None:
+        self._supervisor().run(LedgerRunner(1, self.ledger))
+        path = self.runtime / persistent.EVENT_FILE
+        original = path.read_bytes()
+        first = json.loads(original.splitlines()[0])
+        original_body = dict(first["body"])
+
+        def sealed_event(body: dict[str, object]) -> dict[str, object]:
+            record_sha256 = persistent._event_hash(body)
+            signed = {
+                "body": body,
+                "record_sha256": record_sha256,
+            }
+            return {
+                **signed,
+                "authentication": {
+                    "algorithm": "hmac-sha256",
+                    "tag": persistent._event_tag(
+                        signed,
+                        AUTHENTICATION_KEY,
+                    ),
+                },
+            }
+
+        mutations: tuple[tuple[str, dict[str, object]], ...] = (
+            (
+                "predecessor_body",
+                sealed_event(
+                    {
+                        **original_body,
+                        "schema_version": (
+                            "epiagentbench.persistent_supervisor.v3"
+                        ),
+                    }
+                ),
+            ),
+            (
+                "open_body",
+                sealed_event(
+                    {**original_body, "unexpected_field": "not-allowed"}
+                ),
+            ),
+            (
+                "open_envelope",
+                {
+                    **sealed_event(original_body),
+                    "unexpected_field": "not-allowed",
+                },
+            ),
+        )
+        for mutation, event in mutations:
+            with self.subTest(mutation=mutation):
+                path.write_bytes(persistent._canonical_bytes(event) + b"\n")
+                os.chmod(path, 0o600)
+                with self.assertRaises(IntegrityError):
+                    verify_event_log(
+                        self.runtime,
+                        authentication_key=AUTHENTICATION_KEY,
+                    )
+        path.write_bytes(original)
+        os.chmod(path, 0o600)
 
     def test_status_and_lease_share_timestamp_across_second_boundary(self) -> None:
         wall_clock = IncrementingWallClock()
@@ -460,6 +596,285 @@ class PersistentSupervisorTests(unittest.TestCase):
         self.assertIsInstance(outcome[0], dict)
         self.assertEqual(first_runner.starts, 1)
 
+    def test_darwin_boot_session_uuid_is_canonical_and_strict(self) -> None:
+        upper = b"19AB956D-0088-46DB-B2AB-FC67966D5433\n"
+        lower = b"19ab956d-0088-46db-b2ab-fc67966d5433"
+        expected = (
+            b"darwin-bootsessionuuid-v1:"
+            b"19ab956d-0088-46db-b2ab-fc67966d5433"
+        )
+        self.assertEqual(
+            persistent._canonical_darwin_boot_session_token(upper),
+            expected,
+        )
+        self.assertEqual(
+            persistent._canonical_darwin_boot_session_token(lower),
+            expected,
+        )
+        for invalid in (
+            b"",
+            b"00000000-0000-0000-0000-000000000000",
+            b"19ab956d008846dbb2abfc67966d5433",
+            b" 19ab956d-0088-46db-b2ab-fc67966d5433",
+            b"19ab956d-0088-46db-b2ab-fc67966d5433 ",
+            b"19ab956d-0088-46db-b2ab-fc67966d5433\n\n",
+            b"not-a-boot-session-uuid-000000000000",
+        ):
+            with self.subTest(invalid=invalid):
+                self.assertIsNone(
+                    persistent._canonical_darwin_boot_session_token(invalid)
+                )
+
+    def test_darwin_boot_probe_uses_only_boot_session_uuid(self) -> None:
+        payload = b"19AB956D-0088-46DB-B2AB-FC67966D5433\x00"
+
+        class FakeSysctlByName:
+            argtypes: object = None
+            restype: object = None
+
+            def __init__(self) -> None:
+                self.calls: list[tuple[bytes, object, int]] = []
+
+            def __call__(
+                self,
+                name: bytes,
+                output: object,
+                size_pointer: object,
+                replacement: object,
+                replacement_size: int,
+            ) -> int:
+                size = persistent.ctypes.cast(
+                    size_pointer,
+                    persistent.ctypes.POINTER(persistent.ctypes.c_size_t),
+                ).contents
+                self.calls.append((name, output, replacement_size))
+                self.assert_no_replacement(replacement, replacement_size)
+                if output is None:
+                    size.value = len(payload)
+                    return 0
+                persistent.ctypes.memmove(output, payload, len(payload))
+                size.value = len(payload)
+                return 0
+
+            @staticmethod
+            def assert_no_replacement(
+                replacement: object,
+                replacement_size: int,
+            ) -> None:
+                if replacement is not None or replacement_size != 0:
+                    raise AssertionError("boot-session sysctl attempted a write")
+
+        fake_sysctl = FakeSysctlByName()
+        fake_libc = type("FakeLibC", (), {"sysctlbyname": fake_sysctl})()
+        with (
+            patch.object(persistent.ctypes, "CDLL", return_value=fake_libc),
+            patch.object(
+                persistent.subprocess,
+                "run",
+                side_effect=AssertionError("external sysctl is forbidden"),
+            ),
+        ):
+            token = persistent._darwin_boot_session_token()
+        self.assertEqual(
+            token,
+            (
+                b"darwin-bootsessionuuid-v1:"
+                b"19ab956d-0088-46db-b2ab-fc67966d5433"
+            ),
+        )
+        self.assertEqual(len(fake_sysctl.calls), 2)
+        self.assertEqual(
+            [call[0] for call in fake_sysctl.calls],
+            [b"kern.bootsessionuuid", b"kern.bootsessionuuid"],
+        )
+        self.assertIsNone(fake_sysctl.calls[0][1])
+        self.assertIsNotNone(fake_sysctl.calls[1][1])
+
+    def test_darwin_boot_probe_retries_only_unavailable_reads(self) -> None:
+        expected = (
+            b"darwin-bootsessionuuid-v1:"
+            b"19ab956d-0088-46db-b2ab-fc67966d5433"
+        )
+        with (
+            patch.object(persistent.Path, "read_bytes", side_effect=OSError),
+            patch.object(persistent.platform, "system", return_value="Darwin"),
+            patch.object(
+                persistent,
+                "_darwin_boot_session_token",
+                side_effect=(None, None, expected),
+            ) as boot_session,
+            patch.object(persistent.time, "sleep") as sleep,
+        ):
+            self.assertEqual(persistent._boot_token(), expected)
+        self.assertEqual(boot_session.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        sleep.assert_called_with(0.01)
+
+    def test_darwin_process_birth_fields_are_numeric_and_strict(self) -> None:
+        self.assertEqual(
+            persistent.ctypes.sizeof(persistent._DarwinProcBSDInfo),
+            persistent._DARWIN_PROC_BSDINFO_SIZE,
+        )
+        self.assertEqual(persistent._DarwinProcBSDInfo.pbi_pid.offset, 12)
+        self.assertEqual(
+            persistent._DarwinProcBSDInfo.pbi_start_tvsec.offset,
+            120,
+        )
+        self.assertEqual(
+            persistent._DarwinProcBSDInfo.pbi_start_tvusec.offset,
+            128,
+        )
+        token = persistent._canonical_darwin_process_birth_token(
+            requested_pid=4123,
+            reported_pid=4123,
+            start_seconds=1_786_000_000,
+            start_microseconds=123_456,
+        )
+        self.assertEqual(
+            token,
+            b"darwin-proc-pidtbsdinfo-v1:1786000000:123456",
+        )
+        invalid = (
+            {"requested_pid": 0},
+            {"reported_pid": 4124},
+            {"start_seconds": 0},
+            {"start_microseconds": -1},
+            {"start_microseconds": 1_000_000},
+        )
+        base = {
+            "requested_pid": 4123,
+            "reported_pid": 4123,
+            "start_seconds": 1_786_000_000,
+            "start_microseconds": 123_456,
+        }
+        for changes in invalid:
+            with self.subTest(changes=changes):
+                self.assertIsNone(
+                    persistent._canonical_darwin_process_birth_token(
+                        **{**base, **changes}
+                    )
+                )
+
+    def test_darwin_process_birth_uses_exact_proc_pidinfo_abi(self) -> None:
+        class FakeProcPidInfo:
+            argtypes: object = None
+            restype: object = None
+
+            def __init__(self, observed_size_delta: int = 0) -> None:
+                self.calls: list[tuple[int, int, int, int]] = []
+                self.observed_size_delta = observed_size_delta
+
+            def __call__(
+                self,
+                pid: int,
+                flavor: int,
+                argument: int,
+                buffer: object,
+                size: int,
+            ) -> int:
+                self.calls.append((pid, flavor, argument, size))
+                info = persistent.ctypes.cast(
+                    buffer,
+                    persistent.ctypes.POINTER(
+                        persistent._DarwinProcBSDInfo
+                    ),
+                ).contents
+                info.pbi_pid = pid
+                info.pbi_start_tvsec = 1_786_000_000
+                info.pbi_start_tvusec = 123_456
+                return size + self.observed_size_delta
+
+        fake_proc_pidinfo = FakeProcPidInfo()
+        fake_libproc = type(
+            "FakeLibProc",
+            (),
+            {"proc_pidinfo": fake_proc_pidinfo},
+        )()
+        with patch.object(
+            persistent.ctypes,
+            "CDLL",
+            return_value=fake_libproc,
+        ) as load:
+            token = persistent._darwin_process_birth_token(4123)
+        self.assertEqual(
+            token,
+            b"darwin-proc-pidtbsdinfo-v1:1786000000:123456",
+        )
+        load.assert_called_once_with(
+            "/usr/lib/libproc.dylib",
+            use_errno=True,
+        )
+        self.assertEqual(
+            fake_proc_pidinfo.calls,
+            [(4123, 3, 0, persistent._DARWIN_PROC_BSDINFO_SIZE)],
+        )
+
+        short_proc_pidinfo = FakeProcPidInfo(observed_size_delta=-1)
+        short_libproc = type(
+            "ShortLibProc",
+            (),
+            {"proc_pidinfo": short_proc_pidinfo},
+        )()
+        with patch.object(
+            persistent.ctypes,
+            "CDLL",
+            return_value=short_libproc,
+        ):
+            self.assertIsNone(
+                persistent._darwin_process_birth_token(4123)
+            )
+
+    def test_darwin_process_birth_never_uses_formatted_ps_output(self) -> None:
+        expected = b"darwin-proc-pidtbsdinfo-v1:1786000000:123456"
+        with (
+            patch.object(persistent.Path, "read_bytes", side_effect=OSError),
+            patch.object(persistent.platform, "system", return_value="Darwin"),
+            patch.object(
+                persistent,
+                "_darwin_process_birth_token",
+                return_value=expected,
+            ) as birth,
+            patch.object(
+                persistent.subprocess,
+                "run",
+                side_effect=AssertionError("formatted ps output is forbidden"),
+            ),
+        ):
+            self.assertEqual(persistent._process_birth_token(4123), expected)
+        birth.assert_called_once_with(4123)
+
+    def test_unavailable_identity_never_reaches_runner_or_durable_state(
+        self,
+    ) -> None:
+        cases = (
+            ("boot", None, b"birth"),
+            ("birth", b"boot", None),
+        )
+        for name, boot, birth in cases:
+            runtime = self.root / f"unavailable-{name}"
+            runner = LedgerRunner(1, self.ledger)
+            with (
+                self.subTest(identity=name),
+                patch.object(persistent, "_boot_token", return_value=boot),
+                patch.object(
+                    persistent,
+                    "_process_birth_token",
+                    return_value=birth,
+                ),
+                self.assertRaises(ProcessIdentityUnavailableError),
+            ):
+                persistent.run_supervised_panel(
+                    runner_argv=("unused-offline-runner",),
+                    environment={},
+                    runtime_dir=runtime,
+                    authentication_key=AUTHENTICATION_KEY,
+                    execution_context_sha256=EXECUTION_CONTEXT_DIGEST,
+                    command_runner=runner,
+                )
+            self.assertEqual(runner.starts, 0)
+            self.assertTrue(runtime.is_dir())
+            self.assertEqual(list(runtime.iterdir()), [])
+
     def test_process_diagnostic_detects_pid_reuse_and_boot_change(self) -> None:
         status = {
             "pid": 4123,
@@ -482,6 +897,24 @@ class PersistentSupervisorTests(unittest.TestCase):
             self.assertIs(
                 diagnose_supervisor_process(status), ProcessDiagnostic.BIRTH_MISMATCH
             )
+
+    def test_process_diagnostic_unavailable_short_circuits_liveness(self) -> None:
+        status = {
+            "pid": 4123,
+            "boot_identity_sha256": persistent._identity_hash(b"boot-a"),
+            "process_birth_identity_sha256": persistent._identity_hash(b"birth-a"),
+        }
+        with (
+            patch.object(persistent, "_boot_token", return_value=None),
+            patch.object(persistent.os, "kill") as kill,
+            patch.object(persistent, "_process_birth_token") as birth,
+        ):
+            self.assertIs(
+                diagnose_supervisor_process(status),
+                ProcessDiagnostic.UNAVAILABLE,
+            )
+        kill.assert_not_called()
+        birth.assert_not_called()
 
     def test_stale_supervisor_heartbeat_cannot_be_masked_by_provider_activity(self) -> None:
         status = {
@@ -949,19 +1382,24 @@ class PersistentSupervisorTests(unittest.TestCase):
             encoding="utf-8",
         )
         os.chmod(fake_panel, 0o600)
-        status = persistent.run_supervised_panel(
-            runner_argv=(
-                sys.executable,
-                str(fake_panel),
-                str(child_ledger),
-                str(child_checkpoint),
-            ),
-            environment={},
-            runtime_dir=child_runtime,
-            authentication_key=AUTHENTICATION_KEY,
-            execution_context_sha256=EXECUTION_CONTEXT_DIGEST,
-            heartbeat_interval_seconds=10.0,
-        )
+        with patch.object(
+            persistent,
+            "current_process_identity",
+            return_value=self.identity,
+        ):
+            status = persistent.run_supervised_panel(
+                runner_argv=(
+                    sys.executable,
+                    str(fake_panel),
+                    str(child_ledger),
+                    str(child_checkpoint),
+                ),
+                environment={},
+                runtime_dir=child_runtime,
+                authentication_key=AUTHENTICATION_KEY,
+                execution_context_sha256=EXECUTION_CONTEXT_DIGEST,
+                heartbeat_interval_seconds=10.0,
+            )
         self.assertEqual(status["lifecycle"], LifecyclePhase.COMPLETED)
         self.assertEqual(status["total_assignments"], 1)
         self.assertEqual(status["completed_assignments"], 1)

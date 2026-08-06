@@ -12,6 +12,7 @@ continues to enforce its authoritative panel-level at-most-once lock.
 
 from __future__ import annotations
 
+import ctypes
 from dataclasses import dataclass
 from enum import StrEnum
 import fcntl
@@ -27,9 +28,10 @@ import stat
 import subprocess
 import time
 from typing import Callable, Mapping, Protocol, Sequence, runtime_checkable
+import uuid
 
 
-SCHEMA_VERSION = "epiagentbench.persistent_supervisor.v3"
+SCHEMA_VERSION = "epiagentbench.persistent_supervisor.v4"
 LEASE_FILE = "lease.json"
 STATUS_FILE = "status.json"
 EVENT_FILE = "events.jsonl"
@@ -47,12 +49,12 @@ MAX_KEY_BYTES = 4096
 HANDLED_TERMINAL_RECEIPT_EXIT_CODE = 64
 TERMINAL_AUDIT_REQUIRED_EXIT_CODE = 65
 
-_RECORD_DOMAIN = b"epiagentbench:persistent-supervisor:record:v3\x00"
-_EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v3\x00"
-_EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v3\x00"
-_IDENTITY_DOMAIN = b"epiagentbench:persistent-supervisor:identity:v2\x00"
+_RECORD_DOMAIN = b"epiagentbench:persistent-supervisor:record:v4\x00"
+_EVENT_HASH_DOMAIN = b"epiagentbench:persistent-supervisor:event-hash:v4\x00"
+_EVENT_HMAC_DOMAIN = b"epiagentbench:persistent-supervisor:event-hmac:v4\x00"
+_IDENTITY_DOMAIN = b"epiagentbench:persistent-supervisor:identity:v3\x00"
 _EXECUTION_CONTEXT_DOMAIN = (
-    b"epiagentbench:persistent-supervisor:execution-context:v3\x00"
+    b"epiagentbench:persistent-supervisor:execution-context:v4\x00"
 )
 _ZERO_EVENT_HASH = "sha256:" + "0" * 64
 
@@ -151,6 +153,10 @@ class UnsafeRecoveryError(SupervisorError):
     """A prior launch commitment makes automatic retry ambiguous."""
 
     failure_code = FailureCode.UNSAFE_RECOVERY
+
+
+class ProcessIdentityUnavailableError(SupervisorError):
+    """An authoritative boot or process-birth identity is unavailable."""
 
 
 class RunnerFailedError(SupervisorError):
@@ -493,6 +499,62 @@ def _open_record(
     return sealed
 
 
+def _canonical_darwin_boot_session_token(raw: bytes) -> bytes | None:
+    """Return one stable token for a canonical macOS boot-session UUID."""
+
+    if raw.endswith(b"\n"):
+        raw = raw[:-1]
+    if len(raw) != 36:
+        return None
+    try:
+        value = raw.decode("ascii")
+        parsed = uuid.UUID(value)
+    except (UnicodeDecodeError, ValueError, AttributeError):
+        return None
+    canonical = str(parsed)
+    if parsed.int == 0 or value.lower() != canonical:
+        return None
+    return b"darwin-bootsessionuuid-v1:" + canonical.encode("ascii")
+
+
+def _darwin_boot_session_token() -> bytes | None:
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        sysctlbyname = libc.sysctlbyname
+        sysctlbyname.argtypes = (
+            ctypes.c_char_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        )
+        sysctlbyname.restype = ctypes.c_int
+        size = ctypes.c_size_t()
+        name = b"kern.bootsessionuuid"
+        if sysctlbyname(name, None, ctypes.byref(size), None, 0) != 0:
+            return None
+        if size.value != 37:
+            return None
+        buffer = ctypes.create_string_buffer(size.value)
+        if sysctlbyname(name, buffer, ctypes.byref(size), None, 0) != 0:
+            return None
+        if size.value != 37:
+            return None
+        raw = bytes(buffer.raw[: size.value])
+        if not raw.endswith(b"\x00"):
+            return None
+        return _canonical_darwin_boot_session_token(raw[:-1])
+    except (
+        AttributeError,
+        OSError,
+        OverflowError,
+        TypeError,
+        ValueError,
+        ctypes.ArgumentError,
+    ):
+        return None
+
+
 def _boot_token() -> bytes | None:
     linux_path = Path("/proc/sys/kernel/random/boot_id")
     try:
@@ -502,21 +564,109 @@ def _boot_token() -> bytes | None:
     except OSError:
         pass
     if platform.system() == "Darwin":
-        try:
-            result = subprocess.run(
-                ["/usr/sbin/sysctl", "-n", "kern.boottime"],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
-                check=False,
-                timeout=2,
-            )
-            if result.returncode == 0 and 0 < len(result.stdout) <= 512:
-                return b"darwin:" + result.stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            pass
+        for attempt in range(3):
+            token = _darwin_boot_session_token()
+            if token is not None:
+                return token
+            if attempt < 2:
+                time.sleep(0.01)
     return None
+
+
+class _DarwinProcBSDInfo(ctypes.Structure):
+    """ABI layout of Darwin ``struct proc_bsdinfo``."""
+
+    _fields_ = [
+        ("pbi_flags", ctypes.c_uint32),
+        ("pbi_status", ctypes.c_uint32),
+        ("pbi_xstatus", ctypes.c_uint32),
+        ("pbi_pid", ctypes.c_uint32),
+        ("pbi_ppid", ctypes.c_uint32),
+        ("pbi_uid", ctypes.c_uint32),
+        ("pbi_gid", ctypes.c_uint32),
+        ("pbi_ruid", ctypes.c_uint32),
+        ("pbi_rgid", ctypes.c_uint32),
+        ("pbi_svuid", ctypes.c_uint32),
+        ("pbi_svgid", ctypes.c_uint32),
+        ("rfu_1", ctypes.c_uint32),
+        ("pbi_comm", ctypes.c_char * 16),
+        ("pbi_name", ctypes.c_char * 32),
+        ("pbi_nfiles", ctypes.c_uint32),
+        ("pbi_pgid", ctypes.c_uint32),
+        ("pbi_pjobc", ctypes.c_uint32),
+        ("e_tdev", ctypes.c_uint32),
+        ("e_tpgid", ctypes.c_uint32),
+        ("pbi_nice", ctypes.c_int32),
+        ("pbi_start_tvsec", ctypes.c_uint64),
+        ("pbi_start_tvusec", ctypes.c_uint64),
+    ]
+
+
+_DARWIN_PROC_BSDINFO_SIZE = 136
+
+
+def _canonical_darwin_process_birth_token(
+    *,
+    requested_pid: int,
+    reported_pid: int,
+    start_seconds: int,
+    start_microseconds: int,
+) -> bytes | None:
+    """Validate and canonicalize numeric Darwin process-birth fields."""
+
+    if (
+        requested_pid <= 0
+        or reported_pid != requested_pid
+        or start_seconds <= 0
+        or not 0 <= start_microseconds < 1_000_000
+    ):
+        return None
+    return (
+        f"darwin-proc-pidtbsdinfo-v1:{start_seconds}:{start_microseconds}"
+        .encode("ascii")
+    )
+
+
+def _darwin_process_birth_token(pid: int) -> bytes | None:
+    try:
+        libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+        proc_pidinfo = libproc.proc_pidinfo
+        proc_pidinfo.argtypes = (
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_void_p,
+            ctypes.c_int,
+        )
+        proc_pidinfo.restype = ctypes.c_int
+        info = _DarwinProcBSDInfo()
+        size = ctypes.sizeof(info)
+        if size != _DARWIN_PROC_BSDINFO_SIZE:
+            return None
+        observed = proc_pidinfo(
+            pid,
+            3,  # PROC_PIDTBSDINFO
+            0,
+            ctypes.byref(info),
+            size,
+        )
+        if observed != size:
+            return None
+        return _canonical_darwin_process_birth_token(
+            requested_pid=pid,
+            reported_pid=int(info.pbi_pid),
+            start_seconds=int(info.pbi_start_tvsec),
+            start_microseconds=int(info.pbi_start_tvusec),
+        )
+    except (
+        AttributeError,
+        OSError,
+        OverflowError,
+        TypeError,
+        ValueError,
+        ctypes.ArgumentError,
+    ):
+        return None
 
 
 def _process_birth_token(pid: int) -> bytes | None:
@@ -531,20 +681,7 @@ def _process_birth_token(pid: int) -> bytes | None:
     except OSError:
         pass
     if platform.system() == "Darwin":
-        try:
-            result = subprocess.run(
-                ["/bin/ps", "-o", "lstart=", "-p", str(pid)],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
-                check=False,
-                timeout=2,
-            )
-            if result.returncode == 0 and 0 < len(result.stdout) <= 256:
-                return b"darwin-ps-start:" + result.stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            pass
+        return _darwin_process_birth_token(pid)
     return None
 
 
@@ -554,12 +691,10 @@ def current_process_identity() -> ProcessIdentity:
     pid = os.getpid()
     boot = _boot_token()
     birth = _process_birth_token(pid)
-    if boot is None:
-        # This remains stable for this process and is explicitly only a
-        # diagnostic fallback, not the authoritative flock identity.
-        boot = f"fallback-boot:{int(time.time() - time.monotonic())}".encode("ascii")
-    if birth is None:
-        birth = f"fallback-birth:{pid}:{time.monotonic_ns()}".encode("ascii")
+    if boot is None or birth is None:
+        raise ProcessIdentityUnavailableError(
+            "Persistent supervisor process identity is unavailable"
+        )
     return ProcessIdentity(_identity_hash(boot), pid, _identity_hash(birth))
 
 
@@ -1716,6 +1851,7 @@ __all__ = [
     "PersistentSupervisor",
     "ProcessDiagnostic",
     "ProcessIdentity",
+    "ProcessIdentityUnavailableError",
     "RecoveryDecision",
     "RunnerFailedError",
     "RunningCommand",

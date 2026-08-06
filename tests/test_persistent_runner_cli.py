@@ -23,10 +23,10 @@ class PersistentRunnerCliTests(unittest.TestCase):
         provider_free_parent = Path.home()
         with (
             TemporaryDirectory(
-                prefix="e29h-", dir=provider_free_parent
+                prefix="e30h-", dir=provider_free_parent
             ) as clean_home_raw,
             TemporaryDirectory(
-                prefix="e29t-", dir=provider_free_parent
+                prefix="e30t-", dir=provider_free_parent
             ) as clean_tmp_raw,
         ):
             clean_home = Path(clean_home_raw)
@@ -260,13 +260,13 @@ class PersistentRunnerCliTests(unittest.TestCase):
         provider_free_parent = Path.home()
         with (
             TemporaryDirectory(
-                prefix="eab29-runtime-", dir="/private/tmp"
+                prefix="eab30-runtime-", dir="/private/tmp"
             ) as directory,
             TemporaryDirectory(
-                prefix="e29h-", dir=provider_free_parent
+                prefix="e30h-", dir=provider_free_parent
             ) as clean_home_raw,
             TemporaryDirectory(
-                prefix="e29t-", dir=provider_free_parent
+                prefix="e30t-", dir=provider_free_parent
             ) as clean_tmp_raw,
         ):
             clean_home = Path(clean_home_raw)
@@ -500,7 +500,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "--supervisor-runtime",
             "/private/supervisor",
             "--cursor-keychain-service",
-            "epiagentbench-cursor-v29",
+            "epiagentbench-cursor-v30",
             "--cursor-keychain-account",
             "test-account",
             "--acknowledge-unbounded-provider-spend",

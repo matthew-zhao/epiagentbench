@@ -37,7 +37,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .provider_cli_environment import SYSTEM_PROCESS_PATH
 
-_SCHEMA = "epiagentbench.launchd_agent.v15"
+_SCHEMA = "epiagentbench.launchd_agent.v16"
 _WORKER_STATUS_SCHEMA = "epiagentbench.launchd_worker_status.v6"
 _LABEL_PREFIX = "org.epiagentbench.panel"
 _OPERATIONS = frozenset({"preflight", "production"})
@@ -48,7 +48,7 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
-_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v15\x00"
+_CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v16\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v6\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
 _START_MARKER_SCHEMA = "epiagentbench.launchd_start_request.v1"
@@ -65,7 +65,7 @@ _MAX_EPISODE_TMPDIR_BYTES = 72
 _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
-_PROTOCOL_VERSION = "persistent-supervisor-v8"
+_PROTOCOL_VERSION = "persistent-supervisor-v9"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -2104,7 +2104,7 @@ def generate_launch_agent(
         )
         # Generation is deliberately credential-blind.  Authentication state,
         # receipt, repository, and credential readiness are re-attested by the
-        # supervised runner in the same child that durably records the V29
+        # supervised runner in the same child that durably records the V30
         # provider-free preclaim.  Calling the foreground readiness helper here
         # would inspect credential metadata (including macOS Keychain state)
         # before that claim existed.
@@ -3732,10 +3732,22 @@ def _worker_status(
     return {key: str(value) for key, value in payload.items() if key != "schema_version"}
 
 
-def _heartbeat_age_bucket(heartbeat: object) -> str:
-    if not isinstance(heartbeat, int) or isinstance(heartbeat, bool):
+def _heartbeat_age_bucket(
+    heartbeat: object,
+    *,
+    now_wall_seconds: object,
+) -> str:
+    if (
+        not isinstance(heartbeat, int)
+        or isinstance(heartbeat, bool)
+        or not isinstance(now_wall_seconds, (int, float))
+        or isinstance(now_wall_seconds, bool)
+    ):
         return "invalid"
-    age = max(0.0, time.time() - heartbeat)
+    age = float(now_wall_seconds) - heartbeat
+    if age < -5.0:
+        return "future"
+    age = max(0.0, age)
     if age <= 45:
         return "fresh"
     if age <= 120:
@@ -3810,9 +3822,10 @@ def _core_status(
     if status.get("execution_context_sha256") != expected_execution_context_sha256:
         raise ValueError("Supervisor execution context is not the configured context")
     process_diagnostic = diagnose_supervisor_process(status)
+    now_wall_seconds = time.time()
     health = classify_supervisor_health(
         status,
-        now_wall_seconds=time.time(),
+        now_wall_seconds=now_wall_seconds,
         process_diagnostic=process_diagnostic,
     )
     return {
@@ -3824,7 +3837,8 @@ def _core_status(
         "health": health.value,
         "process_diagnostic": process_diagnostic.value,
         "heartbeat_age_bucket": _heartbeat_age_bucket(
-            status["heartbeat_wall_unix_seconds"]
+            status["heartbeat_wall_unix_seconds"],
+            now_wall_seconds=now_wall_seconds,
         ),
         "runner_commands_completed": status["completed_assignments"],
         "runner_commands_total": status["total_assignments"],
@@ -4019,10 +4033,6 @@ def _attest_live_launch_agent_validated(
         raise LiveAttestationError(
             LiveAttestationFailureCode.CORE_PHASE_INVALID
         )
-    if core.get("health") != "healthy":
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CORE_UNHEALTHY
-        )
     if core.get("process_diagnostic") != "match":
         raise LiveAttestationError(
             LiveAttestationFailureCode.PROCESS_IDENTITY_MISMATCH
@@ -4030,6 +4040,10 @@ def _attest_live_launch_agent_validated(
     if core.get("heartbeat_age_bucket") != "fresh":
         raise LiveAttestationError(
             LiveAttestationFailureCode.HEARTBEAT_STALE
+        )
+    if core.get("health") != "healthy":
+        raise LiveAttestationError(
+            LiveAttestationFailureCode.CORE_UNHEALTHY
         )
     try:
         config_file_sha256 = _assert_authenticated_config_snapshot(

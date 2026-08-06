@@ -81,14 +81,18 @@ class _BlockingRunner:
 
 
 class PersistentLaunchAgentTests(unittest.TestCase):
-    def test_v29_schema_identity_keeps_launchd_v15_protocol_v8(self) -> None:
+    def test_v30_schema_identity_cuts_launchd_v16_protocol_v9(self) -> None:
         self.assertEqual(
             launchd_agent._SCHEMA,
-            "epiagentbench.launchd_agent.v15",
+            "epiagentbench.launchd_agent.v16",
         )
         self.assertEqual(
             launchd_agent._PROTOCOL_VERSION,
-            "persistent-supervisor-v8",
+            "persistent-supervisor-v9",
+        )
+        self.assertEqual(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            b"epiagentbench:launchd-config:v16\x00",
         )
 
     def setUp(self) -> None:
@@ -201,8 +205,24 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             return_value={},
         )
         self.mock_isolated_process = self.isolated_process.start()
+        self.boot_identity = patch.object(
+            persistent_supervisor,
+            "_boot_token",
+            return_value=b"offline-stable-boot-session",
+        )
+        self.mock_boot_identity = self.boot_identity.start()
+        self.process_birth_identity = patch.object(
+            persistent_supervisor,
+            "_process_birth_token",
+            return_value=b"offline-stable-process-birth",
+        )
+        self.mock_process_birth_identity = (
+            self.process_birth_identity.start()
+        )
 
     def tearDown(self) -> None:
+        self.process_birth_identity.stop()
+        self.boot_identity.stop()
         self.isolated_process.stop()
         self.provider_free_prelaunch.stop()
         self.environment_preflight_readiness.stop()
@@ -1053,10 +1073,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v29_rejects_predecessor_launchd_schemas_before_control_action(
+    def test_v30_rejects_predecessor_launchd_schemas_before_control_action(
         self,
     ) -> None:
-        for version in (11, 12, 13, 14):
+        for version in (11, 12, 13, 14, 15):
             with self.subTest(schema_version=version):
                 runtime = self.root / f"legacy-v{version}-runtime"
                 generated = self._generate(
@@ -1102,6 +1122,119 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 self.assertFalse(
                     (runtime / "launchd-start-request.json").exists()
                 )
+
+    def test_v30_rejects_predecessor_protocol_before_control_action(
+        self,
+    ) -> None:
+        generated = self._generate()
+        config_path = Path(generated["config_path"])
+        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+        unsigned = launchd_agent._open_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            raw_config,
+            b"a" * 32,
+        )
+        unsigned["protocol_version"] = "persistent-supervisor-v8"
+        resealed = launchd_agent._seal_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            unsigned,
+            b"a" * 32,
+        )
+        config_path.write_text(json.dumps(resealed), encoding="utf-8")
+        os.chmod(config_path, 0o600)
+        calls: list[list[str]] = []
+
+        def forbidden_control(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_control,
+            )
+        self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+
+    def test_v30_rejects_predecessor_auth_domain_before_control_action(
+        self,
+    ) -> None:
+        generated = self._generate()
+        config_path = Path(generated["config_path"])
+        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+        unsigned = launchd_agent._open_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            raw_config,
+            b"a" * 32,
+        )
+        resealed = launchd_agent._seal_payload(
+            b"epiagentbench:launchd-config:v15\x00",
+            unsigned,
+            b"a" * 32,
+        )
+        config_path.write_text(json.dumps(resealed), encoding="utf-8")
+        os.chmod(config_path, 0o600)
+        calls: list[list[str]] = []
+
+        def forbidden_control(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_control,
+            )
+        self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+
+    def test_v30_rejects_authenticated_open_config_before_control_action(
+        self,
+    ) -> None:
+        generated = self._generate()
+        config_path = Path(generated["config_path"])
+        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+        unsigned = launchd_agent._open_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            raw_config,
+            b"a" * 32,
+        )
+        unsigned["unexpected_field"] = "not-allowed"
+        resealed = launchd_agent._seal_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            unsigned,
+            b"a" * 32,
+        )
+        config_path.write_text(json.dumps(resealed), encoding="utf-8")
+        os.chmod(config_path, 0o600)
+        calls: list[list[str]] = []
+
+        def forbidden_control(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_control,
+            )
+        self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
 
     def test_v26_rejects_predecessor_bound_runtime_schema(self) -> None:
         cache_root, _ = self._enable_v18_runtime_binding()
@@ -1659,6 +1792,12 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 ),
                 launchd_agent.SupervisorFailureCode.SUPERVISOR_BUSY,
             ),
+            (
+                persistent_supervisor.ProcessIdentityUnavailableError(
+                    _SECRET_CANARIES[2]
+                ),
+                launchd_agent.SupervisorFailureCode.SUPERVISOR_INTERNAL,
+            ),
         )
         for error, expected in cases:
             with self.subTest(expected=expected):
@@ -1672,6 +1811,63 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             ),
             launchd_agent.SupervisorFailureCode.SUPERVISOR_INTERNAL,
         )
+
+    def test_worker_fails_closed_before_child_when_identity_is_unavailable(
+        self,
+    ) -> None:
+        generated = self._generate()
+        self._commit_start()
+        config_path = Path(generated["config_path"])
+        unavailable = persistent_supervisor.ProcessIdentityUnavailableError(
+            "Persistent supervisor process identity is unavailable"
+        )
+        with (
+            patch.object(
+                persistent_supervisor,
+                "current_process_identity",
+                side_effect=unavailable,
+            ),
+            patch.object(
+                persistent_supervisor.SubprocessCommandRunner,
+                "start",
+                side_effect=AssertionError(
+                    "identity-unavailable startup reached evaluator child"
+                ),
+            ) as child_start,
+        ):
+            return_code = run_launch_agent_worker(config_path)
+
+        self.assertEqual(return_code, 70)
+        child_start.assert_not_called()
+        for core_name in (
+            persistent_supervisor.STATUS_FILE,
+            persistent_supervisor.LEASE_FILE,
+            persistent_supervisor.EVENT_FILE,
+        ):
+            self.assertFalse((self.runtime / core_name).exists())
+        config, key = self._config_and_key()
+        status = launchd_agent._worker_status(
+            self.runtime,
+            config=config,
+            authentication_key=key,
+        )
+        self.assertEqual(
+            status,
+            {
+                "label": config["label"],
+                "operation": config["operation"],
+                "panel_id": config["panel_id"],
+                "precommitment_sha256": config["precommitment_sha256"],
+                "execution_context_sha256": config[
+                    "execution_context_sha256"
+                ],
+                "state": "terminal_incident",
+                "reason": "supervisor_failed",
+                "supervisor_failure_code": "supervisor_internal",
+            },
+        )
+        with self.assertRaises(LaunchAgentError):
+            run_launch_agent_worker(config_path)
 
     def test_worker_preserves_controlled_terminal_receipt_classification(
         self,
@@ -3295,6 +3491,64 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(core_status.call_count, 1)
         sleep.assert_not_called()
 
+    def test_core_status_uses_one_wall_clock_sample(self) -> None:
+        self._generate()
+        config, key = self._config_and_key()
+        (self.runtime / persistent_supervisor.STATUS_FILE).write_bytes(b"")
+        (self.runtime / persistent_supervisor.LEASE_FILE).write_bytes(b"")
+        core_status = {
+            "schema_version": persistent_supervisor.SCHEMA_VERSION,
+            "lease_epoch": "1" * 64,
+            "execution_context_sha256": config[
+                "execution_context_sha256"
+            ],
+            "lifecycle": "running",
+            "assignment_phase": "running",
+            "pid": 4123,
+            "boot_identity_sha256": "sha256:" + "2" * 64,
+            "process_birth_identity_sha256": "sha256:" + "3" * 64,
+            "heartbeat_sequence": 1,
+            "heartbeat_wall_unix_seconds": 1_000,
+            "completed_assignments": 0,
+            "total_assignments": 1,
+            "active_assignment_ordinal": 1,
+            "pause_after_current": False,
+            "suspend_gap_detected": False,
+            "failure_code": "none",
+        }
+        with (
+            patch.object(
+                persistent_supervisor,
+                "read_supervisor_status",
+                return_value=core_status,
+            ),
+            patch.object(
+                persistent_supervisor,
+                "read_supervisor_lease",
+                return_value=core_status,
+            ),
+            patch.object(
+                persistent_supervisor,
+                "diagnose_supervisor_process",
+                return_value=ProcessDiagnostic.MATCH,
+            ),
+            patch.object(
+                launchd_agent.time,
+                "time",
+                side_effect=(1_100.0, 1_000.0),
+            ) as wall_clock,
+        ):
+            sampled = launchd_agent._core_status(
+                self.runtime,
+                authentication_key=key,
+                expected_execution_context_sha256=config[
+                    "execution_context_sha256"
+                ],
+            )
+        self.assertEqual(wall_clock.call_count, 1)
+        self.assertEqual(sampled["health"], "stale_heartbeat")
+        self.assertEqual(sampled["heartbeat_age_bucket"], "under_2m")
+
     def test_live_attestation_semantic_failures_have_finite_codes(self) -> None:
         self._generate()
         config, key = self._commit_start()
@@ -3322,15 +3576,21 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 LiveAttestationFailureCode.CORE_PHASE_INVALID,
             ),
             (
-                {"health": "stale"},
+                {"health": "invalid"},
                 LiveAttestationFailureCode.CORE_UNHEALTHY,
             ),
             (
-                {"process_diagnostic": "absent"},
+                {
+                    "health": "process_mismatch",
+                    "process_diagnostic": "boot_mismatch",
+                },
                 LiveAttestationFailureCode.PROCESS_IDENTITY_MISMATCH,
             ),
             (
-                {"heartbeat_age_bucket": "under_2m"},
+                {
+                    "health": "stale_heartbeat",
+                    "heartbeat_age_bucket": "under_2m",
+                },
                 LiveAttestationFailureCode.HEARTBEAT_STALE,
             ),
         )
@@ -3354,6 +3614,21 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                         ),
                     )
                 self.assertIs(raised.exception.failure_code, expected)
+
+        self.assertEqual(
+            launchd_agent._heartbeat_age_bucket(
+                1_006,
+                now_wall_seconds=1_000.0,
+            ),
+            "future",
+        )
+        self.assertEqual(
+            launchd_agent._heartbeat_age_bucket(
+                1_005,
+                now_wall_seconds=1_000.0,
+            ),
+            "fresh",
+        )
 
         with (
             patch(

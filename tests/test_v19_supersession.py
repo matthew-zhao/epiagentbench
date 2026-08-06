@@ -199,9 +199,9 @@ class V19SupersessionTests(unittest.TestCase):
         )
         self.assertIsNotNone(launchd_schema)
         assert launchd_schema is not None
-        self.assertGreaterEqual(int(launchd_schema.group(1)), 15)
+        self.assertGreaterEqual(int(launchd_schema.group(1)), 16)
         self.assertIn(
-            '_PROTOCOL_VERSION = "persistent-supervisor-v8"', launcher
+            '_PROTOCOL_VERSION = "persistent-supervisor-v9"', launcher
         )
 
     def test_v20_acknowledgement_and_budget_are_consistent(self) -> None:

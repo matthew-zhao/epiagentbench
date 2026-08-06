@@ -342,15 +342,21 @@ Those implementation tests themselves authorize no provider call.
 V28 retained that detached execution boundary under fresh panel, cohort, and
 private namespaces, then failed closed during provider-free preparation-runtime
 attestation before any profile or model call. It is terminal and non-resumable.
-V29 preserves the detached boundary while splitting preparation-runtime
+V29 preserved the detached boundary while splitting preparation-runtime
 attestation into five content-free substages and adding a provider-free
 phase in the same supervised LaunchAgent child before the irreversible
-preflight claim. Its control-plane schemas are versioned, while unpublished
-commit IDs, receipts, and manifest remain explicit placeholders in the
-[V29 runbook](docs/V29_RUNBOOK.md). Its exact acknowledgement and hash are
-source-owned but are not manifest-bound authorization. No V29 runtime receipt,
-manifest, authentication receipt, supervisor run, provider/model call, result,
-trace, or score exists yet.
+preflight claim. Its six-call preflight passed, then production failed closed
+after the 26th chargeable invocation boundary. V29 is terminal and
+non-resumable. Its exact trace-free [production terminal receipt](results/development-matched-50x6-v29.json)
+passed pinned provider-free attestation with status
+`stopped_supervisor_incident`, 26 terminal assignments, and no scientific
+results or scores; its [supersession record](results/development-matched-50x6-v29.superseded.json)
+closes the namespace. Those public artifacts and the
+[V29 runbook](docs/V29_RUNBOOK.md) are immutable historical evidence. V30
+carries the detached boundary forward with
+stable Darwin process identity and fresh namespaces. Its source-only design is
+in the [V30 runbook](docs/V30_RUNBOOK.md); it authorizes no runtime generation,
+authentication, supervisor start, provider call, or spend.
 
 The separately authorized live V9
 [preflight](results/development-matched-50x6-v9.preflight.json) passed all six
@@ -965,6 +971,32 @@ envelope `epiagentbench.preflight_incident_envelope.v3`, and terminal audit
 `epiagentbench.provider_free_preparation_environment.v2`. These version
 constants authorize no
 authentication, supervisor start, provider call, or spend.
+
+V30 supersedes terminal V29 under fresh identifiers
+`development-matched-50x6-v30` and `development_matched_panel_v30`. It advances
+the persistent-supervisor contract to
+`epiagentbench.persistent_supervisor_contract.v15`, the supervisor family to
+v4, process identity to v3, protocol to v9, and LaunchAgent family to v16.
+V30 accepts only a canonical Darwin boot-session UUID and numeric
+`proc_pidinfo` process birth identity; unavailable construction fails before an
+evaluator child can start or lease, status, or event state can be written. The
+full namespace and create-once gates are frozen in the
+[V30 runbook](docs/V30_RUNBOOK.md).
+
+The conservative prior-through-V29 Claude allowance is `$160`: `$100` through
+V28, at most `$10` for V29's two Claude preflight calls, and at most `$50` for
+ten Claude calls among its first 26 production invocations without inspecting
+the private schedule. Adding the unchanged `$510` V30 current-run ceiling gives
+a `$670` cumulative ceiling. Codex and Cursor remain uncapped. These ceilings
+are source-owned accounting, not authorization. The exact V30 acknowledgement
+is:
+
+> I acknowledge the replacement six-call v30 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, and the v30 preflight and production run.
+
+Its SHA-256 is
+`197ce6f0938bad1f8aa3c20c5e052a9519312d4814ffa088bbba99f4e31a42e5`.
+It must later be explicitly supplied and sealed against the exact published
+V30 manifest and public precommitment before it can authorize anything.
 
 The V29 design requires the runner, runtime, hidden cohort, credential
 namespaces, and public manifest to be frozen before any model-bearing provider

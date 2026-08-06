@@ -21,7 +21,7 @@ _PREPARATION_OPERATIONS = (
 )
 
 
-class V29PreparationSubstageTests(unittest.TestCase):
+class V30PreparationSubstageTests(unittest.TestCase):
     @staticmethod
     def _prerequisite_bundle(
         public: dict[str, object],
@@ -135,7 +135,7 @@ class V29PreparationSubstageTests(unittest.TestCase):
         trace = matched._new_provider_free_preclaim(
             public,
             prerequisite_bundle=(
-                V29PreparationSubstageTests._prerequisite_bundle(public)
+                V30PreparationSubstageTests._prerequisite_bundle(public)
             ),
         )
         trace = matched._advance_provider_free_preclaim_operation(
