@@ -263,7 +263,7 @@ for path in \
   /Users/matthew.zhao/.codex/epiagentbench-v30-provider-free-home \
   /Users/matthew.zhao/.codex/epiagentbench-v30-provider-free-tmp
 do
-  if /usr/bin/test -e "$path" || /usr/bin/test -L "$path"; then
+  if /bin/test -e "$path" || /bin/test -L "$path"; then
     exit 73
   fi
 done
@@ -285,8 +285,8 @@ for path in \
   /Users/matthew.zhao/.codex/epiagentbench-v30-provider-free-home \
   /Users/matthew.zhao/.codex/epiagentbench-v30-provider-free-tmp
 do
-  /usr/bin/test ! -L "$path"
-  /usr/bin/test "$(/usr/bin/stat -f %Lp "$path")" = 700
+  /bin/test ! -L "$path"
+  /bin/test "$(/usr/bin/stat -f %Lp "$path")" = 700
 done
 '
 ```
