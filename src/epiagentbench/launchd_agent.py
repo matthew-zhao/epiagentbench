@@ -71,8 +71,8 @@ _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v9"
 _MATCHED_PANEL_ID_PREFIX = "development-matched-50x6-"
 _CURSOR_KEYCHAIN_SERVICE_PREFIX = "epiagentbench-cursor-"
-_FROZEN_PANEL_ID = "development-matched-50x6-v31"
-_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v31"
+_FROZEN_PANEL_ID = "development-matched-50x6-v32"
+_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v32"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -1712,7 +1712,7 @@ def _manifest_binding(
             or "runtime_cache_contract" in preparation_runtime_contract
         )
     ):
-        raise ValueError("Public manifest lacks the frozen V31 panel binding")
+        raise ValueError("Public manifest lacks the frozen V32 panel binding")
     return (
         panel_id,
         precommitment,
@@ -2193,7 +2193,7 @@ def generate_launch_agent(
         )
         # Generation is deliberately credential-blind.  Authentication state,
         # receipt, repository, and credential readiness are re-attested by the
-        # supervised runner in the same child that durably records the V31
+        # supervised runner in the same child that durably records the V32
         # provider-free preclaim.  Calling the foreground readiness helper here
         # would inspect credential metadata (including macOS Keychain state)
         # before that claim existed.

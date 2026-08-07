@@ -1,14 +1,44 @@
 # EpiAgentBench V31 execution runbook
 
 > [!CAUTION]
-> **CONTROL-PLANE DESIGN ONLY — NO V31 AUTHENTICATION, PROVIDER, SPEND,
-> PREFLIGHT, PRODUCTION, OR MODEL CALL IS AUTHORIZED.**
+> **V31 IS TERMINAL AND NON-RESUMABLE. DO NOT EXECUTE ANY CEREMONY BELOW.**
 >
-> This runbook freezes the V31 names and gates. It does not authorize creation
-> of a runtime receipt, private cohort, manifest, credentials, supervisor, or
-> result. Commit values remain explicit placeholders until each public artifact
-> is created under a later, separately authorized ceremony and independently
-> verified.
+> The commands and placeholders below are preserved only as historical design
+> evidence. They do not authorize publication, authentication, provider use,
+> spend, preflight, production, retry, repair, or reuse. The forward procedure
+> is the [V32 runbook](V32_RUNBOOK.md).
+
+## Terminal runtime-publication incident
+
+V31 completed its provider-free bootstrap and produced two byte-identical
+runtime-receipt candidates with zero authentication, provider, and model
+starts. Its single authorized GitButler publication attempt then failed before
+any remote mutation because publication credentials were unavailable. The
+fixed origin retained `refs/heads/codex/v31-control-plane` at
+`6efe0fa93e9c72946b48c22ab27a7fe6b41c199c` and had no
+`refs/heads/codex/v31-runtime-preflight` record. No runtime receipt became
+public; no manifest, private cohort, authentication, preflight, supervisor, or
+production action followed. The local candidates and unpublished local commit
+are quarantined evidence, not public pins, and may not enter later ancestry or
+be reused.
+
+V31 closes only through
+`refs/heads/codex/v31-runtime-publication-terminal-closeout`. That ref must be
+the sole child of the independently pinned control commit
+`6efe0fa93e9c72946b48c22ab27a7fe6b41c199c` and must add exactly:
+
+- `results/development-matched-50x6-v31.superseded.json`; and
+- `tests/test_v31_supersession.py`.
+
+It must not contain V31 runtime-receipt bytes, candidate bytes, a manifest,
+private artifact, authentication receipt, preflight receipt, result, provider
+data, or trace. The record may identify the unpublished local receipt commit
+only as safe, non-authoritative incident metadata; that object and its receipt
+must remain outside the closeout tree and ancestry. The closeout records the
+one failed publication attempt and zero authentication/provider/model calls
+under `epiagentbench.panel_supersession.v24`.
+After its exact remote commit is independently pinned, V32 may begin from that
+closeout; V31 itself remains permanently closed.
 
 ## Closed predecessor
 

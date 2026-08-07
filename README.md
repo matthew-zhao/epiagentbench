@@ -362,11 +362,21 @@ config, or plist; invoked no install or start operation; started no provider or
 model process; and attempted no preflight profile or production assignment.
 V30 is terminal and non-resumable; its
 [supersession record](results/development-matched-50x6-v30.superseded.json) and
-[runbook](docs/V30_RUNBOOK.md) are historical evidence only. V31 is the forward
-control-plane design under fresh namespaces; see the
-[V31 design](docs/V31_DESIGN.md) and [V31 runbook](docs/V31_RUNBOOK.md). None of
-those documents alone authorizes runtime generation, authentication,
-supervisor start, provider calls, or spend.
+[runbook](docs/V30_RUNBOOK.md) are historical evidence only. V31 then completed
+its provider-free bootstrap and generated two byte-identical runtime-receipt
+candidates with zero authentication, provider, or model starts. Its sole
+authorized GitButler publication attempt failed before remote mutation because
+publication credentials were unavailable. No V31 runtime receipt became
+public, and no manifest, private cohort, authentication, preflight, supervisor,
+or production action followed. V31 is terminal and closes only through the
+two-file `codex/v31-runtime-publication-terminal-closeout` rooted directly at
+published control commit `6efe0fa93e9c72946b48c22ab27a7fe6b41c199c`; see the
+historical [V31 design](docs/V31_DESIGN.md) and terminal
+[V31 runbook](docs/V31_RUNBOOK.md). V32 is the forward control-plane design
+under fresh namespaces; see the [V32 design](docs/V32_DESIGN.md) and
+[V32 runbook](docs/V32_RUNBOOK.md). None of those documents alone authorizes
+runtime generation, authentication, supervisor start, provider calls, or
+spend.
 
 The separately authorized live V9
 [preflight](results/development-matched-50x6-v9.preflight.json) passed all six
@@ -924,10 +934,10 @@ only in their terminal [V20](docs/V20_RUNBOOK.md),
 [V23](docs/V23_RUNBOOK.md) runbooks and the superseded
 [V24 runbook](docs/V24_RUNBOOK.md) and
 [V25 runbook](docs/V25_RUNBOOK.md); they must not be executed or reused.
-V26, V27, V28, V29, and V30 are terminal and must not be resumed or reused.
+V26, V27, V28, V29, V30, and V31 are terminal and must not be resumed or reused.
 Any replacement must use fresh namespaces, the provider-free preclaim
 boundary, and the placeholder discipline in the
-[V31 runbook](docs/V31_RUNBOOK.md).
+[V32 runbook](docs/V32_RUNBOOK.md).
 
 V27 retained the `$510` current-run Claude ceiling and used a conservative
 `$100` allowance for prior panels. V20, V21, and V22 each add `$0`; V23 adds `$10`
@@ -1021,16 +1031,47 @@ validates its fixed process path and exact owner-only generation `TMPDIR` before
 private reads or runtime writes and emits only the finite
 `generation_environment_invalid` public failure code for that boundary. The
 conservative prior-through-V30 Claude allowance remains `$160`; adding the
-unchanged `$510` V31 current-run ceiling gives `$670` cumulative. The exact V31
-acknowledgement is:
+unchanged `$510` V31 current-run ceiling gives `$670` cumulative. Its
+historical source-owned acknowledgement was:
 
 > I acknowledge the replacement six-call v31 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, the failed zero-model-call v30 preflight supervisor-generation environment validation, and the v31 preflight and production run.
 
 Its SHA-256 is
 `83adb3d80750858ec0a6c5ee678d6af870e2a495272c8ed161c2ac175888673c`.
-The exact text and create-once gates are source-owned by the
+The exact text and create-once gates remain in the terminal
 [V31 runbook](docs/V31_RUNBOOK.md), but neither their presence nor this
-accounting authorizes execution or spend.
+accounting authorizes execution or spend. V31 stopped earlier: two
+provider-free candidates were byte-identical, but its one GitButler
+runtime-receipt publication attempt failed for unavailable credentials before
+remote mutation. The remote runtime ref remained absent. V31 made zero
+authentication, provider, and model starts, and its two-file supersession
+closeout must descend directly from published control commit
+`6efe0fa93e9c72946b48c22ab27a7fe6b41c199c`. The closeout excludes every V31
+runtime receipt and local/provisional object from its tree and ancestry.
+
+V32 supersedes terminal V31 under fresh identifiers
+`development-matched-50x6-v32` and `development_matched_panel_v32`. Its panel
+persistent-supervisor contract advances from v16 to v17. Persistent-supervisor
+state v4, identity v3, protocol v9, LaunchAgent config/auth v16, worker status
+v6, preparation receipt v4, verification v3, bound preparation v3, Starsim
+smoke v2, episode-startup smoke v1, runtime-cache contract v3, and provider-free
+environment v2 remain retained. V32 explicitly rejects the V31 panel/schema,
+V31 freeze namespaces, and supervisor contract v16.
+
+V31 adds `$0`, so the conservative prior-through-V31 Claude allowance remains
+`$160`; the V32 current-run ceiling remains `$510`, for `$670` cumulative.
+Codex and Cursor remain explicitly unbounded. The exact V32 acknowledgement is:
+
+> I acknowledge the replacement six-call v32 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, the failed zero-model-call v30 preflight supervisor-generation environment validation, the failed zero-model-call v31 provider-free runtime-receipt publication before remote mutation, and the v32 preflight and production run.
+
+Its SHA-256 is
+`05f6b8f83d7101c8d05b4348256dfffd10946d2909fa3e919c6e6134030d03cb`.
+This text and its ceilings authorize nothing until the separately approved,
+published, and independently pinned V32 manifest is bound by the create-once
+authorization ceremony. The [V32 design](docs/V32_DESIGN.md) and
+[V32 runbook](docs/V32_RUNBOOK.md) freeze the publication topology, including
+the early runtime-publication terminal path and the mutually exclusive
+preflight-terminal, production-success, and production-terminal refs.
 
 The V29 design required the runner, runtime, hidden cohort, credential
 namespaces, and public manifest to be frozen before any model-bearing provider
