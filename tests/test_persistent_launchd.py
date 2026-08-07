@@ -1,20 +1,29 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import importlib.util
+import io
 import os
 from pathlib import Path
 import plistlib
+import pwd
 import shutil
+import stat
 import subprocess
 import sys
 import threading
 from tempfile import TemporaryDirectory
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 import epiagentbench.development_matched_panel as development_matched_panel
 import epiagentbench.launchd_agent as launchd_agent
 import epiagentbench.persistent_supervisor as persistent_supervisor
+from epiagentbench.development_matched_panel import (
+    attest_provider_free_prelaunch as _real_attest_provider_free_prelaunch,
+)
 from epiagentbench.persistent_supervisor import ProcessDiagnostic, run_supervised_panel
 from epiagentbench.launchd_agent import (
     LaunchAgentError,
@@ -22,6 +31,7 @@ from epiagentbench.launchd_agent import (
     LiveAttestationFailureCode,
     attest_completed_launch_agent,
     attest_live_launch_agent,
+    audit_launch_agent,
     finalize_launch_agent,
     generate_launch_agent,
     inspect_launch_agent,
@@ -95,11 +105,32 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             b"epiagentbench:launchd-config:v16\x00",
         )
 
+    def test_cursor_keychain_service_is_derived_from_panel_identity(
+        self,
+    ) -> None:
+        self.assertEqual(
+            launchd_agent._required_cursor_keychain_service(
+                "development-matched-50x6-v30"
+            ),
+            "epiagentbench-cursor-v30",
+        )
+        self.assertEqual(
+            launchd_agent._required_cursor_keychain_service(
+                "development-matched-50x6-v9-test"
+            ),
+            "epiagentbench-cursor-v9-test",
+        )
+        self.assertEqual(
+            launchd_agent._required_cursor_keychain_account(),
+            pwd.getpwuid(os.getuid()).pw_name,
+        )
+
     def setUp(self) -> None:
         self.temporary = TemporaryDirectory()
         self.root = Path(self.temporary.name).resolve()
         self.runtime = self.root / "runtime"
         self.repository = Path(__file__).resolve().parents[1]
+        self.cursor_keychain_account = pwd.getpwuid(os.getuid()).pw_name
         self.authentication_key = self.root / "authentication.key"
         self.authentication_key.write_bytes(b"a" * 32)
         os.chmod(self.authentication_key, 0o600)
@@ -110,24 +141,25 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.private_state = self.root / "private.json"
         self.public_manifest = (
             self.root
-            / "development-matched-50x6-v9-test.manifest.json"
+            / "development-matched-50x6-v30.manifest.json"
         )
         self.public_authentication = (
             self.root
-            / "development-matched-50x6-v9-test.authentication.json"
+            / "development-matched-50x6-v30.authentication.json"
         )
         self.public_preflight = (
             self.root
-            / "development-matched-50x6-v9-test.preflight.json"
+            / "development-matched-50x6-v30.preflight.json"
         )
         self.public_results = (
-            self.root / "development-matched-50x6-v9-test.json"
+            self.root / "development-matched-50x6-v30.json"
         )
         self.private_state.write_text("{}", encoding="utf-8")
         self.public_manifest.write_text(
             json.dumps(
                 {
-                    "panel_id": "development-matched-50x6-v9-test",
+                    "schema_version": development_matched_panel.SCHEMA_VERSION,
+                    "panel_id": development_matched_panel.PANEL_ID,
                     "precommitment_sha256": "sha256:" + "b" * 64,
                     "runtime_contract": {
                         "python_entrypoint_kind": "regular_file",
@@ -147,7 +179,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     "schema_version": (
                         development_matched_panel._AUTHENTICATION_RECEIPT_SCHEMA
                     ),
-                    "panel_id": "development-matched-50x6-v9-test",
+                    "panel_id": development_matched_panel.PANEL_ID,
                     "status": "passed",
                     "model_calls_started": 0,
                 }
@@ -177,7 +209,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             development_matched_panel,
             "assert_environment_preflight_ready",
             return_value={
-                "panel_id": "development-matched-50x6-v9-test",
+                "panel_id": development_matched_panel.PANEL_ID,
                 "status": "passed",
                 "artifact_kind": "preflight",
             },
@@ -189,7 +221,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             development_matched_panel,
             "attest_provider_free_prelaunch",
             return_value={
-                "panel_id": "development-matched-50x6-v9-test",
+                "panel_id": development_matched_panel.PANEL_ID,
                 "operation": "production",
                 "status": "passed",
                 "provider_processes_started": 0,
@@ -198,6 +230,18 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.mock_provider_free_prelaunch = (
             self.provider_free_prelaunch.start()
+        )
+        self.public_authentication_receipt_readiness = patch.object(
+            development_matched_panel,
+            "assert_public_authentication_receipt_ready",
+            return_value={
+                "panel_id": development_matched_panel.PANEL_ID,
+                "status": "passed",
+                "model_calls_started": 0,
+            },
+        )
+        self.mock_public_authentication_receipt_readiness = (
+            self.public_authentication_receipt_readiness.start()
         )
         self.isolated_process = patch.object(
             launchd_agent,
@@ -224,6 +268,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.process_birth_identity.stop()
         self.boot_identity.stop()
         self.isolated_process.stop()
+        self.public_authentication_receipt_readiness.stop()
         self.provider_free_prelaunch.stop()
         self.environment_preflight_readiness.stop()
         self.durable_readiness.stop()
@@ -242,8 +287,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "public_manifest_path": self.public_manifest,
             "public_preflight_path": None,
             "public_results_path": self.public_results,
-            "cursor_keychain_service": "epiagentbench-cursor-v9-test",
-            "cursor_keychain_account": "offline-test-account",
+            "cursor_keychain_service": "epiagentbench-cursor-v30",
+            "cursor_keychain_account": self.cursor_keychain_account,
             "operation": "production",
             "path_environment": "/usr/bin:/bin:/usr/sbin:/sbin",
             "instance_token": "1" * 24,
@@ -448,8 +493,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self.public_results,
         ):
             self.assertNotIn(str(private_value), joined_arguments)
-        self.assertNotIn("epiagentbench-cursor-v9-test", joined_arguments)
-        self.assertNotIn("offline-test-account", joined_arguments)
+        self.assertNotIn("epiagentbench-cursor-v30", joined_arguments)
+        self.assertNotIn(self.cursor_keychain_account, arguments)
         self.assertNotIn("CURSOR_API_KEY", joined_arguments)
 
         all_generated = raw_plist + config_path.read_bytes()
@@ -500,6 +545,56 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 ):
                     self._generate(**changes)
                 self.assertFalse(self.runtime.exists())
+
+    def test_generation_rejects_foreign_cursor_keychain_namespace_before_key_read(
+        self,
+    ) -> None:
+        for case, service in (
+            ("v29", "epiagentbench-cursor-v29"),
+            ("foreign", "epiagentbench-cursor-foreign"),
+        ):
+            runtime = self.root / f"{case}-cursor-service-runtime"
+            with self.subTest(case=case, service=service):
+                with patch.object(
+                    launchd_agent,
+                    "_read_authentication_key",
+                    side_effect=AssertionError(
+                        "namespace rejection must precede key access"
+                    ),
+                ) as authentication_read:
+                    with self.assertRaises(LaunchAgentError):
+                        self._generate(
+                            runtime_dir=runtime,
+                            instance_token=f"{case}-cursor-service",
+                            cursor_keychain_service=service,
+                        )
+                authentication_read.assert_not_called()
+                self.assertFalse(runtime.exists())
+
+    def test_generation_rejects_foreign_cursor_keychain_account_before_key_read(
+        self,
+    ) -> None:
+        for case, account in (
+            ("typo", f"{self.cursor_keychain_account}-typo"),
+            ("foreign", "foreign-keychain-account"),
+        ):
+            runtime = self.root / f"{case}-cursor-account-runtime"
+            with self.subTest(case=case, account=account):
+                with patch.object(
+                    launchd_agent,
+                    "_read_authentication_key",
+                    side_effect=AssertionError(
+                        "account rejection must precede key access"
+                    ),
+                ) as authentication_read:
+                    with self.assertRaises(LaunchAgentError):
+                        self._generate(
+                            runtime_dir=runtime,
+                            instance_token=f"{case}-cursor-account",
+                            cursor_keychain_account=account,
+                        )
+                authentication_read.assert_not_called()
+                self.assertFalse(runtime.exists())
 
     def test_v18_cli_bootstraps_work_with_site_hooks_disabled(self) -> None:
         for relative_script in (
@@ -630,7 +725,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 expected_environment,
             )
             return {
-                "panel_id": "development-matched-50x6-v9-test",
+                "panel_id": development_matched_panel.PANEL_ID,
                 "operation": "production",
                 "status": "passed",
                 "provider_processes_started": 0,
@@ -726,6 +821,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertFalse(
             (self.runtime / "launchd-start-request.json").exists()
         )
+        self.assertTrue(
+            (self.runtime / "launchd-control.lock").is_file()
+        )
         self.assertEqual(calls, [])
 
     def test_v18_all_config_controls_self_bootstrap_and_restore_environment(
@@ -751,6 +849,15 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             ambient: str,
         ) -> None:
             calls: list[list[str]] = []
+            control_runtime = self.runtime
+            if operation == "install":
+                token = "2" * 24 if ambient == "absent" else "3" * 24
+                control_runtime = self.root / f"install-{ambient}-runtime"
+                self._generate(
+                    runtime_dir=control_runtime,
+                    runtime_cache_dir=cache_root,
+                    instance_token=token,
+                )
 
             def sealed_launchctl(arguments, **_kwargs):
                 self.assertEqual(
@@ -800,14 +907,14 @@ class PersistentLaunchAgentTests(unittest.TestCase):
 
                 if operation == "inspect":
                     response = inspect_launch_agent(
-                        self.runtime,
+                        control_runtime,
                         authentication_key_file=self.authentication_key,
                     )
                     self.assertIs(response["configured"], True)
                     self.assertEqual(calls, [])
                 elif operation == "install":
                     response = install_launch_agent(
-                        self.runtime,
+                        control_runtime,
                         authentication_key_file=self.authentication_key,
                         command_runner=sealed_launchctl,
                     )
@@ -815,7 +922,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     self.assertEqual([call[1] for call in calls], ["bootstrap"])
                 elif operation == "status":
                     response = launch_agent_status(
-                        self.runtime,
+                        control_runtime,
                         authentication_key_file=self.authentication_key,
                         command_runner=sealed_launchctl,
                     )
@@ -823,7 +930,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     self.assertEqual([call[1] for call in calls], ["print"])
                 else:
                     response = uninstall_launch_agent(
-                        self.runtime,
+                        control_runtime,
                         authentication_key_file=self.authentication_key,
                         command_runner=sealed_launchctl,
                     )
@@ -1123,6 +1230,114 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     (runtime / "launchd-start-request.json").exists()
                 )
 
+    def test_authenticated_config_rejects_foreign_cursor_keychain_namespace_before_control(
+        self,
+    ) -> None:
+        for case, service in (
+            ("v29", "epiagentbench-cursor-v29"),
+            ("foreign", "epiagentbench-cursor-foreign"),
+        ):
+            runtime = self.root / f"authenticated-{case}-cursor-runtime"
+            with self.subTest(case=case, service=service):
+                generated = self._generate(
+                    runtime_dir=runtime,
+                    instance_token=f"authenticated-{case}-cursor",
+                )
+                config_path = Path(generated["config_path"])
+                raw_config = json.loads(
+                    config_path.read_text(encoding="utf-8")
+                )
+                unsigned = launchd_agent._open_payload(
+                    launchd_agent._CONFIG_AUTH_DOMAIN,
+                    raw_config,
+                    b"a" * 32,
+                )
+                unsigned["cursor_keychain"]["service"] = service
+                resealed = launchd_agent._seal_payload(
+                    launchd_agent._CONFIG_AUTH_DOMAIN,
+                    unsigned,
+                    b"a" * 32,
+                )
+                config_path.write_text(
+                    json.dumps(resealed, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                os.chmod(config_path, 0o600)
+                calls: list[list[str]] = []
+
+                def forbidden_control(arguments, **_kwargs):
+                    calls.append(list(arguments))
+                    return subprocess.CompletedProcess(
+                        arguments, 0, stdout=b"", stderr=b""
+                    )
+
+                self.mock_provider_free_prelaunch.reset_mock()
+                with self.assertRaises(LaunchAgentError):
+                    start_launch_agent(
+                        runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=forbidden_control,
+                    )
+                self.assertEqual(calls, [])
+                self.assertFalse(
+                    (runtime / "launchd-start-request.json").exists()
+                )
+                self.mock_provider_free_prelaunch.assert_not_called()
+
+    def test_authenticated_config_rejects_foreign_cursor_keychain_account_before_control(
+        self,
+    ) -> None:
+        for case, account in (
+            ("typo", f"{self.cursor_keychain_account}-typo"),
+            ("foreign", "foreign-keychain-account"),
+        ):
+            runtime = self.root / f"authenticated-{case}-account-runtime"
+            with self.subTest(case=case, account=account):
+                generated = self._generate(
+                    runtime_dir=runtime,
+                    instance_token=f"authenticated-{case}-account",
+                )
+                config_path = Path(generated["config_path"])
+                raw_config = json.loads(
+                    config_path.read_text(encoding="utf-8")
+                )
+                unsigned = launchd_agent._open_payload(
+                    launchd_agent._CONFIG_AUTH_DOMAIN,
+                    raw_config,
+                    b"a" * 32,
+                )
+                unsigned["cursor_keychain"]["account"] = account
+                resealed = launchd_agent._seal_payload(
+                    launchd_agent._CONFIG_AUTH_DOMAIN,
+                    unsigned,
+                    b"a" * 32,
+                )
+                config_path.write_text(
+                    json.dumps(resealed, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                os.chmod(config_path, 0o600)
+                calls: list[list[str]] = []
+
+                def forbidden_control(arguments, **_kwargs):
+                    calls.append(list(arguments))
+                    return subprocess.CompletedProcess(
+                        arguments, 0, stdout=b"", stderr=b""
+                    )
+
+                self.mock_provider_free_prelaunch.reset_mock()
+                with self.assertRaises(LaunchAgentError):
+                    start_launch_agent(
+                        runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=forbidden_control,
+                    )
+                self.assertEqual(calls, [])
+                self.assertFalse(
+                    (runtime / "launchd-start-request.json").exists()
+                )
+                self.mock_provider_free_prelaunch.assert_not_called()
+
     def test_v30_rejects_predecessor_protocol_before_control_action(
         self,
     ) -> None:
@@ -1349,11 +1564,199 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "authentication.key",
             "claude-storage",
             "codex-storage",
-            "epiagentbench-cursor-v9-test",
-            "offline-test-account",
+            "epiagentbench-cursor-v30",
+            self.cursor_keychain_account,
             *_SECRET_CANARIES,
         ):
             self.assertNotIn(value, encoded)
+
+    def test_v30_audit_authenticates_provider_free_unstarted_boundary(
+        self,
+    ) -> None:
+        generated = self._generate()
+        calls: list[list[str]] = []
+
+        def dormant_launchctl(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"state = waiting\n",
+                stderr=b"",
+            )
+
+        audited = audit_launch_agent(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+            command_runner=dormant_launchctl,
+        )
+
+        self.assertEqual(
+            audited,
+            {
+                "state": "audited",
+                "label": generated["label"],
+                "operation": "production",
+                "panel_id": development_matched_panel.PANEL_ID,
+                "artifact_integrity": "authenticated",
+                "prelaunch_identity": "attested",
+                "launchd_state": "waiting",
+                "one_shot_state": "unstarted",
+            },
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0:2], ["/bin/launchctl", "print"])
+        self.assertIn(generated["label"], calls[0][2])
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertFalse(
+            (self.runtime / "launchd-control.lock").exists()
+        )
+        self.mock_durable_readiness.assert_called()
+        self.mock_environment_preflight_readiness.assert_called()
+        self.mock_provider_free_prelaunch.assert_called()
+        self.assertEqual(
+            self.mock_public_authentication_receipt_readiness.call_count,
+            2,
+        )
+        for observed in (
+            self.mock_public_authentication_receipt_readiness.call_args_list
+        ):
+            self.assertEqual(
+                observed.kwargs,
+                {
+                    "public_manifest_path": self.public_manifest,
+                    "public_authentication_path": (
+                        self.public_authentication
+                    ),
+                },
+            )
+        self.mock_authentication_readiness.assert_not_called()
+
+    def test_v30_audit_rechecks_authentication_receipt_after_launchd_print(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_public_authentication_receipt_readiness.side_effect = (
+            {
+                "panel_id": development_matched_panel.PANEL_ID,
+                "status": "passed",
+                "model_calls_started": 0,
+            },
+            RuntimeError("authentication receipt replaced after print"),
+        )
+        calls: list[list[str]] = []
+
+        def dormant_launchctl(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"state = waiting\n",
+                stderr=b"",
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            audit_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=dormant_launchctl,
+            )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            self.mock_public_authentication_receipt_readiness.call_count,
+            2,
+        )
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertFalse(
+            (self.runtime / launchd_agent._START_ATTEMPT_NAME).exists()
+        )
+        self.mock_authentication_readiness.assert_not_called()
+
+    def test_v30_audit_failure_precedes_launch_control_and_marker(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_provider_free_prelaunch.side_effect = RuntimeError(
+            "offline prelaunch identity refusal"
+        )
+        calls: list[list[str]] = []
+
+        def forbidden_launchctl(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"state = waiting\n",
+                stderr=b"",
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            audit_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_launchctl,
+            )
+
+        self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertFalse(
+            (self.runtime / "launchd-control.lock").exists()
+        )
+        self.mock_authentication_readiness.assert_not_called()
+
+    def test_v30_audit_cli_dispatches_safe_coarse_payload(self) -> None:
+        script = (
+            self.repository
+            / "examples"
+            / "run_persistent_panel_supervisor.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "_test_persistent_panel_supervisor_cli",
+            script,
+        )
+        self.assertIsNotNone(spec)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        expected = {
+            "state": "audited",
+            "artifact_integrity": "authenticated",
+            "prelaunch_identity": "attested",
+            "launchd_state": "not_running",
+            "one_shot_state": "unstarted",
+        }
+        output = io.StringIO()
+        with (
+            patch.object(
+                module,
+                "audit_launch_agent",
+                return_value=expected,
+            ) as audit,
+            redirect_stdout(output),
+        ):
+            return_code = module.main(
+                [
+                    "audit",
+                    "--runtime-dir",
+                    str(self.runtime),
+                    "--authentication-key",
+                    str(self.authentication_key),
+                ]
+            )
+
+        self.assertEqual(return_code, 0)
+        audit.assert_called_once_with(
+            self.runtime,
+            authentication_key_file=self.authentication_key,
+        )
+        self.assertEqual(json.loads(output.getvalue()), expected)
 
     def test_generator_rejects_relative_and_symlinked_security_paths(self) -> None:
         with self.assertRaises(LaunchAgentError):
@@ -1460,6 +1863,10 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertEqual(response["state"], "start_requested")
         self.assertIs(launchd_owned["worker_active"], True)
         self.assertEqual(len(calls), 1)
+        self.mock_public_authentication_receipt_readiness.assert_called_once_with(
+            public_manifest_path=self.public_manifest,
+            public_authentication_path=self.public_authentication,
+        )
         self.assertEqual(calls[0][0:2], ["/bin/launchctl", "kickstart"])
         self.assertNotIn("-k", calls[0])
         encoded = "\0".join(calls[0])
@@ -1480,6 +1887,260 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 self.runtime,
                 authentication_key_file=self.authentication_key,
                 command_runner=fake_launchctl,
+            )
+        self.assertEqual(len(calls), 1)
+
+    def test_start_rejects_authentication_receipt_semantics_before_commit(
+        self,
+    ) -> None:
+        self._generate()
+        self.mock_public_authentication_receipt_readiness.side_effect = (
+            RuntimeError("authentication receipt semantics changed")
+        )
+        calls: list[list[str]] = []
+
+        def forbidden_launchctl(arguments, **_kwargs):
+            calls.append(list(arguments))
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=b"",
+                stderr=b"",
+            )
+
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=forbidden_launchctl,
+            )
+
+        self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / "launchd-start-request.json").exists()
+        )
+        self.assertTrue(
+            (self.runtime / launchd_agent._START_ATTEMPT_NAME).is_file()
+        )
+        self.mock_public_authentication_receipt_readiness.assert_called_once_with(
+            public_manifest_path=self.public_manifest,
+            public_authentication_path=self.public_authentication,
+        )
+        self.mock_authentication_readiness.assert_not_called()
+
+    def test_start_attempt_is_durable_before_authenticated_runtime_loading(
+        self,
+    ) -> None:
+        self._generate()
+        attempt = self.runtime / launchd_agent._START_ATTEMPT_NAME
+        fsync_kinds: list[str] = []
+        real_fsync = os.fsync
+
+        def recording_fsync(descriptor: int) -> None:
+            mode = os.fstat(descriptor).st_mode
+            if stat.S_ISREG(mode):
+                fsync_kinds.append("file")
+            elif stat.S_ISDIR(mode):
+                fsync_kinds.append("directory")
+            else:
+                fsync_kinds.append("other")
+            real_fsync(descriptor)
+
+        def refuse_authenticated_load(*_args, **_kwargs):
+            self.assertTrue(attempt.is_file())
+            self.assertEqual(
+                attempt.read_bytes(),
+                launchd_agent._CONTROL_ATTEMPT_PAYLOAD,
+            )
+            self.assertEqual(attempt.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(fsync_kinds, ["file", "directory"])
+            raise RuntimeError("synthetic authenticated-load refusal")
+
+        with patch.object(
+            os,
+            "fsync",
+            side_effect=recording_fsync,
+        ), patch.object(
+            launchd_agent,
+            "_read_authenticated_config",
+            side_effect=refuse_authenticated_load,
+        ) as authenticated_load:
+            with self.assertRaises(LaunchAgentError):
+                start_launch_agent(
+                    self.runtime,
+                    authentication_key_file=self.authentication_key,
+                    command_runner=lambda *_args, **_kwargs: self.fail(
+                        "start validation refusal must precede launchctl"
+                    ),
+                )
+
+        authenticated_load.assert_called_once()
+        self.assertTrue(attempt.is_file())
+        with patch.object(
+            launchd_agent,
+            "_read_authenticated_config",
+            side_effect=AssertionError(
+                "a repeated start must fail before authenticated loading"
+            ),
+        ) as repeated_load:
+            with self.assertRaises(LaunchAgentError):
+                start_launch_agent(
+                    self.runtime,
+                    authentication_key_file=self.authentication_key,
+                )
+        repeated_load.assert_not_called()
+
+    def test_delayed_concurrent_start_cannot_cross_exclusive_attempt(self) -> None:
+        self._generate()
+        entered_launchctl = threading.Event()
+        release_launchctl = threading.Event()
+        outcomes: list[object] = []
+
+        def delayed_launchctl(arguments, **_kwargs):
+            entered_launchctl.set()
+            if not release_launchctl.wait(timeout=10):
+                raise AssertionError("timed out waiting to release launchctl")
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=b"", stderr=b""
+            )
+
+        def first_start() -> None:
+            try:
+                outcomes.append(
+                    start_launch_agent(
+                        self.runtime,
+                        authentication_key_file=self.authentication_key,
+                        command_runner=delayed_launchctl,
+                    )
+                )
+            except BaseException as error:  # captured for the parent thread
+                outcomes.append(error)
+
+        thread = threading.Thread(target=first_start, daemon=True)
+        thread.start()
+        self.assertTrue(entered_launchctl.wait(timeout=10))
+        try:
+            with self.assertRaises(LaunchAgentError):
+                start_launch_agent(
+                    self.runtime,
+                    authentication_key_file=self.authentication_key,
+                    command_runner=lambda *_args, **_kwargs: self.fail(
+                        "a delayed second start reached launchctl"
+                    ),
+                )
+        finally:
+            release_launchctl.set()
+            thread.join(timeout=10)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(len(outcomes), 1)
+        self.assertIsInstance(outcomes[0], dict)
+        self.assertEqual(outcomes[0]["state"], "start_requested")
+
+    def test_install_attempt_follows_validation_and_is_durable_before_bootstrap(
+        self,
+    ) -> None:
+        self._generate()
+        attempt = self.runtime / launchd_agent._INSTALL_ATTEMPT_NAME
+        fsync_kinds: list[str] = []
+        calls: list[list[str]] = []
+        real_fsync = os.fsync
+
+        def recording_fsync(descriptor: int) -> None:
+            mode = os.fstat(descriptor).st_mode
+            if stat.S_ISREG(mode):
+                fsync_kinds.append("file")
+            elif stat.S_ISDIR(mode):
+                fsync_kinds.append("directory")
+            else:
+                fsync_kinds.append("other")
+            real_fsync(descriptor)
+
+        def failed_bootstrap(arguments, **_kwargs):
+            calls.append(list(arguments))
+            self.assertTrue(attempt.is_file())
+            self.assertEqual(
+                attempt.read_bytes(),
+                launchd_agent._CONTROL_ATTEMPT_PAYLOAD,
+            )
+            self.assertEqual(attempt.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(fsync_kinds, ["file", "directory"])
+            return subprocess.CompletedProcess(
+                arguments, 64, stdout=b"", stderr=b""
+            )
+
+        with patch.object(
+            os,
+            "fsync",
+            side_effect=recording_fsync,
+        ):
+            with self.assertRaises(LaunchAgentError):
+                install_launch_agent(
+                    self.runtime,
+                    authentication_key_file=self.authentication_key,
+                    command_runner=failed_bootstrap,
+                )
+
+        self.assertTrue(attempt.is_file())
+        with self.assertRaises(LaunchAgentError):
+            install_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=lambda arguments, **_kwargs: calls.append(
+                    list(arguments)
+                ),
+            )
+        self.assertEqual(len(calls), 1)
+
+    def test_install_validation_failure_does_not_publish_attempt(self) -> None:
+        self._generate()
+        wrong_key = self.root / "wrong-authentication.key"
+        wrong_key.write_bytes(b"b" * 32)
+        os.chmod(wrong_key, 0o600)
+        calls: list[list[str]] = []
+
+        with self.assertRaises(LaunchAgentError):
+            install_launch_agent(
+                self.runtime,
+                authentication_key_file=wrong_key,
+                command_runner=lambda arguments, **_kwargs: calls.append(
+                    list(arguments)
+                ),
+            )
+
+        self.assertFalse(
+            (self.runtime / launchd_agent._INSTALL_ATTEMPT_NAME).exists()
+        )
+        self.assertFalse(
+            (self.runtime / launchd_agent._CONTROL_LOCK_NAME).exists()
+        )
+        self.assertEqual(calls, [])
+
+    def test_ambiguous_install_attempt_cannot_be_retried(self) -> None:
+        self._generate()
+        calls: list[list[str]] = []
+
+        def ambiguous_bootstrap(arguments, **_kwargs):
+            calls.append(list(arguments))
+            raise subprocess.TimeoutExpired(arguments, 15)
+
+        with self.assertRaises(LaunchAgentError):
+            install_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=ambiguous_bootstrap,
+            )
+        self.assertTrue(
+            (self.runtime / launchd_agent._INSTALL_ATTEMPT_NAME).is_file()
+        )
+
+        with self.assertRaises(LaunchAgentError):
+            install_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=lambda arguments, **_kwargs: calls.append(
+                    list(arguments)
+                ),
             )
         self.assertEqual(len(calls), 1)
 
@@ -1537,6 +2198,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertFalse(
             (self.runtime / "launchd-start-request.json").exists()
         )
+        self.assertTrue(
+            (self.runtime / "launchd-control.lock").is_file()
+        )
         self.assertEqual(calls, [])
         self.mock_environment_preflight_readiness.assert_called_once_with(
             root=self.repository,
@@ -1571,6 +2235,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertFalse(
             (self.runtime / "launchd-start-request.json").exists()
         )
+        self.assertTrue(
+            (self.runtime / "launchd-control.lock").is_file()
+        )
         self.assertEqual(calls, [])
         self.mock_environment_preflight_readiness.assert_called_once_with(
             root=self.repository,
@@ -1582,6 +2249,111 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             root=self.repository,
             operation="production",
             public_manifest_path=self.public_manifest,
+        )
+        self.mock_provider_free_prelaunch.reset_mock()
+        self.mock_provider_free_prelaunch.side_effect = None
+        with self.assertRaises(LaunchAgentError):
+            start_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=should_not_run,
+            )
+        self.mock_provider_free_prelaunch.assert_not_called()
+        self.assertEqual(calls, [])
+
+    def test_v30_rejects_predecessor_and_foreign_identity_before_generation(
+        self,
+    ) -> None:
+        baseline = json.loads(
+            self.public_manifest.read_text(encoding="utf-8")
+        )
+        cases = (
+            (
+                "v29-schema",
+                development_matched_panel.PANEL_ID,
+                "development_matched_panel_v29",
+            ),
+            (
+                "v29-panel",
+                "development-matched-50x6-v29",
+                development_matched_panel.SCHEMA_VERSION,
+            ),
+            (
+                "foreign-identity",
+                "development-matched-50x6-foreign",
+                "development_matched_panel_foreign",
+            ),
+        )
+        for case, panel_id, schema_version in cases:
+            with self.subTest(case=case):
+                manifest = dict(baseline)
+                manifest["panel_id"] = panel_id
+                manifest["schema_version"] = schema_version
+                self.public_manifest.write_text(
+                    json.dumps(manifest), encoding="utf-8"
+                )
+                runtime = self.root / f"{case}-runtime"
+                with patch.object(
+                    launchd_agent,
+                    "_read_authentication_key",
+                    side_effect=AssertionError(
+                        "identity rejection must precede key access"
+                    ),
+                ) as authentication_read:
+                    with self.assertRaises(LaunchAgentError):
+                        self._generate(
+                            runtime_dir=runtime,
+                            instance_token=case,
+                        )
+
+                authentication_read.assert_not_called()
+                self.assertFalse(runtime.exists())
+
+    def test_install_rejects_resealed_predecessor_manifest_before_bootstrap(
+        self,
+    ) -> None:
+        generated = self._generate()
+        manifest = json.loads(
+            self.public_manifest.read_text(encoding="utf-8")
+        )
+        manifest["panel_id"] = "development-matched-50x6-v29"
+        manifest["schema_version"] = "development_matched_panel_v29"
+        self.public_manifest.write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        config_path = Path(generated["config_path"])
+        record = json.loads(config_path.read_text(encoding="utf-8"))
+        unsigned = launchd_agent._open_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            record,
+            b"a" * 32,
+        )
+        unsigned["public_manifest_file_sha256"] = (
+            "sha256:"
+            + hashlib.sha256(self.public_manifest.read_bytes()).hexdigest()
+        )
+        resealed = launchd_agent._seal_payload(
+            launchd_agent._CONFIG_AUTH_DOMAIN,
+            unsigned,
+            b"a" * 32,
+        )
+        config_path.write_text(json.dumps(resealed), encoding="utf-8")
+        os.chmod(config_path, 0o600)
+        calls: list[list[str]] = []
+
+        with self.assertRaises(LaunchAgentError):
+            install_launch_agent(
+                self.runtime,
+                authentication_key_file=self.authentication_key,
+                command_runner=lambda arguments, **_kwargs: calls.append(
+                    list(arguments)
+                ),
+            )
+
+        self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / launchd_agent._INSTALL_ATTEMPT_NAME).exists()
         )
 
     def test_start_never_accesses_cursor_keychain_before_marker(
@@ -1615,9 +2387,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         config, _ = self._config_and_key()
         command = launchd_agent._runner_command(config)
         self.assertIn("--cursor-keychain-service", command)
-        self.assertIn("epiagentbench-cursor-v9-test", command)
+        self.assertIn("epiagentbench-cursor-v30", command)
         self.assertIn("--cursor-keychain-account", command)
-        self.assertIn("offline-test-account", command)
+        self.assertIn(self.cursor_keychain_account, command)
         self.assertNotIn("CURSOR_API_KEY", " ".join(command))
 
     def test_worker_child_exit_is_finite_and_never_persists_keychain_value(self) -> None:
@@ -1887,7 +2659,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 "schema_version": (
                     "epiagentbench.terminal_receipt_attestation.v1"
                 ),
-                "panel_id": "development-matched-50x6-v9-test",
+                "panel_id": development_matched_panel.PANEL_ID,
                 "operation": "production",
                 "status": "attested",
                 "terminal_status": "stopped_supervisor_incident",
@@ -3302,7 +4074,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
         self.assertEqual(len(calls), 1)
 
-    def test_start_and_uninstall_share_nonblocking_control_lock(self) -> None:
+    def test_install_start_and_uninstall_share_nonblocking_control_lock(
+        self,
+    ) -> None:
         self._generate()
         calls: list[list[str]] = []
 
@@ -3311,6 +4085,12 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             return subprocess.CompletedProcess(arguments, 0, stdout=b"", stderr=b"")
 
         with launchd_agent._LaunchControlLock(self.runtime):
+            with self.assertRaises(LaunchAgentError):
+                install_launch_agent(
+                    self.runtime,
+                    authentication_key_file=self.authentication_key,
+                    command_runner=should_not_run,
+                )
             with self.assertRaises(LaunchAgentError):
                 start_launch_agent(
                     self.runtime,
@@ -3324,6 +4104,12 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                     command_runner=should_not_run,
                 )
         self.assertEqual(calls, [])
+        self.assertFalse(
+            (self.runtime / launchd_agent._INSTALL_ATTEMPT_NAME).exists()
+        )
+        self.assertTrue(
+            (self.runtime / launchd_agent._START_ATTEMPT_NAME).is_file()
+        )
 
     def test_finalize_lock_contention_is_read_only(self) -> None:
         self._generate()

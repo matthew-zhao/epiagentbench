@@ -54,6 +54,7 @@ if __package__ in {None, ""}:
 
 from epiagentbench.launchd_agent import (
     LaunchAgentError,
+    audit_launch_agent,
     finalize_launch_agent,
     generate_launch_agent,
     install_launch_agent,
@@ -101,7 +102,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     generate.add_argument("--instance-token", help=argparse.SUPPRESS)
 
-    for name in ("install", "start", "status", "finalize", "uninstall"):
+    for name in (
+        "install",
+        "audit",
+        "start",
+        "status",
+        "finalize",
+        "uninstall",
+    ):
         command = commands.add_parser(name)
         command.add_argument("--runtime-dir", required=True, type=Path)
         command.add_argument("--authentication-key", required=True, type=Path)
@@ -138,6 +146,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "install":
             payload = install_launch_agent(
+                args.runtime_dir,
+                authentication_key_file=args.authentication_key,
+            )
+        elif args.command == "audit":
+            payload = audit_launch_agent(
                 args.runtime_dir,
                 authentication_key_file=args.authentication_key,
             )

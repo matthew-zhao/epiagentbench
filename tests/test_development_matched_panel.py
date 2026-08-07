@@ -5631,6 +5631,143 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertNotIn("git worktree add", runbook)
         self.assertIn("Direct `git push` is forbidden", runbook)
+        self.assertIn(
+            "cf58956cc161507b89afc40f2857934161f6791b",
+            runbook,
+        )
+        self.assertIn(
+            "ddfede1cd6d15821fe5c1918035b5645c5f229ea",
+            runbook,
+        )
+        self.assertIn(
+            "epiagentbench-50x6-v30-runtime-worktree-r2",
+            runbook,
+        )
+        self.assertIn(
+            "epiagentbench-50x6-v5-venv/bin/python -I -S -B",
+            runbook,
+        )
+        self.assertIn("epiagentbench-cursor-v30", runbook)
+        self.assertIn("Cursor Keychain account | `matthew.zhao`", runbook)
+        self.assertIn(
+            ".development-matched-50x6-v30."
+            "cohort-freeze-claim.v1.json",
+            runbook,
+        )
+        self.assertIn(
+            ".development-matched-50x6-v30."
+            "cohort-freeze-completion.v1.json",
+            runbook,
+        )
+        for schema in (
+            "epiagentbench.preparation_runtime_preflight.v4",
+            "epiagentbench.preparation_runtime_verification.v3",
+            "epiagentbench.bound_preparation_runtime.v3",
+            "epiagentbench.provider_free_preparation_environment.v2",
+            "epiagentbench.runtime_cache_contract.v3",
+            "epiagentbench.preparation_runtime_smoke.v2",
+            "epiagentbench.preparation_episode_startup_smoke.v1",
+            "epiagentbench.provider_free_publication.v1",
+            "epiagentbench.python_isolated_bootstrap.v2",
+            "epiagentbench.python_entrypoint_binding.v2",
+            "epiagentbench.launchd_start_request.v1",
+            "epiagentbench.provider_free_preclaim.v3",
+            "epiagentbench.provider_free_preclaim_prerequisites.v1",
+            "epiagentbench.preflight_incident_envelope.v3",
+            "epiagentbench.provider_free_prelaunch.v1",
+            "epiagentbench.terminal_receipt_attestation.v1",
+            "epiagentbench.terminal_audit.v3",
+            "epiagentbench.terminal_incident_attestation.v2",
+            "epiagentbench.spend_authorization.v2",
+            "epiagentbench.authentication_setup.v4",
+            "epiagentbench.authentication_terminal_incident.v1",
+            "epiagentbench.authentication_dependency_freeze.v1",
+            "epiagentbench.authentication_receipt.v2",
+            "epiagentbench.public_authentication_receipt_attestation.v1",
+            "epiagentbench.repository_receipt_binding.v1",
+            "epiagentbench.receipt_commit_binding.v1",
+            "epiagentbench.private_state_storage.v2",
+            "epiagentbench.provider_cli_contract.v2",
+            "epiagentbench.provider_cli_discovery.v2",
+            "epiagentbench.claude_auth.v3",
+            "epiagentbench.codex_auth.v1",
+            "epiagentbench.provider_progress.v1",
+            "epiagentbench.cohort_preparation.v1",
+            "epiagentbench.cohort_retirement.v1",
+            "epiagentbench.terminal_receipt_reconciliation.v1",
+            "epiagentbench.v30_cohort_freeze_claim.v1",
+            "epiagentbench.v30_cohort_freeze_completion.v1",
+            "epiagentbench.v30_cohort_freeze.v2",
+        ):
+            self.assertIn(schema, runbook)
+        self.assertGreaterEqual(
+            runbook.count("preflight-preparation-runtime"), 2
+        )
+        for name in (
+            "preflight-1.json",
+            "preflight-2.json",
+            "verification.json",
+        ):
+            self.assertIn(name, runbook)
+        self.assertIn("/usr/bin/cmp -s", runbook)
+        self.assertIn("publish-provider-free-json", runbook)
+        self.assertIn("exact create-only bootstrap once", runbook)
+        self.assertIn("/bin/mkdir -m 0700", runbook)
+        self.assertIn("never remove, rename, repair, or rerun", runbook)
+        self.assertIn("not retry slots", runbook)
+        self.assertIn("If candidate 1 fails", runbook)
+        self.assertIn("do not rerun verification", runbook)
+        self.assertIn(
+            "git ls-remote --refs --exit-code",
+            runbook,
+        )
+        self.assertIn(
+            "https://github.com/matthew-zhao/epiagentbench.git",
+            runbook,
+        )
+        self.assertGreaterEqual(
+            runbook.count("/usr/bin/git ls-remote --refs --exit-code"),
+            2,
+        )
+        self.assertIn("refs/heads/codex/v30-control-plane", runbook)
+        self.assertIn("refs/heads/codex/v30-runtime-preflight", runbook)
+        self.assertIn(
+            "epiagentbench-50x6-v30-prepare-worktree",
+            runbook,
+        )
+        self.assertIn("exactly one", runbook)
+        self.assertIn("clean `HEAD` equals that remote object ID", runbook)
+        self.assertIn(
+            "--preparation-runtime-receipt "
+            "/Users/matthew.zhao/.codex/"
+            "epiagentbench-50x6-v30-prepare-worktree/results/"
+            "development-matched-50x6-v30.runtime.json",
+            runbook,
+        )
+        self.assertIn(
+            '--expected-benchmark-base-commit '
+            '"$V30_RUNTIME_RECEIPT_COMMIT"',
+            runbook,
+        )
+        self.assertIn(
+            "--public-verification-receipt "
+            "/Users/matthew.zhao/.codex/"
+            "epiagentbench-v30-runtime-receipt-staging/"
+            "verification.json",
+            runbook,
+        )
+        self.assertIn(
+            "`audit` and `status` are repeatable, provider-free, "
+            "authenticated,",
+            runbook,
+        )
+        self.assertIn("not create-once ceremony steps", runbook)
+        frozen_tmp = (
+            "/Users/matthew.zhao/.codex/"
+            "epiagentbench-v30-provider-free-tmp"
+        )
+        self.assertIn(frozen_tmp, runbook)
+        self.assertLessEqual(len(os.fsencode(frozen_tmp)), 72)
 
         supervisor = matched._persistent_supervisor_contract()
         self.assertEqual(
@@ -14090,6 +14227,115 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             evaluate.assert_not_called()
         matched._atomic_json(receipt_path, baseline)
+
+    def test_public_authentication_receipt_semantics_are_credential_blind(
+        self,
+    ):
+        self._prepare()
+        receipt_path = matched._authentication_receipt_path(
+            self.public_path
+        )
+        baseline = matched._load_json(receipt_path)
+
+        with (
+            patch.object(
+                matched,
+                "_read_authentication_key",
+                side_effect=AssertionError(
+                    "public receipt semantics must not read the auth key"
+                ),
+            ) as read_key,
+            patch.object(
+                matched,
+                "_load_private_state",
+                side_effect=AssertionError(
+                    "public receipt semantics must not read private state"
+                ),
+            ) as load_private,
+            patch.object(
+                matched,
+                "_attest_authentication_credentials",
+                side_effect=AssertionError(
+                    "public receipt semantics must not inspect credentials"
+                ),
+            ) as attest_credentials,
+        ):
+            attested = matched.assert_public_authentication_receipt_ready(
+                public_manifest_path=self.public_path,
+                public_authentication_path=receipt_path,
+            )
+
+        self.assertEqual(
+            attested,
+            {
+                "schema_version": (
+                    "epiagentbench."
+                    "public_authentication_receipt_attestation.v1"
+                ),
+                "panel_id": matched.PANEL_ID,
+                "status": "passed",
+                "model_calls_started": 0,
+            },
+        )
+        read_key.assert_not_called()
+        load_private.assert_not_called()
+        attest_credentials.assert_not_called()
+
+        mutations = {
+            "status": lambda candidate: candidate.__setitem__(
+                "status", "failed"
+            ),
+            "model_call": lambda candidate: candidate.__setitem__(
+                "model_calls_started", 1
+            ),
+            "contract": lambda candidate: candidate[
+                "authentication_contract_hashes"
+            ].__setitem__("source_sha256", "sha256:" + "9" * 64),
+            "spend": lambda candidate: candidate.__setitem__(
+                "spend_authorization_receipt_sha256",
+                "sha256:" + "8" * 64,
+            ),
+            "dependency_policy": lambda candidate: candidate[
+                "authentication_dependency_identity"
+            ].__setitem__(
+                "root_owned_single_link_regular_executable_policy_attested",
+                False,
+            ),
+            "extra_field": lambda candidate: candidate.__setitem__(
+                "unexpected", True
+            ),
+        }
+        for name, mutate in mutations.items():
+            candidate = copy.deepcopy(baseline)
+            mutate(candidate)
+            unsigned = dict(candidate)
+            unsigned.pop("receipt_sha256")
+            candidate["receipt_sha256"] = matched._component_hash(
+                unsigned
+            )
+            matched._atomic_json(receipt_path, candidate)
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(
+                    ValueError, "Public authentication receipt is invalid"
+                ),
+            ):
+                matched.assert_public_authentication_receipt_ready(
+                    public_manifest_path=self.public_path,
+                    public_authentication_path=receipt_path,
+                )
+        matched._atomic_json(receipt_path, baseline)
+
+        foreign_path = receipt_path.with_name("foreign.authentication.json")
+        matched._atomic_json(foreign_path, baseline)
+        with self.assertRaisesRegex(
+            ValueError,
+            "Public authentication receipt path is not canonical",
+        ):
+            matched.assert_public_authentication_receipt_ready(
+                public_manifest_path=self.public_path,
+                public_authentication_path=foreign_path,
+            )
 
     def test_invalid_authentication_cross_states_cannot_publish(self):
         self._prepare()

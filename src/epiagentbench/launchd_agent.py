@@ -9,7 +9,7 @@ preclaim has passed and the paid preflight is claimed atomically.
 
 This module never changes launchd state automatically. Explicit install,
 start, and uninstall controls are the only mutating ``launchctl`` entry points;
-status performs only a read-only ``launchctl print``.
+audit and status perform only a read-only ``launchctl print``.
 """
 
 from __future__ import annotations
@@ -48,6 +48,9 @@ _CONFIG_NAME = "config.json"
 _STATUS_NAME = "launchd-worker-status.json"
 _START_MARKER_NAME = "launchd-start-request.json"
 _CONTROL_LOCK_NAME = "launchd-control.lock"
+_INSTALL_ATTEMPT_NAME = "launchd-install-attempt"
+_START_ATTEMPT_NAME = "launchd-start-attempt"
+_CONTROL_ATTEMPT_PAYLOAD = b"attempted\n"
 _CONFIG_AUTH_DOMAIN = b"epiagentbench:launchd-config:v16\x00"
 _WORKER_STATUS_AUTH_DOMAIN = b"epiagentbench:launchd-worker-status:v6\x00"
 _START_MARKER_AUTH_DOMAIN = b"epiagentbench:launchd-start-request:v1\x00"
@@ -66,6 +69,10 @@ _MAX_PYTHON_SYMLINK_HOPS = 8
 _PYTHON_BOOTSTRAP_TIMEOUT_SECONDS = 15
 _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v9"
+_MATCHED_PANEL_ID_PREFIX = "development-matched-50x6-"
+_CURSOR_KEYCHAIN_SERVICE_PREFIX = "epiagentbench-cursor-"
+_FROZEN_PANEL_ID = "development-matched-50x6-v30"
+_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v30"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -211,6 +218,31 @@ _TERMINAL_AUDIT_INCIDENT_CODES = frozenset(
 
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[bytes]]
+
+
+def _required_cursor_keychain_service(panel_id: object) -> str:
+    """Derive the sole Cursor Keychain namespace for one panel identity."""
+
+    if (
+        not isinstance(panel_id, str)
+        or not _SAFE_NAME.fullmatch(panel_id)
+        or not panel_id.startswith(_MATCHED_PANEL_ID_PREFIX)
+    ):
+        raise ValueError("Invalid matched-panel identity")
+    namespace = panel_id[len(_MATCHED_PANEL_ID_PREFIX) :]
+    service = f"{_CURSOR_KEYCHAIN_SERVICE_PREFIX}{namespace}"
+    if not namespace or not _SAFE_NAME.fullmatch(service):
+        raise ValueError("Invalid matched-panel Keychain namespace")
+    return service
+
+
+def _required_cursor_keychain_account() -> str:
+    """Return the sole Cursor Keychain account for the effective UID."""
+
+    account = pwd.getpwuid(os.getuid()).pw_name
+    if not isinstance(account, str) or not _SAFE_NAME.fullmatch(account):
+        raise ValueError("Invalid effective-user Keychain account")
+    return account
 
 
 class LaunchAgentError(ValueError):
@@ -1610,6 +1642,7 @@ def _manifest_binding(
     if not isinstance(manifest, dict):
         raise ValueError("Public manifest has an invalid schema")
     panel_id = manifest.get("panel_id")
+    schema_version = manifest.get("schema_version")
     precommitment = manifest.get("precommitment_sha256")
     runtime_contract = manifest.get("runtime_contract")
     python_executable_sha256 = (
@@ -1637,8 +1670,8 @@ def _manifest_binding(
     )
     uses_bound_preparation_runtime = preparation_runtime_contract is not None
     if (
-        not isinstance(panel_id, str)
-        or not _SAFE_NAME.fullmatch(panel_id)
+        panel_id != _FROZEN_PANEL_ID
+        or schema_version != _FROZEN_PANEL_SCHEMA_VERSION
         or not isinstance(precommitment, str)
         or not _SHA256.fullmatch(precommitment)
         or not isinstance(python_executable_sha256, str)
@@ -1661,7 +1694,7 @@ def _manifest_binding(
             or "runtime_cache_contract" in preparation_runtime_contract
         )
     ):
-        raise ValueError("Public manifest lacks a valid panel binding")
+        raise ValueError("Public manifest lacks the frozen V30 panel binding")
     return (
         panel_id,
         precommitment,
@@ -1771,6 +1804,15 @@ def _fsync_directory(path: Path) -> None:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def _create_durable_control_attempt(runtime: Path, *, name: str) -> None:
+    """Create and durably publish one irreversible control attempt."""
+
+    if name not in {_INSTALL_ATTEMPT_NAME, _START_ATTEMPT_NAME}:
+        raise ValueError("Invalid launch-agent control attempt")
+    _write_exclusive(runtime / name, _CONTROL_ATTEMPT_PAYLOAD)
+    _fsync_directory(runtime)
 
 
 def _worker_program_arguments(config: Mapping[str, Any]) -> list[str]:
@@ -1922,6 +1964,10 @@ def generate_launch_agent(
         raise ValueError("Invalid Cursor Keychain service name")
     if not _SAFE_NAME.fullmatch(cursor_keychain_account):
         raise ValueError("Invalid Cursor Keychain account name")
+    if cursor_keychain_account != _required_cursor_keychain_account():
+        raise ValueError(
+            "Cursor Keychain account does not match the effective user"
+        )
     if instance_token is None:
         token = token_hex(12)
     else:
@@ -1973,7 +2019,6 @@ def generate_launch_agent(
     _require_directory(codex_storage, label="Codex secure-storage directory", exact_mode=0o700)
     _require_regular(private_state, label="private state", exact_mode=0o600)
     _require_regular(public_manifest, label="public manifest")
-    authentication_key = _read_authentication_key(auth_key)
     (
         panel_id,
         precommitment_sha256,
@@ -1982,6 +2027,13 @@ def generate_launch_agent(
         manifest_python_executable_binding_sha256,
         manifest_runtime_cache_contract_sha256,
     ) = _manifest_binding(public_manifest)
+    if cursor_keychain_service != _required_cursor_keychain_service(
+        panel_id
+    ):
+        raise ValueError(
+            "Cursor Keychain service does not match the panel identity"
+        )
+    authentication_key = _read_authentication_key(auth_key)
     expected_output = public_manifest.with_name(
         (
             f"{panel_id}.preflight.json"
@@ -2445,6 +2497,16 @@ def _validate_authenticated_config(
         or not all(isinstance(keychain[key], str) and _SAFE_NAME.fullmatch(keychain[key]) for key in keychain)
     ):
         raise ValueError("Invalid Cursor Keychain locator")
+    if keychain["service"] != _required_cursor_keychain_service(
+        config["panel_id"]
+    ):
+        raise ValueError(
+            "Cursor Keychain service does not match the panel identity"
+        )
+    if keychain["account"] != _required_cursor_keychain_account():
+        raise ValueError(
+            "Cursor Keychain account does not match the effective user"
+        )
     environment = config["base_environment"]
     if (
         not isinstance(environment, dict)
@@ -3490,17 +3552,172 @@ def install_launch_agent(
     with _load_in_authenticated_runtime_environment(
         runtime_dir,
         authentication_key_file=authentication_key_file,
-    ) as (config, plist_path, _):
-        result = _launchctl(
-            ["bootstrap", f"gui/{os.getuid()}", str(plist_path)],
-            command_runner=command_runner,
+    ) as (config, plist_path, authentication_key):
+        runtime = Path(config["runtime_dir"])
+        config_path = Path(config["config_path"])
+        with _LaunchControlLock(runtime):
+            # Authentication, identity, source, cache, and plist validation
+            # have all succeeded. Publish the irreversible install-attempt
+            # boundary immediately before bootstrap. It intentionally
+            # survives a nonzero result, timeout, or indeterminate launchctl
+            # failure so bootstrap is never repeated into ambiguous state.
+            _assert_authenticated_config_snapshot(
+                config,
+                authentication_key=authentication_key,
+            )
+            _validate_authenticated_config(
+                runtime=runtime,
+                config_path=config_path,
+                config=config,
+                authentication_key=authentication_key,
+            )
+            if plist_path != runtime / f"{config['label']}.plist":
+                raise RuntimeError("LaunchAgent plist binding changed")
+            _create_durable_control_attempt(
+                runtime,
+                name=_INSTALL_ATTEMPT_NAME,
+            )
+            result = _launchctl(
+                ["bootstrap", f"gui/{os.getuid()}", str(plist_path)],
+                command_runner=command_runner,
+            )
+            if (
+                _launchctl_outcome(result, allow_not_found=False)
+                is not _LaunchctlOutcome.SUCCESS
+            ):
+                raise RuntimeError(
+                    "Unable to install the owner-scoped LaunchAgent"
+                )
+            return {"label": config["label"], "state": "installed"}
+
+
+def _attest_provider_free_prelaunch_identity(
+    config: Mapping[str, Any],
+) -> None:
+    """Reattest the exact provider-free identity shared by audit and start."""
+
+    import epiagentbench.development_matched_panel as matched_panel
+
+    _, _, development_matched_panel_source = _verify_frozen_runtime_sources(
+        config
+    )
+    _require_loaded_module_source(
+        matched_panel.__file__,
+        development_matched_panel_source,
+    )
+    matched_panel.assert_durable_live_execution_paths(
+        root=Path(config["repository_root"]),
+        private_state_path=Path(config["private_state_path"]),
+    )
+    if config["operation"] == "production":
+        matched_panel.assert_environment_preflight_ready(
+            root=Path(config["repository_root"]),
+            authentication_key_file=Path(
+                config["authentication_key_file"]
+            ),
+            private_state_path=Path(config["private_state_path"]),
+            public_manifest_path=Path(config["public_manifest_path"]),
         )
-        if (
-            _launchctl_outcome(result, allow_not_found=False)
-            is not _LaunchctlOutcome.SUCCESS
-        ):
-            raise RuntimeError("Unable to install the owner-scoped LaunchAgent")
-        return {"label": config["label"], "state": "installed"}
+    matched_panel.attest_provider_free_prelaunch(
+        root=Path(config["repository_root"]),
+        operation=str(config["operation"]),
+        public_manifest_path=Path(config["public_manifest_path"]),
+    )
+    # This is a semantic, credential-blind check of the sanitized public
+    # receipt.  Bracket it with the config-bound file digest so neither audit
+    # pass nor start can accept a different but self-consistent receipt during
+    # a concurrent replacement.
+    authentication_path = Path(config["public_authentication_path"])
+    authentication_sha256_before = _file_sha256(
+        authentication_path,
+        maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
+        label="public authentication receipt",
+    )
+    if not hmac.compare_digest(
+        authentication_sha256_before,
+        str(config["public_authentication_file_sha256"]),
+    ):
+        raise ValueError("Public authentication receipt binding changed")
+    matched_panel.assert_public_authentication_receipt_ready(
+        public_manifest_path=Path(config["public_manifest_path"]),
+        public_authentication_path=authentication_path,
+    )
+    authentication_sha256_after = _file_sha256(
+        authentication_path,
+        maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
+        label="public authentication receipt",
+    )
+    if (
+        not hmac.compare_digest(
+            authentication_sha256_after,
+            authentication_sha256_before,
+        )
+        or not hmac.compare_digest(
+            authentication_sha256_after,
+            str(config["public_authentication_file_sha256"]),
+        )
+    ):
+        raise ValueError(
+            "Public authentication receipt changed during prelaunch attestation"
+        )
+
+
+def _require_unstarted_one_shot_boundary(
+    config: Mapping[str, Any],
+    *,
+    authentication_key: bytes,
+) -> None:
+    """Require that no durable or authenticated start evidence exists."""
+
+    runtime = Path(config["runtime_dir"])
+    if (
+        _read_start_marker(
+            runtime,
+            config=config,
+            authentication_key=authentication_key,
+        )
+        is not None
+    ):
+        raise RuntimeError("One-shot LaunchAgent start was already requested")
+    if (
+        _worker_status(
+            runtime,
+            config=config,
+            authentication_key=authentication_key,
+        )
+        is not None
+    ):
+        raise RuntimeError("One-shot LaunchAgent worker already started")
+    core = _core_status(
+        runtime,
+        authentication_key=authentication_key,
+        expected_execution_context_sha256=config[
+            "execution_context_sha256"
+        ],
+    )
+    if core["state"] != "not_started":
+        raise RuntimeError("Supervised command already started")
+
+
+def _require_unattempted_one_shot_boundary(
+    config: Mapping[str, Any],
+    *,
+    authentication_key: bytes,
+) -> None:
+    """Require no start-control attempt or durable start evidence."""
+
+    runtime = Path(config["runtime_dir"])
+    start_attempt = runtime / _START_ATTEMPT_NAME
+    # Presence of any leaf, including a symlink or malformed replacement,
+    # proves a prior or concurrent start-control attempt. The marker is
+    # intentionally unauthenticated because start creates and fsyncs it before
+    # opening the authenticated runtime.
+    if start_attempt.exists() or start_attempt.is_symlink():
+        raise RuntimeError("One-shot LaunchAgent start was already attempted")
+    _require_unstarted_one_shot_boundary(
+        config,
+        authentication_key=authentication_key,
+    )
 
 
 def _start_launch_agent_validated(
@@ -3511,72 +3728,35 @@ def _start_launch_agent_validated(
 ) -> dict[str, Any]:
     runtime = Path(config["runtime_dir"])
     target = f"gui/{os.getuid()}/{config['label']}"
-    with _LaunchControlLock(runtime):
-        if (
-            _read_start_marker(
-                runtime,
-                config=config,
-                authentication_key=authentication_key,
-            )
-            is not None
-        ):
-            raise RuntimeError("Refusing to repeat a one-shot start request")
-        # Any authenticated worker record means this one-shot boundary was
-        # already crossed.  Refuse even if launchd would permit a second run.
-        if _worker_status(runtime, config=config, authentication_key=authentication_key) is not None:
-            raise RuntimeError("Refusing to restart a one-shot LaunchAgent")
-        core = _core_status(
-            runtime,
-            authentication_key=authentication_key,
-            expected_execution_context_sha256=config["execution_context_sha256"],
-        )
-        if core["state"] != "not_started":
-            raise RuntimeError("Refusing to restart a supervised command")
-        import epiagentbench.development_matched_panel as matched_panel
-
-        _, _, development_matched_panel_source = _verify_frozen_runtime_sources(
-            config
-        )
-        _require_loaded_module_source(
-            matched_panel.__file__,
-            development_matched_panel_source,
-        )
-        matched_panel.assert_durable_live_execution_paths(
-            root=Path(config["repository_root"]),
-            private_state_path=Path(config["private_state_path"]),
-        )
-        # Start remains credential-blind for the same reason as generation:
-        # the supervised runner must first create and reconcile its same-child
-        # provider-free preclaim.  In particular, do not call the foreground
-        # authentication-readiness helper here because it may query credential
-        # metadata and macOS Keychain before that durable boundary.
-        if config["operation"] == "production":
-            matched_panel.assert_environment_preflight_ready(
-                root=Path(config["repository_root"]),
-                authentication_key_file=Path(
-                    config["authentication_key_file"]
-                ),
-                private_state_path=Path(config["private_state_path"]),
-                public_manifest_path=Path(config["public_manifest_path"]),
-            )
-        matched_panel.attest_provider_free_prelaunch(
-            root=Path(config["repository_root"]),
-            operation=str(config["operation"]),
-            public_manifest_path=Path(config["public_manifest_path"]),
-        )
-        # This durable HMAC marker is the launch commitment for launchctl.  It
-        # is written and directory-fsynced before kickstart, and intentionally
-        # survives every nonzero or ambiguous kickstart outcome.
-        _write_start_marker(
-            runtime,
-            config=config,
-            authentication_key=authentication_key,
-        )
-        # Deliberately omit kickstart -k: an already-running worker must never
-        # be killed and relaunched across an ambiguous provider boundary.
-        result = _launchctl(["kickstart", target], command_runner=command_runner)
-        if _launchctl_outcome(result, allow_not_found=False) is not _LaunchctlOutcome.SUCCESS:
-            raise RuntimeError("Unable to start the one-shot LaunchAgent")
+    _require_unstarted_one_shot_boundary(
+        config,
+        authentication_key=authentication_key,
+    )
+    # Start remains credential-blind for the same reason as generation:
+    # the supervised runner must first create and reconcile its same-child
+    # provider-free preclaim.  In particular, do not call the foreground
+    # authentication-readiness helper here because it may query credential
+    # metadata and macOS Keychain before that durable boundary.
+    _attest_provider_free_prelaunch_identity(config)
+    # Recheck the one-shot boundary after the potentially long identity
+    # attestation and before making the durable start commitment.
+    _require_unstarted_one_shot_boundary(
+        config,
+        authentication_key=authentication_key,
+    )
+    # This durable HMAC marker is the launch commitment for launchctl.  It is
+    # written and directory-fsynced before kickstart, and intentionally
+    # survives every nonzero or ambiguous kickstart outcome.
+    _write_start_marker(
+        runtime,
+        config=config,
+        authentication_key=authentication_key,
+    )
+    # Deliberately omit kickstart -k: an already-running worker must never be
+    # killed and relaunched across an ambiguous provider boundary.
+    result = _launchctl(["kickstart", target], command_runner=command_runner)
+    if _launchctl_outcome(result, allow_not_found=False) is not _LaunchctlOutcome.SUCCESS:
+        raise RuntimeError("Unable to start the one-shot LaunchAgent")
     return {"label": config["label"], "state": "start_requested"}
 
 
@@ -3587,17 +3767,30 @@ def start_launch_agent(
     authentication_key_file: Path,
     command_runner: CommandRunner = subprocess.run,
 ) -> dict[str, Any]:
-    """Request one start using only the HMAC-bound runtime environment."""
+    """Request one durably-attempted start of the HMAC-bound runtime."""
 
-    with _load_in_authenticated_runtime_environment(
-        runtime_dir,
-        authentication_key_file=authentication_key_file,
-    ) as (config, _, authentication_key):
-        return _start_launch_agent_validated(
-            config,
-            authentication_key=authentication_key,
-            command_runner=command_runner,
-        )
+    runtime = _absolute(runtime_dir, label="runtime directory")
+    _require_directory(runtime, label="runtime directory", exact_mode=0o700)
+    # O_EXCL is the concurrency primitive for the irreversible start attempt,
+    # so publish and directory-fsync it before even opening the reusable
+    # serialization lock. A crash, lock refusal, or delayed competing caller
+    # after this point can never make the start namespace retryable.
+    _create_durable_control_attempt(
+        runtime,
+        name=_START_ATTEMPT_NAME,
+    )
+    with _LaunchControlLock(runtime):
+        # Any later config/key/cache validation, attestation, or launchctl
+        # ambiguity remains terminal while the flock serializes controls.
+        with _load_in_authenticated_runtime_environment(
+            runtime,
+            authentication_key_file=authentication_key_file,
+        ) as (config, _, authentication_key):
+            return _start_launch_agent_validated(
+                config,
+                authentication_key=authentication_key,
+                command_runner=command_runner,
+            )
 
 
 def _worker_status(
@@ -3897,6 +4090,101 @@ def _status_snapshot(
                 "supervisor_failure_code"
             ]
     return status
+
+
+@_public_errors
+def audit_launch_agent(
+    runtime_dir: Path,
+    *,
+    authentication_key_file: Path,
+    command_runner: CommandRunner = subprocess.run,
+) -> dict[str, Any]:
+    """Read-only audit of an installed, authenticated, unstarted boundary.
+
+    The audit is credential-blind and provider-free.  It validates the sealed
+    config, plist, Python/runtime sources, exact cache inventory, durable
+    prelaunch identity, and the absence of every start boundary record before
+    issuing its sole launchd operation: ``launchctl print``.  It then repeats
+    the local validations so a concurrent start or artifact change fails
+    closed without being reported as an audited boundary.
+    """
+
+    with _load_in_authenticated_runtime_environment(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
+    ) as (config, plist_path, authentication_key):
+        runtime = Path(config["runtime_dir"])
+        config_path = Path(config["config_path"])
+        _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
+        )
+        _attest_provider_free_prelaunch_identity(config)
+        _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
+        )
+        _validate_authenticated_config(
+            runtime=runtime,
+            config_path=config_path,
+            config=config,
+            authentication_key=authentication_key,
+        )
+        if plist_path != runtime / f"{config['label']}.plist":
+            raise RuntimeError("LaunchAgent plist binding changed")
+        _require_unattempted_one_shot_boundary(
+            config,
+            authentication_key=authentication_key,
+        )
+
+        launchd_state = _launchd_state(
+            config,
+            command_runner=command_runner,
+        )
+        if launchd_state not in {"waiting", "not_running"}:
+            raise RuntimeError(
+                "LaunchAgent is not installed at an unstarted boundary"
+            )
+
+        _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
+        )
+        _validate_authenticated_config(
+            runtime=runtime,
+            config_path=config_path,
+            config=config,
+            authentication_key=authentication_key,
+        )
+        if plist_path != runtime / f"{config['label']}.plist":
+            raise RuntimeError("LaunchAgent plist binding changed")
+        _attest_provider_free_prelaunch_identity(config)
+        _assert_authenticated_config_snapshot(
+            config,
+            authentication_key=authentication_key,
+        )
+        _validate_authenticated_config(
+            runtime=runtime,
+            config_path=config_path,
+            config=config,
+            authentication_key=authentication_key,
+        )
+        if plist_path != runtime / f"{config['label']}.plist":
+            raise RuntimeError("LaunchAgent plist binding changed")
+        _require_unattempted_one_shot_boundary(
+            config,
+            authentication_key=authentication_key,
+        )
+        return {
+            "state": "audited",
+            "label": config["label"],
+            "operation": config["operation"],
+            "panel_id": config["panel_id"],
+            "artifact_integrity": "authenticated",
+            "prelaunch_identity": "attested",
+            "launchd_state": launchd_state,
+            "one_shot_state": "unstarted",
+        }
 
 
 @_public_errors
@@ -4521,6 +4809,7 @@ __all__ = [
     "SupervisorFailureCode",
     "attest_completed_launch_agent",
     "attest_live_launch_agent",
+    "audit_launch_agent",
     "finalize_launch_agent",
     "generate_launch_agent",
     "inspect_launch_agent",

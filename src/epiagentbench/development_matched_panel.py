@@ -9256,6 +9256,127 @@ def _validate_authentication_receipt(
         raise ValueError("Public authentication receipt is invalid")
 
 
+def _validate_public_authentication_receipt_semantics(
+    receipt: Mapping[str, Any],
+    *,
+    public: Mapping[str, Any],
+) -> None:
+    """Validate the sanitized receipt without private or credential state.
+
+    The public dependency identity is intentionally opaque.  Its digest is
+    nevertheless sufficient to reconstruct the one manifest-bound spend
+    receipt commitment, while every other authentication-receipt field is
+    fixed by public source or the public manifest.
+    """
+
+    dependency = receipt.get("authentication_dependency_identity")
+    if (
+        not isinstance(dependency, dict)
+        or set(dependency)
+        != {
+            "schema_version",
+            "identity_sha256",
+            "root_owned_single_link_regular_executable_policy_attested",
+            "exact_bundle_identity_withheld",
+            "raw_provider_output_published",
+            "raw_machine_paths_published",
+        }
+        or dependency.get("schema_version")
+        != _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA
+        or not _is_sha256(dependency.get("identity_sha256"))
+        or dependency.get(
+            "root_owned_single_link_regular_executable_policy_attested"
+        )
+        is not True
+        or dependency.get("exact_bundle_identity_withheld") is not True
+        or dependency.get("raw_provider_output_published") is not False
+        or dependency.get("raw_machine_paths_published") is not False
+    ):
+        raise ValueError("Public authentication receipt is invalid")
+    try:
+        expected_spend = _expected_spend_authorization(
+            public,
+            frozen_glean_auth_dependency_identity_sha256=str(
+                dependency["identity_sha256"]
+            ),
+        )
+        unsigned = {
+            "schema_version": _AUTHENTICATION_RECEIPT_SCHEMA,
+            "panel_id": PANEL_ID,
+            "status": "passed",
+            "development_only": True,
+            "precommitment_sha256": public["precommitment_sha256"],
+            "authentication_contract_hashes": (
+                _authentication_contract_hashes(public)
+            ),
+            "spend_authorization_receipt_sha256": expected_spend[
+                "receipt_sha256"
+            ],
+            "authentication_dependency_identity": dict(dependency),
+            "authentication_prerequisite": {
+                "codex": "passed_before_preflight",
+                "managed_glean": "passed_before_preflight",
+                "codex_method": "pinned_cli_device_auth",
+                "managed_glean_method": "pinned_managed_oauth_helper",
+                "model_calls": 0,
+            },
+            "model_calls_started": 0,
+            "production_episodes_consumed": 0,
+            "scores_reported": False,
+        }
+        expected = {
+            **unsigned,
+            "receipt_sha256": _component_hash(unsigned),
+        }
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("Public authentication receipt is invalid") from None
+    if not hmac.compare_digest(
+        _canonical_bytes(dict(receipt)), _canonical_bytes(expected)
+    ):
+        raise ValueError("Public authentication receipt is invalid")
+
+
+def assert_public_authentication_receipt_ready(
+    *,
+    public_manifest_path: Path,
+    public_authentication_path: Path,
+) -> dict[str, Any]:
+    """Credential-blind semantic attestation of one public auth receipt."""
+
+    manifest_path = Path(os.path.abspath(public_manifest_path))
+    authentication_path = Path(os.path.abspath(public_authentication_path))
+    if authentication_path != Path(
+        os.path.abspath(_authentication_receipt_path(manifest_path))
+    ):
+        raise ValueError("Public authentication receipt path is not canonical")
+    public = _load_json(manifest_path)
+    if (
+        public.get("schema_version") != SCHEMA_VERSION
+        or public.get("panel_id") != PANEL_ID
+        or public.get("status") != "precommitted"
+    ):
+        raise ValueError("Public authentication receipt panel binding is invalid")
+    _validate_public_hash(public)
+    receipt = _load_json(authentication_path)
+    _validate_public_authentication_receipt_semantics(
+        receipt,
+        public=public,
+    )
+    _assert_exact_public_json_bytes(
+        authentication_path,
+        receipt,
+        label="authentication receipt",
+    )
+    return {
+        "schema_version": (
+            "epiagentbench.public_authentication_receipt_attestation.v1"
+        ),
+        "panel_id": PANEL_ID,
+        "status": "passed",
+        "model_calls_started": 0,
+    }
+
+
 def _authentication_status_payload(
     setup: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -13699,6 +13820,12 @@ def attest_provider_free_prelaunch(
     if operation not in {"preflight", "production"}:
         raise ValueError("Provider-free prelaunch operation is invalid")
     public = _load_json(public_manifest_path)
+    if (
+        not isinstance(public, Mapping)
+        or public.get("schema_version") != SCHEMA_VERSION
+        or public.get("panel_id") != PANEL_ID
+    ):
+        raise ValueError("Provider-free prelaunch panel identity mismatch")
     _validate_public_hash(public)
     _attest_execution_contracts(root=root, public=public)
     hashes = public.get("contract_hashes")
