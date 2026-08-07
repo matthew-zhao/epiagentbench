@@ -353,10 +353,20 @@ passed pinned provider-free attestation with status
 results or scores; its [supersession record](results/development-matched-50x6-v29.superseded.json)
 closes the namespace. Those public artifacts and the
 [V29 runbook](docs/V29_RUNBOOK.md) are immutable historical evidence. V30
-carries the detached boundary forward with
-stable Darwin process identity and fresh namespaces. Its source-only design is
-in the [V30 runbook](docs/V30_RUNBOOK.md); it authorizes no runtime generation,
-authentication, supervisor start, provider call, or spend.
+carried the detached boundary forward with stable Darwin process identity and
+fresh namespaces. It published a provider-free runtime receipt, manifest, and
+sanitized authentication receipt, then its sole preflight-supervisor
+`generate` invocation failed closed during owner-scoped temporary-directory
+validation before the first runtime write. It created no runtime directory,
+config, or plist; invoked no install or start operation; started no provider or
+model process; and attempted no preflight profile or production assignment.
+V30 is terminal and non-resumable; its
+[supersession record](results/development-matched-50x6-v30.superseded.json) and
+[runbook](docs/V30_RUNBOOK.md) are historical evidence only. V31 is the forward
+control-plane design under fresh namespaces; see the
+[V31 design](docs/V31_DESIGN.md) and [V31 runbook](docs/V31_RUNBOOK.md). None of
+those documents alone authorizes runtime generation, authentication,
+supervisor start, provider calls, or spend.
 
 The separately authorized live V9
 [preflight](results/development-matched-50x6-v9.preflight.json) passed all six
@@ -803,7 +813,7 @@ full-state reconciliation and no repair of ambiguous state. Production and
 success finalization independently require that exact passed trace. See the
 [V29 runbook](docs/V29_RUNBOOK.md).
 
-V29 also makes the broker's filesystem assumptions executable: provider-free
+V29 also made the broker's filesystem assumptions executable: provider-free
 `TMPDIR` is capped at 72 UTF-8 bytes so the fixed 28-byte episode/socket suffix
 fits the 100-byte Unix-socket limit. The LaunchAgent seals that `TMPDIR` as a
 canonical, current-owner, exact-`0700` directory before it writes the runtime
@@ -823,7 +833,7 @@ nonce, and packs—not a modified or replayed version of v1. The still earlier
 likewise [discarded before preflight](results/development-matched-50x4-v1.superseded.json)
 after its private pack surface entered an internal audit context.
 
-Each future V29 assignment is designed to record an evaluator-owned,
+The V29 assignment design recorded an evaluator-owned,
 aggregate-only trace:
 six-hour active-policy and matched no-action infection frames, reporting-artifact
 counts, finite-enum agent steps, and requested/effective control changes. The
@@ -868,9 +878,9 @@ timeout exception: killing it during an in-place credential refresh could
 leave authentication ambiguous, so the assignment is a terminal transport
 void and the panel cannot complete.
 
-Before production, V29 first completes an operator-owned Terminal,
+Before its production run, V29 completed an operator-owned Terminal,
 foreground, zero-model authentication ceremony. Only after its sanitized
-receipt is committed does V29 start its supervised LaunchAgent child. That
+receipt was committed did V29 start its supervised LaunchAgent child. That
 same child exact-checks its spend, published-authentication, and supervisor
 prerequisite bundle; completes the provider-free preclaim; durably seals its
 passed trace; re-attests those prerequisites; reconciles the one-shot claim;
@@ -899,11 +909,11 @@ on this panel. The 1,800-second ceiling makes the mechanical 300-call worst case
 150 hours; observed runtime should be reported rather than inferred. V28 was
 authorized under a historical `$610` cumulative Claude ceiling but failed
 before any model invocation, so it adds zero realized or conservative model
-calls. V29 retains a `$510` current-run Claude ceiling and the conservative
+calls. V29 retained a `$510` current-run Claude ceiling and the conservative
 `$100` allowance for prior panels, for `$610` cumulative; Codex and Cursor
-remain uncapped. Its exact acknowledgement text and hash are now source-owned,
-but no manifest-bound spend receipt exists. None of these limits authorizes V29
-spend; see the [V29 runbook](docs/V29_RUNBOOK.md).
+remained uncapped. Its exact acknowledgement and manifest-bound spend receipt
+are now terminal historical evidence. None of these limits authorizes reuse or
+additional V29 spend; see the [V29 runbook](docs/V29_RUNBOOK.md).
 V8 was the first matched-panel version to start production; its two returned
 records and one interrupted call remain private audit evidence and are not
 benchmark results.
@@ -914,10 +924,10 @@ only in their terminal [V20](docs/V20_RUNBOOK.md),
 [V23](docs/V23_RUNBOOK.md) runbooks and the superseded
 [V24 runbook](docs/V24_RUNBOOK.md) and
 [V25 runbook](docs/V25_RUNBOOK.md); they must not be executed or reused.
-V26, V27, and V28 are terminal and must not be resumed or reused. Any future
-V29 preparation must follow the fresh namespaces, provider-free preclaim
-boundary, and placeholder discipline in the
-[V29 runbook](docs/V29_RUNBOOK.md).
+V26, V27, V28, V29, and V30 are terminal and must not be resumed or reused.
+Any replacement must use fresh namespaces, the provider-free preclaim
+boundary, and the placeholder discipline in the
+[V31 runbook](docs/V31_RUNBOOK.md).
 
 V27 retained the `$510` current-run Claude ceiling and used a conservative
 `$100` allowance for prior panels. V20, V21, and V22 each add `$0`; V23 adds `$10`
@@ -972,33 +982,57 @@ envelope `epiagentbench.preflight_incident_envelope.v3`, and terminal audit
 constants authorize no
 authentication, supervisor start, provider call, or spend.
 
-V30 supersedes terminal V29 under fresh identifiers
-`development-matched-50x6-v30` and `development_matched_panel_v30`. It advances
+V30 superseded terminal V29 under fresh identifiers
+`development-matched-50x6-v30` and `development_matched_panel_v30`. It advanced
 the persistent-supervisor contract to
 `epiagentbench.persistent_supervisor_contract.v15`, the supervisor family to
 v4, process identity to v3, protocol to v9, and LaunchAgent family to v16.
-V30 accepts only a canonical Darwin boot-session UUID and numeric
+V30 accepted only a canonical Darwin boot-session UUID and numeric
 `proc_pidinfo` process birth identity; unavailable construction fails before an
 evaluator child can start or lease, status, or event state can be written. The
-full namespace and create-once gates are frozen in the
+full namespace and create-once gates were frozen in the
 [V30 runbook](docs/V30_RUNBOOK.md).
 
-The conservative prior-through-V29 Claude allowance is `$160`: `$100` through
+The conservative prior-through-V29 Claude allowance was `$160`: `$100` through
 V28, at most `$10` for V29's two Claude preflight calls, and at most `$50` for
 ten Claude calls among its first 26 production invocations without inspecting
-the private schedule. Adding the unchanged `$510` V30 current-run ceiling gives
-a `$670` cumulative ceiling. Codex and Cursor remain uncapped. These ceilings
-are source-owned accounting, not authorization. The exact V30 acknowledgement
-is:
+the private schedule. Adding the unchanged `$510` V30 current-run ceiling gave
+a `$670` cumulative ceiling. Codex and Cursor remained uncapped. These ceilings
+were source-owned accounting, not authorization. The exact historical V30
+acknowledgement was:
 
 > I acknowledge the replacement six-call v30 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, and the v30 preflight and production run.
 
 Its SHA-256 is
 `197ce6f0938bad1f8aa3c20c5e052a9519312d4814ffa088bbba99f4e31a42e5`.
-It must later be explicitly supplied and sealed against the exact published
-V30 manifest and public precommitment before it can authorize anything.
+It was explicitly supplied and sealed against the exact published V30 manifest
+and public precommitment. It no longer authorizes anything. V30's sole
+preflight-supervisor generation attempt later failed before the first runtime
+write because the supplied temporary directory did not satisfy the exact
+current-owner `0700` contract. V30 adds zero provider or model calls to the
+conservative accounting and is permanently closed by its
+[supersession record](results/development-matched-50x6-v30.superseded.json).
 
-The V29 design requires the runner, runtime, hidden cohort, credential
+V31 supersedes V30 under fresh identifiers
+`development-matched-50x6-v31` and `development_matched_panel_v31`. Its panel
+persistent-supervisor contract advances from v15 to v16 while supervisor state
+v4, identity v3, protocol v9, and LaunchAgent config v16 remain retained. V31
+validates its fixed process path and exact owner-only generation `TMPDIR` before
+private reads or runtime writes and emits only the finite
+`generation_environment_invalid` public failure code for that boundary. The
+conservative prior-through-V30 Claude allowance remains `$160`; adding the
+unchanged `$510` V31 current-run ceiling gives `$670` cumulative. The exact V31
+acknowledgement is:
+
+> I acknowledge the replacement six-call v31 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, the failed zero-model-call v30 preflight supervisor-generation environment validation, and the v31 preflight and production run.
+
+Its SHA-256 is
+`83adb3d80750858ec0a6c5ee678d6af870e2a495272c8ed161c2ac175888673c`.
+The exact text and create-once gates are source-owned by the
+[V31 runbook](docs/V31_RUNBOOK.md), but neither their presence nor this
+accounting authorizes execution or spend.
+
+The V29 design required the runner, runtime, hidden cohort, credential
 namespaces, and public manifest to be frozen before any model-bearing provider
 call. Its Claude contract keeps
 conversation, configuration, session, and ordinary home storage disposable,
@@ -1067,7 +1101,7 @@ quiesced transport void ends only that provider assignment: the same
 still-running supervised evaluator durably records the void and continues
 with the next assignment. It does not exit and request a second outer launch.
 
-V29 also pins the helper/wrapper dispatch, a secret-free Glean configuration
+V29 also pinned the helper/wrapper dispatch, a secret-free Glean configuration
 projection, redacted managed-settings semantics, provider CLIs, telemetry
 helper, scientific runtime, replay schema, and profile surface. Its tracked
 pre-private receipt hashes every enumerated regular file in each declared
@@ -1075,7 +1109,7 @@ scientific distribution rather than relying only on package name/version or
 `RECORD` metadata. The trusted computing base includes the root administrator
 and the installed Glean distribution; there is not yet an independently
 approved digest or cryptographic source-to-binary provenance for that helper
-bundle. V29 commits the exact installed helper bundle after acknowledgement and
+bundle. V29 committed the exact installed helper bundle after acknowledgement and
 detects persistent identity or ownership drift at every call boundary, but a
 malicious administrator capable of an ABA swap between attestation and
 execution is explicitly out of scope. Such an administrator could also
@@ -1091,7 +1125,7 @@ a hard episode by hanging. Output capture is bounded, but this macOS
 development runner has no aggregate provider RSS, filesystem-byte/file-count,
 process-count, or OS-job ceiling. macOS process groups do not contain a
 descendant that deliberately creates a new session and closes its inherited
-pipes; V29 detects the pipe-retaining form of that escape, but
+pipes; V29 detected the pipe-retaining form of that escape, but
 original-process-group containment is not full job containment. These explicit
 limitations are another reason the host-networked panel remains
 development-only rather than leaderboard-ready.

@@ -9,7 +9,7 @@ from unittest.mock import patch
 import epiagentbench.development_matched_panel as matched
 
 
-class V30SmokeTmpdirTests(unittest.TestCase):
+class V31SmokeTmpdirTests(unittest.TestCase):
     def test_socket_path_budget_accepts_72_bytes_and_rejects_73(self) -> None:
         accepted = Path("/" + "a" * 71)
         rejected = Path("/" + "a" * 72)
@@ -72,7 +72,7 @@ class V30SmokeTmpdirTests(unittest.TestCase):
         )
 
     def test_directory_observation_does_not_retry_missing_path(self) -> None:
-        candidate = Path("/private/tmp/eab30-definitely-missing")
+        candidate = Path("/private/tmp/eab31-definitely-missing")
         with (
             patch.object(
                 Path,

@@ -1,14 +1,21 @@
 # EpiAgentBench V30 execution runbook
 
 > [!CAUTION]
-> **CONTROL-PLANE DESIGN ONLY — NO V30 AUTHENTICATION, PROVIDER, SPEND,
-> PREFLIGHT, PRODUCTION, OR MODEL CALL IS AUTHORIZED.**
+> **TERMINAL HISTORICAL EVIDENCE — V30 MUST NOT BE RETRIED, RESUMED,
+> REPAIRED, OR REUSED.**
 >
-> This runbook freezes the V30 names and gates. It does not authorize creation
-> of a runtime receipt, private cohort, manifest, credentials, supervisor, or
-> result. Commit values remain explicit placeholders until each public artifact
-> is created under a later, separately authorized ceremony and independently
-> verified.
+> V30 published its provider-free runtime receipt, manifest, and sanitized
+> authentication receipt. Its sole preflight-supervisor `generate` invocation
+> then failed closed while validating the owner-scoped temporary-directory
+> contract, before the first runtime write. That refused generation created no
+> runtime directory, config, or plist; invoked no install or start operation;
+> started no authentication, provider, or model process; attempted no preflight
+> profile or production assignment; and released no result or score. The public
+> [V30 supersession record](../results/development-matched-50x6-v30.superseded.json)
+> is authoritative. V30 is terminal and non-resumable. The remaining text is
+> preserved only as historical design evidence and none of its commands may be
+> executed. Any replacement must use the fresh namespaces and gates in the
+> [V31 runbook](V31_RUNBOOK.md).
 
 ## Closed predecessor
 

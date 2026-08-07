@@ -12,7 +12,7 @@ import epiagentbench.development_matched_panel as matched
 import epiagentbench.launchd_agent as launchd
 
 
-class V30DeferredCursorCredentialTests(unittest.TestCase):
+class V31DeferredCursorCredentialTests(unittest.TestCase):
     @staticmethod
     def _prerequisite_bundle(
         public: dict[str, object],
@@ -305,13 +305,13 @@ class V30DeferredCursorCredentialTests(unittest.TestCase):
             "runtime_dir": "/private/runtime",
             "public_output_path": "/repo/results/preflight.json",
             "cursor_keychain": {
-                "service": "epiagentbench-cursor-v30",
+                "service": "epiagentbench-cursor-v31",
                 "account": "test-account",
             },
         }
         command = launchd._runner_command(config)
         self.assertIn("--cursor-keychain-service", command)
-        self.assertIn("epiagentbench-cursor-v30", command)
+        self.assertIn("epiagentbench-cursor-v31", command)
         self.assertIn("--cursor-keychain-account", command)
         self.assertNotIn("CURSOR_API_KEY", " ".join(command))
         self.assertFalse(any(value.startswith("crsr_") for value in command))
@@ -329,7 +329,7 @@ class V30DeferredCursorCredentialTests(unittest.TestCase):
             )
 
         credential = matched_cli._read_cursor_keychain_credential(
-            service="epiagentbench-cursor-v30",
+            service="epiagentbench-cursor-v31",
             account="test-account",
             command_runner=runner,
         )
@@ -344,7 +344,7 @@ class V30DeferredCursorCredentialTests(unittest.TestCase):
                 "-a",
                 "test-account",
                 "-s",
-                "epiagentbench-cursor-v30",
+                "epiagentbench-cursor-v31",
                 "-w",
             ],
         )
@@ -361,7 +361,7 @@ class V30DeferredCursorCredentialTests(unittest.TestCase):
 
         with self.assertRaises(RuntimeError) as raised:
             matched_cli._read_cursor_keychain_credential(
-                service="epiagentbench-cursor-v30",
+                service="epiagentbench-cursor-v31",
                 account="test-account",
                 command_runner=failing,
             )

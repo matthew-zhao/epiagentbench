@@ -71,8 +71,8 @@ _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v9"
 _MATCHED_PANEL_ID_PREFIX = "development-matched-50x6-"
 _CURSOR_KEYCHAIN_SERVICE_PREFIX = "epiagentbench-cursor-"
-_FROZEN_PANEL_ID = "development-matched-50x6-v30"
-_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v30"
+_FROZEN_PANEL_ID = "development-matched-50x6-v31"
+_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v31"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -249,6 +249,22 @@ class LaunchAgentError(ValueError):
     """A deliberately non-sensitive launch-agent validation/control error."""
 
 
+class GenerationFailureCode(StrEnum):
+    """Finite, non-sensitive reasons launch-agent generation was refused."""
+
+    ENVIRONMENT_INVALID = "generation_environment_invalid"
+
+
+class GenerationValidationError(LaunchAgentError):
+    """A generation refusal carrying only a finite safe code."""
+
+    def __init__(self, failure_code: GenerationFailureCode):
+        if not isinstance(failure_code, GenerationFailureCode):
+            raise TypeError("failure_code must be a GenerationFailureCode")
+        self.failure_code = failure_code
+        super().__init__("LaunchAgent generation was safely refused")
+
+
 class LiveAttestationFailureCode(StrEnum):
     """Finite, non-sensitive reasons a live supervisor was refused."""
 
@@ -352,6 +368,8 @@ def _public_errors(function: Callable[..., Any]) -> Callable[..., Any]:
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         try:
             return function(*args, **kwargs)
+        except GenerationValidationError as error:
+            raise GenerationValidationError(error.failure_code) from None
         except LiveAttestationError as error:
             raise LiveAttestationError(error.failure_code) from None
         except LaunchAgentError:
@@ -1694,7 +1712,7 @@ def _manifest_binding(
             or "runtime_cache_contract" in preparation_runtime_contract
         )
     ):
-        raise ValueError("Public manifest lacks the frozen V30 panel binding")
+        raise ValueError("Public manifest lacks the frozen V31 panel binding")
     return (
         panel_id,
         precommitment,
@@ -1735,13 +1753,17 @@ def _safe_environment(
 ) -> dict[str, str]:
     identity = pwd.getpwuid(os.getuid())
     if path_environment not in (None, SYSTEM_PROCESS_PATH):
-        raise ValueError("PATH must match the source-owned system path")
+        raise GenerationValidationError(
+            GenerationFailureCode.ENVIRONMENT_INVALID
+        )
     path_value = SYSTEM_PROCESS_PATH
     try:
         temporary_root = Path(tempfile.gettempdir()).resolve(strict=True)
         temporary_metadata = temporary_root.lstat()
     except (OSError, RuntimeError):
-        raise ValueError("Owner-scoped temporary directory is unavailable") from None
+        raise GenerationValidationError(
+            GenerationFailureCode.ENVIRONMENT_INVALID
+        ) from None
     if (
         not stat.S_ISDIR(temporary_metadata.st_mode)
         or stat.S_ISLNK(temporary_metadata.st_mode)
@@ -1750,7 +1772,9 @@ def _safe_environment(
         or len(os.fsencode(str(temporary_root)))
         > _MAX_EPISODE_TMPDIR_BYTES
     ):
-        raise ValueError("Owner-scoped temporary directory is unsafe")
+        raise GenerationValidationError(
+            GenerationFailureCode.ENVIRONMENT_INVALID
+        )
     environment = {
         "HOME": identity.pw_dir,
         "LOGNAME": identity.pw_name,
@@ -1771,7 +1795,9 @@ def _safe_environment(
                 for value in runtime_environment.values()
             )
         ):
-            raise ValueError("Invalid sealed runtime-cache environment")
+            raise GenerationValidationError(
+                GenerationFailureCode.ENVIRONMENT_INVALID
+            )
         environment.update(runtime_environment)
     return environment
 
@@ -2002,6 +2028,12 @@ def generate_launch_agent(
     if operation == "production" and (public_results is None or public_preflight is not None):
         raise ValueError("production requires only public_results_path")
 
+    # Validate the ambient launch environment before reading the repository,
+    # authentication key, private state, manifest, or any other execution
+    # binding.  A bad invocation is therefore a typed, zero-state generation
+    # refusal rather than a partially validated runtime attempt.
+    base_environment = _safe_environment(root, path_environment)
+
     _require_directory(root, label="repository root")
     python_executable_binding = _python_entrypoint_binding(python)
     python_executable_sha256 = str(
@@ -2093,6 +2125,11 @@ def generate_launch_agent(
         raise ValueError(
             "Runtime cache directory is not bound by the public manifest"
         )
+    base_environment = _safe_environment(
+        root,
+        path_environment,
+        runtime_environment=manifest_runtime_environment,
+    )
     public_manifest_file_sha256 = _file_sha256(
         public_manifest,
         maximum_bytes=64 * 1024 * 1024,
@@ -2156,7 +2193,7 @@ def generate_launch_agent(
         )
         # Generation is deliberately credential-blind.  Authentication state,
         # receipt, repository, and credential readiness are re-attested by the
-        # supervised runner in the same child that durably records the V30
+        # supervised runner in the same child that durably records the V31
         # provider-free preclaim.  Calling the foreground readiness helper here
         # would inspect credential metadata (including macOS Keychain state)
         # before that claim existed.
@@ -2282,11 +2319,7 @@ def generate_launch_agent(
             "service": cursor_keychain_service,
             "account": cursor_keychain_account,
         },
-        "base_environment": _safe_environment(
-            root,
-            path_environment,
-            runtime_environment=manifest_runtime_environment,
-        ),
+        "base_environment": base_environment,
     }
     config = _seal_payload(_CONFIG_AUTH_DOMAIN, unsigned_config, authentication_key)
     old_umask = os.umask(0o077)
@@ -4801,6 +4834,8 @@ def uninstall_launch_agent(
 
 
 __all__ = [
+    "GenerationFailureCode",
+    "GenerationValidationError",
     "LaunchAgentError",
     "LiveAttestationError",
     "LiveAttestationFailureCode",

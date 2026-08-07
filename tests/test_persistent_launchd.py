@@ -26,6 +26,8 @@ from epiagentbench.development_matched_panel import (
 )
 from epiagentbench.persistent_supervisor import ProcessDiagnostic, run_supervised_panel
 from epiagentbench.launchd_agent import (
+    GenerationFailureCode,
+    GenerationValidationError,
     LaunchAgentError,
     LiveAttestationError,
     LiveAttestationFailureCode,
@@ -91,7 +93,7 @@ class _BlockingRunner:
 
 
 class PersistentLaunchAgentTests(unittest.TestCase):
-    def test_v30_schema_identity_cuts_launchd_v16_protocol_v9(self) -> None:
+    def test_v31_schema_identity_cuts_launchd_v16_protocol_v9(self) -> None:
         self.assertEqual(
             launchd_agent._SCHEMA,
             "epiagentbench.launchd_agent.v16",
@@ -110,9 +112,9 @@ class PersistentLaunchAgentTests(unittest.TestCase):
     ) -> None:
         self.assertEqual(
             launchd_agent._required_cursor_keychain_service(
-                "development-matched-50x6-v30"
+                "development-matched-50x6-v31"
             ),
-            "epiagentbench-cursor-v30",
+            "epiagentbench-cursor-v31",
         )
         self.assertEqual(
             launchd_agent._required_cursor_keychain_service(
@@ -141,18 +143,18 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.private_state = self.root / "private.json"
         self.public_manifest = (
             self.root
-            / "development-matched-50x6-v30.manifest.json"
+            / "development-matched-50x6-v31.manifest.json"
         )
         self.public_authentication = (
             self.root
-            / "development-matched-50x6-v30.authentication.json"
+            / "development-matched-50x6-v31.authentication.json"
         )
         self.public_preflight = (
             self.root
-            / "development-matched-50x6-v30.preflight.json"
+            / "development-matched-50x6-v31.preflight.json"
         )
         self.public_results = (
-            self.root / "development-matched-50x6-v30.json"
+            self.root / "development-matched-50x6-v31.json"
         )
         self.private_state.write_text("{}", encoding="utf-8")
         self.public_manifest.write_text(
@@ -287,7 +289,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "public_manifest_path": self.public_manifest,
             "public_preflight_path": None,
             "public_results_path": self.public_results,
-            "cursor_keychain_service": "epiagentbench-cursor-v30",
+            "cursor_keychain_service": "epiagentbench-cursor-v31",
             "cursor_keychain_account": self.cursor_keychain_account,
             "operation": "production",
             "path_environment": "/usr/bin:/bin:/usr/sbin:/sbin",
@@ -493,7 +495,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             self.public_results,
         ):
             self.assertNotIn(str(private_value), joined_arguments)
-        self.assertNotIn("epiagentbench-cursor-v30", joined_arguments)
+        self.assertNotIn("epiagentbench-cursor-v31", joined_arguments)
         self.assertNotIn(self.cursor_keychain_account, arguments)
         self.assertNotIn("CURSOR_API_KEY", joined_arguments)
 
@@ -507,20 +509,72 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.assertNotIn("environment", config)
 
     def test_generated_agent_uses_canonical_owner_only_socket_tmpdir(self) -> None:
-        self._generate()
-        config, _ = self._config_and_key()
+        with TemporaryDirectory(prefix="e31t-", dir="/tmp") as temporary_raw:
+            temporary_root = Path(temporary_raw).resolve(strict=True)
+            with patch.object(
+                launchd_agent.tempfile,
+                "gettempdir",
+                return_value=str(temporary_root),
+            ):
+                self._generate()
+            config, _ = self._config_and_key()
 
-        temporary_root = Path(config["base_environment"]["TMPDIR"])
-        metadata = temporary_root.lstat()
-        self.assertEqual(temporary_root, temporary_root.resolve(strict=True))
-        self.assertFalse(temporary_root.is_symlink())
-        self.assertTrue(temporary_root.is_dir())
-        self.assertEqual(metadata.st_uid, os.getuid())
-        self.assertEqual(metadata.st_mode & 0o777, 0o700)
-        self.assertLessEqual(
-            len(os.fsencode(str(temporary_root))),
-            launchd_agent._MAX_EPISODE_TMPDIR_BYTES,
+            sealed_temporary_root = Path(
+                config["base_environment"]["TMPDIR"]
+            )
+            metadata = sealed_temporary_root.lstat()
+            self.assertEqual(
+                sealed_temporary_root,
+                sealed_temporary_root.resolve(strict=True),
+            )
+            self.assertFalse(sealed_temporary_root.is_symlink())
+            self.assertTrue(sealed_temporary_root.is_dir())
+            self.assertEqual(metadata.st_uid, os.getuid())
+            self.assertEqual(metadata.st_mode & 0o777, 0o700)
+            self.assertLessEqual(
+                len(os.fsencode(str(sealed_temporary_root))),
+                launchd_agent._MAX_EPISODE_TMPDIR_BYTES,
+            )
+
+    def test_generation_environment_refusal_precedes_private_reads_and_writes(
+        self,
+    ) -> None:
+        unsafe_temporary_root = self.root / "shared-temp"
+        unsafe_temporary_root.mkdir(mode=0o755)
+
+        with (
+            patch.object(
+                launchd_agent.tempfile,
+                "gettempdir",
+                return_value=str(unsafe_temporary_root),
+            ),
+            patch.object(
+                launchd_agent,
+                "_require_directory",
+                side_effect=AssertionError("filesystem readiness was entered"),
+            ) as require_directory,
+            patch.object(
+                launchd_agent,
+                "_require_regular",
+                side_effect=AssertionError("private input was inspected"),
+            ) as require_regular,
+            patch.object(
+                launchd_agent,
+                "_read_authentication_key",
+                side_effect=AssertionError("authentication key was read"),
+            ) as read_authentication_key,
+            self.assertRaises(GenerationValidationError) as raised,
+        ):
+            self._generate()
+
+        self.assertIs(
+            raised.exception.failure_code,
+            GenerationFailureCode.ENVIRONMENT_INVALID,
         )
+        require_directory.assert_not_called()
+        require_regular.assert_not_called()
+        read_authentication_key.assert_not_called()
+        self.assertFalse(self.runtime.exists())
 
     def test_generation_rejects_noncanonical_public_output_before_runtime(
         self,
@@ -550,7 +604,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self,
     ) -> None:
         for case, service in (
-            ("v29", "epiagentbench-cursor-v29"),
+            ("v30", "epiagentbench-cursor-v30"),
             ("foreign", "epiagentbench-cursor-foreign"),
         ):
             runtime = self.root / f"{case}-cursor-service-runtime"
@@ -1180,7 +1234,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 authentication_key_file=self.authentication_key,
             )
 
-    def test_v30_rejects_predecessor_launchd_schemas_before_control_action(
+    def test_v31_rejects_predecessor_launchd_schemas_before_control_action(
         self,
     ) -> None:
         for version in (11, 12, 13, 14, 15):
@@ -1234,7 +1288,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self,
     ) -> None:
         for case, service in (
-            ("v29", "epiagentbench-cursor-v29"),
+            ("v30", "epiagentbench-cursor-v30"),
             ("foreign", "epiagentbench-cursor-foreign"),
         ):
             runtime = self.root / f"authenticated-{case}-cursor-runtime"
@@ -1338,7 +1392,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
                 )
                 self.mock_provider_free_prelaunch.assert_not_called()
 
-    def test_v30_rejects_predecessor_protocol_before_control_action(
+    def test_v31_rejects_predecessor_protocol_before_control_action(
         self,
     ) -> None:
         generated = self._generate()
@@ -1376,7 +1430,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             (self.runtime / "launchd-start-request.json").exists()
         )
 
-    def test_v30_rejects_predecessor_auth_domain_before_control_action(
+    def test_v31_rejects_predecessor_auth_domain_before_control_action(
         self,
     ) -> None:
         generated = self._generate()
@@ -1413,7 +1467,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             (self.runtime / "launchd-start-request.json").exists()
         )
 
-    def test_v30_rejects_authenticated_open_config_before_control_action(
+    def test_v31_rejects_authenticated_open_config_before_control_action(
         self,
     ) -> None:
         generated = self._generate()
@@ -1564,13 +1618,13 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             "authentication.key",
             "claude-storage",
             "codex-storage",
-            "epiagentbench-cursor-v30",
+            "epiagentbench-cursor-v31",
             self.cursor_keychain_account,
             *_SECRET_CANARIES,
         ):
             self.assertNotIn(value, encoded)
 
-    def test_v30_audit_authenticates_provider_free_unstarted_boundary(
+    def test_v31_audit_authenticates_provider_free_unstarted_boundary(
         self,
     ) -> None:
         generated = self._generate()
@@ -1634,7 +1688,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             )
         self.mock_authentication_readiness.assert_not_called()
 
-    def test_v30_audit_rechecks_authentication_receipt_after_launchd_print(
+    def test_v31_audit_rechecks_authentication_receipt_after_launchd_print(
         self,
     ) -> None:
         self._generate()
@@ -1677,7 +1731,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.mock_authentication_readiness.assert_not_called()
 
-    def test_v30_audit_failure_precedes_launch_control_and_marker(
+    def test_v31_audit_failure_precedes_launch_control_and_marker(
         self,
     ) -> None:
         self._generate()
@@ -1711,7 +1765,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.mock_authentication_readiness.assert_not_called()
 
-    def test_v30_audit_cli_dispatches_safe_coarse_payload(self) -> None:
+    def test_v31_audit_cli_dispatches_safe_coarse_payload(self) -> None:
         script = (
             self.repository
             / "examples"
@@ -1757,6 +1811,70 @@ class PersistentLaunchAgentTests(unittest.TestCase):
             authentication_key_file=self.authentication_key,
         )
         self.assertEqual(json.loads(output.getvalue()), expected)
+
+    def test_v31_generate_cli_emits_typed_environment_refusal(self) -> None:
+        script = (
+            self.repository
+            / "examples"
+            / "run_persistent_panel_supervisor.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "_test_persistent_panel_supervisor_generate_cli",
+            script,
+        )
+        self.assertIsNotNone(spec)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        output = io.StringIO()
+        with (
+            patch.object(
+                module,
+                "generate_launch_agent",
+                side_effect=GenerationValidationError(
+                    GenerationFailureCode.ENVIRONMENT_INVALID
+                ),
+            ) as generate,
+            redirect_stdout(output),
+        ):
+            return_code = module.main(
+                [
+                    "generate",
+                    "--operation",
+                    "production",
+                    "--runtime-dir",
+                    str(self.runtime),
+                    "--repository-root",
+                    str(self.repository),
+                    "--runtime-cache-dir",
+                    str(self.root / "runtime-cache"),
+                    "--authentication-key",
+                    str(self.authentication_key),
+                    "--claude-secure-storage-dir",
+                    str(self.claude_storage),
+                    "--codex-secure-storage-dir",
+                    str(self.codex_storage),
+                    "--private-state",
+                    str(self.private_state),
+                    "--public-manifest",
+                    str(self.public_manifest),
+                    "--public-results",
+                    str(self.public_results),
+                    "--cursor-keychain-service",
+                    "epiagentbench-cursor-v31",
+                ]
+            )
+
+        self.assertEqual(return_code, 2)
+        generate.assert_called_once()
+        self.assertEqual(
+            json.loads(output.getvalue()),
+            {
+                "status": "refused",
+                "reason": "launch_agent_error",
+                "failure_code": "generation_environment_invalid",
+            },
+        )
 
     def test_generator_rejects_relative_and_symlinked_security_paths(self) -> None:
         with self.assertRaises(LaunchAgentError):
@@ -2261,7 +2379,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         self.mock_provider_free_prelaunch.assert_not_called()
         self.assertEqual(calls, [])
 
-    def test_v30_rejects_predecessor_and_foreign_identity_before_generation(
+    def test_v31_rejects_predecessor_and_foreign_identity_before_generation(
         self,
     ) -> None:
         baseline = json.loads(
@@ -2269,13 +2387,13 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         cases = (
             (
-                "v29-schema",
+                "v30-schema",
                 development_matched_panel.PANEL_ID,
-                "development_matched_panel_v29",
+                "development_matched_panel_v30",
             ),
             (
-                "v29-panel",
-                "development-matched-50x6-v29",
+                "v30-panel",
+                "development-matched-50x6-v30",
                 development_matched_panel.SCHEMA_VERSION,
             ),
             (
@@ -2316,8 +2434,8 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         manifest = json.loads(
             self.public_manifest.read_text(encoding="utf-8")
         )
-        manifest["panel_id"] = "development-matched-50x6-v29"
-        manifest["schema_version"] = "development_matched_panel_v29"
+        manifest["panel_id"] = "development-matched-50x6-v30"
+        manifest["schema_version"] = "development_matched_panel_v30"
         self.public_manifest.write_text(
             json.dumps(manifest), encoding="utf-8"
         )
@@ -2387,7 +2505,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         config, _ = self._config_and_key()
         command = launchd_agent._runner_command(config)
         self.assertIn("--cursor-keychain-service", command)
-        self.assertIn("epiagentbench-cursor-v30", command)
+        self.assertIn("epiagentbench-cursor-v31", command)
         self.assertIn("--cursor-keychain-account", command)
         self.assertIn(self.cursor_keychain_account, command)
         self.assertNotIn("CURSOR_API_KEY", " ".join(command))

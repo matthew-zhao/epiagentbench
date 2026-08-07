@@ -53,6 +53,7 @@ if __package__ in {None, ""}:
         sys.path.append(str(_SITE_PACKAGES))
 
 from epiagentbench.launchd_agent import (
+    GenerationValidationError,
     LaunchAgentError,
     audit_launch_agent,
     finalize_launch_agent,
@@ -178,6 +179,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             # The launchd plist sends stdout/stderr to /dev/null.  The worker
             # also intentionally emits no provider output or exception detail.
             return run_launch_agent_worker(args.config)
+    except GenerationValidationError as error:
+        _safe_print(
+            {
+                "status": "refused",
+                "reason": "launch_agent_error",
+                "failure_code": error.failure_code.value,
+            }
+        )
+        return 2
     except LaunchAgentError:
         _safe_print({"status": "refused", "reason": "launch_agent_error"})
         return 2
