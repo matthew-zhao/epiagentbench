@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import re
 import subprocess
 import unittest
 
 
 class V32PublicationTopologyTests(unittest.TestCase):
-    V31_CONTROL_COMMIT = "6efe0fa93e9c72946b48c22ab27a7fe6b41c199c"
-    V31_LOCAL_RUNTIME_COMMIT = "4bb1cc37bceb8b8c723db4307eea595b28cc5bb4"
-    V31_CLOSEOUT_REF = (
-        "refs/heads/codex/v31-runtime-publication-terminal-closeout"
-    )
-    V32_CONTROL_REF = "refs/heads/codex/v32-control-plane"
+    V31_CLOSEOUT_COMMIT = "9c354164347f2b09a7656171ef5cbc7480111c6e"
+    V32_CONTROL_COMMIT = "c6cd10e795944e08e76a6de249689d1a5538099b"
+    V32_CONTROL_TREE = "e8336b16bdb6384a64eecb583377cc664e2adf4e"
+    V32_LOCAL_RUNTIME_COMMIT = "1ffd2f2903cb7a8327ff0ef7a0f10870e1a27e3b"
+    V32_CLOSEOUT_COMMIT = "f26d8f7e50748883142f3452ee11daf43595e421"
+    V32_CLOSEOUT_TREE = "2daa94031f3d34cf5b4283928c3523af7ee758c4"
+    V32_CLOSEOUT_SCOPE = {
+        "results/development-matched-50x6-v32.superseded.json",
+        "tests/test_v32_supersession.py",
+    }
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -21,307 +24,102 @@ class V32PublicationTopologyTests(unittest.TestCase):
         cls.runbook = (cls.root / "docs" / "V32_RUNBOOK.md").read_text(
             encoding="utf-8"
         )
-        cls.design = (cls.root / "docs" / "V32_DESIGN.md").read_text(
-            encoding="utf-8"
-        )
-        cls.v31_runbook = (
-            cls.root / "docs" / "V31_RUNBOOK.md"
-        ).read_text(encoding="utf-8")
-        cls.runbook_flat = re.sub(r"\s+", " ", cls.runbook)
-        cls.design_flat = re.sub(r"\s+", " ", cls.design)
-        cls.all_flat = cls.runbook_flat + " " + cls.design_flat
-        cls.v31_supersession = json.loads(
+        cls.supersession = json.loads(
             (
                 cls.root
                 / "results"
-                / "development-matched-50x6-v31.superseded.json"
+                / "development-matched-50x6-v32.superseded.json"
             ).read_text(encoding="utf-8")
         )
 
-    def test_v31_closeout_contract_excludes_the_unpublished_runtime(self) -> None:
-        for document in (self.runbook, self.design, self.v31_runbook):
-            self.assertIn(self.V31_CLOSEOUT_REF, document)
-            self.assertIn(self.V31_CONTROL_COMMIT, document)
-            self.assertIn(
-                "results/development-matched-50x6-v31.superseded.json",
-                document,
-            )
-            self.assertIn("tests/test_v31_supersession.py", document)
+    @classmethod
+    def _git(cls, *args: str) -> str:
+        return subprocess.run(
+            ["git", *args],
+            cwd=cls.root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout.strip()
+
+    def test_control_commit_has_exact_public_parent_and_tree(self) -> None:
         self.assertEqual(
-            self.v31_supersession["terminal_closeout_required_parent_commit"],
-            self.V31_CONTROL_COMMIT,
+            self._git("show", "-s", "--format=%P", self.V32_CONTROL_COMMIT),
+            self.V31_CLOSEOUT_COMMIT,
         )
-        self.assertIs(
-            self.v31_supersession[
-                "terminal_closeout_runtime_receipt_file_in_tree_permitted"
-            ],
-            False,
-        )
-        self.assertIs(
-            self.v31_supersession[
-                "terminal_closeout_unpublished_runtime_receipt_in_ancestry_permitted"
-            ],
-            False,
+        self.assertEqual(
+            self._git("show", "-s", "--format=%T", self.V32_CONTROL_COMMIT),
+            self.V32_CONTROL_TREE,
         )
 
-    def test_v32_staged_ref_has_exactly_four_ordered_one_file_receipts(self) -> None:
-        self.assertIn(
-            "exactly four one-file commits in order: runtime receipt, manifest, "
-            "sanitized authentication receipt, and passing preflight receipt",
-            self.design_flat,
-        )
-        expected_rows = (
-            "| Runtime-receipt ref | `refs/heads/codex/v32-runtime-preflight` |",
-            "| Manifest publication ref | `refs/heads/codex/v32-runtime-preflight` |",
-            (
-                "| Authentication publication ref | "
-                "`refs/heads/codex/v32-runtime-preflight` |"
-            ),
-            "| Preflight publication ref | `refs/heads/codex/v32-runtime-preflight` |",
-        )
-        for row in expected_rows:
-            self.assertIn(row, self.runbook)
-        self.assertIn(
-            "That same staged public-receipt ref then advances through exactly "
-            "three more one-file commits",
-            self.runbook_flat,
-        )
-
-    def test_v32_publication_refs_are_closed_and_mutually_exclusive(self) -> None:
-        expected_refs = {
-            "refs/heads/codex/v32-control-plane",
-            "refs/heads/codex/v32-runtime-preflight",
-            "refs/heads/codex/v32-runtime-publication-terminal-closeout",
-            "refs/heads/codex/v32-preflight-terminal-closeout",
-            "refs/heads/codex/v32-production-results",
-            "refs/heads/codex/v32-terminal-closeout",
-        }
-        observed_refs = set(
-            re.findall(r"refs/heads/codex/v32-[a-z-]+", self.runbook)
-        )
-        self.assertEqual(observed_refs, expected_refs)
-        self.assertIn(
-            "These four terminal paths are mutually exclusive",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            "The early terminal, preflight terminal, production success, and "
-            "production terminal refs are mutually exclusive",
-            self.design_flat,
-        )
-
-    def test_terminal_parent_rules_never_accept_local_or_provisional_state(
+    def test_terminal_closeout_has_exact_parent_tree_and_two_file_delta(
         self,
     ) -> None:
-        self.assertIn(
-            "whose sole parent is the last commit already independently pinned "
-            "from the fixed origin",
-            self.runbook_flat,
+        self.assertEqual(
+            self._git("show", "-s", "--format=%P", self.V32_CLOSEOUT_COMMIT),
+            self.V32_CONTROL_COMMIT,
         )
-        self.assertIn(
-            "whose sole parent is the independently pinned "
-            "authentication-receipt commit",
-            self.runbook_flat,
+        self.assertEqual(
+            self._git("show", "-s", "--format=%T", self.V32_CLOSEOUT_COMMIT),
+            self.V32_CLOSEOUT_TREE,
         )
-        self.assertIn(
-            "whose sole parent is the passing preflight commit",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            "A local branch, candidate, provisional object ID, publication "
-            "output, or failed-to-pin remote value is never a parent or pin",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            "Never fill a commit placeholder from local or provisional state",
-            self.runbook,
-        )
-
-    def test_terminal_refs_have_exact_frozen_public_file_scopes(self) -> None:
-        supersession = "results/development-matched-50x6-v32.superseded.json"
-        preflight = "results/development-matched-50x6-v32.preflight.json"
-        result = "results/development-matched-50x6-v32.json"
-        contract_test = "tests/test_v32_supersession.py"
-        for path in (supersession, preflight, result, contract_test):
-            self.assertIn(path, self.runbook)
-
-        self.assertIn(
-            f"The early closeout adds only `{supersession}` and "
-            f"`{contract_test}`",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            f"That closeout adds only `{supersession}`, `{contract_test}`, "
-            "and—only when the supervisor durably produced it—the canonical "
-            f"trace-free closed preflight receipt at `{preflight}`",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            "a failure before any preflight receipt has a two-file closeout; "
-            "a failure with an existing closed preflight receipt has a "
-            "three-file closeout",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            f"Successful production publishes only the closed canonical "
-            f"result `{result}`",
-            self.runbook_flat,
-        )
-        self.assertIn(
-            f"may add only the trace-free terminal result `{result}`, "
-            f"`{supersession}`, and `{contract_test}`",
-            self.runbook_flat,
-        )
-
-    def test_all_future_commit_ids_remain_explicit_placeholders(self) -> None:
-        expected_placeholders = {
-            "<V31_RUNTIME_PUBLICATION_TERMINAL_CLOSEOUT_COMMIT_40_HEX>",
-            "<V32_CONTROL_COMMIT_40_HEX>",
-            "<V32_RUNTIME_RECEIPT_COMMIT_40_HEX>",
-            "<V32_MANIFEST_COMMIT_40_HEX>",
-            "<V32_AUTHENTICATION_RECEIPT_COMMIT_40_HEX>",
-            "<V32_PREFLIGHT_RECEIPT_COMMIT_40_HEX>",
-            "<V32_RUNTIME_PUBLICATION_TERMINAL_CLOSEOUT_COMMIT_40_HEX>",
-            "<V32_PREFLIGHT_TERMINAL_CLOSEOUT_COMMIT_40_HEX>",
-            "<V32_PRODUCTION_RESULT_COMMIT_40_HEX>",
-            "<V32_TERMINAL_CLOSEOUT_COMMIT_40_HEX>",
-        }
-        observed_placeholders = set(
-            re.findall(r"<[A-Z0-9_]+_40_HEX>", self.runbook)
-        )
-        self.assertEqual(observed_placeholders, expected_placeholders)
-        exact_commit_ids = set(
-            re.findall(
-                r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])",
-                self.runbook + "\n" + self.design,
-            )
-        )
-        self.assertEqual(exact_commit_ids, {self.V31_CONTROL_COMMIT})
-
-    def test_no_retry_and_independent_pin_rules_are_explicit(self) -> None:
-        for fragment in (
-            "must not retry, repair, regenerate, republish, or advance",
-            "Each commit pin is obtained independently from the fixed HTTPS origin",
-            (
-                "never from a local branch name or a value copied from the "
-                "publication command"
-            ),
-            "each destination is absent before first use",
-            "each operation is attempted at most once",
-            "never resumed or repaired",
-        ):
-            self.assertIn(fragment.lower(), self.all_flat.lower())
-
-    def test_committed_v32_control_plane_has_the_approved_parent_and_scope(
-        self,
-    ) -> None:
-        test_path = "tests/test_v32_publication_topology.py"
-        tracked = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", test_path],
-            cwd=self.root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        if tracked.returncode != 0:
-            self.skipTest("V32 control plane is not committed yet")
-
-        control_commit = subprocess.run(
-            ["git", "log", "-1", "--format=%H", "--", test_path],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
-        control_ref = subprocess.run(
-            ["git", "rev-parse", self.V32_CONTROL_REF],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
-        closeout_ref = subprocess.run(
-            ["git", "rev-parse", self.V31_CLOSEOUT_REF],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
-        self.assertEqual(control_commit, control_ref)
-        parents = subprocess.run(
-            ["git", "show", "-s", "--format=%P", control_commit],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
-        self.assertEqual(parents, closeout_ref)
-
-        changed_paths = subprocess.run(
-            [
-                "git",
+        changed = set(
+            self._git(
                 "diff-tree",
                 "--no-commit-id",
                 "--name-only",
                 "-r",
-                control_commit,
-            ],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.splitlines()
-        self.assertTrue(changed_paths)
-        for path in changed_paths:
-            self.assertTrue(
-                path == "README.md"
-                or path.startswith(("docs/", "src/", "tests/")),
-                path,
-            )
-        self.assertNotIn(
-            "results/development-matched-50x6-v31.superseded.json",
-            changed_paths,
+                self.V32_CLOSEOUT_COMMIT,
+            ).splitlines()
         )
-        self.assertNotIn("tests/test_v31_supersession.py", changed_paths)
+        self.assertEqual(changed, self.V32_CLOSEOUT_SCOPE)
 
-        tree_paths = subprocess.run(
-            ["git", "ls-tree", "-r", "--name-only", control_commit],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.splitlines()
-        for forbidden_path in (
-            "results/development-matched-50x6-v31.runtime.json",
+    def test_unpublished_runtime_is_absent_without_requiring_its_object(
+        self,
+    ) -> None:
+        ancestry = set(self._git("rev-list", self.V32_CLOSEOUT_COMMIT).splitlines())
+        self.assertNotIn(self.V32_LOCAL_RUNTIME_COMMIT, ancestry)
+        tree = set(
+            self._git(
+                "ls-tree", "-r", "--name-only", self.V32_CLOSEOUT_COMMIT
+            ).splitlines()
+        )
+        for forbidden in (
             "results/development-matched-50x6-v32.runtime.json",
             "results/development-matched-50x6-v32.manifest.json",
             "results/development-matched-50x6-v32.authentication.json",
             "results/development-matched-50x6-v32.preflight.json",
             "results/development-matched-50x6-v32.json",
-            "results/development-matched-50x6-v32.superseded.json",
         ):
-            self.assertNotIn(forbidden_path, tree_paths)
+            self.assertNotIn(forbidden, tree)
 
-        unpublished_is_ancestor = subprocess.run(
-            [
-                "git",
-                "merge-base",
-                "--is-ancestor",
-                self.V31_LOCAL_RUNTIME_COMMIT,
-                control_commit,
-            ],
-            cwd=self.root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+    def test_supersession_records_zero_call_terminal_publication(self) -> None:
+        self.assertEqual(
+            self.supersession["schema_version"],
+            "epiagentbench.panel_supersession.v25",
         )
-        self.assertEqual(unpublished_is_ancestor.returncode, 1)
+        self.assertEqual(
+            self.supersession["status"],
+            "failed_zero_model_runtime_receipt_publication",
+        )
+        self.assertEqual(self.supersession["gitbutler_publication_attempts"], 1)
+        self.assertIs(self.supersession["remote_ref_mutation_observed"], False)
+        self.assertIs(self.supersession["publication_retry_permitted"], False)
+        self.assertIs(self.supersession["resumption_permitted"], False)
+        self.assertEqual(self.supersession["authentication_processes_started"], 0)
+        self.assertEqual(self.supersession["provider_processes_started"], 0)
+        self.assertEqual(self.supersession["model_calls_started"], 0)
+
+    def test_runbook_is_terminal_and_points_only_forward_to_v34(self) -> None:
+        self.assertIn(
+            "V32 IS TERMINAL AND NON-RESUMABLE. DO NOT EXECUTE ANY CEREMONY BELOW.",
+            self.runbook,
+        )
+        self.assertIn(self.V32_CLOSEOUT_COMMIT, self.runbook)
+        self.assertIn("47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d", self.runbook)
+        self.assertIn("[V34 runbook](V34_RUNBOOK.md)", self.runbook)
+        self.assertIn("authorize no retry, repair, reuse", self.runbook)
 
 
 if __name__ == "__main__":

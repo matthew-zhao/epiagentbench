@@ -21,10 +21,23 @@ incident metadata may identify the unpublished commit only as
 non-authoritative. The terminal
 [V31 runbook](V31_RUNBOOK.md) is historical evidence only.
 
-V32 is the forward control-plane design. Its schemas and exact acknowledgement
+V32 also is terminal. It completed its provider-free runtime-receipt ceremony
+with zero authentication, provider, or model starts, but its one authorized
+receipt-publication attempt failed before remote mutation. Its exact two-file
+closeout at `f26d8f7e50748883142f3452ee11daf43595e421` excludes the unpublished
+runtime object and bytes. V33 then attempted only a fresh source/docs/tests
+control-plane publication. That one attempt failed before remote mutation with
+zero runtime, authentication, provider, or model starts. Its unpublished local
+control commit `dac82434f2e2a73d511df418755b28003222ab3b` is non-authoritative
+and excluded from tree, ancestry, parentage, and V34 source. V33's exact
+two-file closeout at `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d` is the sole
+public predecessor for V34. The [V32 runbook](V32_RUNBOOK.md) is terminal
+historical evidence only.
+
+V34 is the forward control-plane design. Its schemas and exact acknowledgement
 are source-owned, while its commit and runtime/manifest/authentication values
 remain unbound until their separately authorized create-once ceremonies
-publish and independently verify them. The [V32 runbook](V32_RUNBOOK.md) is
+publish and independently verify them. The [V34 runbook](V34_RUNBOOK.md) is
 authoritative; neither it nor this document authorizes execution or spend.
 
 ## Purpose
@@ -62,7 +75,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V32 key, cohort, credential namespace, schedule, private state, or
+8. No V34 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -108,12 +121,12 @@ terminate that job.
     persistence failure, and following-phase checkpoint persistence failure
     remain distinct through the private incident, public terminal candidate,
     terminal-incident attestation, and provider-free outer audit.
-18. Before the first V32 preclaim mutation, the same supervised child
+18. Before the first V34 preclaim mutation, the same supervised child
     exact-checks the sealed spend receipt, canonical committed authentication
     receipt bytes and repository binding, and authenticated supervisor
     execution binding. The first trace stores that closed prerequisite bundle;
     the claim re-attests it and never creates a replacement binding.
-19. A V32 passed preclaim is separately durable before the exactly-once paid
+19. A V34 passed preclaim is separately durable before the exactly-once paid
     claim. Claim-write reconciliation accepts only the complete authenticated
     before-state or after-state and never repairs or retries an ambiguous
     transition.
@@ -125,17 +138,25 @@ terminate that job.
     path limit. Rejection exposes only `generation_environment_invalid` and
     performs no private read, runtime write, authentication, provider, or model
     start.
-21. V32 publishes runtime, manifest, sanitized authentication, and passing
-    preflight receipts as four ordered one-file commits on
-    `refs/heads/codex/v32-runtime-preflight`. Every ref/path is absent before
+21. V34 publishes its control plane exactly once from a fresh standalone
+    GitButler primary clone after safely routing the personal `matthew-zhao`
+    credential and proving managed hooks unchanged. A failed or ambiguous
+    control publication closes only on
+    `refs/heads/codex/v34-control-plane-publication-terminal-closeout` as a
+    two-file direct child of `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d` and
+    is never retried. After a uniquely pinned control commit, V34 publishes
+    runtime, manifest, sanitized authentication, and passing preflight receipts
+    as four ordered one-file commits on
+    `refs/heads/codex/v34-runtime-preflight`. Every ref/path is absent before
     first use, every write/publication is attempted at most once, and every
     public parent is independently pinned from the fixed origin. An early
     ambiguity closes on
-    `refs/heads/codex/v32-runtime-publication-terminal-closeout` from the last
+    `refs/heads/codex/v34-runtime-publication-terminal-closeout` from the last
     independently pinned commit—never local or provisional state. That path,
-    `refs/heads/codex/v32-preflight-terminal-closeout`,
-    `refs/heads/codex/v32-production-results`, and
-    `refs/heads/codex/v32-terminal-closeout` are mutually exclusive.
+    `refs/heads/codex/v34-preflight-terminal-closeout`,
+    `refs/heads/codex/v34-production-results`, and
+    `refs/heads/codex/v34-terminal-closeout` are mutually exclusive with each
+    other and with the control-publication closeout.
 
 ## Durable assignment phases and the current adapter
 
@@ -164,7 +185,7 @@ execution and fails closed.
 
 V21 introduced the separation of attempt accounting from model-invocation
 accounting and its durable, ordered, content-free pre-model phase field. V22
-added a finite trusted-evaluator startup substage. V32 retains both boundaries.
+added a finite trusted-evaluator startup substage. V34 retains both boundaries.
 The only permitted transitions are `provider_environment_setup`,
 `provider_cli_readiness`, `episode_startup`, and `model_spawn_boundary`.
 Unknown, duplicate, skipped, out-of-order, or provider-supplied phase values
@@ -191,7 +212,7 @@ provider-free exact-file reproduction showed that multiprocessing `spawn`
 inherited the parent’s manually extended isolated `sys.path`, replayed the
 runner as `__mp_main__`, and the runner appended the same two paths again. The
 strict validator correctly rejected the duplicates. V22 first accepted only
-the pristine parent or an exact one-copy inherited ordered tail; V32 retains
+the pristine parent or an exact one-copy inherited ordered tail; V34 retains
 that rule. Partial, duplicate, reversed, displaced, or trailing states still
 fail closed.
 
@@ -233,8 +254,8 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V32 retains the provider-free boundary before the private panel exists. One
-operator-supplied, absolute, attested isolated interpreter runs every V32 CLI
+V34 retains the provider-free boundary before the private panel exists. One
+operator-supplied, absolute, attested isolated interpreter runs every V34 CLI
 and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order in
@@ -259,7 +280,7 @@ variables, the library checks the resulting exact 14-key environment before
 and after each runtime preflight. Any extra key fails even when its value is
 empty.
 
-V32 bounds the UTF-8 `TMPDIR` pathname to 72 bytes so its fixed
+V34 bounds the UTF-8 `TMPDIR` pathname to 72 bytes so its fixed
 28-byte episode-directory/socket suffix remains within the broker's 100-byte
 Unix-socket limit. LaunchAgent generation canonicalizes that directory and
 requires current ownership and exact mode `0700` before any private read or
@@ -312,10 +333,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v32.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v34.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V32 freezer or `prepare` command can create or read a key, cohort,
+the matched V34 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -334,7 +355,7 @@ STARSIM_INSTALL_FONTS=0
 XDG_CACHE_HOME=<owner-only-cache>/xdg
 ```
 
-At every V32 preparation boundary, parsing these values only resolves and
+At every V34 preparation boundary, parsing these values only resolves and
 validates the normalized cache root. It does not walk the tree. The complete
 cache contract is inventoried exactly once, then the resulting authenticated
 object and opaque hash are passed to the bound-public and private-binding
@@ -400,8 +421,9 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. V32 persistent-supervisor contract schema v17 intentionally rejects
-schema-v16/V31 manifests; a run must be freshly versioned, prepared, and
+evaluator. V34 persistent-supervisor contract schema v19 intentionally rejects
+public V32 schema v17, burned unpublished V33 schema v18, and both V32/V33
+panel and freeze namespaces; a run must be freshly versioned, prepared, and
 authorized under the new contract.
 
 ## Typed provider-free preflight control diagnostics
@@ -422,7 +444,7 @@ completed profiles, zero conservatively chargeable model invocations, zero
 production episodes, and no scores, but it cannot safely identify the failed
 inner predicate. V28 is terminal and non-resumable.
 
-V32 retains these exact ordered operations and matching
+V34 retains these exact ordered operations and matching
 `_failed` codes:
 
 1. `preparation_runtime_bound_contract`;
@@ -480,9 +502,9 @@ authentication, provider, and model starts, and independently repeats the exit
 public file, or any failed audit becomes terminal ambiguity and can never
 restart the evaluator.
 
-## V32 provider-free preclaim validation
+## V34 provider-free preclaim validation
 
-The V32 LaunchAgent starts the one supervised panel child with a sealed
+The V34 LaunchAgent starts the one supervised panel child with a sealed
 non-secret environment. The outer worker does not read Keychain and does not
 inject `CURSOR_API_KEY`. Before the child can persist the irreversible six-call
 preflight claim, it executes a provider-free phase using the exact executable,
@@ -527,7 +549,7 @@ outer session `finally` wipes the cached value and environment on every exit.
 Preclaim success is authenticated and bound to the exact prerequisite bundle,
 manifest, execution context, checkout, source, runtime, environment, and cache
 identity. Stale, missing, mismatched, failed, or ambiguous validation prevents
-the claim and terminates V32. Because validation and claim are phases of the
+the claim and terminates V34. Because validation and claim are phases of the
 same child and critical section, there is no public validate-only receipt,
 second child, or claim-time liveness sentinel. Production and successful
 post-supervisor finalization both independently require the same exact passed
@@ -559,7 +581,7 @@ publication step. It cannot relaunch the worker, evaluator, authentication
 bootstrap, or provider. A terminal release-validation incident is never
 retryable.
 
-V32's intentionally no-site outer worker does not re-import Starsim or
+V34's intentionally no-site outer worker does not re-import Starsim or
 re-inventory installed scientific distributions. Those live checks remain
 mandatory before and after provider calls. Release instead revalidates the
 sealed public component hashes, authenticated preparation/runtime-cache
@@ -625,7 +647,7 @@ command. It invokes only:
 ```
 
 The owner-only private config contains allowlisted paths and frozen command
-arguments. For V32, the worker starts the one supervised panel child without
+arguments. For V34, the worker starts the one supervised panel child without
 reading Keychain or injecting a secret. The child completes its provider-free
 preclaim phase, durably seals its passed trace, re-attests its exact
 prerequisites, and reconciles the paid-run claim before its credential session
@@ -637,7 +659,7 @@ is absent from the property list, command line, repository, status, and logs.
 LaunchAgent stdout and stderr are `/dev/null`; a bounded private event log
 contains only allowlisted event codes and finite scalar fields.
 
-For V32, generation also requires the exact manifest-bound runtime-cache root.
+For V34, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -705,7 +727,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V32 model call may start until all of the following pass through the
+No V34 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -747,7 +769,7 @@ same supervisor path intended for production:
   receipt-byte, installed-distribution-byte, cache environment/inventory,
   cache inode/mode, and tracked-commit drift tests proving failure before any
   private artifact or provider/authentication helper;
-- one injected failure for each V32 preparation-runtime operation, proving the
+- one injected failure for each V34 preparation-runtime operation, proving the
   exact attempted operation, preceding completed operation, matching finite
   failure code, and zero authentication/provider/model starts;
 - an exact call-count assertion proving one cache-identity boundary performs
@@ -1017,5 +1039,28 @@ current-owner `0700` `TMPDIR` before private reads or runtime writes and reports
 only `generation_environment_invalid` if it is unsafe. The `$160` conservative
 prior-through-V31 allowance plus the unchanged `$510` current-run ceiling gives
 the source-owned `$670` cumulative ceiling; this is not authorization. The
-[V32 runbook](V32_RUNBOOK.md) is authoritative for the fresh create-once
-sequence.
+[V32 runbook](V32_RUNBOOK.md) is now terminal historical evidence. V32's
+provider-free receipt candidates passed and matched, but its one receipt
+publication attempt failed before remote mutation. Its public closeout commit
+`f26d8f7e50748883142f3452ee11daf43595e421` contains only the V32
+supersession record and test and excludes the unpublished receipt object from
+its tree and ancestry.
+
+V33 prepared but did not publish a fresh control plane. Its sole GitButler
+publication attempt failed before remote mutation, with zero runtime,
+authentication, provider, and model starts. Its unpublished local commit
+`dac82434f2e2a73d511df418755b28003222ab3b` is non-authoritative and cannot
+enter successor source or ancestry. V33 closes on
+`refs/heads/codex/v33-control-plane-publication-terminal-closeout` at exact
+commit `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`, whose only delta is the V33
+supersession record and test.
+
+V34 uses `development-matched-50x6-v34`,
+`development_matched_panel_v34`, fresh panel/cohort-specific namespaces, and
+`epiagentbench.persistent_supervisor_contract.v19`. Public V32 v17 and burned
+V33 v18 are rejected. All retained supervisor, identity, LaunchAgent,
+preparation, provider-free, authentication, and terminal wire schemas remain
+unchanged. V32 and V33 add `$0`, so the `$160` conservative prior allowance,
+`$510` current-run ceiling, and `$670` cumulative source-owned ceiling remain
+unchanged and authorize nothing. The [V34 runbook](V34_RUNBOOK.md) is the
+authoritative fresh control-plane procedure.

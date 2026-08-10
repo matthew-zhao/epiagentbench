@@ -1,6 +1,18 @@
 # EpiAgentBench V32 execution runbook
 
 > [!CAUTION]
+> **V32 IS TERMINAL AND NON-RESUMABLE. DO NOT EXECUTE ANY CEREMONY BELOW.**
+>
+> V32 closed at public commit
+> `f26d8f7e50748883142f3452ee11daf43595e421` after its sole
+> runtime-receipt publication attempt failed before remote mutation. V33 then
+> failed during its sole control-plane publication attempt and closed at
+> `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`. The commands, placeholders,
+> acknowledgement, and paths below are immutable historical design evidence;
+> they authorize no retry, repair, reuse, publication, runtime, authentication,
+> provider, model, preflight, production, or results action. The fresh forward
+> procedure is the [V34 runbook](V34_RUNBOOK.md).
+>
 > **CONTROL-PLANE DESIGN ONLY — NO V32 AUTHENTICATION, PROVIDER, SPEND,
 > PREFLIGHT, PRODUCTION, OR MODEL CALL IS AUTHORIZED.**
 >

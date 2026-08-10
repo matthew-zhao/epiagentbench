@@ -301,7 +301,7 @@ class V28TypedContractAttestationTests(unittest.TestCase):
         for forbidden in ("/hidden/", "exception", "provider_output"):
             self.assertNotIn(forbidden, serialized)
 
-    def test_v32_live_incident_envelope_schema_remains_closed(self) -> None:
+    def test_v34_live_incident_envelope_schema_remains_closed(self) -> None:
         envelope = matched._new_preflight_incident_envelope()
         self.assertEqual(
             envelope["schema_version"],

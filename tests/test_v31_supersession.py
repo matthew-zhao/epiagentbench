@@ -21,6 +21,8 @@ def _object_without_duplicate_keys(
 
 class V31SupersessionTests(unittest.TestCase):
     CONTROL_COMMIT = "6efe0fa93e9c72946b48c22ab27a7fe6b41c199c"
+    CLOSEOUT_COMMIT = "9c354164347f2b09a7656171ef5cbc7480111c6e"
+    CLOSEOUT_TREE = "669e055fd92bff0c29c2f3a1949748bf58172ecb"
     LOCAL_RUNTIME_COMMIT = "4bb1cc37bceb8b8c723db4307eea595b28cc5bb4"
     SUPERSESSION_PATH = (
         "results/development-matched-50x6-v31.superseded.json"
@@ -329,17 +331,26 @@ class V31SupersessionTests(unittest.TestCase):
         self.assertLessEqual(superseded_at, datetime.now(timezone.utc))
 
     def test_committed_closeout_has_the_approved_two_file_topology(self) -> None:
-        tracked = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", self.SUPERSESSION_PATH],
+        closeout_metadata = subprocess.run(
+            [
+                "git",
+                "show",
+                "-s",
+                "--format=%H%n%P%n%T",
+                self.CLOSEOUT_COMMIT,
+            ],
             cwd=self.root,
+            check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+        ).stdout.splitlines()
+        self.assertEqual(
+            closeout_metadata,
+            [self.CLOSEOUT_COMMIT, self.CONTROL_COMMIT, self.CLOSEOUT_TREE],
         )
-        if tracked.returncode != 0:
-            self.skipTest("closeout is not committed yet")
 
-        closeout_commit = subprocess.run(
+        latest_supersession_commit = subprocess.run(
             [
                 "git",
                 "log",
@@ -354,29 +365,7 @@ class V31SupersessionTests(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
         ).stdout.strip()
-        closeout_ref = subprocess.run(
-            [
-                "git",
-                "rev-parse",
-                "refs/heads/codex/v31-runtime-publication-terminal-closeout",
-            ],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
-        self.assertEqual(closeout_commit, closeout_ref)
-
-        parents = subprocess.run(
-            ["git", "show", "-s", "--format=%P", closeout_commit],
-            cwd=self.root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
-        self.assertEqual(parents, self.CONTROL_COMMIT)
+        self.assertEqual(latest_supersession_commit, self.CLOSEOUT_COMMIT)
 
         changed_paths = subprocess.run(
             [
@@ -385,7 +374,7 @@ class V31SupersessionTests(unittest.TestCase):
                 "--no-commit-id",
                 "--name-only",
                 "-r",
-                closeout_commit,
+                self.CLOSEOUT_COMMIT,
             ],
             cwd=self.root,
             check=True,
@@ -400,7 +389,7 @@ class V31SupersessionTests(unittest.TestCase):
 
         runtime_path = "results/development-matched-50x6-v31.runtime.json"
         tree_paths = subprocess.run(
-            ["git", "ls-tree", "-r", "--name-only", closeout_commit],
+            ["git", "ls-tree", "-r", "--name-only", self.CLOSEOUT_COMMIT],
             cwd=self.root,
             check=True,
             stdout=subprocess.PIPE,
@@ -409,20 +398,15 @@ class V31SupersessionTests(unittest.TestCase):
         ).stdout.splitlines()
         self.assertNotIn(runtime_path, tree_paths)
 
-        unpublished_is_ancestor = subprocess.run(
-            [
-                "git",
-                "merge-base",
-                "--is-ancestor",
-                self.LOCAL_RUNTIME_COMMIT,
-                closeout_commit,
-            ],
+        closeout_ancestry = subprocess.run(
+            ["git", "rev-list", self.CLOSEOUT_COMMIT],
             cwd=self.root,
+            check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-        )
-        self.assertEqual(unpublished_is_ancestor.returncode, 1)
+        ).stdout.splitlines()
+        self.assertNotIn(self.LOCAL_RUNTIME_COMMIT, closeout_ancestry)
 
 
 if __name__ == "__main__":
