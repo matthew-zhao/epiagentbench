@@ -1,5 +1,21 @@
 # EpiAgentBench V34 execution runbook
 
+> [!IMPORTANT]
+> **V34 IS TERMINAL AND NON-RESUMABLE.** Its control plane was published and
+> independently pinned at `72ca992eed6c0faa5961d4063732a8a1da918301`.
+> Provider-free host-contract validation then failed before runtime-receipt
+> generation after the root-managed Glean route and Claude managed-settings
+> schema evolved. V34 made zero authentication, provider, or model starts and
+> created no runtime receipt, key, cohort, private state, manifest, supervisor,
+> preflight, production assignment, result, trace, or score. Its exact two-file
+> closeout is `038794aa1bf82440259c62afdabab44c01415978` on
+> `refs/heads/codex/v34-runtime-publication-terminal-closeout`, using
+> `epiagentbench.panel_supersession.v27`. Never resume, retry, repair, or use
+> the V34 control commit as a runtime base. The historical body and V34
+> acknowledgement below are retained for audit evidence only and authorize
+> nothing. Continue only through the separately reviewed
+> [V35 design](V35_DESIGN.md) and [V35 runbook](V35_RUNBOOK.md).
+
 > [!CAUTION]
 > **CONTROL-PLANE DESIGN ONLY — NO V34 AUTHENTICATION, PROVIDER, SPEND,
 > PREFLIGHT, PRODUCTION, OR MODEL CALL IS AUTHORIZED.**

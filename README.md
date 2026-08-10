@@ -378,9 +378,11 @@ but its sole runtime-receipt publication attempt failed before remote mutation.
 It closed at `f26d8f7e50748883142f3452ee11daf43595e421`. V33 then attempted only a
 fresh control-plane publication; that one attempt also failed before remote
 mutation, with zero runtime, authentication, provider, or model starts. It
-closed at `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`. V34 is the forward
+closed at `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`. V34 published its
+control plane, then failed its provider-free pre-runtime host-contract gate and
+closed at `038794aa1bf82440259c62afdabab44c01415978`. V35 is the forward
 control-plane design under fresh namespaces; see the
-[V34 design](docs/V34_DESIGN.md) and [V34 runbook](docs/V34_RUNBOOK.md). None
+[V35 design](docs/V35_DESIGN.md) and [V35 runbook](docs/V35_RUNBOOK.md). None
 of those documents alone authorizes runtime generation, authentication,
 supervisor start, provider calls, or spend.
 
@@ -940,10 +942,10 @@ only in their terminal [V20](docs/V20_RUNBOOK.md),
 [V23](docs/V23_RUNBOOK.md) runbooks and the superseded
 [V24 runbook](docs/V24_RUNBOOK.md) and
 [V25 runbook](docs/V25_RUNBOOK.md); they must not be executed or reused.
-V26, V27, V28, V29, V30, V31, V32, and V33 are terminal and must not be resumed or reused.
+V26, V27, V28, V29, V30, V31, V32, V33, and V34 are terminal and must not be resumed or reused.
 Any replacement must use fresh namespaces, the provider-free preclaim
 boundary, and the placeholder discipline in the
-[V34 runbook](docs/V34_RUNBOOK.md).
+[V35 runbook](docs/V35_RUNBOOK.md).
 
 V27 retained the `$510` current-run Claude ceiling and used a conservative
 `$100` allowance for prior panels. V20, V21, and V22 each add `$0`; V23 adds `$10`
@@ -1096,7 +1098,7 @@ non-authoritative incident metadata, excluded from the public closeout tree and
 ancestry and forbidden as a V34 source or parent. The exact two-file V33
 closeout is `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`.
 
-V34 is independently authored as the direct child of that closeout under
+V34 was independently authored as the direct child of that closeout under
 `development-matched-50x6-v34` and `development_matched_panel_v34`. Its panel
 persistent-supervisor contract advances directly from public V32 v17 to v19;
 the unpublished V33 v18 value is burned and explicitly rejected. Supervisor
@@ -1115,11 +1117,49 @@ acknowledgement is:
 
 Its SHA-256 is
 `b5026b6c3cdd3a2f6ca7f408f93bcb9a72236b305b57254811315067e4d6b97a`.
-The text and ceilings authorize nothing until a separately approved V34
-manifest-bound authorization ceremony. The V34 topology adds a dedicated
-control-publication terminal closeout before the four ordered staged receipts;
-all publication attempts remain named, at most once, independently pinned, and
-terminal on failure or ambiguity.
+That acknowledgement was never supplied. V34 published and independently
+pinned its control plane at `72ca992eed6c0faa5961d4063732a8a1da918301`,
+then failed closed during provider-free host-contract validation before
+runtime-receipt generation. The root-managed Glean route had coherently moved
+to `/rest/api/v1`, and Claude managed settings had gained one reviewed
+default-model field. No helper, authentication, provider, or model process was
+started; no runtime receipt, manifest, private state, supervisor, preflight,
+production assignment, result, trace, or score was created. V34 is terminal at
+the exact two-file closeout
+`038794aa1bf82440259c62afdabab44c01415978`, using supersession schema
+`epiagentbench.panel_supersession.v27`. Its historical text and `$0` incident
+cannot authorize or resume V34.
+
+V35 is the fresh direct child of that independently pinned closeout. It uses
+`development-matched-50x6-v35`, `development_matched_panel_v35`, persistent
+supervisor contract `epiagentbench.persistent_supervisor_contract.v20`, and
+provider CLI contract `epiagentbench.provider_cli_contract.v3`, while retaining
+supervisor state v4, identity v3, protocol v9, LaunchAgent config/auth v16,
+worker status v6, and the other unchanged provider-free and terminal schemas.
+The reconciled Glean contract requires the reviewed HTTPS route
+`/rest/api/v1`, exact redacted URL digest
+`sha256:b27f5a0a001afd9310d20c04af550e13c440f2d88ee0891b95c2f73f7186d305`,
+exact 17-key managed environment, pinned helpers, and one exact managed
+`sonnet` default. Public identities redact the
+managed host, OAuth client identifiers, and model value. The managed default
+does not select a benchmark profile: source-owned explicit `--model` arguments
+and provider-reported observed-model/fallback checks remain authoritative. The
+independently reproduced duplicate-safe V35 Starsim smoke projection is frozen
+at `sha256:864f1d51cc4da6a0545445537cca5badc5bb624ed4d8e386786a274e85b78086`.
+
+V34 contributes `$0`, so the conservative prior-through-V34 Claude allowance
+remains `$160`; the V35 current-run ceiling remains `$510`, for `$670`
+cumulative. Codex and Cursor remain explicitly unbounded. The exact V35
+acknowledgement is:
+
+> I acknowledge the replacement six-call v35 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, the failed zero-model-call v30 preflight supervisor-generation environment validation, the failed zero-model-call v31 provider-free runtime-receipt publication before remote mutation, the failed zero-model-call v32 provider-free runtime-receipt publication before remote mutation, the failed zero-model-call v33 control-plane publication before remote mutation, the failed zero-model-call v34 provider-free pre-runtime host-contract validation, and the v35 preflight and production run.
+
+Its SHA-256 is
+`d4afd8238eeb000c25a124936400102d97e327d0624b1b5059c26b0de1fd8bc0`.
+The text and ceilings authorize nothing until a separately approved, published,
+independently pinned V35 manifest is bound by the create-once spend ceremony.
+The [V35 design](docs/V35_DESIGN.md) and [V35 runbook](docs/V35_RUNBOOK.md)
+freeze the new namespaces and closed publication topology.
 
 The V29 design required the runner, runtime, hidden cohort, credential
 namespaces, and public manifest to be frozen before any model-bearing provider

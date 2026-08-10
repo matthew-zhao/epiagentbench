@@ -753,7 +753,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             "--supervisor-runtime",
             str(self.root / "supervisor"),
             "--cursor-keychain-service",
-            "epiagentbench-cursor-v34",
+            "epiagentbench-cursor-v35",
             "--cursor-keychain-account",
             "test-account",
             "--acknowledge-unbounded-provider-spend",

@@ -108,9 +108,9 @@ from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePa
 from .trusted.service import TRUSTED_EVALUATOR_STARTUP_STAGES
 
 
-PANEL_ID = "development-matched-50x6-v34"
+PANEL_ID = "development-matched-50x6-v35"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v34"
+SCHEMA_VERSION = "development_matched_panel_v35"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -118,7 +118,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v34 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v35 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $670 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -144,8 +144,9 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "runtime-receipt publication before remote mutation, the failed "
     "zero-model-call v32 provider-free runtime-receipt publication before "
     "remote mutation, the failed zero-model-call v33 control-plane "
-    "publication before remote mutation, and the v34 preflight and "
-    "production run."
+    "publication before remote mutation, the failed zero-model-call v34 "
+    "provider-free pre-runtime host-contract validation, and the v35 "
+    "preflight and production run."
 )
 _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
     "epiagentbench.preparation_runtime_preflight.v4"
@@ -163,7 +164,7 @@ _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS = (0, 7, 2**31 - 2)
 _PREPARATION_EPISODE_STARTUP_REPETITIONS = 2
 _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES = 100
 _PREPARATION_EPISODE_SOCKET_PATH_SUFFIX_BYTES = len(
-    os.fsencode("/eab34-xxxxxxxx/episode.sock")
+    os.fsencode("/eab35-xxxxxxxx/episode.sock")
 )
 _PREPARATION_EPISODE_TMPDIR_MAX_BYTES = (
     _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
@@ -172,7 +173,7 @@ _PREPARATION_EPISODE_TMPDIR_MAX_BYTES = (
 _PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS = 3
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
     "sha256:"
-    "a89e9c69a08c87beee6e2e953453335ed8ddda83d407bf2dc050766f8ce73a68"
+    "864f1d51cc4da6a0545445537cca5badc5bb624ed4d8e386786a274e85b78086"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -305,17 +306,17 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V34 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V35 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V34 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V35 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V34 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V35 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v34_cohort_freeze_claim.v1"
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v35_cohort_freeze_claim.v1"
 _COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v34_cohort_freeze_completion.v1"
+    "epiagentbench.v35_cohort_freeze_completion.v1"
 )
 _COHORT_FREEZE_CLAIM_FILE = (
     f".{PANEL_ID}.cohort-freeze-claim.v1.json"
@@ -658,12 +659,16 @@ _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH = Path(
 )
 _GLEAN_CONFIG_PATH = Path("/usr/local/etc/glean/config.json")
 _APPROVED_GLEAN_GATEWAY_SHA256 = (
-    "sha256:85149e53b43b0d08be95efe77a15b6adbb79eac40e34857de00cbbd86180216f"
+    "sha256:b27f5a0a001afd9310d20c04af550e13c440f2d88ee0891b95c2f73f7186d305"
 )
-_APPROVED_GLEAN_GATEWAY_PATH = "/api/v1"
-_GLEAN_GATEWAY_ALLOWLIST_TAG = "approved_managed_gateway_v1"
+_APPROVED_GLEAN_GATEWAY_PATH = "/rest/api/v1"
+_GLEAN_GATEWAY_ALLOWLIST_TAG = "approved_managed_gateway_v2"
 _CLAUDE_MANAGED_SETTINGS_PATH = Path(
     "/Library/Application Support/ClaudeCode/managed-settings.json"
+)
+_APPROVED_CLAUDE_MANAGED_MODEL = "sonnet"
+_CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG = (
+    "approved_managed_claude_default_model_v1"
 )
 _CLAUDE_OTEL_HELPER_PATH = Path("/usr/local/bin/claude-otel-helper")
 _APPROVED_CLAUDE_OTEL_ENDPOINT_SHA256 = (
@@ -1196,21 +1201,21 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V34 cohort destination")
+    return _canonical_new_private_path(value, label="V35 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V34 claim location paired with this owner-only key."""
+    """Return the one V35 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
         raise ValueError(
-            "V34 authentication-key namespace is unavailable"
+            "V35 authentication-key namespace is unavailable"
         ) from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
@@ -1219,16 +1224,16 @@ def _cohort_freeze_claim_path(
         or parent_metadata.st_mode & 0o077
     ):
         raise ValueError(
-            "V34 authentication-key namespace must be owner-only"
+            "V35 authentication-key namespace must be owner-only"
         )
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V34 cohort freeze claim"
+        requested_path, label="V35 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V34 cohort freeze claim must use the canonical key-namespace path"
+            "V35 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1256,7 +1261,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V34 cohort freeze claim authentication failed")
+        raise ValueError("V35 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1279,7 +1284,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V34 cohort freeze completion authentication failed")
+        raise ValueError("V35 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1303,7 +1308,7 @@ def _pending_cohort_freeze_claim(
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V34 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V35 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1333,12 +1338,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V34 freeze attempt before any cohort randomness."""
+    """Burn the only V35 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V34 cohort freeze completion already exists; never rerun freeze"
+            "V35 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1355,11 +1360,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V34 cohort freeze already has a pending claim; interrupted "
+            "V35 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V34 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V35 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1377,7 +1382,7 @@ def _complete_cohort_freeze_claim(
         manifest_path
     )
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V34 cohort manifest must use its canonical filename")
+        raise ValueError("V35 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
@@ -1388,7 +1393,7 @@ def _complete_cohort_freeze_claim(
             canonical_manifest_path.parent
         ),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V34 frozen cohort manifest"
+            canonical_manifest_path, label="V35 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1406,11 +1411,11 @@ def _complete_cohort_freeze_claim(
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V34 cohort freeze completion already exists; never replace it"
+            "V35 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
         raise RuntimeError(
-            "V34 cohort freeze completion failed its durable reload"
+            "V35 cohort freeze completion failed its durable reload"
         )
     return completion
 
@@ -1428,13 +1433,13 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V34 cohort has no authenticated create-once freeze claim"
+            "Frozen V35 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V34 cohort freeze remains pending; interrupted freezes are "
+            "V35 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
     completion = _load_cohort_freeze_completion(
@@ -1442,7 +1447,7 @@ def _require_completed_cohort_freeze_claim(
     )
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V34 cohort manifest must use its canonical filename")
+        raise ValueError("V35 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1457,11 +1462,11 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V34 cohort freeze claim belongs to another freeze")
+        raise ValueError("V35 cohort freeze claim belongs to another freeze")
     if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
         "claimed_at_utc"
     ]:
-        raise ValueError("V34 cohort freeze claim has no claim time")
+        raise ValueError("V35 cohort freeze claim has no claim time")
 
     manifest = PrivateEpisodeCohortManifest.read(
         manifest_path, authentication_key
@@ -1472,7 +1477,7 @@ def _require_completed_cohort_freeze_claim(
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V34 frozen cohort manifest"
+            manifest_path, label="V35 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1482,12 +1487,12 @@ def _require_completed_cohort_freeze_claim(
         for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V34 cohort freeze completion differs from its manifest or claim"
+            "V35 cohort freeze completion differs from its manifest or claim"
         )
     if not isinstance(completion.get("completed_at_utc"), str) or not completion[
         "completed_at_utc"
     ]:
-        raise ValueError("V34 cohort freeze completion has no completion time")
+        raise ValueError("V35 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -2052,10 +2057,10 @@ def _provider_free_directory_observation(
             continue
         except (OSError, RuntimeError):
             raise RuntimeError(
-                f"V34 provider-free {label} is unavailable"
+                f"V35 provider-free {label} is unavailable"
             ) from None
     raise RuntimeError(
-        f"V34 provider-free {label} attestation was interrupted"
+        f"V35 provider-free {label} attestation was interrupted"
     )
 
 
@@ -2068,13 +2073,13 @@ def _provider_free_empty_directory(
     account_home: Path,
 ) -> Path:
     if not isinstance(raw_value, str) or not raw_value or "\x00" in raw_value:
-        raise RuntimeError(f"V34 provider-free {label} is unavailable")
+        raise RuntimeError(f"V35 provider-free {label} is unavailable")
     candidate = Path(raw_value)
     if (
         not candidate.is_absolute()
         or raw_value != os.path.normpath(raw_value)
     ):
-        raise RuntimeError(f"V34 provider-free {label} is invalid")
+        raise RuntimeError(f"V35 provider-free {label} is invalid")
     metadata, resolved, entries = _provider_free_directory_observation(
         candidate,
         label=label,
@@ -2092,7 +2097,7 @@ def _provider_free_empty_directory(
         or _paths_overlap(candidate, runtime_cache_root)
     ):
         raise RuntimeError(
-            f"V34 provider-free {label} failed directory isolation"
+            f"V35 provider-free {label} failed directory isolation"
         )
     return candidate
 
@@ -2103,7 +2108,7 @@ def _assert_preparation_socket_path_budget(tmpdir: Path) -> None:
         > _PREPARATION_EPISODE_TMPDIR_MAX_BYTES
     ):
         raise RuntimeError(
-            "V34 provider-free TMPDIR exceeds the episode socket path budget"
+            "V35 provider-free TMPDIR exceeds the episode socket path budget"
         )
 
 
@@ -2151,11 +2156,11 @@ def _provider_free_directory_identity_guard(
                     continue
                 except OSError:
                     raise RuntimeError(
-                        f"V34 provider-free {label} identity is unavailable"
+                        f"V35 provider-free {label} identity is unavailable"
                     ) from None
             if descriptor is None:
                 raise RuntimeError(
-                    f"V34 provider-free {label} identity attestation was "
+                    f"V35 provider-free {label} identity attestation was "
                     "interrupted"
                 )
             os.set_inheritable(descriptor, False)
@@ -2202,7 +2207,7 @@ def _provider_free_directory_identity_guard(
                     or pathname_identity != identities[label]
                 ):
                     raise RuntimeError(
-                        f"V34 provider-free {label} identity changed"
+                        f"V35 provider-free {label} identity changed"
                     )
 
         reattest()
@@ -2228,14 +2233,14 @@ def _provider_free_preparation_environment_contract(
     )
     if set(os.environ) != expected_keys:
         raise RuntimeError(
-            "V34 provider-free preparation environment is not closed"
+            "V35 provider-free preparation environment is not closed"
         )
     account_name, raw_account_home, account_shell = current_account()
     try:
         account_home = raw_account_home.resolve(strict=True)
     except (OSError, RuntimeError):
         raise RuntimeError(
-            "V34 provider-free account home is unavailable"
+            "V35 provider-free account home is unavailable"
         ) from None
     expected_cf_encoding = f"0x{os.getuid():X}:0x0:0x0"
     if (
@@ -2248,7 +2253,7 @@ def _provider_free_preparation_environment_contract(
         != expected_cf_encoding
     ):
         raise RuntimeError(
-            "V34 provider-free preparation environment values are invalid"
+            "V35 provider-free preparation environment values are invalid"
         )
     clean_home = _provider_free_empty_directory(
         os.environ.get("HOME"),
@@ -2266,7 +2271,7 @@ def _provider_free_preparation_environment_contract(
     )
     if clean_home == clean_tmp or _paths_overlap(clean_home, clean_tmp):
         raise RuntimeError(
-            "V34 provider-free HOME and TMPDIR must be distinct"
+            "V35 provider-free HOME and TMPDIR must be distinct"
         )
     _assert_preparation_socket_path_budget(clean_tmp)
     return {
@@ -4000,12 +4005,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V34 key only when one stable inode owns its namespace."""
+    """Read the V35 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V34 authentication key is unavailable") from None
+        raise RuntimeError("V35 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -4025,18 +4030,18 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V34 authentication key must be an owner-only single-link file"
+            "V35 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V34 authentication key is unavailable") from None
+        raise RuntimeError("V35 authentication key is unavailable") from None
     if any(
         getattr(after, field) != getattr(before, field)
         for field in stable_fields
     ):
-        raise RuntimeError("V34 authentication key changed while reading")
+        raise RuntimeError("V35 authentication key changed while reading")
     return key
 
 
@@ -4271,8 +4276,19 @@ def _managed_settings_identity(
                 reject_sensitive_fields(item, (*path, str(index)))
 
     reject_sensitive_fields(settings)
-    if set(settings) != {"apiKeyHelper", "env", "otelHeadersHelper"}:
+    if set(settings) != {
+        "apiKeyHelper",
+        "env",
+        "model",
+        "otelHeadersHelper",
+    }:
         raise RuntimeError("Claude managed settings top-level schema drifted")
+    managed_model = settings["model"]
+    if (
+        type(managed_model) is not str
+        or managed_model != _APPROVED_CLAUDE_MANAGED_MODEL
+    ):
+        raise RuntimeError("Claude managed model policy drifted")
     environment = settings.get("env")
     if (
         not isinstance(environment, dict)
@@ -4367,6 +4383,7 @@ def _managed_settings_identity(
     redacted_projection = {
         "apiKeyHelper": settings["apiKeyHelper"],
         "env": redacted_environment,
+        "model": "<validated-approved-managed-model>",
         "otelHeadersHelper": settings["otelHeadersHelper"],
     }
     return (
@@ -4381,6 +4398,12 @@ def _managed_settings_identity(
                 "telemetry_enabled": telemetry_enabled,
                 "otel_headers_helper_matches_pinned_helper": True,
                 "top_level_key_allowlist_exact": True,
+                "top_level_key_count": 4,
+                "managed_model_matches_exact_allowlist": True,
+                "managed_model_allowlist_tag": (
+                    _CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG
+                ),
+                "managed_model_value_disclosed": False,
                 "managed_environment_key_allowlist_exact": True,
                 "managed_environment_key_count": len(
                     _CLAUDE_MANAGED_ENV_KEYS
@@ -4766,7 +4789,7 @@ def _cli_contract() -> dict[str, Any]:
         else {"status": "disabled_by_managed_settings"}
     )
     return {
-        "schema_version": "epiagentbench.provider_cli_contract.v2",
+        "schema_version": "epiagentbench.provider_cli_contract.v3",
         "executables": [
             identities[executable] for executable in sorted(identities)
         ],
@@ -4966,7 +4989,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V34 runtime-cache environment does not match the exact contract"
+            "V35 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -4980,7 +5003,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V34 runtime-cache contract is inconsistent")
+        raise RuntimeError("V35 runtime-cache contract is inconsistent")
     return contract
 
 
@@ -4989,10 +5012,10 @@ def _runtime_cache_root_path_from_environment() -> Path:
 
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V34 runtime-cache environment is unavailable")
+        raise RuntimeError("V35 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V34 runtime-cache environment is invalid")
+        raise RuntimeError("V35 runtime-cache environment is invalid")
     return candidate.parent
 
 
@@ -5121,7 +5144,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v34-stop-direct-care",
+                        control_id="v35-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -5154,14 +5177,14 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V34 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V35 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
             raise RuntimeError(
-                "V34 Starsim golden smoke changed engine descriptors"
+                "V35 Starsim golden smoke changed engine descriptors"
             )
         reproduced[branch_name] = branch
 
@@ -5203,7 +5226,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V34 Starsim golden smoke lost its causal transmission/control "
+            "V35 Starsim golden smoke lost its causal transmission/control "
             "divergence"
         )
 
@@ -5231,12 +5254,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V34 Starsim golden smoke result drifted from its reviewed digest"
+            "V35 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
         "fixed_public_scenario": (
-            "v34_contact_transmission_with_matched_contact_stop"
+            "v35_contact_transmission_with_matched_contact_stop"
         ),
         "result_sha256": result_sha256,
         "result": projection,
@@ -5264,7 +5287,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         or raw_tmpdir != os.path.normpath(raw_tmpdir)
     ):
         raise RuntimeError(
-            "V34 episode-startup smoke requires the validated provider-free "
+            "V35 episode-startup smoke requires the validated provider-free "
             "TMPDIR"
         )
     smoke_tmpdir = Path(raw_tmpdir)
@@ -5273,7 +5296,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         resolved_tmpdir = smoke_tmpdir.resolve(strict=True)
     except (OSError, RuntimeError):
         raise RuntimeError(
-            "V34 episode-startup smoke provider-free TMPDIR is unavailable"
+            "V35 episode-startup smoke provider-free TMPDIR is unavailable"
         ) from None
     if (
         smoke_tmpdir != resolved_tmpdir
@@ -5283,7 +5306,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         or stat.S_IMODE(tmpdir_metadata.st_mode) != 0o700
     ):
         raise RuntimeError(
-            "V34 episode-startup smoke provider-free TMPDIR is unsafe"
+            "V35 episode-startup smoke provider-free TMPDIR is unsafe"
         )
     _assert_preparation_socket_path_budget(smoke_tmpdir)
 
@@ -5295,12 +5318,12 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
             for seed in _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS:
                 presentation_key = hashlib.sha256(
                     (
-                        "EpiAgentBench V34 provider-free episode startup "
+                        "EpiAgentBench V35 provider-free episode startup "
                         f"smoke v1|{family}|{seed}"
                     ).encode("ascii")
                 ).digest()
                 with TemporaryDirectory(
-                    prefix="eab34-", dir=smoke_tmpdir
+                    prefix="eab35-", dir=smoke_tmpdir
                 ) as directory:
                     socket_path = Path(directory) / "episode.sock"
                     if (
@@ -5308,7 +5331,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                         > _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
                     ):
                         raise RuntimeError(
-                            "V34 episode-startup smoke socket path exceeds "
+                            "V35 episode-startup smoke socket path exceeds "
                             "its bound"
                         )
                     session = launch_socket_episode(
@@ -5350,7 +5373,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                             session.close()
                     if socket_path.exists():
                         raise RuntimeError(
-                            "V34 episode-startup smoke left a broker socket"
+                            "V35 episode-startup smoke left a broker socket"
                         )
         case_digests_by_repetition.append(case_digests)
 
@@ -5360,7 +5383,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         != case_digests_by_repetition[1]
     ):
         raise RuntimeError(
-            "V34 episode-startup smoke is not serially reproducible"
+            "V35 episode-startup smoke is not serially reproducible"
         )
     expected_processes = (
         len(FAMILIES)
@@ -5369,7 +5392,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
     )
     if trusted_evaluator_processes_started != expected_processes:
         raise RuntimeError(
-            "V34 episode-startup smoke did not complete its fixed matrix"
+            "V35 episode-startup smoke did not complete its fixed matrix"
         )
     return {
         "schema_version": _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA,
@@ -5456,7 +5479,7 @@ def _runtime_contract() -> dict[str, Any]:
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V34 requires exact Starsim "
+            "V35 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
         )
     from .launchd_agent import _python_entrypoint_binding
@@ -5474,7 +5497,7 @@ def _runtime_contract() -> dict[str, Any]:
         or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V34 Python executable must not be temporary")
+        raise RuntimeError("V35 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
@@ -5565,7 +5588,7 @@ def _preflight_preparation_runtime_with_cache_contract(
         )
     ):
         raise RuntimeError(
-            "V34 runtime preflight is not at the expected pinned commit"
+            "V35 runtime preflight is not at the expected pinned commit"
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
@@ -5574,7 +5597,7 @@ def _preflight_preparation_runtime_with_cache_contract(
     cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
     if _paths_overlap(cache_root, root.resolve(strict=True)):
         raise RuntimeError(
-            "V34 runtime cache must be outside the repository"
+            "V35 runtime cache must be outside the repository"
         )
     provider_free_environment = (
         _provider_free_preparation_environment_contract(
@@ -5608,7 +5631,7 @@ def _preflight_preparation_runtime_with_cache_contract(
         )
     ):
         raise RuntimeError(
-            "V34 provider-free preparation environment changed"
+            "V35 provider-free preparation environment changed"
         )
     head_after = _git_output(root, "rev-parse", "HEAD")
     if (
@@ -5618,7 +5641,7 @@ def _preflight_preparation_runtime_with_cache_contract(
         )
     ):
         raise RuntimeError(
-            "V34 source changed during preparation runtime preflight"
+            "V35 source changed during preparation runtime preflight"
         )
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
@@ -5658,7 +5681,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V34 creation."""
+    """Attest every public preparation dependency before private V35 creation."""
 
     receipt, _ = _preflight_preparation_runtime_with_cache_contract(
         root=root,
@@ -5677,18 +5700,18 @@ def _load_preparation_runtime_receipt(
         != relative
     ):
         raise RuntimeError(
-            "V34 preparation runtime receipt must already be committed"
+            "V35 preparation runtime receipt must already be committed"
         )
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V34 preparation runtime receipt",
+            label="V35 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
         raise RuntimeError(
-            "V34 preparation runtime receipt is unavailable"
+            "V35 preparation runtime receipt is unavailable"
         ) from None
     expected_keys = {
         "authentication_processes_started",
@@ -5769,7 +5792,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V34 preparation runtime receipt failed closed-schema validation"
+            "V35 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -5781,7 +5804,7 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V34 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V35 runtime receipt."""
 
     published, receipt_file_sha256, relative = (
         _load_preparation_runtime_receipt(
@@ -5799,14 +5822,14 @@ def verify_preparation_runtime(
         current_runtime_cache
     ):
         raise RuntimeError(
-            "V34 runtime cache changed during receipt verification"
+            "V35 runtime cache changed during receipt verification"
         )
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
         raise RuntimeError(
-            "V34 preparation runtime differs from the published receipt"
+            "V35 preparation runtime differs from the published receipt"
         )
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v3",
@@ -5950,7 +5973,7 @@ def _validate_bound_preparation_runtime(
         or bound.get("runtime_identity_sha256")
         != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V34 preparation runtime is invalid")
+        raise ValueError("Bound V35 preparation runtime is invalid")
 
     validated_preclaim: dict[str, Any] | None = None
     if provider_free_preclaim is not None:
@@ -5980,7 +6003,7 @@ def _validate_bound_preparation_runtime(
     elif rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V34 Starsim smoke result changed")
+        raise ValueError("Bound V35 Starsim smoke result changed")
 
     record("preparation_runtime_episode_startup_smoke")
     if validated_preclaim is not None:
@@ -5993,7 +6016,7 @@ def _validate_bound_preparation_runtime(
         and _preparation_episode_startup_smoke()
         != bound.get("episode_startup_smoke_contract")
     ):
-        raise ValueError("Bound V34 episode-startup smoke result changed")
+        raise ValueError("Bound V35 episode-startup smoke result changed")
 
     # Both smoke tests are allowed to populate deterministic caches.  Bind the
     # complete cache only afterwards so no mutation can occur beyond the sole
@@ -6011,7 +6034,7 @@ def _validate_bound_preparation_runtime(
         if bound.get("runtime_cache_contract_sha256") != _component_hash(
             runtime_cache
         ):
-            raise ValueError("Bound V34 runtime cache changed")
+            raise ValueError("Bound V35 runtime cache changed")
     return bound
 
 
@@ -6019,7 +6042,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v19",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v20",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -6587,8 +6610,8 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v34_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v34_authorization_breakdown": {
+        "claude_current_v35_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v35_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
@@ -6633,6 +6656,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v31_usd": 0.0,
             "v32_usd": 0.0,
             "v33_usd": 0.0,
+            "v34_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -6896,6 +6920,9 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v33_supersession": (
                 "results/development-matched-50x6-v33.superseded.json"
             ),
+            "v34_supersession": (
+                "results/development-matched-50x6-v34.superseded.json"
+            ),
         },
         "ceiling_interpretation": (
             "authorization ceilings, not measured provider billing"
@@ -6916,7 +6943,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V34 exactly once after runtime re-attestation."""
+    """Claim and freeze V35 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -6950,7 +6977,7 @@ def freeze_panel_cohort(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V34 runtime cache must not overlap the {label}"
+                f"V35 runtime cache must not overlap the {label}"
             )
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
@@ -6971,13 +6998,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V34 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V35 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V34 cohort returned a noncanonical artifact location"
+            "Frozen V35 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -6990,9 +7017,9 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V34 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V35 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v34_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v35_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
@@ -7051,13 +7078,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V34 requires an exact 1800-second assignment timeout")
+        raise ValueError("V35 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V34 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V35 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -7082,7 +7109,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V34 runtime cache must not overlap the {label}"
+                f"V35 runtime cache must not overlap the {label}"
             )
     profiles = _profile_contract()
     source = _source_contract(root)
@@ -7094,7 +7121,7 @@ def _prepare_panel_locked(
         != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V34 source or CLI identity drifted after runtime verification"
+            "V35 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -7148,7 +7175,7 @@ def _prepare_panel_locked(
             cache_root, candidate.expanduser().resolve(strict=False)
         ):
             raise ValueError(
-                f"V34 runtime cache must not overlap the {label}"
+                f"V35 runtime cache must not overlap the {label}"
             )
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
     freeze_claim, freeze_completion = (
@@ -7771,7 +7798,7 @@ def _validate_preparation_runtime_last(
         or _component_hash(private_contract.get("runtime_cache_contract"))
         != bound.get("runtime_cache_contract_sha256")
     ):
-        raise ValueError("Private V34 preparation runtime binding is invalid")
+        raise ValueError("Private V35 preparation runtime binding is invalid")
     runtime_cache_contract = private_contract.get("runtime_cache_contract")
     expected_environment = (
         runtime_cache_contract.get("environment")
@@ -7955,7 +7982,7 @@ def _validate_contracts(
         "preparation_runtime_contract"
     )
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V34 preparation runtime contract is missing")
+        raise ValueError("V35 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
     freeze_claim, freeze_completion = (
         _require_completed_cohort_freeze_claim(
@@ -7984,7 +8011,7 @@ def _validate_contracts(
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V34 cohort freeze claim differs from private state"
+            "Authenticated V35 cohort freeze claim differs from private state"
         )
     record_operation("cohort_manifest")
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
@@ -8349,7 +8376,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V34 spend authorization contract mismatch")
+        raise ValueError("V35 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -8377,7 +8404,7 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v34 spend authorization receipt is required "
+            "A manifest-bound exact v35 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
@@ -8392,14 +8419,14 @@ def _assert_spend_authorization(
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v34 spend authorization receipt is required "
+            "A manifest-bound exact v35 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v34 spend authorization receipt is required "
+            "A manifest-bound exact v35 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -8421,7 +8448,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v34 $670 cumulative spend acknowledgement text is required"
+            "The exact v35 $670 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -10003,7 +10030,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V34 panel cannot retry"
+                    "state; this V35 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -10016,7 +10043,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V34 panel cannot retry"
+                    "state; this V35 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -10029,7 +10056,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V34 panel cannot retry"
+                    "state; this V35 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -10051,7 +10078,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V34 panel cannot retry"
+                        "repository-contract state; this V35 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -10072,7 +10099,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V34 panel "
+                "Authentication process state is ambiguous; this V35 panel "
                 "cannot retry"
             )
         if (
@@ -10103,7 +10130,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -10135,7 +10162,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V34 panel cannot retry"
+                "state; this V35 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -10148,7 +10175,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -10161,7 +10188,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -10178,7 +10205,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -10197,7 +10224,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V34 panel cannot retry"
+                "state; this V35 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -10319,7 +10346,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V34 panel cannot retry"
+                    "state before provider launch; this V35 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -10334,7 +10361,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V34 panel cannot retry"
+                    "state before provider launch; this V35 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -10351,7 +10378,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V34 panel cannot retry"
+                    "state before provider launch; this V35 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -10370,7 +10397,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V34 panel cannot retry"
+                    "state; this V35 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -10418,7 +10445,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V34 panel cannot retry"
+                    "V35 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -10436,7 +10463,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V34 panel cannot retry"
+                    "state after provider return; this V35 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -10454,7 +10481,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V34 panel cannot retry"
+                    "state after provider return; this V35 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
@@ -10494,7 +10521,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V34 panel cannot retry"
+                    "state after provider return; this V35 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -10516,7 +10543,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V34 panel cannot retry"
+                    "this V35 panel cannot retry"
                 ) from None
 
         try:
@@ -10530,7 +10557,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -10543,7 +10570,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -10560,7 +10587,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V34 panel cannot retry"
+                "this V35 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -10579,7 +10606,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V34 panel cannot retry"
+                "state; this V35 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,

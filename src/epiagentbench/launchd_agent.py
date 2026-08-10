@@ -71,8 +71,14 @@ _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v9"
 _MATCHED_PANEL_ID_PREFIX = "development-matched-50x6-"
 _CURSOR_KEYCHAIN_SERVICE_PREFIX = "epiagentbench-cursor-"
-_FROZEN_PANEL_ID = "development-matched-50x6-v34"
-_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v34"
+_FROZEN_PANEL_ID = "development-matched-50x6-v35"
+_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v35"
+_FROZEN_PERSISTENT_SUPERVISOR_CONTRACT_SCHEMA = (
+    "epiagentbench.persistent_supervisor_contract.v20"
+)
+_FROZEN_PROVIDER_CLI_CONTRACT_SCHEMA = (
+    "epiagentbench.provider_cli_contract.v3"
+)
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -1662,6 +1668,11 @@ def _manifest_binding(
     panel_id = manifest.get("panel_id")
     schema_version = manifest.get("schema_version")
     precommitment = manifest.get("precommitment_sha256")
+    persistent_supervisor_contract = manifest.get(
+        "persistent_supervisor_contract"
+    )
+    cli_contract = manifest.get("cli_contract")
+    contract_hashes = manifest.get("contract_hashes")
     runtime_contract = manifest.get("runtime_contract")
     python_executable_sha256 = (
         runtime_contract.get("python_executable_sha256")
@@ -1692,6 +1703,17 @@ def _manifest_binding(
         or schema_version != _FROZEN_PANEL_SCHEMA_VERSION
         or not isinstance(precommitment, str)
         or not _SHA256.fullmatch(precommitment)
+        or not isinstance(persistent_supervisor_contract, dict)
+        or persistent_supervisor_contract.get("schema_version")
+        != _FROZEN_PERSISTENT_SUPERVISOR_CONTRACT_SCHEMA
+        or not isinstance(cli_contract, dict)
+        or cli_contract.get("schema_version")
+        != _FROZEN_PROVIDER_CLI_CONTRACT_SCHEMA
+        or not isinstance(contract_hashes, dict)
+        or contract_hashes.get("supervisor_sha256")
+        != _component_sha256(persistent_supervisor_contract)
+        or contract_hashes.get("cli_sha256")
+        != _component_sha256(cli_contract)
         or not isinstance(python_executable_sha256, str)
         or not _SHA256.fullmatch(python_executable_sha256)
         or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
@@ -1712,7 +1734,7 @@ def _manifest_binding(
             or "runtime_cache_contract" in preparation_runtime_contract
         )
     ):
-        raise ValueError("Public manifest lacks the frozen V34 panel binding")
+        raise ValueError("Public manifest lacks the frozen V35 panel binding")
     return (
         panel_id,
         precommitment,
@@ -2193,7 +2215,7 @@ def generate_launch_agent(
         )
         # Generation is deliberately credential-blind.  Authentication state,
         # receipt, repository, and credential readiness are re-attested by the
-        # supervised runner in the same child that durably records the V34
+        # supervised runner in the same child that durably records the V35
         # provider-free preclaim.  Calling the foreground readiness helper here
         # would inspect credential metadata (including macOS Keychain state)
         # before that claim existed.
@@ -3589,6 +3611,12 @@ def install_launch_agent(
         runtime = Path(config["runtime_dir"])
         config_path = Path(config["config_path"])
         with _LaunchControlLock(runtime):
+            # Installation is itself an irreversible control action. Reuse
+            # the exact provider-free identity attestation required by audit
+            # and start before publishing its durable attempt boundary. The
+            # subsequent authenticated snapshot/config checks close the
+            # interval opened by this potentially long validation.
+            _attest_provider_free_prelaunch_identity(config)
             # Authentication, identity, source, cache, and plist validation
             # have all succeeded. Publish the irreversible install-attempt
             # boundary immediately before bootstrap. It intentionally

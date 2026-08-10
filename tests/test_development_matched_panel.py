@@ -71,7 +71,7 @@ SOURCE_CONTRACT = {
     "task_prompt_sha256": "sha256:" + "c" * 64,
 }
 CLI_CONTRACT = {
-    "schema_version": "epiagentbench.provider_cli_contract.v2",
+    "schema_version": "epiagentbench.provider_cli_contract.v3",
     "executables": [
         {
             "name": "claude",
@@ -283,7 +283,7 @@ PROVIDER_FREE_ENVIRONMENT_CONTRACT = {
 RUNTIME_SMOKE_CONTRACT = {
     "schema_version": "epiagentbench.preparation_runtime_smoke.v2",
     "fixed_public_scenario": (
-        "v34_contact_transmission_with_matched_contact_stop"
+        "v35_contact_transmission_with_matched_contact_stop"
     ),
     "result_sha256": "sha256:" + "e" * 64,
     "result": {"test": "fixed-public-smoke"},
@@ -359,7 +359,7 @@ def prepare_panel(**kwargs):
     root = Path(kwargs["root"])
     kwargs.setdefault(
         "preparation_runtime_receipt_path",
-        root / "results" / "development-matched-50x6-v34.runtime.json",
+        root / "results" / "development-matched-50x6-v35.runtime.json",
     )
     kwargs.setdefault("expected_benchmark_base_commit", "d" * 40)
     kwargs.setdefault(
@@ -592,14 +592,14 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v34.authentication.json",
+            "results/development-matched-50x6-v35.authentication.json",
         ):
-            return "results/development-matched-50x6-v34.authentication.json"
+            return "results/development-matched-50x6-v35.authentication.json"
         return ""
 
     @staticmethod
     def _glean_config_fixture(
-        gateway_url: str = "https://gateway.test/api/v1",
+        gateway_url: str = "https://gateway.test/rest/api/v1",
     ) -> dict:
         return {
             "gateway_url": gateway_url,
@@ -615,7 +615,7 @@ class MatchedPanelTests(unittest.TestCase):
             "apiKeyHelper": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
             "env": {
                 "ANTHROPIC_BASE_URL": (
-                    "https://gateway.test/api/v1/anthropic"
+                    "https://gateway.test/rest/api/v1/anthropic"
                 ),
                 "CLAUDE_CODE_API_KEY_HELPER_TTL_MS": "1800000",
                 "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
@@ -634,6 +634,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "OTEL_RESOURCE_ATTRIBUTES": "user.email=tester@example.test",
                 "USE_CLAUDE_PROJECT_DIR": "1",
             },
+            "model": "sonnet",
             "otelHeadersHelper": str(matched._CLAUDE_OTEL_HELPER_PATH),
         }
 
@@ -689,10 +690,10 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_verification.v3"
             ),
-            "panel_id": "development-matched-50x6-v34",
+            "panel_id": "development-matched-50x6-v35",
             "status": "passed",
             "published_receipt_path": (
-                "results/development-matched-50x6-v34.runtime.json"
+                "results/development-matched-50x6-v35.runtime.json"
             ),
             "published_receipt_file_sha256": "sha256:" + "f" * 64,
             "published_benchmark_base_commit": "c" * 40,
@@ -742,14 +743,14 @@ class MatchedPanelTests(unittest.TestCase):
         return (
             {
                 "schema_version": (
-                    "epiagentbench.v34_cohort_freeze_claim.v1"
+                    "epiagentbench.v35_cohort_freeze_claim.v1"
                 ),
                 "status": "pending_create_once_freeze",
                 "fixture": True,
             },
             {
                 "schema_version": (
-                    "epiagentbench.v34_cohort_freeze_completion.v1"
+                    "epiagentbench.v35_cohort_freeze_completion.v1"
                 ),
                 "status": "completed_create_once_freeze",
                 "fixture": True,
@@ -766,7 +767,7 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v4"
             ),
-            "panel_id": "development-matched-50x6-v34",
+            "panel_id": "development-matched-50x6-v35",
             "status": "passed",
             "benchmark_base_commit": benchmark_base_commit,
             "required_starsim_version": "3.5.1",
@@ -839,10 +840,10 @@ class MatchedPanelTests(unittest.TestCase):
         account_name, _account_home, account_shell = matched.current_account()
         with (
             TemporaryDirectory(
-                prefix="e34h-", dir=Path.home()
+                prefix="e35h-", dir=Path.home()
             ) as clean_home_text,
             TemporaryDirectory(
-                prefix="e34t-", dir=Path.home()
+                prefix="e35t-", dir=Path.home()
             ) as clean_tmp_text,
         ):
             clean_home = Path(clean_home_text)
@@ -1067,7 +1068,7 @@ class MatchedPanelTests(unittest.TestCase):
             "schema_version": (
                 "epiagentbench.preparation_runtime_preflight.v4"
             ),
-            "panel_id": "development-matched-50x6-v34",
+            "panel_id": "development-matched-50x6-v35",
             "status": "passed",
             "benchmark_base_commit": commit,
             "required_starsim_version": "3.5.1",
@@ -1319,7 +1320,7 @@ class MatchedPanelTests(unittest.TestCase):
             self.skipTest("requires the pinned V5 scientific Python")
 
         cache_root = (
-            self.claude_secure_storage_dir / "v34-runtime-receipt-cache"
+            self.claude_secure_storage_dir / "v35-runtime-receipt-cache"
         )
         cache_root.mkdir(mode=0o700)
         for name in ("matplotlib", "numba", "xdg"):
@@ -1414,7 +1415,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_prepared_manifest_redacts_private_runtime_cache_binding(self):
         cache_root, environment = self._runtime_cache_environment(
-            "private-v34-runtime-cache"
+            "private-v35-runtime-cache"
         )
         with patch.dict(os.environ, environment, clear=False):
             cache_contract = matched._runtime_cache_contract(cache_root)
@@ -1442,7 +1443,7 @@ class MatchedPanelTests(unittest.TestCase):
                 preparation_runtime_receipt_path=(
                     self.root
                     / "results"
-                    / "development-matched-50x6-v34.runtime.json"
+                    / "development-matched-50x6-v35.runtime.json"
                 ),
                 expected_benchmark_base_commit="d" * 40,
                 runtime_cache_dir=cache_root,
@@ -1712,12 +1713,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             first["fixed_public_scenario"],
-            "v34_contact_transmission_with_matched_contact_stop",
+            "v35_contact_transmission_with_matched_contact_stop",
         )
         self.assertEqual(
             first["result_sha256"],
             "sha256:"
-            "a89e9c69a08c87beee6e2e953453335ed8ddda83d407bf2dc050766f8ce73a68",
+            "864f1d51cc4da6a0545445537cca5badc5bb624ed4d8e386786a274e85b78086",
         )
         self.assertEqual(
             first["result_sha256"],
@@ -1771,7 +1772,7 @@ class MatchedPanelTests(unittest.TestCase):
             first["result"]["contact_stop_action"]["boundaries"][2][
                 "applied_control_ids"
             ],
-            ["v34-stop-direct-care"],
+            ["v35-stop-direct-care"],
         )
 
     def test_real_preparation_runtime_smoke_rejects_golden_digest_drift(self):
@@ -1900,7 +1901,7 @@ class MatchedPanelTests(unittest.TestCase):
         receipt_path = (
             self.root
             / "results"
-            / "development-matched-50x6-v34.runtime.json"
+            / "development-matched-50x6-v35.runtime.json"
         )
         receipt_path.parent.mkdir()
         published = self._preparation_runtime_receipt()
@@ -1990,7 +1991,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
     def test_freeze_verifies_runtime_before_key_cohort_or_randomness(self):
-        output_directory = self.root / "fresh-v34-cohort"
+        output_directory = self.root / "fresh-v35-cohort"
         with (
             patch.object(
                 matched,
@@ -2046,7 +2047,7 @@ class MatchedPanelTests(unittest.TestCase):
             matched._cohort_freeze_claim_path(shared_key)
 
     def test_freeze_claim_is_pending_before_freezer_and_completed_once(self):
-        output_directory = self.root / "fresh-v34-cohort"
+        output_directory = self.root / "fresh-v35-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -2121,7 +2122,7 @@ class MatchedPanelTests(unittest.TestCase):
                     expected_benchmark_base_commit="d" * 40,
                     runtime_cache_dir=self.root / "runtime-cache",
                     authentication_key_file=self.key_path,
-                    output_directory=self.root / "reroll-v34-cohort",
+                    output_directory=self.root / "reroll-v35-cohort",
                     freeze_claim_path=claim_path,
                 )
 
@@ -2146,7 +2147,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
 
     def test_interrupted_freeze_claim_is_terminal_and_nonretryable(self):
-        output_directory = self.root / "interrupted-v34-cohort"
+        output_directory = self.root / "interrupted-v35-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -2210,7 +2211,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(freezer.call_count, 1)
         second_freezer.assert_not_called()
 
-    def test_prepare_rejects_generic_and_cherry_picked_v34_cohorts(self):
+    def test_prepare_rejects_generic_and_cherry_picked_v35_cohorts(self):
         generic_manifest = self._cohort()
         real_require = matched._require_completed_cohort_freeze_claim
         with (
@@ -2261,7 +2262,7 @@ class MatchedPanelTests(unittest.TestCase):
             authentication_key=AUTHENTICATION_KEY,
         )
         cherry_picked_manifest = self._cohort_at(
-            self.root / "cherry-picked-v34-cohort"
+            self.root / "cherry-picked-v35-cohort"
         )
         with self.assertRaisesRegex(
             ValueError, "belongs to another freeze"
@@ -5388,7 +5389,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v34_authorization_breakdown"],
+            contract["claude_current_v35_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -5398,7 +5399,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v34_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v35_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -5435,6 +5436,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v31_usd": 0.0,
                 "v32_usd": 0.0,
                 "v33_usd": 0.0,
+                "v34_usd": 0.0,
             },
         )
         self.assertEqual(
@@ -5533,6 +5535,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "v31_supersession",
                 "v32_supersession",
                 "v33_supersession",
+                "v34_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -5540,7 +5543,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
-    def test_v34_acknowledgement_is_exact_and_accounts_through_v33(self):
+    def test_v35_acknowledgement_is_exact_and_accounts_through_v34(self):
         self.assertEqual(
             matched._PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA,
             "epiagentbench.preflight_incident_envelope.v3",
@@ -5553,9 +5556,9 @@ class MatchedPanelTests(unittest.TestCase):
             hashlib.sha256(
                 REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
             ).hexdigest(),
-            "b5026b6c3cdd3a2f6ca7f408f93bcb9a72236b305b57254811315067e4d6b97a",
+            "d4afd8238eeb000c25a124936400102d97e327d0624b1b5059c26b0de1fd8bc0",
         )
-        self.assertIn("six-call v34 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("six-call v35 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("$670 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("failed v14 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn(
@@ -5636,17 +5639,22 @@ class MatchedPanelTests(unittest.TestCase):
             "remote mutation",
             REQUIRED_SPEND_ACKNOWLEDGEMENT,
         )
+        self.assertIn(
+            "failed zero-model-call v34 provider-free pre-runtime "
+            "host-contract validation",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
         runbook = (
-            Path(__file__).resolve().parents[1] / "docs" / "V34_RUNBOOK.md"
+            Path(__file__).resolve().parents[1] / "docs" / "V35_RUNBOOK.md"
         ).read_text(encoding="utf-8")
         readme = (
             Path(__file__).resolve().parents[1] / "README.md"
         ).read_text(encoding="utf-8")
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, runbook)
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, readme)
-        self.assertIn("development-matched-50x6-v34", runbook)
-        self.assertIn("development_matched_panel_v34", runbook)
-        self.assertIn("epiagentbench-cursor-v34", runbook)
+        self.assertIn("development-matched-50x6-v35", runbook)
+        self.assertIn("development_matched_panel_v35", runbook)
+        self.assertIn("epiagentbench-cursor-v35", runbook)
         self.assertIn("CONTROL-PLANE DESIGN ONLY", runbook)
         self.assertIn("provider-free preclaim phase", runbook)
         self.assertIn("before the irreversible preflight claim", runbook)
@@ -5663,26 +5671,26 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertNotIn("git worktree add", runbook)
         self.assertIn("Direct `git push` is forbidden", runbook)
         self.assertIn(
-            "47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d",
+            "038794aa1bf82440259c62afdabab44c01415978",
             runbook,
         )
         self.assertNotIn(
-            "epiagentbench-50x6-v34-runtime-worktree-r2",
+            "epiagentbench-50x6-v35-runtime-worktree-r2",
             runbook,
         )
         self.assertIn(
             "epiagentbench-50x6-v5-venv/bin/python -I -S -B",
             runbook,
         )
-        self.assertIn("epiagentbench-cursor-v34", runbook)
+        self.assertIn("epiagentbench-cursor-v35", runbook)
         self.assertIn("Cursor Keychain account | `matthew.zhao`", runbook)
         self.assertIn(
-            ".development-matched-50x6-v34."
+            ".development-matched-50x6-v35."
             "cohort-freeze-claim.v1.json",
             runbook,
         )
         self.assertIn(
-            ".development-matched-50x6-v34."
+            ".development-matched-50x6-v35."
             "cohort-freeze-completion.v1.json",
             runbook,
         )
@@ -5714,7 +5722,7 @@ class MatchedPanelTests(unittest.TestCase):
             "epiagentbench.repository_receipt_binding.v1",
             "epiagentbench.receipt_commit_binding.v1",
             "epiagentbench.private_state_storage.v2",
-            "epiagentbench.provider_cli_contract.v2",
+            "epiagentbench.provider_cli_contract.v3",
             "epiagentbench.provider_cli_discovery.v2",
             "epiagentbench.claude_auth.v3",
             "epiagentbench.codex_auth.v1",
@@ -5722,9 +5730,9 @@ class MatchedPanelTests(unittest.TestCase):
             "epiagentbench.cohort_preparation.v1",
             "epiagentbench.cohort_retirement.v1",
             "epiagentbench.terminal_receipt_reconciliation.v1",
-            "epiagentbench.v34_cohort_freeze_claim.v1",
-            "epiagentbench.v34_cohort_freeze_completion.v1",
-            "epiagentbench.v34_cohort_freeze.v2",
+            "epiagentbench.v35_cohort_freeze_claim.v1",
+            "epiagentbench.v35_cohort_freeze_completion.v1",
+            "epiagentbench.v35_cohort_freeze.v2",
         ):
             self.assertIn(schema, runbook)
         self.assertGreaterEqual(
@@ -5755,22 +5763,28 @@ class MatchedPanelTests(unittest.TestCase):
             "https://github.com/matthew-zhao/epiagentbench.git",
             runbook,
         )
-        self.assertGreaterEqual(
+        self.assertEqual(
             runbook.count("/usr/bin/git ls-remote --refs --exit-code"),
-            2,
+            1,
         )
-        self.assertIn("refs/heads/codex/v34-control-plane", runbook)
-        self.assertIn("refs/heads/codex/v34-runtime-preflight", runbook)
         self.assertIn(
-            "refs/heads/codex/v34-control-plane-publication-terminal-closeout",
+            "V35_PIN_RECORD_BEFORE=$(v35_read_pin)", runbook
+        )
+        self.assertIn(
+            "V35_PIN_RECORD_AFTER=$(v35_read_pin)", runbook
+        )
+        self.assertIn("refs/heads/codex/v35-control-plane", runbook)
+        self.assertIn("refs/heads/codex/v35-runtime-preflight", runbook)
+        self.assertIn(
+            "refs/heads/codex/v35-control-plane-publication-terminal-closeout",
             runbook,
         )
         self.assertIn(
-            "refs/heads/codex/v34-runtime-publication-terminal-closeout",
+            "refs/heads/codex/v35-runtime-publication-terminal-closeout",
             runbook,
         )
         self.assertIn(
-            "refs/heads/codex/v34-preflight-terminal-closeout",
+            "refs/heads/codex/v35-preflight-terminal-closeout",
             runbook,
         )
         self.assertIn(
@@ -5786,16 +5800,16 @@ class MatchedPanelTests(unittest.TestCase):
             runbook,
         )
         self.assertIn("tests/test_v32_supersession.py", runbook)
-        self.assertIn("tests/test_v33_supersession.py", runbook)
+        self.assertIn("tests/test_v34_supersession.py", runbook)
         self.assertIn("independently pinned authentication-receipt commit", runbook)
         self.assertIn("two-file closeout", runbook)
         self.assertIn("three-file closeout", runbook)
         self.assertIn("These five terminal or outcome paths", runbook)
         self.assertIn("are mutually exclusive", runbook)
-        self.assertIn("refs/heads/codex/v34-production-results", runbook)
-        self.assertIn("refs/heads/codex/v34-terminal-closeout", runbook)
+        self.assertIn("refs/heads/codex/v35-production-results", runbook)
+        self.assertIn("refs/heads/codex/v35-terminal-closeout", runbook)
         self.assertIn(
-            "epiagentbench-50x6-v34-prepare-worktree",
+            "epiagentbench-50x6-v35-prepare-worktree",
             runbook,
         )
         self.assertIn("exactly one", runbook)
@@ -5803,19 +5817,19 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn(
             "--preparation-runtime-receipt "
             "/Users/matthew.zhao/.codex/"
-            "epiagentbench-50x6-v34-prepare-worktree/results/"
-            "development-matched-50x6-v34.runtime.json",
+            "epiagentbench-50x6-v35-prepare-worktree/results/"
+            "development-matched-50x6-v35.runtime.json",
             runbook,
         )
         self.assertIn(
             '--expected-benchmark-base-commit '
-            '"$V34_RUNTIME_RECEIPT_COMMIT"',
+            '"$V35_RUNTIME_RECEIPT_COMMIT"',
             runbook,
         )
         self.assertIn(
             "--public-verification-receipt "
             "/Users/matthew.zhao/.codex/"
-            "epiagentbench-v34-runtime-receipt-staging/"
+            "epiagentbench-v35-runtime-receipt-staging/"
             "verification.json",
             runbook,
         )
@@ -5827,18 +5841,18 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("not create-once ceremony steps", runbook)
         frozen_tmp = (
             "/Users/matthew.zhao/.codex/"
-            "epiagentbench-v34-provider-free-tmp"
+            "epiagentbench-v35-provider-free-tmp"
         )
         self.assertIn(frozen_tmp, runbook)
         self.assertLessEqual(len(os.fsencode(frozen_tmp)), 72)
         exact_supervisor_environment = (
             "/usr/bin/env -i "
             "HOME=/Users/matthew.zhao/.codex/"
-            "epiagentbench-v34-provider-free-home "
+            "epiagentbench-v35-provider-free-home "
             "LC_ALL=C.UTF-8 LOGNAME=matthew.zhao "
             "PATH=/usr/bin:/bin:/usr/sbin:/sbin SHELL=/bin/zsh "
             "TMPDIR=/Users/matthew.zhao/.codex/"
-            "epiagentbench-v34-provider-free-tmp "
+            "epiagentbench-v35-provider-free-tmp "
             "USER=matthew.zhao "
             "__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0"
         )
@@ -5846,7 +5860,7 @@ class MatchedPanelTests(unittest.TestCase):
         for checkout in ("execution", "production"):
             supervisor_script = (
                 "/Users/matthew.zhao/.codex/"
-                f"epiagentbench-50x6-v34-{checkout}-worktree/examples/"
+                f"epiagentbench-50x6-v35-{checkout}-worktree/examples/"
                 "run_persistent_panel_supervisor.py"
             )
             self.assertEqual(
@@ -5870,7 +5884,7 @@ class MatchedPanelTests(unittest.TestCase):
         supervisor = matched._persistent_supervisor_contract()
         self.assertEqual(
             supervisor["schema_version"],
-            "epiagentbench.persistent_supervisor_contract.v19",
+            "epiagentbench.persistent_supervisor_contract.v20",
         )
         self.assertNotEqual(
             supervisor["schema_version"],
@@ -5879,6 +5893,10 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertNotEqual(
             supervisor["schema_version"],
             "epiagentbench.persistent_supervisor_contract.v18",
+        )
+        self.assertNotEqual(
+            supervisor["schema_version"],
+            "epiagentbench.persistent_supervisor_contract.v19",
         )
         self.assertEqual(
             supervisor["provider_free_preclaim_before_claim"],
@@ -6110,7 +6128,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v34_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v35_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -6553,7 +6571,7 @@ class MatchedPanelTests(unittest.TestCase):
             "--freeze-claim",
             (
                 "/private/"
-                ".development-matched-50x6-v34."
+                ".development-matched-50x6-v35."
                 "cohort-freeze-claim.v1.json"
             ),
             "--claude-secure-storage-dir",
@@ -6596,7 +6614,7 @@ class MatchedPanelTests(unittest.TestCase):
             prepare.call_args.kwargs["freeze_claim_path"],
             Path(
                 "/private/"
-                ".development-matched-50x6-v34."
+                ".development-matched-50x6-v35."
                 "cohort-freeze-claim.v1.json"
             ),
         )
@@ -6691,8 +6709,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v34")
-        self.assertEqual(public["schema_version"], "development_matched_panel_v34")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v35")
+        self.assertEqual(public["schema_version"], "development_matched_panel_v35")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -8418,6 +8436,10 @@ class MatchedPanelTests(unittest.TestCase):
 
         dependencies = contract["claude_auth_dependencies"]
         self.assertEqual(
+            contract["schema_version"],
+            "epiagentbench.provider_cli_contract.v3",
+        )
+        self.assertEqual(
             dependencies["macos_security_metadata_tool"]["path"],
             "/usr/bin/security",
         )
@@ -8527,6 +8549,26 @@ class MatchedPanelTests(unittest.TestCase):
                 "anthropic_base_url_matches_glean_gateway"
             ]
         )
+        self.assertEqual(
+            settings_identity["semantic_projection"]["top_level_key_count"],
+            4,
+        )
+        self.assertTrue(
+            settings_identity["semantic_projection"][
+                "managed_model_matches_exact_allowlist"
+            ]
+        )
+        self.assertEqual(
+            settings_identity["semantic_projection"][
+                "managed_model_allowlist_tag"
+            ],
+            matched._CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG,
+        )
+        self.assertFalse(
+            settings_identity["semantic_projection"][
+                "managed_model_value_disclosed"
+            ]
+        )
         self.assertTrue(telemetry_enabled)
         encoded_identity = json.dumps(
             {"config": config_identity, "settings": settings_identity}
@@ -8544,6 +8586,7 @@ class MatchedPanelTests(unittest.TestCase):
         personal_attribute = decoded_settings["env"][
             "OTEL_RESOURCE_ATTRIBUTES"
         ]
+        self.assertNotIn(decoded_settings["model"], encoded_identity)
         self.assertNotIn(personal_attribute, encoded_identity)
         self.assertNotIn(matched._sha256(raw_settings), encoded_identity)
         self.assertNotIn(
@@ -8586,6 +8629,13 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertTrue(telemetry_enabled)
         semantics = settings_identity["semantic_projection"]
         self.assertTrue(semantics["top_level_key_allowlist_exact"])
+        self.assertEqual(semantics["top_level_key_count"], 4)
+        self.assertTrue(semantics["managed_model_matches_exact_allowlist"])
+        self.assertEqual(
+            semantics["managed_model_allowlist_tag"],
+            matched._CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG,
+        )
+        self.assertFalse(semantics["managed_model_value_disclosed"])
         self.assertTrue(semantics["managed_environment_key_allowlist_exact"])
         self.assertEqual(semantics["managed_environment_key_count"], 17)
         self.assertTrue(
@@ -8600,6 +8650,7 @@ class MatchedPanelTests(unittest.TestCase):
             config["gateway_url"],
             otel_endpoint,
             settings["env"]["OTEL_RESOURCE_ATTRIBUTES"],
+            settings["model"],
         ):
             self.assertNotIn(raw_value, encoded_identity)
         self.assertIn(gateway_digest, encoded_identity)
@@ -8614,9 +8665,10 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_glean_gateway_allowlist_rejects_host_port_and_path_drift(self):
         for name, gateway_url in (
-            ("host", "https://evil.test/api/v1"),
-            ("port", "https://gateway.test:8443/api/v1"),
-            ("path", "https://gateway.test/api/v2"),
+            ("host", "https://evil.test/rest/api/v1"),
+            ("port", "https://gateway.test:8443/rest/api/v1"),
+            ("legacy_path", "https://gateway.test/api/v1"),
+            ("path", "https://gateway.test/rest/api/v2"),
         ):
             config = self._glean_config_fixture(gateway_url)
             approved_digest = (
@@ -8641,6 +8693,21 @@ class MatchedPanelTests(unittest.TestCase):
                 "unknown_top_level",
                 lambda value: value.update({"unexpected": "value"}),
                 "top-level schema",
+            ),
+            (
+                "missing_model",
+                lambda value: value.pop("model"),
+                "top-level schema",
+            ),
+            (
+                "wrong_model_type",
+                lambda value: value.update({"model": ["sonnet"]}),
+                "managed model policy",
+            ),
+            (
+                "wrong_model_value",
+                lambda value: value.update({"model": "opus"}),
+                "managed model policy",
             ),
             (
                 "unknown_environment",
@@ -8850,6 +8917,11 @@ class MatchedPanelTests(unittest.TestCase):
             (
                 "cli_contract",
                 "epiagentbench.development_matched_panel._cli_contract",
+            ),
+            (
+                "persistent_supervisor_contract",
+                "epiagentbench.development_matched_panel."
+                "_persistent_supervisor_contract",
             ),
             (
                 "runtime_contract",
@@ -9209,11 +9281,11 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v34_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v35_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v34", "six-call v10"
+            "six-call v35", "six-call v10"
         )
         with (
             patch(
@@ -9247,7 +9319,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_root_owned_regular_executable_identity"
             ) as wrapper_identity,
-            self.assertRaisesRegex(RuntimeError, "exact v34 \\$670"),
+            self.assertRaisesRegex(RuntimeError, "exact v35 \\$670"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -9568,7 +9640,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.authentication_dependency_freeze.v1"
             ),
             "status": "frozen",
-            "panel_id": "development-matched-50x6-v34",
+            "panel_id": "development-matched-50x6-v35",
             "public_precommitment_sha256": public["precommitment_sha256"],
             "static_cli_contract_sha256": public["contract_hashes"][
                 "cli_sha256"
@@ -9959,7 +10031,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v34"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v35"),
         ):
             run_panel(
                 root=self.root,
@@ -13190,12 +13262,12 @@ class MatchedPanelTests(unittest.TestCase):
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v34_receipt(self):
+    def test_environment_preflight_gate_validates_full_v35_receipt(self):
         self._prepare()
         preflight_path = (
             self.root
             / "results"
-            / "development-matched-50x6-v34.preflight.json"
+            / "development-matched-50x6-v35.preflight.json"
         )
 
         def evaluate(system: str, **kwargs):
@@ -14149,7 +14221,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             authentication_receipt["panel_id"],
-            "development-matched-50x6-v34",
+            "development-matched-50x6-v35",
         )
         self.assertEqual(authentication_receipt["status"], "passed")
         self.assertIs(authentication_receipt["development_only"], True)
@@ -15714,7 +15786,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v34"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v35"),
         ):
             matched.authenticate_panel(
                 root=self.root,
@@ -17144,7 +17216,7 @@ class MatchedPanelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "schedule"):
             matched.verify_revealed_commitments(public, payload)
 
-    def test_v34_real_contract_boundary_seals_pack_failure_before_provider(
+    def test_v35_real_contract_boundary_seals_pack_failure_before_provider(
         self,
     ) -> None:
         self._prepare()
@@ -17251,7 +17323,7 @@ class ProviderFreePublicationTests(unittest.TestCase):
         self.source = self.root / "source.json"
         self.destination = self.root / "destination.json"
         self.payload = {
-            "panel_id": "development-matched-50x6-v34",
+            "panel_id": "development-matched-50x6-v35",
             "status": "provider_free",
         }
         self.source.write_text(
