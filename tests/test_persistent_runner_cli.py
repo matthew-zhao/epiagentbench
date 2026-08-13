@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+from importlib import metadata as importlib_metadata
 import json
 import os
 from pathlib import Path
@@ -23,10 +25,10 @@ class PersistentRunnerCliTests(unittest.TestCase):
         provider_free_parent = Path.home()
         with (
             TemporaryDirectory(
-                prefix="e35h-", dir=provider_free_parent
+                prefix="e48h-", dir=provider_free_parent
             ) as clean_home_raw,
             TemporaryDirectory(
-                prefix="e35t-", dir=provider_free_parent
+                prefix="e48t-", dir=provider_free_parent
             ) as clean_tmp_raw,
         ):
             clean_home = Path(clean_home_raw)
@@ -39,9 +41,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 "SHELL": account.pw_shell,
                 "TMPDIR": str(clean_tmp),
                 "USER": account.pw_name,
-                "__CF_USER_TEXT_ENCODING": (
-                    f"0x{os.getuid():X}:0x0:0x0"
-                ),
+                "__CF_USER_TEXT_ENCODING": (f"0x{os.getuid():X}:0x0:0x0"),
             }
             command = [
                 sys.executable,
@@ -147,9 +147,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_isolated_prefix_is_rejected_before_project_import(self) -> None:
         runner = Path(matched_cli.__file__).resolve()
-        with TemporaryDirectory(
-            prefix="eab22-shadow-", dir="/tmp"
-        ) as directory:
+        with TemporaryDirectory(prefix="eab22-shadow-", dir="/tmp") as directory:
             shadow_root = Path(directory)
             package = shadow_root / "epiagentbench"
             package.mkdir()
@@ -189,9 +187,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         self,
     ) -> None:
         runner = Path(matched_cli.__file__).resolve()
-        with TemporaryDirectory(
-            prefix="eab22-shadow-tail-", dir="/tmp"
-        ) as directory:
+        with TemporaryDirectory(prefix="eab22-shadow-tail-", dir="/tmp") as directory:
             shadow_root = Path(directory)
             package = shadow_root / "epiagentbench"
             package.mkdir()
@@ -231,13 +227,44 @@ class PersistentRunnerCliTests(unittest.TestCase):
     def test_real_isolated_file_entrypoint_replays_under_spawn_and_starts_broker(
         self,
     ) -> None:
-        with TemporaryDirectory(
-            prefix="e29-import-cache-", dir="/private/tmp"
-        ) as import_cache_raw:
+        runner = Path(matched_cli.__file__).resolve()
+        provider_free_parent = Path.home()
+        with (
+            TemporaryDirectory(
+                prefix="eab48-import-cache-", dir="/private/tmp"
+            ) as import_cache_raw,
+            TemporaryDirectory(
+                prefix="eab48-runtime-", dir="/private/tmp"
+            ) as directory,
+            TemporaryDirectory(
+                prefix="e48h-", dir=provider_free_parent
+            ) as clean_home_raw,
+            TemporaryDirectory(
+                prefix="e48t-", dir=provider_free_parent
+            ) as clean_tmp_raw,
+        ):
             import_cache = Path(import_cache_raw)
-            import_environment = matched_cli._runtime_cache_environment(
-                import_cache
-            )
+            clean_home = Path(clean_home_raw)
+            clean_tmp = Path(clean_tmp_raw)
+            for path in (
+                import_cache,
+                Path(directory),
+                clean_home,
+                clean_tmp,
+            ):
+                os.chmod(path, 0o700)
+            account = pwd.getpwuid(os.getuid())
+            base_environment = {
+                "HOME": str(clean_home),
+                "LC_ALL": "C.UTF-8",
+                "LOGNAME": account.pw_name,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "SHELL": account.pw_shell,
+                "TMPDIR": str(clean_tmp),
+                "USER": account.pw_name,
+                "__CF_USER_TEXT_ENCODING": (f"0x{os.getuid():X}:0x0:0x0"),
+            }
+            import_environment = matched_cli._runtime_cache_environment(import_cache)
             for name in (
                 "MPLCONFIGDIR",
                 "NUMBA_CACHE_DIR",
@@ -246,33 +273,24 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 Path(import_environment[name]).mkdir(mode=0o700)
             try:
                 with patch.dict(
-                    os.environ, import_environment, clear=False
+                    os.environ,
+                    {**base_environment, **import_environment},
+                    clear=True,
                 ):
-                    import starsim  # type: ignore
+                    metadata_version = importlib_metadata.version("starsim")
+                    self.assertEqual(metadata_version, "3.5.1")
+                    starsim = importlib.import_module("starsim")
+                    self.assertEqual(
+                        str(getattr(starsim, "__version__", "")),
+                        metadata_version,
+                    )
+            except importlib_metadata.PackageNotFoundError:
+                self.fail("exact Starsim 3.5.1 distribution is unavailable")
             except ImportError:
-                self.skipTest(
-                    "exact Starsim scientific runtime is unavailable"
-                )
-        if str(getattr(starsim, "__version__", "")) != "3.5.1":
-            self.skipTest("test requires exact Starsim 3.5.1")
+                self.fail("exact Starsim 3.5.1 module is unavailable")
 
-        runner = Path(matched_cli.__file__).resolve()
-        provider_free_parent = Path.home()
-        with (
-            TemporaryDirectory(
-                prefix="eab35-runtime-", dir="/private/tmp"
-            ) as directory,
-            TemporaryDirectory(
-                prefix="e35h-", dir=provider_free_parent
-            ) as clean_home_raw,
-            TemporaryDirectory(
-                prefix="e35t-", dir=provider_free_parent
-            ) as clean_tmp_raw,
-        ):
-            clean_home = Path(clean_home_raw)
-            clean_tmp = Path(clean_tmp_raw)
-            runtime_cache_environment = (
-                matched_cli._runtime_cache_environment(Path(directory))
+            runtime_cache_environment = matched_cli._runtime_cache_environment(
+                Path(directory)
             )
             for name in (
                 "MPLCONFIGDIR",
@@ -280,7 +298,6 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 "XDG_CACHE_HOME",
             ):
                 Path(runtime_cache_environment[name]).mkdir(mode=0o700)
-            account = pwd.getpwuid(os.getuid())
             completed = subprocess.run(
                 [
                     sys.executable,
@@ -295,18 +312,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env={
-                    "HOME": str(clean_home),
-                    "LC_ALL": "C.UTF-8",
-                    "LOGNAME": account.pw_name,
-                    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                    "SHELL": account.pw_shell,
-                    "TMPDIR": str(clean_tmp),
-                    "USER": account.pw_name,
-                    "__CF_USER_TEXT_ENCODING": (
-                        f"0x{os.getuid():X}:0x0:0x0"
-                    ),
-                },
+                env=base_environment,
                 check=False,
                 timeout=300,
             )
@@ -336,9 +342,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_preparation_runtime_preflight_bypasses_private_path_gate(self):
         payload = {
-            "schema_version": (
-                "epiagentbench.preparation_runtime_preflight.v4"
-            ),
+            "schema_version": ("epiagentbench.preparation_runtime_preflight.v4"),
             "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
             "provider_processes_started": 0,
@@ -381,9 +385,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
 
     def test_preparation_runtime_verification_can_publish_create_once(self):
         payload = {
-            "schema_version": (
-                "epiagentbench.preparation_runtime_verification.v3"
-            ),
+            "schema_version": ("epiagentbench.preparation_runtime_verification.v3"),
             "panel_id": matched_cli.PANEL_ID,
             "status": "passed",
             "runtime_cache_contract": {"private": "must-not-publish"},
@@ -433,9 +435,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         create_once.assert_called_once_with(
             Path("/private/verification.json"),
             {
-                "schema_version": (
-                    "epiagentbench.preparation_runtime_verification.v3"
-                ),
+                "schema_version": ("epiagentbench.preparation_runtime_verification.v3"),
                 "panel_id": matched_cli.PANEL_ID,
                 "status": "passed",
                 "provider_processes_started": 0,
@@ -455,9 +455,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             },
         )
 
-    def _authentication_arguments(
-        self, operation: str = "authenticate"
-    ) -> list[str]:
+    def _authentication_arguments(self, operation: str = "authenticate") -> list[str]:
         arguments = [
             "run_development_matched_panel.py",
             operation,
@@ -500,7 +498,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "--supervisor-runtime",
             "/private/supervisor",
             "--cursor-keychain-service",
-            "epiagentbench-cursor-v35",
+            "epiagentbench-cursor-v48",
             "--cursor-keychain-account",
             "test-account",
             "--acknowledge-unbounded-provider-spend",
@@ -511,9 +509,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
     ) -> None:
         original = {
             name: f"poisoned-{index}"
-            for index, name in enumerate(
-                matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
-            )
+            for index, name in enumerate(matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS)
         }
         with patch.dict(os.environ, original, clear=False):
             snapshot = matched_cli._install_runtime_cache_environment(
@@ -525,9 +521,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                     name: os.environ.get(name)
                     for name in matched_cli._RUNTIME_CACHE_ENVIRONMENT_KEYS
                 },
-                matched_cli._runtime_cache_environment(
-                    Path("/private/runtime-cache")
-                ),
+                matched_cli._runtime_cache_environment(Path("/private/runtime-cache")),
             )
 
             matched_cli._restore_runtime_cache_environment(snapshot)
@@ -589,8 +583,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
         flag_index = base.index("--runtime-cache-dir")
         cases = {
             "missing": base[:flag_index] + base[flag_index + 2 :],
-            "duplicate": base
-            + ["--runtime-cache-dir=/private/second-runtime-cache"],
+            "duplicate": base + ["--runtime-cache-dir=/private/second-runtime-cache"],
             "relative": (
                 base[: flag_index + 1]
                 + ["relative/runtime-cache"]
@@ -679,9 +672,7 @@ class PersistentRunnerCliTests(unittest.TestCase):
                 self.assertEqual(matched_cli.main(), expected)
             self.assertEqual(invoked.call_count, 1)
             self.assertEqual(durable_paths.call_count, 1)
-            self.assertNotIn(
-                "require_persistent_supervisor", invoked.call_args.kwargs
-            )
+            self.assertNotIn("require_persistent_supervisor", invoked.call_args.kwargs)
             self.assertNotIn("offline_test_evaluator", invoked.call_args.kwargs)
             self.assertEqual(
                 invoked.call_args.kwargs["supervisor_runtime_dir"],
@@ -839,12 +830,8 @@ class PersistentRunnerCliTests(unittest.TestCase):
         }
         with (
             patch.object(sys, "argv", self._authentication_arguments()),
-            patch.object(
-                matched_cli, "authenticate_panel", return_value=payload
-            ),
-            patch.object(
-                matched_cli, "assert_durable_live_execution_paths"
-            ),
+            patch.object(matched_cli, "authenticate_panel", return_value=payload),
+            patch.object(matched_cli, "assert_durable_live_execution_paths"),
             patch("builtins.print") as safe_print,
         ):
             self.assertEqual(matched_cli.main(), 1)
@@ -867,18 +854,14 @@ class PersistentRunnerCliTests(unittest.TestCase):
             "model_calls_started": 0,
         }
         with (
-            patch.object(
-                sys, "argv", self._authentication_arguments("auth-status")
-            ),
+            patch.object(sys, "argv", self._authentication_arguments("auth-status")),
             patch.object(
                 matched_cli,
                 "panel_authentication_status",
                 return_value=payload,
             ) as authentication_status,
             patch.object(matched_cli, "authenticate_panel") as authenticate,
-            patch.object(
-                matched_cli, "assert_durable_live_execution_paths"
-            ),
+            patch.object(matched_cli, "assert_durable_live_execution_paths"),
             patch("builtins.print"),
         ):
             self.assertEqual(matched_cli.main(), 0)

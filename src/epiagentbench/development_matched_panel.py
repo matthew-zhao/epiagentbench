@@ -108,9 +108,9 @@ from .trusted.episode_pack import PrivateEpisodeCohortManifest, PrivateEpisodePa
 from .trusted.service import TRUSTED_EVALUATOR_STARTUP_STAGES
 
 
-PANEL_ID = "development-matched-50x6-v35"
+PANEL_ID = "development-matched-50x6-v48"
 COHORT_ID = PANEL_ID
-SCHEMA_VERSION = "development_matched_panel_v35"
+SCHEMA_VERSION = "development_matched_panel_v48"
 BACKEND = "starsim-ltc-v3"
 REQUIRED_STARSIM_VERSION = "3.5.1"
 EPISODE_COUNT = 50
@@ -118,7 +118,7 @@ EPISODES_PER_FAMILY = 10
 ASSIGNMENT_COUNT = 300
 BOOTSTRAP_REPLICATES = 20_000
 REQUIRED_SPEND_ACKNOWLEDGEMENT = (
-    "I acknowledge the replacement six-call v35 preflight and 300-assignment "
+    "I acknowledge the replacement six-call v48 preflight and 300-assignment "
     "production run, including unbounded Codex/Cursor provider spend and up "
     "to $670 total Claude spend across the failed v2 preflight, failed v5 "
     "preflight, failed v6 authentication bootstrap, failed v7 preflight, "
@@ -145,18 +145,17 @@ REQUIRED_SPEND_ACKNOWLEDGEMENT = (
     "zero-model-call v32 provider-free runtime-receipt publication before "
     "remote mutation, the failed zero-model-call v33 control-plane "
     "publication before remote mutation, the failed zero-model-call v34 "
-    "provider-free pre-runtime host-contract validation, and the v35 "
+    "provider-free pre-runtime host-contract validation, the failed "
+    "zero-model-call v35 provider-free runtime-receipt publisher setup, the "
+    "failed zero-model-call v40 control-plane authoring, the failed "
+    "zero-model-call v46 control-plane precreation scientific-runtime "
+    "cache-isolation validation, the failed zero-model-call v47 control-plane "
+    "publication precreation scope-inventory validation, and the v48 "
     "preflight and production run."
 )
-_PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = (
-    "epiagentbench.preparation_runtime_preflight.v4"
-)
-_BOUND_PREPARATION_RUNTIME_SCHEMA = (
-    "epiagentbench.bound_preparation_runtime.v3"
-)
-_PREPARATION_RUNTIME_SMOKE_SCHEMA = (
-    "epiagentbench.preparation_runtime_smoke.v2"
-)
+_PREPARATION_RUNTIME_PREFLIGHT_SCHEMA = "epiagentbench.preparation_runtime_preflight.v4"
+_BOUND_PREPARATION_RUNTIME_SCHEMA = "epiagentbench.bound_preparation_runtime.v3"
+_PREPARATION_RUNTIME_SMOKE_SCHEMA = "epiagentbench.preparation_runtime_smoke.v2"
 _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA = (
     "epiagentbench.preparation_episode_startup_smoke.v1"
 )
@@ -164,7 +163,7 @@ _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS = (0, 7, 2**31 - 2)
 _PREPARATION_EPISODE_STARTUP_REPETITIONS = 2
 _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES = 100
 _PREPARATION_EPISODE_SOCKET_PATH_SUFFIX_BYTES = len(
-    os.fsencode("/eab35-xxxxxxxx/episode.sock")
+    os.fsencode("/eab48-xxxxxxxx/episode.sock")
 )
 _PREPARATION_EPISODE_TMPDIR_MAX_BYTES = (
     _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
@@ -172,8 +171,7 @@ _PREPARATION_EPISODE_TMPDIR_MAX_BYTES = (
 )
 _PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS = 3
 _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256 = (
-    "sha256:"
-    "864f1d51cc4da6a0545445537cca5badc5bb624ed4d8e386786a274e85b78086"
+    "sha256:e91a8e76e32048c3bbc63c02ee2a1279fc53a6af078130a7d3baaa91ac8a3d5f"
 )
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _RUNTIME_CACHE_ENVIRONMENT_KEYS = (
@@ -205,9 +203,7 @@ _AUTHENTICATION_TERMINAL_INCIDENT_SCHEMA = (
     "epiagentbench.authentication_terminal_incident.v1"
 )
 _AUTHENTICATION_RECEIPT_SCHEMA = "epiagentbench.authentication_receipt.v2"
-_PUBLIC_RECEIPT_BINDING_SCHEMA = (
-    "epiagentbench.repository_receipt_binding.v1"
-)
+_PUBLIC_RECEIPT_BINDING_SCHEMA = "epiagentbench.repository_receipt_binding.v1"
 _PUBLIC_RECEIPT_BINDING_KEYS = frozenset(
     {
         "schema_version",
@@ -306,24 +302,18 @@ _SCHEDULE_DOMAIN = b"EpiAgentBench private matched schedule v2\x00"
 _FAMILY_MAP_DOMAIN = b"EpiAgentBench private matched family map v2\x00"
 _PRIVATE_STATE_DOMAIN = b"EpiAgentBench authenticated matched private state v2\x00"
 _COHORT_FREEZE_CLAIM_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V35 cohort freeze claim v1\x00"
+    b"EpiAgentBench authenticated create-once V48 cohort freeze claim v1\x00"
 )
 _COHORT_FREEZE_COMPLETION_DOMAIN = (
-    b"EpiAgentBench authenticated create-once V35 cohort freeze completion v1\x00"
+    b"EpiAgentBench authenticated create-once V48 cohort freeze completion v1\x00"
 )
 _COHORT_FREEZE_KEY_IDENTITY_DOMAIN = (
-    b"EpiAgentBench V35 cohort freeze authentication key identity v1\x00"
+    b"EpiAgentBench V48 cohort freeze authentication key identity v1\x00"
 )
-_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v35_cohort_freeze_claim.v1"
-_COHORT_FREEZE_COMPLETION_SCHEMA = (
-    "epiagentbench.v35_cohort_freeze_completion.v1"
-)
-_COHORT_FREEZE_CLAIM_FILE = (
-    f".{PANEL_ID}.cohort-freeze-claim.v1.json"
-)
-_COHORT_FREEZE_COMPLETION_FILE = (
-    f".{PANEL_ID}.cohort-freeze-completion.v1.json"
-)
+_COHORT_FREEZE_CLAIM_SCHEMA = "epiagentbench.v48_cohort_freeze_claim.v1"
+_COHORT_FREEZE_COMPLETION_SCHEMA = "epiagentbench.v48_cohort_freeze_completion.v1"
+_COHORT_FREEZE_CLAIM_FILE = f".{PANEL_ID}.cohort-freeze-claim.v1.json"
+_COHORT_FREEZE_COMPLETION_FILE = f".{PANEL_ID}.cohort-freeze-completion.v1.json"
 _COHORT_FREEZE_CLAIM_KEYS = frozenset(
     {
         "schema_version",
@@ -395,12 +385,8 @@ _COHORT_RETIREMENT_KEYS = frozenset(
 _MAX_PANEL_JSON_BYTES = 64 * 1024 * 1024
 _PENDING_PREFLIGHT_STATUS = "passed_pending_supervisor_completion"
 _PENDING_PRODUCTION_STATUS = "complete_pending_supervisor_completion"
-_PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA = (
-    "epiagentbench.preflight_incident_envelope.v3"
-)
-_PROVIDER_FREE_PRECLAIM_SCHEMA = (
-    "epiagentbench.provider_free_preclaim.v3"
-)
+_PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA = "epiagentbench.preflight_incident_envelope.v3"
+_PROVIDER_FREE_PRECLAIM_SCHEMA = "epiagentbench.provider_free_preclaim.v3"
 _PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA = (
     "epiagentbench.provider_free_preclaim_prerequisites.v1"
 )
@@ -458,12 +444,9 @@ _PREPARATION_RUNTIME_OPERATIONS = (
     "preparation_runtime_cache_identity",
     "preparation_runtime_private_cache_binding",
 )
-_CONTRACT_ATTESTATION_OPERATION_SET = frozenset(
-    _CONTRACT_ATTESTATION_OPERATIONS
-)
+_CONTRACT_ATTESTATION_OPERATION_SET = frozenset(_CONTRACT_ATTESTATION_OPERATIONS)
 _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION = {
-    operation: f"{operation}_failed"
-    for operation in _CONTRACT_ATTESTATION_OPERATIONS
+    operation: f"{operation}_failed" for operation in _CONTRACT_ATTESTATION_OPERATIONS
 }
 _CONTRACT_ATTESTATION_FAILURE_CODES = frozenset(
     _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION.values()
@@ -654,9 +637,7 @@ _CLAUDE_AUTH_NAMESPACE_DOMAIN = b"EpiAgentBench Claude auth namespace v2\x00"
 _CODEX_AUTH_NAMESPACE_DOMAIN = b"EpiAgentBench Codex auth namespace v1\x00"
 _MAX_MANAGED_GLEAN_CREDENTIAL_BYTES = 1024 * 1024
 _GLEAN_HELPER_PATH = Path("/usr/local/bin/glean-helper")
-_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH = Path(
-    "/usr/local/bin/glean-llm-gateway-token"
-)
+_GLEAN_GATEWAY_TOKEN_WRAPPER_PATH = Path("/usr/local/bin/glean-llm-gateway-token")
 _GLEAN_CONFIG_PATH = Path("/usr/local/etc/glean/config.json")
 _APPROVED_GLEAN_GATEWAY_SHA256 = (
     "sha256:b27f5a0a001afd9310d20c04af550e13c440f2d88ee0891b95c2f73f7186d305"
@@ -667,9 +648,7 @@ _CLAUDE_MANAGED_SETTINGS_PATH = Path(
     "/Library/Application Support/ClaudeCode/managed-settings.json"
 )
 _APPROVED_CLAUDE_MANAGED_MODEL = "sonnet"
-_CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG = (
-    "approved_managed_claude_default_model_v1"
-)
+_CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG = "approved_managed_claude_default_model_v1"
 _CLAUDE_OTEL_HELPER_PATH = Path("/usr/local/bin/claude-otel-helper")
 _APPROVED_CLAUDE_OTEL_ENDPOINT_SHA256 = (
     "sha256:9bfd7befa14d967b990aa907cccd78aa7c93b61a9b1ab77e23cf3bb3b0c50fbe"
@@ -717,9 +696,7 @@ def _validate_schedule_design() -> None:
         or any(len(extra) != 4 for extra in _EXTRA_SEQUENCES)
     ):
         raise RuntimeError("Invalid six-treatment matched-panel design")
-    base_carryovers = Counter(
-        pair for row in _WILLIAMS for pair in zip(row, row[1:])
-    )
+    base_carryovers = Counter(pair for row in _WILLIAMS for pair in zip(row, row[1:]))
     if set(base_carryovers) != expected_pairs or set(base_carryovers.values()) != {1}:
         raise RuntimeError("Williams rows are not first-order carryover balanced")
 
@@ -733,20 +710,16 @@ def _validate_schedule_design() -> None:
             counts = Counter(row[position] for row in family_rows)
             if set(counts) != treatments or not set(counts.values()).issubset({1, 2}):
                 raise RuntimeError("Within-family profile positions are unbalanced")
-        carryovers = Counter(
-            pair for row in family_rows for pair in zip(row, row[1:])
-        )
-        if set(carryovers) != expected_pairs or not set(
-            carryovers.values()
-        ).issubset({1, 2}):
+        carryovers = Counter(pair for row in family_rows for pair in zip(row, row[1:]))
+        if set(carryovers) != expected_pairs or not set(carryovers.values()).issubset(
+            {1, 2}
+        ):
             raise RuntimeError("Within-family carryovers are unbalanced")
     for position in treatments:
         counts = Counter(row[position] for row in overall_rows)
         if set(counts) != treatments or not set(counts.values()).issubset({8, 9}):
             raise RuntimeError("Overall profile positions are unbalanced")
-    carryovers = Counter(
-        pair for row in overall_rows for pair in zip(row, row[1:])
-    )
+    carryovers = Counter(pair for row in overall_rows for pair in zip(row, row[1:]))
     if set(carryovers) != expected_pairs or not set(carryovers.values()).issubset(
         {8, 9}
     ):
@@ -772,7 +745,9 @@ def _load_json(path: Path, *, private: bool = False) -> dict[str, Any]:
     try:
         metadata = path.lstat()
     except OSError:
-        raise ValueError(f"Matched-panel artifact is unavailable: {path.name}") from None
+        raise ValueError(
+            f"Matched-panel artifact is unavailable: {path.name}"
+        ) from None
     if (
         not stat.S_ISREG(metadata.st_mode)
         or (private and metadata.st_mode & 0o077)
@@ -797,10 +772,14 @@ def _load_json(path: Path, *, private: bool = False) -> dict[str, Any]:
                 or (private and opened.st_uid != os.getuid())
                 or (private and opened.st_nlink != 1)
             ):
-                raise ValueError(f"Matched-panel artifact changed while opening: {path.name}")
+                raise ValueError(
+                    f"Matched-panel artifact changed while opening: {path.name}"
+                )
             payload = stream.read(_MAX_PANEL_JSON_BYTES + 1)
     except OSError:
-        raise ValueError(f"Matched-panel artifact is unavailable: {path.name}") from None
+        raise ValueError(
+            f"Matched-panel artifact is unavailable: {path.name}"
+        ) from None
     if len(payload) != metadata.st_size:
         raise ValueError(f"Matched-panel artifact changed while reading: {path.name}")
     try:
@@ -877,14 +856,10 @@ def _create_public_json_once(path: Path, value: Any) -> None:
     parent_metadata = path.parent.lstat()
     if not stat.S_ISDIR(parent_metadata.st_mode) or path.parent.is_symlink():
         raise ValueError("Matched-panel artifact parent must be a real directory")
-    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode(
-        "utf-8"
-    )
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if len(payload) > _MAX_PANEL_JSON_BYTES:
         raise ValueError("Matched-panel artifact exceeds the size limit")
-    temporary = path.with_name(
-        f".{path.name}.{secrets.token_hex(16)}.create-once"
-    )
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(16)}.create-once")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -976,9 +951,7 @@ def _read_canonical_public_json_bytes(path: Path) -> tuple[bytes, dict[str, Any]
         raise ValueError("Provider-free publication source is invalid") from None
     if not isinstance(value, dict):
         raise ValueError("Provider-free publication source must be an object")
-    canonical = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode(
-        "utf-8"
-    )
+    canonical = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if not hmac.compare_digest(payload, canonical):
         raise ValueError("Provider-free publication source is not canonical")
     return payload, value
@@ -1085,9 +1058,7 @@ def _load_cohort_retirement_marker(path: Path, key: bytes) -> dict[str, Any]:
 
     sealed = _load_json(path, private=True)
     authentication = sealed.pop("authentication", None)
-    supplied = (
-        authentication.get("tag") if isinstance(authentication, dict) else None
-    )
+    supplied = authentication.get("tag") if isinstance(authentication, dict) else None
     expected = _cohort_retirement_tag(sealed, key)
     if (
         set(sealed) != _COHORT_RETIREMENT_KEYS
@@ -1160,11 +1131,14 @@ def _create_private_json_once(path: Path, value: Any) -> bool:
 
 
 def _cohort_freeze_key_identity(authentication_key: bytes) -> str:
-    return "hmac-sha256:" + hmac.new(
-        authentication_key,
-        _COHORT_FREEZE_KEY_IDENTITY_DOMAIN + PANEL_ID.encode("ascii"),
-        hashlib.sha256,
-    ).hexdigest()
+    return (
+        "hmac-sha256:"
+        + hmac.new(
+            authentication_key,
+            _COHORT_FREEZE_KEY_IDENTITY_DOMAIN + PANEL_ID.encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()
+    )
 
 
 def _cohort_freeze_claim_tag(
@@ -1201,39 +1175,35 @@ def _canonical_new_private_path(value: Path, *, label: str) -> Path:
 
 
 def _canonical_cohort_destination(value: Path) -> Path:
-    return _canonical_new_private_path(value, label="V35 cohort destination")
+    return _canonical_new_private_path(value, label="V48 cohort destination")
 
 
 def _cohort_freeze_claim_path(
     authentication_key_path: Path,
     requested_path: Path | None = None,
 ) -> Path:
-    """Return the one V35 claim location paired with this owner-only key."""
+    """Return the one V48 claim location paired with this owner-only key."""
 
     expected = authentication_key_path.parent / _COHORT_FREEZE_CLAIM_FILE
     try:
         parent_metadata = expected.parent.lstat()
     except OSError:
-        raise ValueError(
-            "V35 authentication-key namespace is unavailable"
-        ) from None
+        raise ValueError("V48 authentication-key namespace is unavailable") from None
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
         or expected.parent.is_symlink()
         or parent_metadata.st_uid != os.getuid()
         or parent_metadata.st_mode & 0o077
     ):
-        raise ValueError(
-            "V35 authentication-key namespace must be owner-only"
-        )
+        raise ValueError("V48 authentication-key namespace must be owner-only")
     if requested_path is None:
         return expected
     supplied = _canonical_new_private_path(
-        requested_path, label="V35 cohort freeze claim"
+        requested_path, label="V48 cohort freeze claim"
     )
     if supplied != expected:
         raise ValueError(
-            "V35 cohort freeze claim must use the canonical key-namespace path"
+            "V48 cohort freeze claim must use the canonical key-namespace path"
         )
     return expected
 
@@ -1242,14 +1212,10 @@ def _cohort_freeze_completion_path(claim_path: Path) -> Path:
     return claim_path.with_name(_COHORT_FREEZE_COMPLETION_FILE)
 
 
-def _load_cohort_freeze_claim(
-    path: Path, authentication_key: bytes
-) -> dict[str, Any]:
+def _load_cohort_freeze_claim(path: Path, authentication_key: bytes) -> dict[str, Any]:
     sealed = _load_json(path, private=True)
     authentication = sealed.pop("authentication", None)
-    supplied = (
-        authentication.get("tag") if isinstance(authentication, dict) else None
-    )
+    supplied = authentication.get("tag") if isinstance(authentication, dict) else None
     expected = _cohort_freeze_claim_tag(sealed, authentication_key)
     if (
         set(sealed) != _COHORT_FREEZE_CLAIM_KEYS
@@ -1261,7 +1227,7 @@ def _load_cohort_freeze_claim(
         or sealed.get("schema_version") != _COHORT_FREEZE_CLAIM_SCHEMA
         or sealed.get("status") != "pending_create_once_freeze"
     ):
-        raise ValueError("V35 cohort freeze claim authentication failed")
+        raise ValueError("V48 cohort freeze claim authentication failed")
     return sealed
 
 
@@ -1270,9 +1236,7 @@ def _load_cohort_freeze_completion(
 ) -> dict[str, Any]:
     sealed = _load_json(path, private=True)
     authentication = sealed.pop("authentication", None)
-    supplied = (
-        authentication.get("tag") if isinstance(authentication, dict) else None
-    )
+    supplied = authentication.get("tag") if isinstance(authentication, dict) else None
     expected = _cohort_freeze_completion_tag(sealed, authentication_key)
     if (
         set(sealed) != _COHORT_FREEZE_COMPLETION_KEYS
@@ -1284,7 +1248,7 @@ def _load_cohort_freeze_completion(
         or sealed.get("schema_version") != _COHORT_FREEZE_COMPLETION_SCHEMA
         or sealed.get("status") != "completed_create_once_freeze"
     ):
-        raise ValueError("V35 cohort freeze completion authentication failed")
+        raise ValueError("V48 cohort freeze completion authentication failed")
     return sealed
 
 
@@ -1295,20 +1259,16 @@ def _pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    receipt_hash = runtime_verification.get(
-        "published_receipt_file_sha256"
-    )
+    receipt_hash = runtime_verification.get("published_receipt_file_sha256")
     runtime_identity = runtime_verification.get("runtime_identity_sha256")
-    verified_commit = runtime_verification.get(
-        "verified_benchmark_base_commit"
-    )
+    verified_commit = runtime_verification.get("verified_benchmark_base_commit")
     if (
         not _is_sha256(receipt_hash)
         or not _is_sha256(runtime_identity)
         or verified_commit != expected_benchmark_base_commit
     ):
         raise RuntimeError(
-            "Verified V35 runtime receipt cannot bind a cohort freeze claim"
+            "Verified V48 runtime receipt cannot bind a cohort freeze claim"
         )
     return {
         "schema_version": _COHORT_FREEZE_CLAIM_SCHEMA,
@@ -1323,9 +1283,7 @@ def _pending_cohort_freeze_claim(
         "authentication_key_identity_commitment": (
             _cohort_freeze_key_identity(authentication_key)
         ),
-        "canonical_cohort_destination": str(
-            canonical_cohort_destination
-        ),
+        "canonical_cohort_destination": str(canonical_cohort_destination),
         "claimed_at_utc": _utc_now(),
     }
 
@@ -1338,12 +1296,12 @@ def _create_pending_cohort_freeze_claim(
     canonical_cohort_destination: Path,
     authentication_key: bytes,
 ) -> dict[str, Any]:
-    """Burn the only V35 freeze attempt before any cohort randomness."""
+    """Burn the only V48 freeze attempt before any cohort randomness."""
 
     completion_path = _cohort_freeze_completion_path(claim_path)
     if completion_path.exists() or completion_path.is_symlink():
         raise FileExistsError(
-            "V35 cohort freeze completion already exists; never rerun freeze"
+            "V48 cohort freeze completion already exists; never rerun freeze"
         )
     claim = _pending_cohort_freeze_claim(
         runtime_verification=runtime_verification,
@@ -1360,11 +1318,11 @@ def _create_pending_cohort_freeze_claim(
     }
     if not _create_private_json_once(claim_path, sealed):
         raise FileExistsError(
-            "V35 cohort freeze already has a pending claim; interrupted "
+            "V48 cohort freeze already has a pending claim; interrupted "
             "freezes are terminal and must never be retried"
         )
     if _load_cohort_freeze_claim(claim_path, authentication_key) != claim:
-        raise RuntimeError("V35 cohort freeze claim failed its durable reload")
+        raise RuntimeError("V48 cohort freeze claim failed its durable reload")
     return claim
 
 
@@ -1378,22 +1336,18 @@ def _complete_cohort_freeze_claim(
 ) -> dict[str, Any]:
     """Append one authenticated completion without replacing the claim."""
 
-    canonical_manifest_path = _existing_path_without_final_symlink(
-        manifest_path
-    )
+    canonical_manifest_path = _existing_path_without_final_symlink(manifest_path)
     if canonical_manifest_path.name != "cohort.manifest":
-        raise ValueError("V35 cohort manifest must use its canonical filename")
+        raise ValueError("V48 cohort manifest must use its canonical filename")
     completion = {
         "schema_version": _COHORT_FREEZE_COMPLETION_SCHEMA,
         "status": "completed_create_once_freeze",
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
         "freeze_claim_sha256": _component_hash(claim),
-        "canonical_cohort_destination": str(
-            canonical_manifest_path.parent
-        ),
+        "canonical_cohort_destination": str(canonical_manifest_path.parent),
         "manifest_file_sha256": _fixed_file_sha256(
-            canonical_manifest_path, label="V35 frozen cohort manifest"
+            canonical_manifest_path, label="V48 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
@@ -1404,19 +1358,15 @@ def _complete_cohort_freeze_claim(
         **completion,
         "authentication": {
             "algorithm": "hmac-sha256",
-            "tag": _cohort_freeze_completion_tag(
-                completion, authentication_key
-            ),
+            "tag": _cohort_freeze_completion_tag(completion, authentication_key),
         },
     }
     if not _create_private_json_once(path, sealed):
         raise FileExistsError(
-            "V35 cohort freeze completion already exists; never replace it"
+            "V48 cohort freeze completion already exists; never replace it"
         )
     if _load_cohort_freeze_completion(path, authentication_key) != completion:
-        raise RuntimeError(
-            "V35 cohort freeze completion failed its durable reload"
-        )
+        raise RuntimeError("V48 cohort freeze completion failed its durable reload")
     return completion
 
 
@@ -1433,21 +1383,19 @@ def _require_completed_cohort_freeze_claim(
 
     if not claim_path.exists() and not claim_path.is_symlink():
         raise ValueError(
-            "Frozen V35 cohort has no authenticated create-once freeze claim"
+            "Frozen V48 cohort has no authenticated create-once freeze claim"
         )
     claim = _load_cohort_freeze_claim(claim_path, authentication_key)
     completion_path = _cohort_freeze_completion_path(claim_path)
     if not completion_path.exists() and not completion_path.is_symlink():
         raise RuntimeError(
-            "V35 cohort freeze remains pending; interrupted freezes are "
+            "V48 cohort freeze remains pending; interrupted freezes are "
             "terminal and cannot be prepared or retried"
         )
-    completion = _load_cohort_freeze_completion(
-        completion_path, authentication_key
-    )
+    completion = _load_cohort_freeze_completion(completion_path, authentication_key)
     canonical_destination = manifest_path.parent.resolve(strict=True)
     if manifest_path.name != "cohort.manifest":
-        raise ValueError("V35 cohort manifest must use its canonical filename")
+        raise ValueError("V48 cohort manifest must use its canonical filename")
     expected_claim = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
@@ -1462,37 +1410,33 @@ def _require_completed_cohort_freeze_claim(
         "canonical_cohort_destination": str(canonical_destination),
     }
     if any(claim.get(name) != value for name, value in expected_claim.items()):
-        raise ValueError("V35 cohort freeze claim belongs to another freeze")
-    if not isinstance(claim.get("claimed_at_utc"), str) or not claim[
-        "claimed_at_utc"
-    ]:
-        raise ValueError("V35 cohort freeze claim has no claim time")
+        raise ValueError("V48 cohort freeze claim belongs to another freeze")
+    if not isinstance(claim.get("claimed_at_utc"), str) or not claim["claimed_at_utc"]:
+        raise ValueError("V48 cohort freeze claim has no claim time")
 
-    manifest = PrivateEpisodeCohortManifest.read(
-        manifest_path, authentication_key
-    )
+    manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
     expected_completion = {
         "panel_id": PANEL_ID,
         "cohort_id": COHORT_ID,
         "freeze_claim_sha256": _component_hash(claim),
         "canonical_cohort_destination": str(canonical_destination),
         "manifest_file_sha256": _fixed_file_sha256(
-            manifest_path, label="V35 frozen cohort manifest"
+            manifest_path, label="V48 frozen cohort manifest"
         ),
         "pack_set_commitment": manifest.pack_set_commitment,
         "generator_fingerprint": manifest.generator_fingerprint,
     }
     if any(
-        completion.get(name) != value
-        for name, value in expected_completion.items()
+        completion.get(name) != value for name, value in expected_completion.items()
     ):
         raise ValueError(
-            "V35 cohort freeze completion differs from its manifest or claim"
+            "V48 cohort freeze completion differs from its manifest or claim"
         )
-    if not isinstance(completion.get("completed_at_utc"), str) or not completion[
-        "completed_at_utc"
-    ]:
-        raise ValueError("V35 cohort freeze completion has no completion time")
+    if (
+        not isinstance(completion.get("completed_at_utc"), str)
+        or not completion["completed_at_utc"]
+    ):
+        raise ValueError("V48 cohort freeze completion has no completion time")
     return claim, completion
 
 
@@ -1508,14 +1452,10 @@ def _cohort_preparation_tag(value: Mapping[str, Any], key: bytes) -> str:
     ).hexdigest()
 
 
-def _load_cohort_preparation_marker(
-    path: Path, key: bytes
-) -> dict[str, Any]:
+def _load_cohort_preparation_marker(path: Path, key: bytes) -> dict[str, Any]:
     sealed = _load_json(path, private=True)
     authentication = sealed.pop("authentication", None)
-    supplied = (
-        authentication.get("tag") if isinstance(authentication, dict) else None
-    )
+    supplied = authentication.get("tag") if isinstance(authentication, dict) else None
     expected = _cohort_preparation_tag(sealed, key)
     if (
         set(sealed) != _COHORT_PREPARATION_KEYS
@@ -1544,9 +1484,7 @@ def _cohort_preparation_claim(
         "cohort_id": manifest.cohort_id,
         "panel_id": PANEL_ID,
         "pack_set_commitment": manifest.pack_set_commitment,
-        "public_precommitment_sha256": public_manifest[
-            "precommitment_sha256"
-        ],
+        "public_precommitment_sha256": public_manifest["precommitment_sha256"],
         "private_state_target_sha256": _sha256(
             str(private_state_path.expanduser().resolve()).encode("utf-8")
         ),
@@ -1605,9 +1543,7 @@ def _assert_cohort_preparation_matches_panel(
         "cohort_id": manifest.cohort_id,
         "panel_id": PANEL_ID,
         "pack_set_commitment": manifest.pack_set_commitment,
-        "public_precommitment_sha256": public_manifest.get(
-            "precommitment_sha256"
-        ),
+        "public_precommitment_sha256": public_manifest.get("precommitment_sha256"),
         "private_state_target_sha256": _sha256(
             str(private_state_path.expanduser().resolve()).encode("utf-8")
         ),
@@ -1617,9 +1553,10 @@ def _assert_cohort_preparation_matches_panel(
     }
     if any(marker.get(name) != value for name, value in expected.items()):
         raise ValueError("Cohort preparation marker belongs to another panel")
-    if not isinstance(marker.get("claimed_at_utc"), str) or not marker[
-        "claimed_at_utc"
-    ]:
+    if (
+        not isinstance(marker.get("claimed_at_utc"), str)
+        or not marker["claimed_at_utc"]
+    ):
         raise ValueError("Cohort preparation marker has no claim time")
 
 
@@ -1709,9 +1646,7 @@ def _ensure_terminal_cohort_retirement(
         artifact=artifact,
     )
     path = _cohort_retirement_path(cohort_manifest_path)
-    existing = _cohort_retirement_if_present(
-        cohort_manifest_path, authentication_key
-    )
+    existing = _cohort_retirement_if_present(cohort_manifest_path, authentication_key)
     if existing is None:
         sealed = {
             **expected,
@@ -1764,9 +1699,7 @@ def _assert_authorization_worktree(
             "Public matched-panel precommitment must be committed before spend "
             "authorization"
         )
-    if private_relative is not None and _git_output(
-        root, "ls-files", private_relative
-    ):
+    if private_relative is not None and _git_output(root, "ls-files", private_relative):
         raise RuntimeError("Private matched-panel state must never be tracked")
     metadata = private_state_path.lstat()
     if (
@@ -1781,8 +1714,7 @@ def _assert_authorization_worktree(
         )
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
-            "Matched-panel execution worktree must be clean before spend "
-            "authorization"
+            "Matched-panel execution worktree must be clean before spend authorization"
         )
     head_after = _git_output(root, "rev-parse", "HEAD")
     if not hmac.compare_digest(head_before, head_after):
@@ -1817,7 +1749,9 @@ def _exclusive_run_lock(_: Path):
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise RuntimeError("Another matched-panel runner already holds the lock") from None
+            raise RuntimeError(
+                "Another matched-panel runner already holds the lock"
+            ) from None
         yield
     finally:
         os.close(descriptor)
@@ -1857,19 +1791,13 @@ def _assert_canonical_public_output_path(
         public_manifest_path,
         operation=operation,
     )
-    if Path(os.path.abspath(public_output_path)) != Path(
-        os.path.abspath(expected)
-    ):
-        raise RuntimeError(
-            f"Live {operation} public output path is not canonical"
-        )
+    if Path(os.path.abspath(public_output_path)) != Path(os.path.abspath(expected)):
+        raise RuntimeError(f"Live {operation} public output path is not canonical")
     return expected
 
 
 def _public_json_file_sha256(value: Mapping[str, Any]) -> str:
-    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode(
-        "utf-8"
-    )
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
     return _sha256(payload)
 
 
@@ -1931,9 +1859,7 @@ def _git_blob_sha256(root: Path, commit: str, relative: str) -> str:
     if not 0 < size <= _MAX_PANEL_JSON_BYTES:
         raise RuntimeError("Committed public receipt blob has an invalid size")
     process = subprocess.run(
-        _closed_git_command(
-            "cat-file", "blob", f"{commit}:{relative}"
-        ),
+        _closed_git_command("cat-file", "blob", f"{commit}:{relative}"),
         cwd=root,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -2056,12 +1982,8 @@ def _provider_free_directory_observation(
         except InterruptedError:
             continue
         except (OSError, RuntimeError):
-            raise RuntimeError(
-                f"V35 provider-free {label} is unavailable"
-            ) from None
-    raise RuntimeError(
-        f"V35 provider-free {label} attestation was interrupted"
-    )
+            raise RuntimeError(f"V48 provider-free {label} is unavailable") from None
+    raise RuntimeError(f"V48 provider-free {label} attestation was interrupted")
 
 
 def _provider_free_empty_directory(
@@ -2073,13 +1995,10 @@ def _provider_free_empty_directory(
     account_home: Path,
 ) -> Path:
     if not isinstance(raw_value, str) or not raw_value or "\x00" in raw_value:
-        raise RuntimeError(f"V35 provider-free {label} is unavailable")
+        raise RuntimeError(f"V48 provider-free {label} is unavailable")
     candidate = Path(raw_value)
-    if (
-        not candidate.is_absolute()
-        or raw_value != os.path.normpath(raw_value)
-    ):
-        raise RuntimeError(f"V35 provider-free {label} is invalid")
+    if not candidate.is_absolute() or raw_value != os.path.normpath(raw_value):
+        raise RuntimeError(f"V48 provider-free {label} is invalid")
     metadata, resolved, entries = _provider_free_directory_observation(
         candidate,
         label=label,
@@ -2096,19 +2015,14 @@ def _provider_free_empty_directory(
         or _paths_overlap(candidate, repository_root)
         or _paths_overlap(candidate, runtime_cache_root)
     ):
-        raise RuntimeError(
-            f"V35 provider-free {label} failed directory isolation"
-        )
+        raise RuntimeError(f"V48 provider-free {label} failed directory isolation")
     return candidate
 
 
 def _assert_preparation_socket_path_budget(tmpdir: Path) -> None:
-    if (
-        len(os.fsencode(str(tmpdir)))
-        > _PREPARATION_EPISODE_TMPDIR_MAX_BYTES
-    ):
+    if len(os.fsencode(str(tmpdir))) > _PREPARATION_EPISODE_TMPDIR_MAX_BYTES:
         raise RuntimeError(
-            "V35 provider-free TMPDIR exceeds the episode socket path budget"
+            "V48 provider-free TMPDIR exceeds the episode socket path budget"
         )
 
 
@@ -2140,15 +2054,11 @@ def _provider_free_directory_identity_guard(
     _assert_preparation_socket_path_budget(paths["TMPDIR"])
     descriptors: dict[str, int] = {}
     identities: dict[str, tuple[int, int, int, int]] = {}
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(
-        os, "O_NOFOLLOW", 0
-    )
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         for label, path in paths.items():
             descriptor: int | None = None
-            for _attempt in range(
-                _PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS
-            ):
+            for _attempt in range(_PROVIDER_FREE_DIRECTORY_ATTESTATION_ATTEMPTS):
                 try:
                     descriptor = os.open(path, flags)
                     break
@@ -2156,12 +2066,11 @@ def _provider_free_directory_identity_guard(
                     continue
                 except OSError:
                     raise RuntimeError(
-                        f"V35 provider-free {label} identity is unavailable"
+                        f"V48 provider-free {label} identity is unavailable"
                     ) from None
             if descriptor is None:
                 raise RuntimeError(
-                    f"V35 provider-free {label} identity attestation was "
-                    "interrupted"
+                    f"V48 provider-free {label} identity attestation was interrupted"
                 )
             os.set_inheritable(descriptor, False)
             descriptors[label] = descriptor
@@ -2206,9 +2115,7 @@ def _provider_free_directory_identity_guard(
                     or observed != identities[label]
                     or pathname_identity != identities[label]
                 ):
-                    raise RuntimeError(
-                        f"V35 provider-free {label} identity changed"
-                    )
+                    raise RuntimeError(f"V48 provider-free {label} identity changed")
 
         reattest()
         yield reattest
@@ -2227,21 +2134,16 @@ def _provider_free_preparation_environment_contract(
 ) -> dict[str, Any]:
     """Validate the exact credential-free preparation process environment."""
 
-    expected_keys = (
-        _PROVIDER_FREE_PREPARATION_BASE_ENVIRONMENT_KEYS
-        | frozenset(_RUNTIME_CACHE_ENVIRONMENT_KEYS)
+    expected_keys = _PROVIDER_FREE_PREPARATION_BASE_ENVIRONMENT_KEYS | frozenset(
+        _RUNTIME_CACHE_ENVIRONMENT_KEYS
     )
     if set(os.environ) != expected_keys:
-        raise RuntimeError(
-            "V35 provider-free preparation environment is not closed"
-        )
+        raise RuntimeError("V48 provider-free preparation environment is not closed")
     account_name, raw_account_home, account_shell = current_account()
     try:
         account_home = raw_account_home.resolve(strict=True)
     except (OSError, RuntimeError):
-        raise RuntimeError(
-            "V35 provider-free account home is unavailable"
-        ) from None
+        raise RuntimeError("V48 provider-free account home is unavailable") from None
     expected_cf_encoding = f"0x{os.getuid():X}:0x0:0x0"
     if (
         os.environ.get("LC_ALL") != "C.UTF-8"
@@ -2249,11 +2151,10 @@ def _provider_free_preparation_environment_contract(
         or os.environ.get("PATH") != SYSTEM_PROCESS_PATH
         or os.environ.get("SHELL") != account_shell
         or os.environ.get("USER") != account_name
-        or os.environ.get("__CF_USER_TEXT_ENCODING")
-        != expected_cf_encoding
+        or os.environ.get("__CF_USER_TEXT_ENCODING") != expected_cf_encoding
     ):
         raise RuntimeError(
-            "V35 provider-free preparation environment values are invalid"
+            "V48 provider-free preparation environment values are invalid"
         )
     clean_home = _provider_free_empty_directory(
         os.environ.get("HOME"),
@@ -2270,9 +2171,7 @@ def _provider_free_preparation_environment_contract(
         account_home=account_home,
     )
     if clean_home == clean_tmp or _paths_overlap(clean_home, clean_tmp):
-        raise RuntimeError(
-            "V35 provider-free HOME and TMPDIR must be distinct"
-        )
+        raise RuntimeError("V48 provider-free HOME and TMPDIR must be distinct")
     _assert_preparation_socket_path_budget(clean_tmp)
     return {
         "schema_version": _PROVIDER_FREE_PREPARATION_ENVIRONMENT_SCHEMA,
@@ -2302,12 +2201,8 @@ def _provider_free_preparation_environment_contract(
         "directory_identity_policy": (
             "noninheritable_fd_and_path_revalidated_between_stages"
         ),
-        "episode_socket_path_max_bytes": (
-            _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
-        ),
-        "episode_tmpdir_max_bytes": (
-            _PREPARATION_EPISODE_TMPDIR_MAX_BYTES
-        ),
+        "episode_socket_path_max_bytes": (_PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES),
+        "episode_tmpdir_max_bytes": (_PREPARATION_EPISODE_TMPDIR_MAX_BYTES),
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
         "model_calls_started": 0,
@@ -2338,23 +2233,18 @@ def _valid_provider_free_preparation_environment_contract(
             "schema_version",
             "status",
         }
-        and value.get("schema_version")
-        == _PROVIDER_FREE_PREPARATION_ENVIRONMENT_SCHEMA
+        and value.get("schema_version") == _PROVIDER_FREE_PREPARATION_ENVIRONMENT_SCHEMA
         and value.get("status") == "passed"
         and value.get("process_environment_keys")
         == sorted(
             _PROVIDER_FREE_PREPARATION_BASE_ENVIRONMENT_KEYS
             | frozenset(_RUNTIME_CACHE_ENVIRONMENT_KEYS)
         )
-        and value.get("ambient_environment")
-        == "discarded_before_python_start"
+        and value.get("ambient_environment") == "discarded_before_python_start"
         and value.get("locale") == "C.UTF-8"
-        and value.get("process_path_policy")
-        == "fixed_system_only_value_not_disclosed"
+        and value.get("process_path_policy") == "fixed_system_only_value_not_disclosed"
         and value.get("provider_cli_discovery_policy")
-        == (
-            "source_owned_allowlist_independent_of_environment_path_and_home"
-        )
+        == ("source_owned_allowlist_independent_of_environment_path_and_home")
         and value.get("provider_cli_discovery_roles")
         == [
             "root_managed_usr_local_bin",
@@ -2366,15 +2256,9 @@ def _valid_provider_free_preparation_environment_contract(
             "system_sbin",
         ]
         and value.get("clean_home_policy")
-        == (
-            "fresh_empty_current_owner_0700_nonsymlink_"
-            "value_not_disclosed"
-        )
+        == ("fresh_empty_current_owner_0700_nonsymlink_value_not_disclosed")
         and value.get("clean_tmp_policy")
-        == (
-            "fresh_empty_current_owner_0700_nonsymlink_"
-            "value_not_disclosed"
-        )
+        == ("fresh_empty_current_owner_0700_nonsymlink_value_not_disclosed")
         and value.get("directory_identity_policy")
         == "noninheritable_fd_and_path_revalidated_between_stages"
         and value.get("episode_socket_path_max_bytes")
@@ -2471,9 +2355,7 @@ def _private_state_storage_binding(
         ) from None
     canonical_path = resolved_parent / candidate.name
     if not temporary_test_root and candidate.parent != resolved_parent:
-        raise ValueError(
-            "Private matched-panel state parent must not contain symlinks"
-        )
+        raise ValueError("Private matched-panel state parent must not contain symlinks")
     if (
         not stat.S_ISDIR(parent_metadata.st_mode)
         or stat.S_ISLNK(parent_metadata.st_mode)
@@ -2483,9 +2365,7 @@ def _private_state_storage_binding(
             "Private matched-panel state parent must be a current-user real directory"
         )
     storage_class = (
-        "temporary_offline_test"
-        if temporary_test_root
-        else "durable_external"
+        "temporary_offline_test" if temporary_test_root else "durable_external"
     )
     if storage_class == "durable_external":
         if (
@@ -2755,8 +2635,7 @@ def _assert_claude_storage_separate_from_artifacts(
     for parent, label in artifact_parents:
         if _paths_overlap(secure_storage_dir, parent):
             raise ValueError(
-                "Claude secure storage directory and the "
-                f"{label} must not overlap"
+                f"Claude secure storage directory and the {label} must not overlap"
             )
 
 
@@ -2905,8 +2784,7 @@ def _assert_codex_storage_separate_from_artifacts(
     for parent, label in artifact_parents:
         if _paths_overlap(secure_storage_dir, parent):
             raise ValueError(
-                "Codex secure storage directory and the "
-                f"{label} must not overlap"
+                f"Codex secure storage directory and the {label} must not overlap"
             )
 
 
@@ -3117,9 +2995,7 @@ def _require_empty_codex_auth_target(
             "Codex authentication target state is unsafe"
         ) from None
     if identity != dict(expected_identity) or populated:
-        raise ProviderStateIsolationError(
-            "Codex authentication target changed"
-        )
+        raise ProviderStateIsolationError("Codex authentication target changed")
 
 
 def _remove_promoted_codex_auth_if_owned(
@@ -3170,22 +3046,16 @@ def _promote_staged_codex_auth(
     ):
         raise ValueError("Invalid authentication promotion contract")
 
-    source_directory_descriptor = _open_codex_bootstrap_directory(
-        source_directory
-    )
-    target_directory_descriptor = _open_codex_bootstrap_directory(
-        target_directory
-    )
+    source_directory_descriptor = _open_codex_bootstrap_directory(source_directory)
+    target_directory_descriptor = _open_codex_bootstrap_directory(target_directory)
     source_descriptor: int | None = None
     source_metadata: os.stat_result | None = None
     linked = False
     try:
         target_directory_metadata = os.fstat(target_directory_descriptor)
         if (
-            target_directory_metadata.st_dev
-            != expected_target_identity.get("device")
-            or target_directory_metadata.st_ino
-            != expected_target_identity.get("inode")
+            target_directory_metadata.st_dev != expected_target_identity.get("device")
+            or target_directory_metadata.st_ino != expected_target_identity.get("inode")
             or os.listdir(target_directory_descriptor)
         ):
             raise ProviderStateIsolationError(
@@ -3221,9 +3091,7 @@ def _promote_staged_codex_auth(
             or source_metadata.st_uid != os.getuid()
             or stat.S_IMODE(source_metadata.st_mode) != 0o600
             or source_metadata.st_nlink != 1
-            or not 1
-            <= source_metadata.st_size
-            <= maximum_bytes
+            or not 1 <= source_metadata.st_size <= maximum_bytes
             or source_metadata.st_dev != target_directory_metadata.st_dev
         ):
             raise ProviderStateIsolationError(
@@ -3402,9 +3270,7 @@ def _run_no_capture_process_group(
         except subprocess.TimeoutExpired:
             _quiesce_provider_process_group(process, force=True)
             group_quiesced = True
-            raise subprocess.TimeoutExpired(
-                list(command), timeout_seconds
-            ) from None
+            raise subprocess.TimeoutExpired(list(command), timeout_seconds) from None
         except OSError:
             raise ProviderProcessIsolationError(
                 "Authentication process state could not be verified"
@@ -3460,9 +3326,8 @@ def _bootstrap_codex_credentials(
         raise ProviderStateIsolationError(
             "Codex authentication bootstrap executable is unavailable"
         ) from None
-    if (
-        provider_cli_public_identity(provider_resolution)
-        != dict(expected_provider_cli_identity)
+    if provider_cli_public_identity(provider_resolution) != dict(
+        expected_provider_cli_identity
     ):
         raise ProviderStateIsolationError(
             "Codex authentication executable differs from the frozen contract"
@@ -3483,9 +3348,7 @@ def _bootstrap_codex_credentials(
             "Codex authentication target is unavailable"
         ) from None
     if resolved_path != path:
-        raise ProviderStateIsolationError(
-            "Codex authentication target is unsafe"
-        )
+        raise ProviderStateIsolationError("Codex authentication target is unsafe")
     try:
         target_identity = _codex_secure_storage_identity(path)
     except RuntimeError:
@@ -3575,9 +3438,7 @@ def _validate_codex_auth_binding(
     private: Mapping[str, Any],
     public: Mapping[str, Any],
 ) -> Path:
-    resolved = _validate_codex_secure_storage_dir(
-        codex_secure_storage_dir, root=root
-    )
+    resolved = _validate_codex_secure_storage_dir(codex_secure_storage_dir, root=root)
     if private.get("codex_secure_storage_dir") != str(resolved):
         raise ValueError(
             "Codex secure storage directory does not match authenticated private state"
@@ -3713,9 +3574,7 @@ def _require_claude_credential_state(
         raise RuntimeError("Claude Keychain record must remain absent")
     if observed is not managed_glean_credentials_present:
         expectation = "present" if managed_glean_credentials_present else "absent"
-        raise RuntimeError(
-            "Managed Glean credential file must be " + expectation
-        )
+        raise RuntimeError("Managed Glean credential file must be " + expectation)
 
 
 def _bootstrap_managed_glean_credentials(
@@ -3732,9 +3591,7 @@ def _bootstrap_managed_glean_credentials(
 
     target_identity = _claude_secure_storage_identity(path)
     if _attest_managed_glean_credentials(path):
-        raise ProviderStateIsolationError(
-            "Managed Glean authentication target changed"
-        )
+        raise ProviderStateIsolationError("Managed Glean authentication target changed")
     with _ProviderTemporaryDirectory(directory=path.parent) as temporary:
         root = Path(temporary).resolve()
         staging = root / "credentials"
@@ -3771,15 +3628,15 @@ def _bootstrap_managed_glean_credentials(
         except Exception:
             raise
         except subprocess.SubprocessError:
-            raise RuntimeError("Managed Glean authentication bootstrap failed") from None
+            raise RuntimeError(
+                "Managed Glean authentication bootstrap failed"
+            ) from None
         finally:
             active_error = sys.exception()
             try:
                 _attest_managed_glean_home_link(glean_home_link, staging)
             except Exception:
-                if not isinstance(
-                    active_error, ProviderExecutionIsolationError
-                ):
+                if not isinstance(active_error, ProviderExecutionIsolationError):
                     raise
         if process.returncode != 0:
             raise RuntimeError("Managed Glean authentication bootstrap failed")
@@ -3814,9 +3671,7 @@ def _validate_claude_auth_binding(
     private: Mapping[str, Any],
     public: Mapping[str, Any],
 ) -> Path:
-    resolved = _validate_claude_secure_storage_dir(
-        claude_secure_storage_dir, root=root
-    )
+    resolved = _validate_claude_secure_storage_dir(claude_secure_storage_dir, root=root)
     if private.get("claude_secure_storage_dir") != str(resolved):
         raise ValueError(
             "Claude secure storage directory does not match authenticated private state"
@@ -3852,24 +3707,17 @@ def _expected_provider_cli_identity(
 ) -> dict[str, Any]:
     cli_contract = public.get("cli_contract")
     identities = (
-        cli_contract.get("executables")
-        if isinstance(cli_contract, Mapping)
-        else None
+        cli_contract.get("executables") if isinstance(cli_contract, Mapping) else None
     )
     if not isinstance(identities, list):
-        raise ProviderStateIsolationError(
-            "Frozen provider CLI contract is unavailable"
-        )
+        raise ProviderStateIsolationError("Frozen provider CLI contract is unavailable")
     matches = [
         dict(identity)
         for identity in identities
-        if isinstance(identity, Mapping)
-        and identity.get("name") == executable
+        if isinstance(identity, Mapping) and identity.get("name") == executable
     ]
     if len(matches) != 1:
-        raise ProviderStateIsolationError(
-            "Frozen provider CLI identity is unavailable"
-        )
+        raise ProviderStateIsolationError("Frozen provider CLI identity is unavailable")
     return matches[0]
 
 
@@ -3950,10 +3798,7 @@ def _fixed_file_sha256(
         not stat.S_ISREG(metadata.st_mode)
         or stat.S_ISLNK(metadata.st_mode)
         or metadata.st_nlink < 1
-        or (
-            maximum_bytes is not None
-            and not 0 < metadata.st_size <= maximum_bytes
-        )
+        or (maximum_bytes is not None and not 0 < metadata.st_size <= maximum_bytes)
     ):
         raise RuntimeError(f"Required {label} must be a regular file")
     stable_fields = (
@@ -4005,12 +3850,12 @@ def _fixed_file_sha256(
 
 
 def _read_authentication_key(path: Path) -> bytes:
-    """Read the V35 key only when one stable inode owns its namespace."""
+    """Read the V48 key only when one stable inode owns its namespace."""
 
     try:
         before = path.lstat()
     except OSError:
-        raise RuntimeError("V35 authentication key is unavailable") from None
+        raise RuntimeError("V48 authentication key is unavailable") from None
     stable_fields = (
         "st_dev",
         "st_ino",
@@ -4030,18 +3875,15 @@ def _read_authentication_key(path: Path) -> bytes:
         or before.st_nlink != 1
     ):
         raise RuntimeError(
-            "V35 authentication key must be an owner-only single-link file"
+            "V48 authentication key must be an owner-only single-link file"
         )
     try:
         key = _read_authentication_key_unbound(path)
         after = path.lstat()
     except (OSError, ValueError):
-        raise RuntimeError("V35 authentication key is unavailable") from None
-    if any(
-        getattr(after, field) != getattr(before, field)
-        for field in stable_fields
-    ):
-        raise RuntimeError("V35 authentication key changed while reading")
+        raise RuntimeError("V48 authentication key is unavailable") from None
+    if any(getattr(after, field) != getattr(before, field) for field in stable_fields):
+        raise RuntimeError("V48 authentication key changed while reading")
     return key
 
 
@@ -4124,13 +3966,10 @@ def _read_owned_json(
         encoded = b"".join(chunks)
         after = os.fstat(descriptor)
         final_metadata = path.lstat()
-        if (
-            len(encoded) != metadata.st_size
-            or any(
-                getattr(after, field) != getattr(metadata, field)
-                or getattr(final_metadata, field) != getattr(metadata, field)
-                for field in stable_fields
-            )
+        if len(encoded) != metadata.st_size or any(
+            getattr(after, field) != getattr(metadata, field)
+            or getattr(final_metadata, field) != getattr(metadata, field)
+            for field in stable_fields
         ):
             raise RuntimeError(f"Required {label} changed while reading")
     except RuntimeError:
@@ -4200,8 +4039,7 @@ def _safe_glean_config() -> tuple[dict[str, Any], dict[str, Any]]:
     except ValueError:
         raise RuntimeError("Glean gateway URL is unsafe") from None
     if (
-        _sha256(gateway_url.encode("utf-8"))
-        != _APPROVED_GLEAN_GATEWAY_SHA256
+        _sha256(gateway_url.encode("utf-8")) != _APPROVED_GLEAN_GATEWAY_SHA256
         or parsed_gateway.scheme != "https"
         or not parsed_gateway.hostname
         or gateway_port is not None
@@ -4221,12 +4059,8 @@ def _safe_glean_config() -> tuple[dict[str, Any], dict[str, Any]]:
             "gateway_endpoint_allowlist_tag": _GLEAN_GATEWAY_ALLOWLIST_TAG,
             "gateway_port": "default_https",
             "gateway_url_sha256": _sha256(gateway_url.encode("utf-8")),
-            "claude_client_id_sha256": _sha256(
-                claude_client_id.encode("utf-8")
-            ),
-            "codex_client_id_sha256": _sha256(
-                codex_client_id.encode("utf-8")
-            ),
+            "claude_client_id_sha256": _sha256(claude_client_id.encode("utf-8")),
+            "codex_client_id_sha256": _sha256(codex_client_id.encode("utf-8")),
             "contains_secret_bearing_fields": False,
         },
     }
@@ -4261,10 +4095,7 @@ def _managed_settings_identity(
                 child_path = (*path, str(key))
                 normalized = str(key).lower().replace("-", "_")
                 if (
-                    any(
-                        fragment in normalized
-                        for fragment in sensitive_fragments
-                    )
+                    any(fragment in normalized for fragment in sensitive_fragments)
                     and child_path not in sensitive_field_exceptions
                 ):
                     raise RuntimeError(
@@ -4332,8 +4163,7 @@ def _managed_settings_identity(
     except ValueError:
         raise RuntimeError("Claude managed OTEL endpoint policy drifted") from None
     if (
-        _sha256(otel_endpoint.encode("utf-8"))
-        != _APPROVED_CLAUDE_OTEL_ENDPOINT_SHA256
+        _sha256(otel_endpoint.encode("utf-8")) != _APPROVED_CLAUDE_OTEL_ENDPOINT_SHA256
         or parsed_otel_endpoint.scheme != "https"
         or not parsed_otel_endpoint.hostname
         or otel_endpoint_port is not None
@@ -4359,8 +4189,7 @@ def _managed_settings_identity(
         or not resource_email.isascii()
         or resource_email.count("@") != 1
         or any(
-            character.isspace() or ord(character) < 0x20
-            for character in resource_email
+            character.isspace() or ord(character) < 0x20 for character in resource_email
         )
     ):
         raise RuntimeError("Claude managed OTEL resource policy drifted")
@@ -4377,9 +4206,7 @@ def _managed_settings_identity(
     redacted_environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = (
         "<validated-approved-managed-otel-endpoint>"
     )
-    redacted_environment["OTEL_RESOURCE_ATTRIBUTES"] = (
-        "user.email=<validated-redacted>"
-    )
+    redacted_environment["OTEL_RESOURCE_ATTRIBUTES"] = "user.email=<validated-redacted>"
     redacted_projection = {
         "apiKeyHelper": settings["apiKeyHelper"],
         "env": redacted_environment,
@@ -4389,9 +4216,7 @@ def _managed_settings_identity(
     return (
         {
             "path": str(_CLAUDE_MANAGED_SETTINGS_PATH),
-            "redacted_projection_sha256": _component_hash(
-                redacted_projection
-            ),
+            "redacted_projection_sha256": _component_hash(redacted_projection),
             "semantic_projection": {
                 "api_key_helper_matches_pinned_wrapper": True,
                 "anthropic_base_url_matches_glean_gateway": True,
@@ -4400,14 +4225,10 @@ def _managed_settings_identity(
                 "top_level_key_allowlist_exact": True,
                 "top_level_key_count": 4,
                 "managed_model_matches_exact_allowlist": True,
-                "managed_model_allowlist_tag": (
-                    _CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG
-                ),
+                "managed_model_allowlist_tag": (_CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG),
                 "managed_model_value_disclosed": False,
                 "managed_environment_key_allowlist_exact": True,
-                "managed_environment_key_count": len(
-                    _CLAUDE_MANAGED_ENV_KEYS
-                ),
+                "managed_environment_key_count": len(_CLAUDE_MANAGED_ENV_KEYS),
                 "managed_environment_value_types_and_policies_validated": True,
                 "forbidden_sensitive_fields_absent": True,
                 "raw_values_disclosed": False,
@@ -4463,11 +4284,10 @@ def _safe_entrypoint_identity(path: Path, *, label: str) -> dict[str, Any]:
         resolved_metadata = resolved_target.lstat()
     except (OSError, RuntimeError):
         raise RuntimeError(f"Unable to resolve required {label}") from None
-    if (
-        not stat.S_ISREG(resolved_metadata.st_mode)
-        or (resolved_metadata.st_dev, resolved_metadata.st_ino)
-        != (target_metadata.st_dev, target_metadata.st_ino)
-    ):
+    if not stat.S_ISREG(resolved_metadata.st_mode) or (
+        resolved_metadata.st_dev,
+        resolved_metadata.st_ino,
+    ) != (target_metadata.st_dev, target_metadata.st_ino):
         raise RuntimeError(f"Required {label} does not resolve to its pinned file")
 
     flags = os.O_RDONLY
@@ -4479,11 +4299,10 @@ def _safe_entrypoint_identity(path: Path, *, label: str) -> dict[str, Any]:
         raise RuntimeError(f"Unable to open required {label}") from None
     try:
         opened_metadata = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(opened_metadata.st_mode)
-            or (opened_metadata.st_dev, opened_metadata.st_ino)
-            != (resolved_metadata.st_dev, resolved_metadata.st_ino)
-        ):
+        if not stat.S_ISREG(opened_metadata.st_mode) or (
+            opened_metadata.st_dev,
+            opened_metadata.st_ino,
+        ) != (resolved_metadata.st_dev, resolved_metadata.st_ino):
             raise RuntimeError(f"Required {label} changed before hashing")
         digest = hashlib.sha256()
         for chunk in iter(lambda: os.read(descriptor, 1024 * 1024), b""):
@@ -4556,9 +4375,7 @@ def _glean_helper_identity() -> dict[str, str]:
             "Glean helper changed during identity probe"
         ) from None
     if final_digest != digest:
-        raise ProviderStateIsolationError(
-            "Glean helper changed during identity probe"
-        )
+        raise ProviderStateIsolationError("Glean helper changed during identity probe")
     return {
         "path": str(_GLEAN_HELPER_PATH),
         "sha256": digest,
@@ -4592,9 +4409,7 @@ def _require_root_owned_regular_executable_metadata(
         raise RuntimeError(f"Required {label} ownership policy drifted")
 
 
-def _require_root_owned_nonwritable_ancestry(
-    path: Path, *, label: str
-) -> None:
+def _require_root_owned_nonwritable_ancestry(path: Path, *, label: str) -> None:
     """Exclude non-root pathname replacement through every ancestor."""
 
     current = path.parent
@@ -4602,9 +4417,7 @@ def _require_root_owned_nonwritable_ancestry(
         try:
             metadata = current.lstat()
         except OSError:
-            raise RuntimeError(
-                f"Required {label} ancestor is unavailable"
-            ) from None
+            raise RuntimeError(f"Required {label} ancestor is unavailable") from None
         if (
             not stat.S_ISDIR(metadata.st_mode)
             or stat.S_ISLNK(metadata.st_mode)
@@ -4612,9 +4425,7 @@ def _require_root_owned_nonwritable_ancestry(
             or metadata.st_gid != 0
             or metadata.st_mode & 0o022
         ):
-            raise RuntimeError(
-                f"Required {label} ancestor ownership policy drifted"
-            )
+            raise RuntimeError(f"Required {label} ancestor ownership policy drifted")
         if current.parent == current:
             break
         current = current.parent
@@ -4648,10 +4459,7 @@ def _root_owned_regular_executable_sha256(path: Path, *, label: str) -> str:
         "st_mtime_ns",
         "st_ctime_ns",
     )
-    if any(
-        getattr(after, field) != getattr(before, field)
-        for field in stable_fields
-    ):
+    if any(getattr(after, field) != getattr(before, field) for field in stable_fields):
         raise RuntimeError(f"Required {label} changed while hashing")
     _require_root_owned_nonwritable_ancestry(path, label=label)
     return digest
@@ -4669,17 +4477,12 @@ def _root_owned_regular_executable_identity(
         resolved_metadata = resolved.lstat()
     except (OSError, RuntimeError):
         raise RuntimeError(f"Unable to resolve required {label}") from None
-    _require_root_owned_regular_executable_metadata(
-        entry_metadata, label=label
-    )
-    _require_root_owned_regular_executable_metadata(
-        resolved_metadata, label=label
-    )
-    if (
-        (entry_metadata.st_dev, entry_metadata.st_ino)
-        != (resolved_metadata.st_dev, resolved_metadata.st_ino)
-        or resolved != path
-    ):
+    _require_root_owned_regular_executable_metadata(entry_metadata, label=label)
+    _require_root_owned_regular_executable_metadata(resolved_metadata, label=label)
+    if (entry_metadata.st_dev, entry_metadata.st_ino) != (
+        resolved_metadata.st_dev,
+        resolved_metadata.st_ino,
+    ) or resolved != path:
         raise RuntimeError(f"Required {label} must be a fixed regular file")
     final_digest = _root_owned_regular_executable_sha256(path, label=label)
     if not hmac.compare_digest(digest, final_digest):
@@ -4769,9 +4572,7 @@ def _cli_contract() -> dict[str, Any]:
         if executable not in identities:
             identities[executable] = _read_cli_identity(executable)
     glean_config, glean_config_identity = _safe_glean_config()
-    managed_settings, telemetry_enabled = _managed_settings_identity(
-        glean_config
-    )
+    managed_settings, telemetry_enabled = _managed_settings_identity(glean_config)
     gateway_wrapper = _deferred_root_owned_executable_contract(
         _GLEAN_GATEWAY_TOKEN_WRAPPER_PATH,
         label="Glean LLM gateway token wrapper",
@@ -4790,9 +4591,7 @@ def _cli_contract() -> dict[str, Any]:
     )
     return {
         "schema_version": "epiagentbench.provider_cli_contract.v3",
-        "executables": [
-            identities[executable] for executable in sorted(identities)
-        ],
+        "executables": [identities[executable] for executable in sorted(identities)],
         "provider_cli_discovery": {
             "schema_version": "epiagentbench.provider_cli_discovery.v2",
             "allowed_executable_names": sorted(identities),
@@ -4803,21 +4602,14 @@ def _cli_contract() -> dict[str, Any]:
             "entrypoint_target_binding": (
                 "role_relative_path_symlink_metadata_and_content"
             ),
-            "installation_tree_binding": (
-                "bounded_adjacent_tree_content_and_metadata"
-            ),
-            "pre_spawn_revalidation": (
-                "full_resolution_and_installation_identity"
-            ),
-            "external_runtime_boundary": (
-                "declared_per_executable_not_content_bound"
-            ),
+            "installation_tree_binding": ("bounded_adjacent_tree_content_and_metadata"),
+            "pre_spawn_revalidation": ("full_resolution_and_installation_identity"),
+            "external_runtime_boundary": ("declared_per_executable_not_content_bound"),
             "same_user_or_admin_aba_race": (
                 "documented_residual_outside_benchmark_threat_model"
             ),
             "ancestry_mutability_policy": (
-                "world_writable_forbidden_group_writable_only_"
-                "homebrew_admin_role"
+                "world_writable_forbidden_group_writable_only_homebrew_admin_role"
             ),
         },
         "claude_auth_dependencies": {
@@ -4859,18 +4651,12 @@ def _installed_distribution_content_identity(name: str) -> dict[str, Any]:
         }
     files = distribution.files
     if files is None or not 1 <= len(files) <= 100_000:
-        raise RuntimeError(
-            f"Unable to enumerate installed distribution bytes: {name}"
-        )
+        raise RuntimeError(f"Unable to enumerate installed distribution bytes: {name}")
     inventory: dict[str, dict[str, Any]] = {}
     total_bytes = 0
     for package_path in sorted(files, key=str):
         relative = str(package_path)
-        if (
-            not relative
-            or "\x00" in relative
-            or relative in inventory
-        ):
+        if not relative or "\x00" in relative or relative in inventory:
             raise RuntimeError(
                 f"Installed distribution has an invalid file inventory: {name}"
             )
@@ -4887,9 +4673,7 @@ def _installed_distribution_content_identity(name: str) -> dict[str, Any]:
             or metadata.st_size < 0
             or metadata.st_size > 512 * 1024 * 1024
         ):
-            raise RuntimeError(
-                f"Installed distribution file is unsafe: {name}"
-            )
+            raise RuntimeError(f"Installed distribution file is unsafe: {name}")
         total_bytes += metadata.st_size
         if total_bytes > 4 * 1024 * 1024 * 1024:
             raise RuntimeError(
@@ -4915,20 +4699,14 @@ def _scientific_module_origin_identity(name: str) -> dict[str, str]:
     module = importlib.import_module(name)
     module_file = getattr(module, "__file__", None)
     if not isinstance(module_file, str) or not module_file:
-        raise RuntimeError(
-            f"Scientific module has no regular origin: {name}"
-        )
+        raise RuntimeError(f"Scientific module has no regular origin: {name}")
     try:
         origin = Path(module_file).resolve(strict=True)
         metadata = origin.lstat()
     except (OSError, RuntimeError):
-        raise RuntimeError(
-            f"Scientific module origin is unavailable: {name}"
-        ) from None
+        raise RuntimeError(f"Scientific module origin is unavailable: {name}") from None
     if not stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
-        raise RuntimeError(
-            f"Scientific module origin is unsafe: {name}"
-        )
+        raise RuntimeError(f"Scientific module origin is unsafe: {name}")
     if name == "epiagentbench":
         expected = Path(__file__).resolve(strict=True).parent / "__init__.py"
         if origin != expected:
@@ -4938,28 +4716,19 @@ def _scientific_module_origin_identity(name: str) -> dict[str, str]:
         return {
             "origin_role": "tracked_repository_source",
             "distribution_file": "src/epiagentbench/__init__.py",
-            "sha256": _fixed_file_sha256(
-                origin, label="EpiAgentBench package origin"
-            ),
+            "sha256": _fixed_file_sha256(origin, label="EpiAgentBench package origin"),
         }
     try:
         distribution = importlib_metadata.distribution(name)
     except importlib_metadata.PackageNotFoundError:
-        raise RuntimeError(
-            f"Scientific distribution is unavailable: {name}"
-        ) from None
+        raise RuntimeError(f"Scientific distribution is unavailable: {name}") from None
     files = distribution.files
     if files is None:
-        raise RuntimeError(
-            f"Scientific distribution inventory is unavailable: {name}"
-        )
+        raise RuntimeError(f"Scientific distribution inventory is unavailable: {name}")
     matches = [
         str(package_path)
         for package_path in files
-        if Path(distribution.locate_file(package_path)).resolve(
-            strict=False
-        )
-        == origin
+        if Path(distribution.locate_file(package_path)).resolve(strict=False) == origin
     ]
     if len(matches) != 1:
         raise RuntimeError(
@@ -4968,9 +4737,7 @@ def _scientific_module_origin_identity(name: str) -> dict[str, str]:
     return {
         "origin_role": "installed_distribution_file",
         "distribution_file": matches[0],
-        "sha256": _fixed_file_sha256(
-            origin, label=f"{name} imported module origin"
-        ),
+        "sha256": _fixed_file_sha256(origin, label=f"{name} imported module origin"),
     }
 
 
@@ -4989,7 +4756,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
     ):
         raise RuntimeError(
-            "V35 runtime-cache environment does not match the exact contract"
+            "V48 runtime-cache environment does not match the exact contract"
         )
     from .launchd_agent import (
         _runtime_cache_contract as _private_runtime_cache_contract,
@@ -5003,7 +4770,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or contract.get("environment") != expected_environment
     ):
-        raise RuntimeError("V35 runtime-cache contract is inconsistent")
+        raise RuntimeError("V48 runtime-cache contract is inconsistent")
     return contract
 
 
@@ -5012,10 +4779,10 @@ def _runtime_cache_root_path_from_environment() -> Path:
 
     matplotlib_path = os.environ.get("MPLCONFIGDIR")
     if not isinstance(matplotlib_path, str) or not matplotlib_path:
-        raise RuntimeError("V35 runtime-cache environment is unavailable")
+        raise RuntimeError("V48 runtime-cache environment is unavailable")
     candidate = Path(matplotlib_path)
     if candidate.name != "matplotlib":
-        raise RuntimeError("V35 runtime-cache environment is invalid")
+        raise RuntimeError("V48 runtime-cache environment is invalid")
     return candidate.parent
 
 
@@ -5035,6 +4802,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     insufficient.
     """
 
+    _required_starsim_metadata_version()
     from .trusted.engine import EngineControl
     from .trusted.institution_traces import (
         InstitutionTrace,
@@ -5127,8 +4895,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             "transmission_counts_by_mechanism": dict(
                 sorted(
                     Counter(
-                        event.mechanism
-                        for event in snapshot.transmission_events
+                        event.mechanism for event in snapshot.transmission_events
                     ).items()
                 )
             ),
@@ -5144,7 +4911,7 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
             if apply_contact_stop:
                 engine.apply_control(
                     EngineControl(
-                        control_id="v35-stop-direct-care",
+                        control_id="v48-stop-direct-care",
                         kind=CONTACT_REDUCTION_LEVEL,
                         effective_minute=DAY_MINUTES,
                         magnitude=0.0,
@@ -5177,15 +4944,13 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
         second = run_branch(apply_contact_stop=apply_contact_stop)
         if first != second:
             raise RuntimeError(
-                f"V35 Starsim golden smoke is nondeterministic: {branch_name}"
+                f"V48 Starsim golden smoke is nondeterministic: {branch_name}"
             )
         descriptor, branch = first
         if engine_descriptor is None:
             engine_descriptor = descriptor
         elif descriptor != engine_descriptor:
-            raise RuntimeError(
-                "V35 Starsim golden smoke changed engine descriptors"
-            )
+            raise RuntimeError("V48 Starsim golden smoke changed engine descriptors")
         reproduced[branch_name] = branch
 
     no_action = reproduced["no_action"]
@@ -5200,16 +4965,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     )
     paired_checks = {
         "matched_opening": (
-            no_action["boundaries"][0]
-            == contact_stop_action["boundaries"][0]
+            no_action["boundaries"][0] == contact_stop_action["boundaries"][0]
         ),
         "matched_through_day_one": (
-            no_action["boundaries"][1]
-            == contact_stop_action["boundaries"][1]
+            no_action["boundaries"][1] == contact_stop_action["boundaries"][1]
         ),
-        "no_action_person_to_person_secondary_count": (
-            no_action_secondary_count
-        ),
+        "no_action_person_to_person_secondary_count": (no_action_secondary_count),
         "action_person_to_person_secondary_count": action_secondary_count,
         "prevented_person_to_person_secondary_count": (
             no_action_secondary_count - action_secondary_count
@@ -5226,15 +4987,12 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     }
     if paired_checks != expected_paired_checks:
         raise RuntimeError(
-            "V35 Starsim golden smoke lost its causal transmission/control "
-            "divergence"
+            "V48 Starsim golden smoke lost its causal transmission/control divergence"
         )
 
     projection = {
         "engine_descriptor": engine_descriptor,
-        "scientific_scope": (
-            "deterministic_capability_smoke_not_calibration_evidence"
-        ),
+        "scientific_scope": ("deterministic_capability_smoke_not_calibration_evidence"),
         "branch_runs_per_policy": 2,
         "fixed_scenario": {
             "population_by_role": {"resident": 2, "staff": 1},
@@ -5254,13 +5012,11 @@ def _preparation_runtime_smoke() -> dict[str, Any]:
     result_sha256 = _component_hash(projection)
     if result_sha256 != _PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256:
         raise RuntimeError(
-            "V35 Starsim golden smoke result drifted from its reviewed digest"
+            "V48 Starsim golden smoke result drifted from its reviewed digest"
         )
     return {
         "schema_version": _PREPARATION_RUNTIME_SMOKE_SCHEMA,
-        "fixed_public_scenario": (
-            "v35_contact_transmission_with_matched_contact_stop"
-        ),
+        "fixed_public_scenario": ("v48_contact_transmission_with_matched_contact_stop"),
         "result_sha256": result_sha256,
         "result": projection,
     }
@@ -5287,8 +5043,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         or raw_tmpdir != os.path.normpath(raw_tmpdir)
     ):
         raise RuntimeError(
-            "V35 episode-startup smoke requires the validated provider-free "
-            "TMPDIR"
+            "V48 episode-startup smoke requires the validated provider-free TMPDIR"
         )
     smoke_tmpdir = Path(raw_tmpdir)
     try:
@@ -5296,7 +5051,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         resolved_tmpdir = smoke_tmpdir.resolve(strict=True)
     except (OSError, RuntimeError):
         raise RuntimeError(
-            "V35 episode-startup smoke provider-free TMPDIR is unavailable"
+            "V48 episode-startup smoke provider-free TMPDIR is unavailable"
         ) from None
     if (
         smoke_tmpdir != resolved_tmpdir
@@ -5305,9 +5060,7 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
         or tmpdir_metadata.st_uid != os.getuid()
         or stat.S_IMODE(tmpdir_metadata.st_mode) != 0o700
     ):
-        raise RuntimeError(
-            "V35 episode-startup smoke provider-free TMPDIR is unsafe"
-        )
+        raise RuntimeError("V48 episode-startup smoke provider-free TMPDIR is unsafe")
     _assert_preparation_socket_path_budget(smoke_tmpdir)
 
     case_digests_by_repetition: list[list[str]] = []
@@ -5318,21 +5071,18 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
             for seed in _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS:
                 presentation_key = hashlib.sha256(
                     (
-                        "EpiAgentBench V35 provider-free episode startup "
+                        "EpiAgentBench V48 provider-free episode startup "
                         f"smoke v1|{family}|{seed}"
                     ).encode("ascii")
                 ).digest()
-                with TemporaryDirectory(
-                    prefix="eab35-", dir=smoke_tmpdir
-                ) as directory:
+                with TemporaryDirectory(prefix="eab48-", dir=smoke_tmpdir) as directory:
                     socket_path = Path(directory) / "episode.sock"
                     if (
                         len(os.fsencode(str(socket_path)))
                         > _PREPARATION_EPISODE_SOCKET_PATH_MAX_BYTES
                     ):
                         raise RuntimeError(
-                            "V35 episode-startup smoke socket path exceeds "
-                            "its bound"
+                            "V48 episode-startup smoke socket path exceeds its bound"
                         )
                     session = launch_socket_episode(
                         public_socket_path=str(socket_path),
@@ -5344,17 +5094,11 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                     trusted_evaluator_processes_started += 1
                     client = None
                     try:
-                        client = InvestigationClient.connect_unix(
-                            str(socket_path)
-                        )
+                        client = InvestigationClient.connect_unix(str(socket_path))
                         public_transcript = {
                             "manifest": client.manifest,
-                            "initial_observations": (
-                                client.initial_observations()
-                            ),
-                            "clock_and_budget": (
-                                client.get_clock_and_budget()
-                            ),
+                            "initial_observations": (client.initial_observations()),
+                            "clock_and_budget": (client.get_clock_and_budget()),
                         }
                         case_digests.append(
                             _component_hash(
@@ -5373,18 +5117,15 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
                             session.close()
                     if socket_path.exists():
                         raise RuntimeError(
-                            "V35 episode-startup smoke left a broker socket"
+                            "V48 episode-startup smoke left a broker socket"
                         )
         case_digests_by_repetition.append(case_digests)
 
     if (
         len(case_digests_by_repetition) != 2
-        or case_digests_by_repetition[0]
-        != case_digests_by_repetition[1]
+        or case_digests_by_repetition[0] != case_digests_by_repetition[1]
     ):
-        raise RuntimeError(
-            "V35 episode-startup smoke is not serially reproducible"
-        )
+        raise RuntimeError("V48 episode-startup smoke is not serially reproducible")
     expected_processes = (
         len(FAMILIES)
         * len(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS)
@@ -5392,23 +5133,17 @@ def _preparation_episode_startup_smoke() -> dict[str, Any]:
     )
     if trusted_evaluator_processes_started != expected_processes:
         raise RuntimeError(
-            "V35 episode-startup smoke did not complete its fixed matrix"
+            "V48 episode-startup smoke did not complete its fixed matrix"
         )
     return {
         "schema_version": _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA,
         "backend": BACKEND,
         "public_families": list(FAMILIES),
-        "public_seeds": list(
-            _PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS
-        ),
-        "serial_repetitions": (
-            _PREPARATION_EPISODE_STARTUP_REPETITIONS
-        ),
+        "public_seeds": list(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS),
+        "serial_repetitions": (_PREPARATION_EPISODE_STARTUP_REPETITIONS),
         "trusted_evaluator_processes_started": expected_processes,
         "public_transcript_reproducible": True,
-        "public_transcript_sha256": _component_hash(
-            case_digests_by_repetition[0]
-        ),
+        "public_transcript_sha256": _component_hash(case_digests_by_repetition[0]),
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
         "model_calls_started": 0,
@@ -5443,19 +5178,14 @@ def _valid_preparation_episode_startup_smoke(
             "serial_repetitions",
             "trusted_evaluator_processes_started",
         }
-        and value.get("schema_version")
-        == _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA
+        and value.get("schema_version") == _PREPARATION_EPISODE_STARTUP_SMOKE_SCHEMA
         and value.get("backend") == BACKEND
         and value.get("public_families") == list(FAMILIES)
-        and value.get("public_seeds")
-        == list(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS)
-        and value.get("serial_repetitions")
-        == _PREPARATION_EPISODE_STARTUP_REPETITIONS
+        and value.get("public_seeds") == list(_PREPARATION_EPISODE_STARTUP_PUBLIC_SEEDS)
+        and value.get("serial_repetitions") == _PREPARATION_EPISODE_STARTUP_REPETITIONS
         and type(value.get("serial_repetitions")) is int
-        and value.get("trusted_evaluator_processes_started")
-        == expected_processes
-        and type(value.get("trusted_evaluator_processes_started"))
-        is int
+        and value.get("trusted_evaluator_processes_started") == expected_processes
+        and type(value.get("trusted_evaluator_processes_started")) is int
         and value.get("public_transcript_reproducible") is True
         and _is_sha256(value.get("public_transcript_sha256"))
         and value.get("provider_processes_started") == 0
@@ -5468,19 +5198,36 @@ def _valid_preparation_episode_startup_smoke(
     )
 
 
-def _runtime_contract() -> dict[str, Any]:
-    try:
-        import starsim  # type: ignore
+def _required_starsim_metadata_version() -> str:
+    """Validate the exact distribution metadata before importing Starsim."""
 
-        starsim_version = str(getattr(starsim, "__version__", "unknown"))
-    except ImportError:
+    try:
+        starsim_version = importlib_metadata.version("starsim")
+    except importlib_metadata.PackageNotFoundError:
         raise RuntimeError(
             "Starsim is required before the 50-episode panel can be prepared"
         ) from None
     if starsim_version != REQUIRED_STARSIM_VERSION:
         raise RuntimeError(
-            "V35 requires exact Starsim "
+            "V48 requires exact Starsim "
             f"{REQUIRED_STARSIM_VERSION}; observed {starsim_version!r}"
+        )
+    return starsim_version
+
+
+def _runtime_contract() -> dict[str, Any]:
+    starsim_version = _required_starsim_metadata_version()
+    try:
+        starsim = importlib.import_module("starsim")
+    except ImportError:
+        raise RuntimeError(
+            "Starsim is required before the 50-episode panel can be prepared"
+        ) from None
+    module_version = str(getattr(starsim, "__version__", "unknown"))
+    if module_version != starsim_version:
+        raise RuntimeError(
+            "V48 Starsim module version does not match its validated "
+            "distribution metadata"
         )
     from .launchd_agent import _python_entrypoint_binding
 
@@ -5493,24 +5240,19 @@ def _runtime_contract() -> dict[str, Any]:
         Path(gettempdir()).expanduser().resolve(),
     }
     if any(
-        launch_path == temporary
-        or temporary in launch_path.parents
+        launch_path == temporary or temporary in launch_path.parents
         for temporary in temporary_roots
     ):
-        raise RuntimeError("V35 Python executable must not be temporary")
+        raise RuntimeError("V48 Python executable must not be temporary")
     return {
         "python": sys.version.split()[0],
         "python_implementation": sys.implementation.name,
         "python_cache_tag": sys.implementation.cache_tag,
         "python_entrypoint_kind": (
-            "symlink_chain"
-            if python_binding["symlink_hops"]
-            else "regular_file"
+            "symlink_chain" if python_binding["symlink_hops"] else "regular_file"
         ),
         "python_executable_sha256": python_binding["target"]["sha256"],
-        "python_executable_binding_sha256": _component_hash(
-            python_binding
-        ),
+        "python_executable_binding_sha256": _component_hash(python_binding),
         "python_executable_binding_policy": (
             "full_path_symlink_inode_and_content_binding_private_only"
         ),
@@ -5535,19 +5277,13 @@ def _preparation_runtime_identity(receipt: Mapping[str, Any]) -> str:
     return _component_hash(
         {
             "panel_id": receipt.get("panel_id"),
-            "required_starsim_version": receipt.get(
-                "required_starsim_version"
-            ),
-            "source_contract_sha256": receipt.get(
-                "source_contract_sha256"
-            ),
+            "required_starsim_version": receipt.get("required_starsim_version"),
+            "source_contract_sha256": receipt.get("source_contract_sha256"),
             "cli_contract_sha256": receipt.get("cli_contract_sha256"),
             "provider_free_environment_contract_sha256": receipt.get(
                 "provider_free_environment_contract_sha256"
             ),
-            "runtime_contract_sha256": receipt.get(
-                "runtime_contract_sha256"
-            ),
+            "runtime_contract_sha256": receipt.get("runtime_contract_sha256"),
             "runtime_cache_contract_sha256": receipt.get(
                 "runtime_cache_contract_sha256"
             ),
@@ -5579,31 +5315,20 @@ def _preflight_preparation_runtime_with_cache_contract(
         )
         or not isinstance(head_before, str)
         or len(head_before) != 40
-        or any(
-            character not in "0123456789abcdef"
-            for character in head_before
-        )
-        or not hmac.compare_digest(
-            head_before, expected_benchmark_base_commit
-        )
+        or any(character not in "0123456789abcdef" for character in head_before)
+        or not hmac.compare_digest(head_before, expected_benchmark_base_commit)
     ):
-        raise RuntimeError(
-            "V35 runtime preflight is not at the expected pinned commit"
-        )
+        raise RuntimeError("V48 runtime preflight is not at the expected pinned commit")
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError(
             "Commit and clean the matched-panel harness before runtime preflight"
         )
     cache_root = runtime_cache_dir.expanduser().resolve(strict=False)
     if _paths_overlap(cache_root, root.resolve(strict=True)):
-        raise RuntimeError(
-            "V35 runtime cache must be outside the repository"
-        )
-    provider_free_environment = (
-        _provider_free_preparation_environment_contract(
-            repository_root=root.resolve(strict=True),
-            runtime_cache_root=cache_root,
-        )
+        raise RuntimeError("V48 runtime cache must be outside the repository")
+    provider_free_environment = _provider_free_preparation_environment_contract(
+        repository_root=root.resolve(strict=True),
+        runtime_cache_root=cache_root,
     )
     with _provider_free_directory_identity_guard(
         repository_root=root.resolve(strict=True),
@@ -5630,19 +5355,12 @@ def _preflight_preparation_runtime_with_cache_contract(
             runtime_cache_root=cache_root,
         )
     ):
-        raise RuntimeError(
-            "V35 provider-free preparation environment changed"
-        )
+        raise RuntimeError("V48 provider-free preparation environment changed")
     head_after = _git_output(root, "rev-parse", "HEAD")
-    if (
-        not hmac.compare_digest(head_before, head_after)
-        or _git_output(
-            root, "status", "--porcelain", "--untracked-files=all"
-        )
+    if not hmac.compare_digest(head_before, head_after) or _git_output(
+        root, "status", "--porcelain", "--untracked-files=all"
     ):
-        raise RuntimeError(
-            "V35 source changed during preparation runtime preflight"
-        )
+        raise RuntimeError("V48 source changed during preparation runtime preflight")
     receipt = {
         "schema_version": _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA,
         "panel_id": PANEL_ID,
@@ -5657,9 +5375,7 @@ def _preflight_preparation_runtime_with_cache_contract(
         "runtime_contract_sha256": _component_hash(runtime),
         "runtime_cache_contract_sha256": _component_hash(runtime_cache),
         "starsim_smoke_contract_sha256": _component_hash(smoke),
-        "episode_startup_smoke_contract_sha256": _component_hash(
-            episode_startup_smoke
-        ),
+        "episode_startup_smoke_contract_sha256": _component_hash(episode_startup_smoke),
         "runtime_contract": runtime,
         "provider_free_environment_contract": provider_free_environment,
         "starsim_smoke_contract": smoke,
@@ -5669,9 +5385,7 @@ def _preflight_preparation_runtime_with_cache_contract(
         "model_calls_started": 0,
         "private_artifacts_required": False,
     }
-    receipt["runtime_identity_sha256"] = _preparation_runtime_identity(
-        receipt
-    )
+    receipt["runtime_identity_sha256"] = _preparation_runtime_identity(receipt)
     return receipt, runtime_cache
 
 
@@ -5681,7 +5395,7 @@ def preflight_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Attest every public preparation dependency before private V35 creation."""
+    """Attest every public preparation dependency before private V48 creation."""
 
     receipt, _ = _preflight_preparation_runtime_with_cache_contract(
         root=root,
@@ -5695,24 +5409,17 @@ def _load_preparation_runtime_receipt(
     *, root: Path, receipt_path: Path
 ) -> tuple[dict[str, Any], str, str]:
     relative = _relative_to_root(receipt_path, root)
-    if (
-        _git_output(root, "ls-files", "--error-unmatch", relative)
-        != relative
-    ):
-        raise RuntimeError(
-            "V35 preparation runtime receipt must already be committed"
-        )
+    if _git_output(root, "ls-files", "--error-unmatch", relative) != relative:
+        raise RuntimeError("V48 preparation runtime receipt must already be committed")
     try:
         encoded, receipt = _read_owned_json(
             receipt_path,
-            label="V35 preparation runtime receipt",
+            label="V48 preparation runtime receipt",
             owner_uid=os.getuid(),
             max_bytes=16 * 1024 * 1024,
         )
     except RuntimeError:
-        raise RuntimeError(
-            "V35 preparation runtime receipt is unavailable"
-        ) from None
+        raise RuntimeError("V48 preparation runtime receipt is unavailable") from None
     expected_keys = {
         "authentication_processes_started",
         "benchmark_base_commit",
@@ -5738,12 +5445,10 @@ def _load_preparation_runtime_receipt(
     }
     if (
         set(receipt) != expected_keys
-        or receipt.get("schema_version")
-        != _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA
+        or receipt.get("schema_version") != _PREPARATION_RUNTIME_PREFLIGHT_SCHEMA
         or receipt.get("panel_id") != PANEL_ID
         or receipt.get("status") != "passed"
-        or receipt.get("required_starsim_version")
-        != REQUIRED_STARSIM_VERSION
+        or receipt.get("required_starsim_version") != REQUIRED_STARSIM_VERSION
         or receipt.get("provider_processes_started") != 0
         or receipt.get("authentication_processes_started") != 0
         or receipt.get("model_calls_started") != 0
@@ -5773,18 +5478,14 @@ def _load_preparation_runtime_receipt(
         or receipt.get("runtime_contract_sha256")
         != _component_hash(receipt.get("runtime_contract"))
         or receipt.get("provider_free_environment_contract_sha256")
-        != _component_hash(
-            receipt.get("provider_free_environment_contract")
-        )
+        != _component_hash(receipt.get("provider_free_environment_contract"))
         or not _valid_provider_free_preparation_environment_contract(
             receipt.get("provider_free_environment_contract")
         )
         or receipt.get("starsim_smoke_contract_sha256")
         != _component_hash(receipt.get("starsim_smoke_contract"))
         or receipt.get("episode_startup_smoke_contract_sha256")
-        != _component_hash(
-            receipt.get("episode_startup_smoke_contract")
-        )
+        != _component_hash(receipt.get("episode_startup_smoke_contract"))
         or not _valid_preparation_episode_startup_smoke(
             receipt.get("episode_startup_smoke_contract")
         )
@@ -5792,7 +5493,7 @@ def _load_preparation_runtime_receipt(
         != _preparation_runtime_identity(receipt)
     ):
         raise RuntimeError(
-            "V35 preparation runtime receipt failed closed-schema validation"
+            "V48 preparation runtime receipt failed closed-schema validation"
         )
     return receipt, _sha256(encoded), relative
 
@@ -5804,33 +5505,25 @@ def verify_preparation_runtime(
     expected_benchmark_base_commit: str,
     runtime_cache_dir: Path,
 ) -> dict[str, Any]:
-    """Re-attest and compare the tracked pre-private V35 runtime receipt."""
+    """Re-attest and compare the tracked pre-private V48 runtime receipt."""
 
-    published, receipt_file_sha256, relative = (
-        _load_preparation_runtime_receipt(
-            root=root, receipt_path=receipt_path
-        )
+    published, receipt_file_sha256, relative = _load_preparation_runtime_receipt(
+        root=root, receipt_path=receipt_path
     )
-    current, current_runtime_cache = (
-        _preflight_preparation_runtime_with_cache_contract(
-            root=root,
-            expected_benchmark_base_commit=expected_benchmark_base_commit,
-            runtime_cache_dir=runtime_cache_dir,
-        )
+    current, current_runtime_cache = _preflight_preparation_runtime_with_cache_contract(
+        root=root,
+        expected_benchmark_base_commit=expected_benchmark_base_commit,
+        runtime_cache_dir=runtime_cache_dir,
     )
     if current.get("runtime_cache_contract_sha256") != _component_hash(
         current_runtime_cache
     ):
-        raise RuntimeError(
-            "V35 runtime cache changed during receipt verification"
-        )
+        raise RuntimeError("V48 runtime cache changed during receipt verification")
     if not hmac.compare_digest(
         str(published["runtime_identity_sha256"]),
         str(current["runtime_identity_sha256"]),
     ):
-        raise RuntimeError(
-            "V35 preparation runtime differs from the published receipt"
-        )
+        raise RuntimeError("V48 preparation runtime differs from the published receipt")
     return {
         "schema_version": "epiagentbench.preparation_runtime_verification.v3",
         "panel_id": PANEL_ID,
@@ -5838,12 +5531,8 @@ def verify_preparation_runtime(
         "required_starsim_version": REQUIRED_STARSIM_VERSION,
         "published_receipt_path": relative,
         "published_receipt_file_sha256": receipt_file_sha256,
-        "published_benchmark_base_commit": published[
-            "benchmark_base_commit"
-        ],
-        "verified_benchmark_base_commit": current[
-            "benchmark_base_commit"
-        ],
+        "published_benchmark_base_commit": published["benchmark_base_commit"],
+        "verified_benchmark_base_commit": current["benchmark_base_commit"],
         "runtime_identity_sha256": current["runtime_identity_sha256"],
         "source_contract_sha256": current["source_contract_sha256"],
         "cli_contract_sha256": current["cli_contract_sha256"],
@@ -5851,12 +5540,8 @@ def verify_preparation_runtime(
             "provider_free_environment_contract_sha256"
         ],
         "runtime_contract_sha256": current["runtime_contract_sha256"],
-        "runtime_cache_contract_sha256": current[
-            "runtime_cache_contract_sha256"
-        ],
-        "starsim_smoke_contract_sha256": current[
-            "starsim_smoke_contract_sha256"
-        ],
+        "runtime_cache_contract_sha256": current["runtime_cache_contract_sha256"],
+        "starsim_smoke_contract_sha256": current["starsim_smoke_contract_sha256"],
         "episode_startup_smoke_contract_sha256": current[
             "episode_startup_smoke_contract_sha256"
         ],
@@ -5866,9 +5551,7 @@ def verify_preparation_runtime(
         ],
         "runtime_cache_contract": current_runtime_cache,
         "starsim_smoke_contract": current["starsim_smoke_contract"],
-        "episode_startup_smoke_contract": current[
-            "episode_startup_smoke_contract"
-        ],
+        "episode_startup_smoke_contract": current["episode_startup_smoke_contract"],
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
         "model_calls_started": 0,
@@ -5913,11 +5596,9 @@ def _validate_bound_preparation_runtime(
             "starsim_smoke_contract_sha256",
             "verified_benchmark_base_commit",
         }
-        or bound.get("schema_version")
-        != _BOUND_PREPARATION_RUNTIME_SCHEMA
+        or bound.get("schema_version") != _BOUND_PREPARATION_RUNTIME_SCHEMA
         or bound.get("panel_id") != PANEL_ID
-        or bound.get("required_starsim_version")
-        != REQUIRED_STARSIM_VERSION
+        or bound.get("required_starsim_version") != REQUIRED_STARSIM_VERSION
         or any(
             not _is_sha256(bound.get(name))
             for name in (
@@ -5932,14 +5613,12 @@ def _validate_bound_preparation_runtime(
                 "episode_startup_smoke_contract_sha256",
             )
         )
-        or bound.get("published_receipt_path")
-        != f"results/{PANEL_ID}.runtime.json"
+        or bound.get("published_receipt_path") != f"results/{PANEL_ID}.runtime.json"
         or any(
             not isinstance(bound.get(name), str)
             or len(str(bound[name])) != 40
             or any(
-                character not in "0123456789abcdef"
-                for character in str(bound[name])
+                character not in "0123456789abcdef" for character in str(bound[name])
             )
             for name in (
                 "published_benchmark_base_commit",
@@ -5953,9 +5632,7 @@ def _validate_bound_preparation_runtime(
         or bound.get("cli_contract_sha256")
         != _component_hash(public.get("cli_contract"))
         or bound.get("provider_free_environment_contract_sha256")
-        != _component_hash(
-            bound.get("provider_free_environment_contract")
-        )
+        != _component_hash(bound.get("provider_free_environment_contract"))
         or not _valid_provider_free_preparation_environment_contract(
             bound.get("provider_free_environment_contract")
         )
@@ -5964,16 +5641,13 @@ def _validate_bound_preparation_runtime(
         or bound.get("starsim_smoke_contract_sha256")
         != _component_hash(bound.get("starsim_smoke_contract"))
         or bound.get("episode_startup_smoke_contract_sha256")
-        != _component_hash(
-            bound.get("episode_startup_smoke_contract")
-        )
+        != _component_hash(bound.get("episode_startup_smoke_contract"))
         or not _valid_preparation_episode_startup_smoke(
             bound.get("episode_startup_smoke_contract")
         )
-        or bound.get("runtime_identity_sha256")
-        != _preparation_runtime_identity(bound)
+        or bound.get("runtime_identity_sha256") != _preparation_runtime_identity(bound)
     ):
-        raise ValueError("Bound V35 preparation runtime is invalid")
+        raise ValueError("Bound V48 preparation runtime is invalid")
 
     validated_preclaim: dict[str, Any] | None = None
     if provider_free_preclaim is not None:
@@ -5985,12 +5659,8 @@ def _validate_bound_preparation_runtime(
         )
         validated_preclaim = _validate_provider_free_preclaim(
             provider_free_preclaim,
-            public_precommitment_sha256=public.get(
-                "precommitment_sha256"
-            ),
-            preparation_runtime_contract_sha256=(
-                preparation_runtime_sha256
-            ),
+            public_precommitment_sha256=public.get("precommitment_sha256"),
+            preparation_runtime_contract_sha256=(preparation_runtime_sha256),
             required_status="passed",
         )
 
@@ -6003,7 +5673,7 @@ def _validate_bound_preparation_runtime(
     elif rerun_smoke and _preparation_runtime_smoke() != bound.get(
         "starsim_smoke_contract"
     ):
-        raise ValueError("Bound V35 Starsim smoke result changed")
+        raise ValueError("Bound V48 Starsim smoke result changed")
 
     record("preparation_runtime_episode_startup_smoke")
     if validated_preclaim is not None:
@@ -6011,12 +5681,10 @@ def _validate_bound_preparation_runtime(
             validated_preclaim,
             "preparation_runtime_episode_startup_smoke",
         )
-    elif (
-        rerun_smoke
-        and _preparation_episode_startup_smoke()
-        != bound.get("episode_startup_smoke_contract")
+    elif rerun_smoke and _preparation_episode_startup_smoke() != bound.get(
+        "episode_startup_smoke_contract"
     ):
-        raise ValueError("Bound V35 episode-startup smoke result changed")
+        raise ValueError("Bound V48 episode-startup smoke result changed")
 
     # Both smoke tests are allowed to populate deterministic caches.  Bind the
     # complete cache only afterwards so no mutation can occur beyond the sole
@@ -6031,10 +5699,8 @@ def _validate_bound_preparation_runtime(
         runtime_cache = _runtime_cache_contract(
             _runtime_cache_root_path_from_environment()
         )
-        if bound.get("runtime_cache_contract_sha256") != _component_hash(
-            runtime_cache
-        ):
-            raise ValueError("Bound V35 runtime cache changed")
+        if bound.get("runtime_cache_contract_sha256") != _component_hash(runtime_cache):
+            raise ValueError("Bound V48 runtime cache changed")
     return bound
 
 
@@ -6042,7 +5708,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     """Return the public, path-free next-run process-ownership contract."""
 
     return {
-        "schema_version": "epiagentbench.persistent_supervisor_contract.v20",
+        "schema_version": "epiagentbench.persistent_supervisor_contract.v24",
         "platform": "macos_user_launchagent",
         "sleep_inhibitor": "caffeinate_-dimsu",
         "job_policy": "finite_one_shot_no_unconditional_keepalive",
@@ -6053,12 +5719,8 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         "automatic_outer_crash_recovery": False,
         "handled_terminal_receipt_exit": {
             "exit_code": 64,
-            "child_gate": (
-                "exact_authenticated_private_candidate_and_public_receipt"
-            ),
-            "supervisor_failure_code": (
-                "runner_reserved_terminal_exit"
-            ),
+            "child_gate": ("exact_authenticated_private_candidate_and_public_receipt"),
+            "supervisor_failure_code": ("runner_reserved_terminal_exit"),
             "outer_worker_gate": (
                 "independent_provider_free_terminal_receipt_reattestation"
             ),
@@ -6070,17 +5732,13 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
                 "authenticated_private_incident_candidate_without_public_"
                 "receipt_attestation"
             ),
-            "supervisor_failure_code": (
-                "runner_reserved_terminal_audit_exit"
-            ),
+            "supervisor_failure_code": ("runner_reserved_terminal_audit_exit"),
             "outer_worker_gate": (
                 "credentials_removed_then_provider_free_reconciliation_"
                 "closed_terminal_audit_and_independent_exact_receipt_"
                 "reattestation"
             ),
-            "successful_outer_normalization": (
-                "handled_terminal_receipt_exit_64"
-            ),
+            "successful_outer_normalization": ("handled_terminal_receipt_exit_64"),
             "unexpected_or_failed_audit_policy": "terminal_ambiguity",
         },
         "provider_free_prelaunch_attestation": True,
@@ -6090,14 +5748,9 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "exact_prerequisite_bundle": [
                 "authenticated_live_supervisor_execution_binding",
                 "manifest_bound_spend_authorization",
-                (
-                    "canonical_published_authentication_receipt_and_"
-                    "repository_binding"
-                ),
+                ("canonical_published_authentication_receipt_and_repository_binding"),
             ],
-            "passed_trace": (
-                "durably_sealed_then_exactly_revalidated_before_claim"
-            ),
+            "passed_trace": ("durably_sealed_then_exactly_revalidated_before_claim"),
             "claim": (
                 "same_child_exact_bundle_reattestation_then_exactly_once_"
                 "reconciled_transition"
@@ -6109,30 +5762,20 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
                 "one_shot_lazy_keychain_read_after_reconciled_claim_on_"
                 "first_cursor_evaluator"
             ),
-            "cache": (
-                "same_supervised_child_memory_only_reused_across_cursor_calls"
-            ),
-            "environment_scope": (
-                "CURSOR_API_KEY_around_cursor_subprocess_only"
-            ),
-            "non_cursor_scope": (
-                "absent_during_starsim_broker_claude_and_codex"
-            ),
+            "cache": ("same_supervised_child_memory_only_reused_across_cursor_calls"),
+            "environment_scope": ("CURSOR_API_KEY_around_cursor_subprocess_only"),
+            "non_cursor_scope": ("absent_during_starsim_broker_claude_and_codex"),
             "final_wipe": (
                 "cached_value_and_CURSOR_API_KEY_in_outer_finally_on_every_exit"
             ),
         },
         "model_invocation_accounting": {
-            "readiness_phase": (
-                "non_model_cli_readiness_before_chargeable_boundary"
-            ),
+            "readiness_phase": ("non_model_cli_readiness_before_chargeable_boundary"),
             "chargeable_boundary": (
                 "authenticated_model_invocation_marker_immediately_before_popen"
             ),
             "marker_failure_policy": "popen_not_attempted",
-            "readiness_timeout_incident": (
-                "provider_cli_readiness_timeout"
-            ),
+            "readiness_timeout_incident": ("provider_cli_readiness_timeout"),
             "readiness_timeout_chargeable": False,
             "readiness_timeout_preflight_policy": "terminal_failure",
             "readiness_timeout_production_policy": (
@@ -6151,9 +5794,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "persistent_supervisor",
             "development_matched_panel",
         ],
-        "python_entrypoint": (
-            "content_digest_plus_private_symlink_inode_topology"
-        ),
+        "python_entrypoint": ("content_digest_plus_private_symlink_inode_topology"),
         "scientific_runtime_environment": (
             "manifest_bound_python_entrypoint_and_owner_only_cache_directories"
         ),
@@ -6180,23 +5821,16 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "authentication_domain": (
                 "epiagentbench:persistent-supervisor:identity:v3"
             ),
-            "darwin_boot_source": (
-                "in_process_sysctlbyname_kern.bootsessionuuid"
-            ),
-            "darwin_boot_normalization": (
-                "canonical_lowercase_nonzero_uuid"
-            ),
-            "darwin_process_birth_source": (
-                "in_process_proc_pidinfo_PROC_PIDTBSDINFO"
-            ),
+            "darwin_boot_source": ("in_process_sysctlbyname_kern.bootsessionuuid"),
+            "darwin_boot_normalization": ("canonical_lowercase_nonzero_uuid"),
+            "darwin_process_birth_source": ("in_process_proc_pidinfo_PROC_PIDTBSDINFO"),
             "darwin_process_birth_fields": [
                 "pbi_pid",
                 "pbi_start_tvsec",
                 "pbi_start_tvusec",
             ],
             "darwin_process_birth_normalization": (
-                "reported_pid_match_positive_seconds_and_bounded_"
-                "microseconds"
+                "reported_pid_match_positive_seconds_and_bounded_microseconds"
             ),
             "forbidden_sources_and_fallbacks": [
                 "formatted_kern.boottime",
@@ -6215,9 +5849,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
         },
         "live_attestation": {
             "failure_codes": sorted(_PERSISTENT_ATTESTATION_FAILURE_CODES),
-            "snapshot_attempts": (
-                len(_SNAPSHOT_ATTESTATION_RETRY_DELAYS_SECONDS) + 1
-            ),
+            "snapshot_attempts": (len(_SNAPSHOT_ATTESTATION_RETRY_DELAYS_SECONDS) + 1),
             "snapshot_deadline_milliseconds": int(
                 _SNAPSHOT_ATTESTATION_DEADLINE_SECONDS * 1000
             ),
@@ -6246,8 +5878,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "public_incident_projection": {
                 "incident_codes": sorted(_PROVIDER_INCIDENT_CODES),
                 "failure_stages": sorted(
-                    _PREFLIGHT_FAILURE_STAGES
-                    | _PRODUCTION_PUBLIC_FAILURE_STAGES
+                    _PREFLIGHT_FAILURE_STAGES | _PRODUCTION_PUBLIC_FAILURE_STAGES
                 ),
                 "attestation_failure_code": "allowlisted_when_present",
                 "provider_output": "forbidden",
@@ -6277,9 +5908,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
             "stable_owner_inode_mode_boundary_with_safe_owner_only_"
             "cache_content_evolution"
         ),
-        "release_worker_status_schema": (
-            "epiagentbench.launchd_worker_status.v6"
-        ),
+        "release_worker_status_schema": ("epiagentbench.launchd_worker_status.v6"),
         "release_failure_codes": [
             "release_candidate_invalid",
             "release_cohort_retirement_failed",
@@ -6300,9 +5929,7 @@ def _persistent_supervisor_contract() -> dict[str, Any]:
     }
 
 
-def _attest_execution_contracts(
-    *, root: Path, public: Mapping[str, Any]
-) -> None:
+def _attest_execution_contracts(*, root: Path, public: Mapping[str, Any]) -> None:
     """Revalidate only the public execution surfaces around a provider call."""
 
     try:
@@ -6380,9 +6007,7 @@ def _private_schedule(
             ]
     run_order = sorted(
         episodes,
-        key=lambda episode: _keyed(
-            nonce, "run-order", str(episode["pack_commitment"])
-        ),
+        key=lambda episode: _keyed(nonce, "run-order", str(episode["pack_commitment"])),
     )
     return [
         {
@@ -6407,9 +6032,7 @@ def _family_map(episodes: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
     ]
 
 
-def _family_map_commitment(
-    episodes: Sequence[Mapping[str, Any]], nonce: bytes
-) -> str:
+def _family_map_commitment(episodes: Sequence[Mapping[str, Any]], nonce: bytes) -> str:
     return _sha256(_FAMILY_MAP_DOMAIN + nonce + _canonical_bytes(_family_map(episodes)))
 
 
@@ -6497,12 +6120,9 @@ def _authentication_setup_contract(
     return {
         "schema_version": _AUTHENTICATION_SETUP_SCHEMA,
         "stage": (
-            "operator_owned_terminal_foreground_interactive_before_"
-            "one_shot_preflight"
+            "operator_owned_terminal_foreground_interactive_before_one_shot_preflight"
         ),
-        "public_receipt_file": _authentication_receipt_path(
-            public_manifest_path
-        ).name,
+        "public_receipt_file": _authentication_receipt_path(public_manifest_path).name,
         "providers": {
             "codex": {
                 "method": "pinned_cli_device_auth",
@@ -6557,20 +6177,16 @@ def _authentication_setup_contract(
             "terminal_reentry": "idempotent_without_private_state_write",
         },
         "authentication_dependency_identity": {
-            "prepare_time_contract": (
-                "fixed_root_owned_paths_and_dispatch_semantics"
-            ),
+            "prepare_time_contract": ("fixed_root_owned_paths_and_dispatch_semantics"),
             "exact_byte_identity_freeze": (
-                "consistently_sampled_and_bound_with_manifest_bound_"
-                "spend_authorization"
+                "consistently_sampled_and_bound_with_manifest_bound_spend_authorization"
             ),
             "public_commitment": (
                 "opaque_bundle_hash_in_authentication_receipt_before_preflight"
             ),
         },
         "retry_policy": (
-            "only_after_verified_process_group_quiescence_and_"
-            "unchanged_empty_target"
+            "only_after_verified_process_group_quiescence_and_unchanged_empty_target"
         ),
         "preflight_behavior": "attest_only_never_authenticate",
     }
@@ -6599,9 +6215,7 @@ def _private_state_storage_contract() -> dict[str, Any]:
 
 def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     per_call_ceiling = float(claude_max_budget_usd)
-    current_preflight_calls = sum(
-        profile["system"] == "claude" for profile in PROFILES
-    )
+    current_preflight_calls = sum(profile["system"] == "claude" for profile in PROFILES)
     current_production_calls = EPISODE_COUNT * current_preflight_calls
     current_ceiling = per_call_ceiling * (
         current_preflight_calls + current_production_calls
@@ -6610,17 +6224,13 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
     return {
         "claude_max_budget_usd_per_assignment": per_call_ceiling,
         "claude_max_budget_usd_per_call": per_call_ceiling,
-        "claude_current_v35_authorization_ceiling_usd": current_ceiling,
-        "claude_current_v35_authorization_breakdown": {
+        "claude_current_v48_authorization_ceiling_usd": current_ceiling,
+        "claude_current_v48_authorization_breakdown": {
             "preflight_calls": current_preflight_calls,
             "production_calls": current_production_calls,
             "per_call_ceiling_usd": per_call_ceiling,
-            "preflight_ceiling_usd": (
-                current_preflight_calls * per_call_ceiling
-            ),
-            "production_ceiling_usd": (
-                current_production_calls * per_call_ceiling
-            ),
+            "preflight_ceiling_usd": (current_preflight_calls * per_call_ceiling),
+            "production_ceiling_usd": (current_production_calls * per_call_ceiling),
         },
         "claude_prior_failed_panel_conservative_ceiling_usd": prior_ceiling,
         "claude_prior_failed_panel_breakdown": {
@@ -6657,6 +6267,10 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v32_usd": 0.0,
             "v33_usd": 0.0,
             "v34_usd": 0.0,
+            "v35_usd": 0.0,
+            "v40_usd": 0.0,
+            "v46_usd": 0.0,
+            "v47_usd": 0.0,
         },
         "claude_cumulative_authorization_ceiling_usd": (
             prior_ceiling + current_ceiling
@@ -6665,66 +6279,44 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v2_preflight_receipt": (
                 "results/development-matched-50x6-v2.preflight.json"
             ),
-            "v2_supersession": (
-                "results/development-matched-50x6-v2.superseded.json"
-            ),
-            "v5_supersession": (
-                "results/development-matched-50x6-v5.superseded.json"
-            ),
+            "v2_supersession": ("results/development-matched-50x6-v2.superseded.json"),
+            "v5_supersession": ("results/development-matched-50x6-v5.superseded.json"),
             "v5_preflight_receipt": (
                 "results/development-matched-50x6-v5.preflight.json"
             ),
-            "v6_supersession": (
-                "results/development-matched-50x6-v6.superseded.json"
-            ),
+            "v6_supersession": ("results/development-matched-50x6-v6.superseded.json"),
             "v6_preflight_receipt": (
                 "results/development-matched-50x6-v6.preflight.json"
             ),
             "v7_preflight_receipt": (
                 "results/development-matched-50x6-v7.preflight.json"
             ),
-            "v7_supersession": (
-                "results/development-matched-50x6-v7.superseded.json"
-            ),
+            "v7_supersession": ("results/development-matched-50x6-v7.superseded.json"),
             "v8_preflight_receipt": (
                 "results/development-matched-50x6-v8.preflight.json"
             ),
-            "v8_stopped_watermark": (
-                "results/development-matched-50x6-v8.json"
-            ),
-            "v8_supersession": (
-                "results/development-matched-50x6-v8.superseded.json"
-            ),
+            "v8_stopped_watermark": ("results/development-matched-50x6-v8.json"),
+            "v8_supersession": ("results/development-matched-50x6-v8.superseded.json"),
             "v9_preflight_receipt": (
                 "results/development-matched-50x6-v9.preflight.json"
             ),
-            "v9_stopped_watermark": (
-                "results/development-matched-50x6-v9.json"
-            ),
-            "v10_manifest": (
-                "results/development-matched-50x6-v10.manifest.json"
-            ),
+            "v9_stopped_watermark": ("results/development-matched-50x6-v9.json"),
+            "v10_manifest": ("results/development-matched-50x6-v10.manifest.json"),
             "v10_supersession": (
                 "results/development-matched-50x6-v10.superseded.json"
             ),
-            "v11_manifest": (
-                "results/development-matched-50x6-v11.manifest.json"
-            ),
+            "v11_manifest": ("results/development-matched-50x6-v11.manifest.json"),
             "v11_supersession": (
                 "results/development-matched-50x6-v11.superseded.json"
             ),
             "v12_supersession": (
                 "results/development-matched-50x6-v12.superseded.json"
             ),
-            "v13_manifest": (
-                "results/development-matched-50x6-v13.manifest.json"
-            ),
+            "v13_manifest": ("results/development-matched-50x6-v13.manifest.json"),
             "v13_supersession": (
                 "results/development-matched-50x6-v13.superseded.json"
             ),
-            "v14_manifest": (
-                "results/development-matched-50x6-v14.manifest.json"
-            ),
+            "v14_manifest": ("results/development-matched-50x6-v14.manifest.json"),
             "v14_authentication_receipt": (
                 "results/development-matched-50x6-v14.authentication.json"
             ),
@@ -6737,9 +6329,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v15_supersession": (
                 "results/development-matched-50x6-v15.superseded.json"
             ),
-            "v16_manifest": (
-                "results/development-matched-50x6-v16.manifest.json"
-            ),
+            "v16_manifest": ("results/development-matched-50x6-v16.manifest.json"),
             "v16_authentication_receipt": (
                 "results/development-matched-50x6-v16.authentication.json"
             ),
@@ -6752,9 +6342,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v17_runtime_receipt": (
                 "results/development-matched-50x6-v17.runtime.json"
             ),
-            "v17_manifest": (
-                "results/development-matched-50x6-v17.manifest.json"
-            ),
+            "v17_manifest": ("results/development-matched-50x6-v17.manifest.json"),
             "v17_authentication_receipt": (
                 "results/development-matched-50x6-v17.authentication.json"
             ),
@@ -6764,9 +6352,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v18_runtime_receipt": (
                 "results/development-matched-50x6-v18.runtime.json"
             ),
-            "v18_manifest": (
-                "results/development-matched-50x6-v18.manifest.json"
-            ),
+            "v18_manifest": ("results/development-matched-50x6-v18.manifest.json"),
             "v18_authentication_receipt": (
                 "results/development-matched-50x6-v18.authentication.json"
             ),
@@ -6779,18 +6365,14 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v19_runtime_receipt": (
                 "results/development-matched-50x6-v19.runtime.json"
             ),
-            "v19_manifest": (
-                "results/development-matched-50x6-v19.manifest.json"
-            ),
+            "v19_manifest": ("results/development-matched-50x6-v19.manifest.json"),
             "v19_supersession": (
                 "results/development-matched-50x6-v19.superseded.json"
             ),
             "v20_runtime_receipt": (
                 "results/development-matched-50x6-v20.runtime.json"
             ),
-            "v20_manifest": (
-                "results/development-matched-50x6-v20.manifest.json"
-            ),
+            "v20_manifest": ("results/development-matched-50x6-v20.manifest.json"),
             "v20_authentication_receipt": (
                 "results/development-matched-50x6-v20.authentication.json"
             ),
@@ -6803,9 +6385,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v21_runtime_receipt": (
                 "results/development-matched-50x6-v21.runtime.json"
             ),
-            "v21_manifest": (
-                "results/development-matched-50x6-v21.manifest.json"
-            ),
+            "v21_manifest": ("results/development-matched-50x6-v21.manifest.json"),
             "v21_authentication_receipt": (
                 "results/development-matched-50x6-v21.authentication.json"
             ),
@@ -6818,18 +6398,14 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v22_runtime_receipt": (
                 "results/development-matched-50x6-v22.runtime.json"
             ),
-            "v22_manifest": (
-                "results/development-matched-50x6-v22.manifest.json"
-            ),
+            "v22_manifest": ("results/development-matched-50x6-v22.manifest.json"),
             "v22_supersession": (
                 "results/development-matched-50x6-v22.superseded.json"
             ),
             "v23_runtime_receipt": (
                 "results/development-matched-50x6-v23.runtime.json"
             ),
-            "v23_manifest": (
-                "results/development-matched-50x6-v23.manifest.json"
-            ),
+            "v23_manifest": ("results/development-matched-50x6-v23.manifest.json"),
             "v23_authentication_receipt": (
                 "results/development-matched-50x6-v23.authentication.json"
             ),
@@ -6845,9 +6421,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v26_runtime_receipt": (
                 "results/development-matched-50x6-v26.runtime.json"
             ),
-            "v26_manifest": (
-                "results/development-matched-50x6-v26.manifest.json"
-            ),
+            "v26_manifest": ("results/development-matched-50x6-v26.manifest.json"),
             "v26_authentication_receipt": (
                 "results/development-matched-50x6-v26.authentication.json"
             ),
@@ -6857,9 +6431,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v27_runtime_receipt": (
                 "results/development-matched-50x6-v27.runtime.json"
             ),
-            "v27_manifest": (
-                "results/development-matched-50x6-v27.manifest.json"
-            ),
+            "v27_manifest": ("results/development-matched-50x6-v27.manifest.json"),
             "v27_authentication_receipt": (
                 "results/development-matched-50x6-v27.authentication.json"
             ),
@@ -6872,9 +6444,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v28_runtime_receipt": (
                 "results/development-matched-50x6-v28.runtime.json"
             ),
-            "v28_manifest": (
-                "results/development-matched-50x6-v28.manifest.json"
-            ),
+            "v28_manifest": ("results/development-matched-50x6-v28.manifest.json"),
             "v28_authentication_receipt": (
                 "results/development-matched-50x6-v28.authentication.json"
             ),
@@ -6884,9 +6454,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v29_runtime_receipt": (
                 "results/development-matched-50x6-v29.runtime.json"
             ),
-            "v29_manifest": (
-                "results/development-matched-50x6-v29.manifest.json"
-            ),
+            "v29_manifest": ("results/development-matched-50x6-v29.manifest.json"),
             "v29_authentication_receipt": (
                 "results/development-matched-50x6-v29.authentication.json"
             ),
@@ -6902,9 +6470,7 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             "v30_runtime_receipt": (
                 "results/development-matched-50x6-v30.runtime.json"
             ),
-            "v30_manifest": (
-                "results/development-matched-50x6-v30.manifest.json"
-            ),
+            "v30_manifest": ("results/development-matched-50x6-v30.manifest.json"),
             "v30_authentication_receipt": (
                 "results/development-matched-50x6-v30.authentication.json"
             ),
@@ -6922,6 +6488,18 @@ def _budget_contract(claude_max_budget_usd: float) -> dict[str, Any]:
             ),
             "v34_supersession": (
                 "results/development-matched-50x6-v34.superseded.json"
+            ),
+            "v35_supersession": (
+                "results/development-matched-50x6-v35.superseded.json"
+            ),
+            "v40_supersession": (
+                "results/development-matched-50x6-v40.superseded.json"
+            ),
+            "v46_supersession": (
+                "results/development-matched-50x6-v46.superseded.json"
+            ),
+            "v47_supersession": (
+                "results/development-matched-50x6-v47.superseded.json"
             ),
         },
         "ceiling_interpretation": (
@@ -6943,7 +6521,7 @@ def freeze_panel_cohort(
     output_directory: Path,
     freeze_claim_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Claim and freeze V35 exactly once after runtime re-attestation."""
+    """Claim and freeze V48 exactly once after runtime re-attestation."""
 
     verification = verify_preparation_runtime(
         root=root,
@@ -6951,9 +6529,7 @@ def freeze_panel_cohort(
         expected_benchmark_base_commit=expected_benchmark_base_commit,
         runtime_cache_dir=runtime_cache_dir,
     )
-    key_path = _existing_path_without_final_symlink(
-        authentication_key_file
-    )
+    key_path = _existing_path_without_final_symlink(authentication_key_file)
     authentication_key = _read_authentication_key(key_path)
     claim_path = _cohort_freeze_claim_path(key_path, freeze_claim_path)
     completion_path = _cohort_freeze_completion_path(claim_path)
@@ -6973,12 +6549,8 @@ def freeze_panel_cohort(
         ("cohort freeze completion", completion_path),
         ("cohort output", destination),
     ):
-        if _paths_overlap(
-            cache_root, candidate.expanduser().resolve(strict=False)
-        ):
-            raise ValueError(
-                f"V35 runtime cache must not overlap the {label}"
-            )
+        if _paths_overlap(cache_root, candidate.expanduser().resolve(strict=False)):
+            raise ValueError(f"V48 runtime cache must not overlap the {label}")
     claim = _create_pending_cohort_freeze_claim(
         claim_path=claim_path,
         runtime_verification=verification,
@@ -6998,13 +6570,13 @@ def freeze_panel_cohort(
         or frozen.public_descriptor.get("episode_count") != EPISODE_COUNT
         or frozen.public_descriptor.get("backend") != BACKEND
     ):
-        raise RuntimeError("Frozen V35 cohort returned an invalid public receipt")
+        raise RuntimeError("Frozen V48 cohort returned an invalid public receipt")
     if (
         frozen.cohort_directory != destination
         or frozen.manifest_path != destination / "cohort.manifest"
     ):
         raise RuntimeError(
-            "Frozen V35 cohort returned a noncanonical artifact location"
+            "Frozen V48 cohort returned a noncanonical artifact location"
         )
     manifest = PrivateEpisodeCohortManifest.read(
         frozen.manifest_path, authentication_key
@@ -7017,16 +6589,14 @@ def freeze_panel_cohort(
         authentication_key=authentication_key,
     )
     if completion["pack_set_commitment"] != manifest.pack_set_commitment:
-        raise RuntimeError("V35 cohort freeze completion commitment mismatch")
+        raise RuntimeError("V48 cohort freeze completion commitment mismatch")
     return {
-        "schema_version": "epiagentbench.v35_cohort_freeze.v2",
+        "schema_version": "epiagentbench.v48_cohort_freeze.v2",
         "panel_id": PANEL_ID,
         "status": "frozen_claim_completed",
         "backend": BACKEND,
         "episode_count": EPISODE_COUNT,
-        "runtime_identity_sha256": verification[
-            "runtime_identity_sha256"
-        ],
+        "runtime_identity_sha256": verification["runtime_identity_sha256"],
         "create_once_claim_status": "completed",
         "provider_processes_started": 0,
         "authentication_processes_started": 0,
@@ -7053,9 +6623,7 @@ def _prepare_panel_locked(
     """Prepare while the host-global panel lease is held."""
 
     _validate_schedule_design()
-    authentication_receipt_path = _authentication_receipt_path(
-        public_manifest_path
-    )
+    authentication_receipt_path = _authentication_receipt_path(public_manifest_path)
     if _git_output(root, "status", "--porcelain", "--untracked-files=all"):
         raise RuntimeError("Commit and clean the matched-panel harness before prepare")
     _assert_distinct_paths(
@@ -7078,13 +6646,13 @@ def _prepare_panel_locked(
     ):
         raise FileExistsError("Refusing to replace a matched-panel artifact")
     if type(timeout_seconds) is not int or timeout_seconds != 1800:
-        raise ValueError("V35 requires an exact 1800-second assignment timeout")
+        raise ValueError("V48 requires an exact 1800-second assignment timeout")
     if (
         isinstance(claude_max_budget_usd, bool)
         or not isinstance(claude_max_budget_usd, (int, float))
         or float(claude_max_budget_usd) != 5.0
     ):
-        raise ValueError("V35 requires an exact $5 Claude per-call ceiling")
+        raise ValueError("V48 requires an exact $5 Claude per-call ceiling")
 
     # Re-run the same public, provider-free preparation preflight before
     # touching the cohort, authentication key, or any private artifact.  This
@@ -7105,23 +6673,17 @@ def _prepare_panel_locked(
         ("private state", private_state_path),
         ("public manifest", public_manifest_path),
     ):
-        if _paths_overlap(
-            cache_root, candidate.expanduser().resolve(strict=False)
-        ):
-            raise ValueError(
-                f"V35 runtime cache must not overlap the {label}"
-            )
+        if _paths_overlap(cache_root, candidate.expanduser().resolve(strict=False)):
+            raise ValueError(f"V48 runtime cache must not overlap the {label}")
     profiles = _profile_contract()
     source = _source_contract(root)
     cli = _cli_contract()
     if (
-        _component_hash(source)
-        != runtime_verification["source_contract_sha256"]
-        or _component_hash(cli)
-        != runtime_verification["cli_contract_sha256"]
+        _component_hash(source) != runtime_verification["source_contract_sha256"]
+        or _component_hash(cli) != runtime_verification["cli_contract_sha256"]
     ):
         raise RuntimeError(
-            "V35 source or CLI identity drifted after runtime verification"
+            "V48 source or CLI identity drifted after runtime verification"
         )
 
     private_state_storage = _private_state_storage_binding(
@@ -7150,9 +6712,7 @@ def _prepare_panel_locked(
 
     key_path = _existing_path_without_final_symlink(authentication_key_file)
     key = _read_authentication_key(key_path)
-    resolved_freeze_claim_path = _cohort_freeze_claim_path(
-        key_path, freeze_claim_path
-    )
+    resolved_freeze_claim_path = _cohort_freeze_claim_path(key_path, freeze_claim_path)
     _assert_distinct_paths(
         cohort_manifest_path,
         preparation_runtime_receipt_path,
@@ -7171,28 +6731,18 @@ def _prepare_panel_locked(
             _cohort_freeze_completion_path(resolved_freeze_claim_path),
         ),
     ):
-        if _paths_overlap(
-            cache_root, candidate.expanduser().resolve(strict=False)
-        ):
-            raise ValueError(
-                f"V35 runtime cache must not overlap the {label}"
-            )
+        if _paths_overlap(cache_root, candidate.expanduser().resolve(strict=False)):
+            raise ValueError(f"V48 runtime cache must not overlap the {label}")
     manifest_path = _existing_path_without_final_symlink(cohort_manifest_path)
-    freeze_claim, freeze_completion = (
-        _require_completed_cohort_freeze_claim(
-            claim_path=resolved_freeze_claim_path,
-            manifest_path=manifest_path,
-            runtime_receipt_file_sha256=runtime_verification[
-                "published_receipt_file_sha256"
-            ],
-            runtime_identity_sha256=runtime_verification[
-                "runtime_identity_sha256"
-            ],
-            expected_benchmark_base_commit=(
-                expected_benchmark_base_commit
-            ),
-            authentication_key=key,
-        )
+    freeze_claim, freeze_completion = _require_completed_cohort_freeze_claim(
+        claim_path=resolved_freeze_claim_path,
+        manifest_path=manifest_path,
+        runtime_receipt_file_sha256=runtime_verification[
+            "published_receipt_file_sha256"
+        ],
+        runtime_identity_sha256=runtime_verification["runtime_identity_sha256"],
+        expected_benchmark_base_commit=(expected_benchmark_base_commit),
+        authentication_key=key,
     )
     if _cohort_retirement_if_present(manifest_path, key) is not None:
         raise ValueError("Frozen cohort is retired and cannot be prepared again")
@@ -7266,12 +6816,8 @@ def _prepare_panel_locked(
     preparation_runtime = {
         "schema_version": _BOUND_PREPARATION_RUNTIME_SCHEMA,
         "panel_id": PANEL_ID,
-        "required_starsim_version": runtime_verification[
-            "required_starsim_version"
-        ],
-        "published_receipt_path": runtime_verification[
-            "published_receipt_path"
-        ],
+        "required_starsim_version": runtime_verification["required_starsim_version"],
+        "published_receipt_path": runtime_verification["published_receipt_path"],
         "published_receipt_file_sha256": runtime_verification[
             "published_receipt_file_sha256"
         ],
@@ -7281,33 +6827,23 @@ def _prepare_panel_locked(
         "verified_benchmark_base_commit": runtime_verification[
             "verified_benchmark_base_commit"
         ],
-        "runtime_identity_sha256": runtime_verification[
-            "runtime_identity_sha256"
-        ],
-        "source_contract_sha256": runtime_verification[
-            "source_contract_sha256"
-        ],
-        "cli_contract_sha256": runtime_verification[
-            "cli_contract_sha256"
-        ],
+        "runtime_identity_sha256": runtime_verification["runtime_identity_sha256"],
+        "source_contract_sha256": runtime_verification["source_contract_sha256"],
+        "cli_contract_sha256": runtime_verification["cli_contract_sha256"],
         "provider_free_environment_contract_sha256": runtime_verification[
             "provider_free_environment_contract_sha256"
         ],
         "provider_free_environment_contract": runtime_verification[
             "provider_free_environment_contract"
         ],
-        "runtime_contract_sha256": runtime_verification[
-            "runtime_contract_sha256"
-        ],
+        "runtime_contract_sha256": runtime_verification["runtime_contract_sha256"],
         "runtime_cache_contract_sha256": runtime_verification[
             "runtime_cache_contract_sha256"
         ],
         "starsim_smoke_contract_sha256": runtime_verification[
             "starsim_smoke_contract_sha256"
         ],
-        "starsim_smoke_contract": runtime_verification[
-            "starsim_smoke_contract"
-        ],
+        "starsim_smoke_contract": runtime_verification["starsim_smoke_contract"],
         "episode_startup_smoke_contract_sha256": runtime_verification[
             "episode_startup_smoke_contract_sha256"
         ],
@@ -7376,9 +6912,7 @@ def _prepare_panel_locked(
             "budgets_sha256": _component_hash(budgets),
             "timeouts_sha256": _component_hash(timeouts),
             "runtime_sha256": _component_hash(runtime),
-            "preparation_runtime_sha256": _component_hash(
-                preparation_runtime
-            ),
+            "preparation_runtime_sha256": _component_hash(preparation_runtime),
             "replay_sha256": _component_hash(replay),
             "supervisor_sha256": _component_hash(supervisor),
         },
@@ -7638,12 +7172,8 @@ def _prepare_panel_locked(
             "required_contract_hashes": {
                 "source_sha256": public["contract_hashes"]["source_sha256"],
                 "cli_sha256": public["contract_hashes"]["cli_sha256"],
-                "claude_auth_sha256": public["contract_hashes"][
-                    "claude_auth_sha256"
-                ],
-                "codex_auth_sha256": public["contract_hashes"][
-                    "codex_auth_sha256"
-                ],
+                "claude_auth_sha256": public["contract_hashes"]["claude_auth_sha256"],
+                "codex_auth_sha256": public["contract_hashes"]["codex_auth_sha256"],
                 "profiles_sha256": public["contract_hashes"]["profiles_sha256"],
                 "budgets_sha256": public["contract_hashes"]["budgets_sha256"],
                 "timeouts_sha256": public["contract_hashes"]["timeouts_sha256"],
@@ -7652,15 +7182,11 @@ def _prepare_panel_locked(
                     "preparation_runtime_sha256"
                 ],
                 "replay_sha256": public["contract_hashes"]["replay_sha256"],
-                "supervisor_sha256": public["contract_hashes"][
-                    "supervisor_sha256"
-                ],
+                "supervisor_sha256": public["contract_hashes"]["supervisor_sha256"],
             },
         },
         "preparation_runtime_private_contract": {
-            "runtime_cache_contract": runtime_verification[
-                "runtime_cache_contract"
-            ],
+            "runtime_cache_contract": runtime_verification["runtime_cache_contract"],
         },
         "assignments": [],
     }
@@ -7715,12 +7241,8 @@ def prepare_panel(
         return _prepare_panel_locked(
             root=root,
             cohort_manifest_path=cohort_manifest_path,
-            preparation_runtime_receipt_path=(
-                preparation_runtime_receipt_path
-            ),
-            expected_benchmark_base_commit=(
-                expected_benchmark_base_commit
-            ),
+            preparation_runtime_receipt_path=(preparation_runtime_receipt_path),
+            expected_benchmark_base_commit=(expected_benchmark_base_commit),
             runtime_cache_dir=runtime_cache_dir,
             authentication_key_file=authentication_key_file,
             claude_secure_storage_dir=claude_secure_storage_dir,
@@ -7798,7 +7320,7 @@ def _validate_preparation_runtime_last(
         or _component_hash(private_contract.get("runtime_cache_contract"))
         != bound.get("runtime_cache_contract_sha256")
     ):
-        raise ValueError("Private V35 preparation runtime binding is invalid")
+        raise ValueError("Private V48 preparation runtime binding is invalid")
     runtime_cache_contract = private_contract.get("runtime_cache_contract")
     expected_environment = (
         runtime_cache_contract.get("environment")
@@ -7811,23 +7333,16 @@ def _validate_preparation_runtime_last(
             "preparation_runtime_private_cache_binding",
         )
     elif not revalidate_live_identity_contracts:
-        if (
-            not isinstance(expected_environment, Mapping)
-            or {
-                name: os.environ.get(name)
-                for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
-            }
-            != dict(expected_environment)
-        ):
+        if not isinstance(expected_environment, Mapping) or {
+            name: os.environ.get(name) for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        } != dict(expected_environment):
             raise ValueError("Post-start runtime cache environment changed")
         from .launchd_agent import _validate_runtime_cache_contract_safety
 
         try:
             _validate_runtime_cache_contract_safety(runtime_cache_contract)
         except ValueError:
-            raise ValueError(
-                "Post-start runtime cache safety changed"
-            ) from None
+            raise ValueError("Post-start runtime cache safety changed") from None
 
 
 def _validate_contracts(
@@ -7865,9 +7380,7 @@ def _validate_contracts(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
         or public["run_contract"].get("authentication_setup")
-        != _authentication_setup_contract(
-            Path(f"{PANEL_ID}.manifest.json")
-        )
+        != _authentication_setup_contract(Path(f"{PANEL_ID}.manifest.json"))
         or public["run_contract"].get("private_state_storage")
         != _private_state_storage_contract()
         or private.get("panel_id") != PANEL_ID
@@ -7962,9 +7475,7 @@ def _validate_contracts(
     if revalidate_live_identity_contracts:
         installed = compute_generator_fingerprint()
         if not hmac.compare_digest(installed, expected_generator):
-            raise ValueError(
-                "Installed generator differs from the frozen panel"
-            )
+            raise ValueError("Installed generator differs from the frozen panel")
     else:
         # The authenticated release worker is deliberately launched with
         # ``-I -S`` and therefore has no scientific distributions available
@@ -7978,40 +7489,30 @@ def _validate_contracts(
     manifest_path = _existing_path_without_final_symlink(
         str(private.get("cohort_manifest_path"))
     )
-    preparation_runtime_contract = public.get(
-        "preparation_runtime_contract"
-    )
+    preparation_runtime_contract = public.get("preparation_runtime_contract")
     if not isinstance(preparation_runtime_contract, Mapping):
-        raise ValueError("V35 preparation runtime contract is missing")
+        raise ValueError("V48 preparation runtime contract is missing")
     freeze_claim_path = Path(str(private.get("cohort_freeze_claim_path")))
-    freeze_claim, freeze_completion = (
-        _require_completed_cohort_freeze_claim(
-            claim_path=freeze_claim_path,
-            manifest_path=manifest_path,
-            runtime_receipt_file_sha256=str(
-                preparation_runtime_contract.get(
-                    "published_receipt_file_sha256"
-                )
-            ),
-            runtime_identity_sha256=str(
-                preparation_runtime_contract.get(
-                    "runtime_identity_sha256"
-                )
-            ),
-            expected_benchmark_base_commit=str(
-                preparation_runtime_contract.get(
-                    "verified_benchmark_base_commit"
-                )
-            ),
-            authentication_key=authentication_key,
-        )
+    freeze_claim, freeze_completion = _require_completed_cohort_freeze_claim(
+        claim_path=freeze_claim_path,
+        manifest_path=manifest_path,
+        runtime_receipt_file_sha256=str(
+            preparation_runtime_contract.get("published_receipt_file_sha256")
+        ),
+        runtime_identity_sha256=str(
+            preparation_runtime_contract.get("runtime_identity_sha256")
+        ),
+        expected_benchmark_base_commit=str(
+            preparation_runtime_contract.get("verified_benchmark_base_commit")
+        ),
+        authentication_key=authentication_key,
     )
     if (
         private.get("cohort_freeze_claim") != freeze_claim
         or private.get("cohort_freeze_completion") != freeze_completion
     ):
         raise ValueError(
-            "Authenticated V35 cohort freeze claim differs from private state"
+            "Authenticated V48 cohort freeze claim differs from private state"
         )
     record_operation("cohort_manifest")
     manifest = PrivateEpisodeCohortManifest.read(manifest_path, authentication_key)
@@ -8023,16 +7524,13 @@ def _validate_contracts(
         private.get("cohort_preparation_claim") != preparation_claim
         or preparation_claim.get("cohort_id") != manifest.cohort_id
         or preparation_claim.get("panel_id") != PANEL_ID
-        or preparation_claim.get("pack_set_commitment")
-        != manifest.pack_set_commitment
+        or preparation_claim.get("pack_set_commitment") != manifest.pack_set_commitment
         or preparation_claim.get("public_precommitment_sha256")
         != public.get("precommitment_sha256")
     ):
         raise ValueError("Cohort preparation claim differs from this panel")
     record_operation("cohort_retirement")
-    retirement = _cohort_retirement_if_present(
-        manifest_path, authentication_key
-    )
+    retirement = _cohort_retirement_if_present(manifest_path, authentication_key)
     if retirement is not None:
         if private.get("status") not in {
             "complete",
@@ -8048,8 +7546,7 @@ def _validate_contracts(
     if (
         manifest.cohort_id != COHORT_ID
         or manifest.generator_fingerprint != installed
-        or manifest.pack_set_commitment
-        != cohort_contract.get("pack_set_commitment")
+        or manifest.pack_set_commitment != cohort_contract.get("pack_set_commitment")
     ):
         raise ValueError("Frozen set no longer matches the public commitment")
     record_operation("episode_pack_integrity")
@@ -8096,7 +7593,9 @@ def _validate_contracts(
         or public.get("private_family_map_commitment")
         != _family_map_commitment(private_episodes, nonce)
     ):
-        raise ValueError("Private matched schedule or family map does not match its commitment")
+        raise ValueError(
+            "Private matched schedule or family map does not match its commitment"
+        )
     record_operation("assignment_state")
     expected_keys = _assignment_keys(schedule)
     assignments = private.get("assignments")
@@ -8116,12 +7615,8 @@ def _validate_contracts(
         if assignment.get("status") == "started" and index != len(assignments) - 1:
             raise ValueError("Only the final checkpoint may remain started")
         try:
-            model_invocation_state = _durable_model_invocation_state(
-                assignment
-            )
-            durable_pre_model_phase = _durable_pre_model_phase(
-                assignment
-            )
+            model_invocation_state = _durable_model_invocation_state(assignment)
+            durable_pre_model_phase = _durable_pre_model_phase(assignment)
         except RuntimeError as error:
             raise ValueError(
                 "Private assignment execution marker is invalid"
@@ -8130,15 +7625,11 @@ def _validate_contracts(
             assignment.get("status") == "complete"
             and model_invocation_state != "finished"
         ):
-            raise ValueError(
-                "Completed assignment lacks a finished model invocation"
-            )
+            raise ValueError("Completed assignment lacks a finished model invocation")
         projected_state = assignment.get("model_invocation_state")
         projected_chargeable = assignment.get("conservative_chargeable")
         projected_pre_model_phase = assignment.get("pre_model_phase")
-        failed_pre_model_phase = assignment.get(
-            "failed_pre_model_phase"
-        )
+        failed_pre_model_phase = assignment.get("failed_pre_model_phase")
         phase_projection_present = any(
             name in assignment
             for name in (
@@ -8148,12 +7639,10 @@ def _validate_contracts(
             )
         )
         if (
-            projected_state is not None
-            and projected_state != model_invocation_state
+            projected_state is not None and projected_state != model_invocation_state
         ) or (
             projected_chargeable is not None
-            and projected_chargeable
-            is not (model_invocation_state != "not_started")
+            and projected_chargeable is not (model_invocation_state != "not_started")
         ):
             raise ValueError(
                 "Private assignment model-invocation projection is invalid"
@@ -8170,16 +7659,12 @@ def _validate_contracts(
                 and failed_pre_model_phase is not None
             )
         ):
-            raise ValueError(
-                "Private assignment pre-model phase projection is invalid"
-            )
+            raise ValueError("Private assignment pre-model phase projection is invalid")
         if assignment.get("status") == "transport_void":
             void_reason = assignment.get("void_reason")
             timeout_stage = assignment.get("timeout_stage")
             failure_stage = assignment.get("failure_stage")
-            episode_startup_stage = assignment.get(
-                "episode_startup_stage"
-            )
+            episode_startup_stage = assignment.get("episode_startup_stage")
             if (
                 void_reason not in _PROVIDER_INCIDENT_CODES
                 or timeout_stage not in _TRANSPORT_VOID_TIMEOUT_STAGES
@@ -8188,8 +7673,7 @@ def _validate_contracts(
                     void_reason == "provider_episode_start_failed"
                     and (
                         not isinstance(episode_startup_stage, str)
-                        or episode_startup_stage
-                        not in TRUSTED_EVALUATOR_STARTUP_STAGES
+                        or episode_startup_stage not in TRUSTED_EVALUATOR_STARTUP_STAGES
                     )
                 )
                 or (
@@ -8197,9 +7681,7 @@ def _validate_contracts(
                     and episode_startup_stage is not None
                 )
             ):
-                raise ValueError(
-                    "Private transport-void projection is invalid"
-                )
+                raise ValueError("Private transport-void projection is invalid")
             readiness_timeout_claimed = (
                 void_reason == "provider_cli_readiness_timeout"
                 or timeout_stage == "provider_cli_readiness"
@@ -8218,30 +7700,24 @@ def _validate_contracts(
                 or (
                     phase_projection_present
                     and (
-                        projected_pre_model_phase
-                        != "provider_cli_readiness"
-                        or failed_pre_model_phase
-                        != "provider_cli_readiness"
+                        projected_pre_model_phase != "provider_cli_readiness"
+                        or failed_pre_model_phase != "provider_cli_readiness"
                     )
                 )
             ):
-                raise ValueError(
-                    "Private readiness-timeout projection is invalid"
-                )
+                raise ValueError("Private readiness-timeout projection is invalid")
             if (
                 not readiness_timeout_claimed
                 and failure_stage == "provider_cli_readiness"
-                and (
-                    timeout_stage is not None
-                    or assignment.get("timed_out") is True
-                )
+                and (timeout_stage is not None or assignment.get("timed_out") is True)
             ):
-                raise ValueError(
-                    "Private ordinary readiness projection is invalid"
-                )
+                raise ValueError("Private ordinary readiness projection is invalid")
     if private.get("status") in {"complete", _PENDING_PRODUCTION_STATUS} and (
         len(assignments) != ASSIGNMENT_COUNT
-        or any(item.get("status") not in {"complete", "transport_void"} for item in assignments)
+        or any(
+            item.get("status") not in {"complete", "transport_void"}
+            for item in assignments
+        )
     ):
         raise ValueError("Completed private state is not fully terminal")
     bindings = private.get(_PERSISTENT_EXECUTION_BINDINGS_KEY)
@@ -8252,8 +7728,7 @@ def _validate_contracts(
             or set(binding) != _SUPERVISOR_BINDING_FIELDS
             or binding.get("operation") != operation
             or binding.get("panel_id") != PANEL_ID
-            or binding.get("precommitment_sha256")
-            != public.get("precommitment_sha256")
+            or binding.get("precommitment_sha256") != public.get("precommitment_sha256")
             for operation, binding in bindings.items()
         ):
             raise ValueError("Private persistent-supervisor binding is invalid")
@@ -8267,9 +7742,7 @@ def _validate_contracts(
             else None
         )
         incident_code = (
-            incident.get("incident_code")
-            if isinstance(incident, dict)
-            else None
+            incident.get("incident_code") if isinstance(incident, dict) else None
         )
         ordinary_void = (
             isinstance(incident, dict)
@@ -8307,9 +7780,7 @@ def _validate_contracts(
             )
             or (
                 incident_name == "codex_auth_incident"
-                and not _codex_auth_incident_is_valid(
-                    incident, assignments
-                )
+                and not _codex_auth_incident_is_valid(incident, assignments)
             )
             or not (ordinary_void or supervisor_boundary)
         ):
@@ -8325,9 +7796,7 @@ def _validate_contracts(
     _validate_preparation_runtime_last(
         private=private,
         public=public,
-        revalidate_live_identity_contracts=(
-            revalidate_live_identity_contracts
-        ),
+        revalidate_live_identity_contracts=(revalidate_live_identity_contracts),
         provider_free_preclaim=provider_free_preclaim,
         record_operation=record_operation,
     )
@@ -8376,7 +7845,7 @@ def _expected_spend_authorization(
         or public["run_contract"].get("spend_authorization")
         != _spend_authorization_contract()
     ):
-        raise ValueError("V35 spend authorization contract mismatch")
+        raise ValueError("V48 spend authorization contract mismatch")
     unsigned = {
         "schema_version": _SPEND_AUTHORIZATION_SCHEMA,
         "status": "authorized",
@@ -8387,9 +7856,7 @@ def _expected_spend_authorization(
             frozen_glean_auth_dependency_identity_sha256
         ),
         "claude_cumulative_authorization_ceiling_usd": float(ceiling),
-        "unbounded_provider_spend": dict(
-            _UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION
-        ),
+        "unbounded_provider_spend": dict(_UNBOUNDED_PROVIDER_SPEND_AUTHORIZATION),
         "acknowledgement_text": REQUIRED_SPEND_ACKNOWLEDGEMENT,
         "acknowledgement_text_sha256": _sha256(
             REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
@@ -8404,29 +7871,25 @@ def _assert_spend_authorization(
     supplied = private.get("spend_authorization")
     if not isinstance(supplied, Mapping):
         raise RuntimeError(
-            "A manifest-bound exact v35 spend authorization receipt is required "
+            "A manifest-bound exact v48 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     try:
-        freeze = _authentication_dependency_freeze(
-            private, public, require_frozen=True
-        )
+        freeze = _authentication_dependency_freeze(private, public, require_frozen=True)
         expected = _expected_spend_authorization(
             public,
-            frozen_glean_auth_dependency_identity_sha256=str(
-                freeze["identity_sha256"]
-            ),
+            frozen_glean_auth_dependency_identity_sha256=str(freeze["identity_sha256"]),
         )
     except (RuntimeError, ValueError):
         raise RuntimeError(
-            "A manifest-bound exact v35 spend authorization receipt is required "
+            "A manifest-bound exact v48 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         ) from None
     if not hmac.compare_digest(
         _canonical_bytes(dict(supplied)), _canonical_bytes(expected)
     ):
         raise RuntimeError(
-            "A manifest-bound exact v35 spend authorization receipt is required "
+            "A manifest-bound exact v48 spend authorization receipt is required "
             "before any authentication bootstrap or model-bearing provider call"
         )
     return expected
@@ -8448,7 +7911,7 @@ def authorize_panel_spend(
         acknowledgement_text, REQUIRED_SPEND_ACKNOWLEDGEMENT
     ):
         raise RuntimeError(
-            "The exact v35 $670 cumulative spend acknowledgement text is required"
+            "The exact v48 $670 cumulative spend acknowledgement text is required"
         )
     assert_durable_live_execution_paths(
         root=root,
@@ -8490,9 +7953,7 @@ def authorize_panel_spend(
             codex_secure_storage_dir=resolved_codex_secure_storage_dir,
         )
         preflight = private.get("environment_preflight")
-        authentication_setup = _validate_authentication_setup_state(
-            private, public
-        )
+        authentication_setup = _validate_authentication_setup_state(private, public)
         if (
             private.get("status") != "prepared"
             or private.get("assignments") != []
@@ -8545,8 +8006,7 @@ def authorize_panel_spend(
         )
         if _load_json(public_manifest_path) != public:
             raise RuntimeError(
-                "Public matched-panel precommitment changed during spend "
-                "authorization"
+                "Public matched-panel precommitment changed during spend authorization"
             )
         if _current_glean_auth_dependency_identity() != frozen_identity:
             raise ProviderStateIsolationError(
@@ -8557,18 +8017,14 @@ def authorize_panel_spend(
             "status": "frozen",
             "panel_id": PANEL_ID,
             "public_precommitment_sha256": public["precommitment_sha256"],
-            "static_cli_contract_sha256": public["contract_hashes"][
-                "cli_sha256"
-            ],
+            "static_cli_contract_sha256": public["contract_hashes"]["cli_sha256"],
             "identity": frozen_identity,
             "identity_sha256": frozen_identity_sha256,
             "frozen_at_utc": _utc_now(),
         }
         expected = _expected_spend_authorization(
             public,
-            frozen_glean_auth_dependency_identity_sha256=(
-                frozen_identity_sha256
-            ),
+            frozen_glean_auth_dependency_identity_sha256=(frozen_identity_sha256),
         )
         private["spend_authorization"] = expected
         _write_private_state(private_state_path, private, authentication_key)
@@ -8598,9 +8054,7 @@ _AUTHENTICATION_CEREMONY_STATUSES = frozenset(
     {"required", "running", "retryable_failed", "terminal_failed", "passed"}
 )
 _AUTHENTICATION_TERMINAL_INCIDENTS = {
-    "execution_contract_attestation_failed": (
-        "execution_contract_before_provider"
-    ),
+    "execution_contract_attestation_failed": ("execution_contract_before_provider"),
     "frozen_authentication_dependency_attestation_failed": (
         "authentication_dependency_before_provider"
     ),
@@ -8608,18 +8062,13 @@ _AUTHENTICATION_TERMINAL_INCIDENTS = {
         "authorization_worktree_before_provider"
     ),
     "credential_integrity_failed": "credential_integrity_before_provider",
-    "interrupted_authentication_ceremony": (
-        "authentication_ceremony_reentry"
-    ),
-    "provider_authentication_terminal_failure": (
-        "provider_authentication"
-    ),
+    "interrupted_authentication_ceremony": ("authentication_ceremony_reentry"),
+    "provider_authentication_terminal_failure": ("provider_authentication"),
     "execution_contract_attestation_failed_after_provider_return": (
         "execution_contract_after_provider_return"
     ),
     (
-        "frozen_authentication_dependency_attestation_failed_after_"
-        "provider_return"
+        "frozen_authentication_dependency_attestation_failed_after_provider_return"
     ): "authentication_dependency_after_provider_return",
     "credential_integrity_failed_after_provider_return": (
         "credential_integrity_after_provider_return"
@@ -8761,9 +8210,7 @@ def _sanitized_authentication_dependency_projection(
 def _attest_frozen_glean_auth_dependencies(
     private: Mapping[str, Any], public: Mapping[str, Any]
 ) -> dict[str, Any]:
-    freeze = _authentication_dependency_freeze(
-        private, public, require_frozen=True
-    )
+    freeze = _authentication_dependency_freeze(private, public, require_frozen=True)
     current = _current_glean_auth_dependency_identity()
     if not hmac.compare_digest(
         _canonical_bytes(current),
@@ -8832,11 +8279,7 @@ def _validate_authentication_provider_attempt(attempt: Any) -> str:
         "finished_at_utc",
     }
     if any(
-        name in attempt
-        and (
-            not isinstance(attempt[name], str)
-            or not attempt[name]
-        )
+        name in attempt and (not isinstance(attempt[name], str) or not attempt[name])
         for name in timestamp_fields
     ):
         raise ValueError("Private provider authentication state is invalid")
@@ -8872,20 +8315,15 @@ def _validate_authentication_provider_attempt(attempt: Any) -> str:
     }
     if status in _AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES:
         if set(attempt) != active_key_sets[status]:
-            raise ValueError(
-                "Private provider authentication state is invalid"
-            )
+            raise ValueError("Private provider authentication state is invalid")
         return str(status)
 
     if status == "passed":
         if (
-            set(attempt)
-            != active_key_sets["returned"] | {"finished_at_utc"}
+            set(attempt) != active_key_sets["returned"] | {"finished_at_utc"}
             or attempt.get("returncode") != 0
         ):
-            raise ValueError(
-                "Private provider authentication state is invalid"
-            )
+            raise ValueError("Private provider authentication state is invalid")
         return str(status)
 
     keys = set(attempt)
@@ -8925,30 +8363,21 @@ def _validate_authentication_provider_attempt(attempt: Any) -> str:
     invocation = attempt.get("invocation")
     if status == "retryable_failed":
         if (
-            not marker_keys
-            and invocation != "not_launched"
-        ) or (
-            marker_keys
-            and "invocation" in attempt
-        ) or marker_keys == {"launch_pending_at_utc"}:
-            raise ValueError(
-                "Private provider authentication state is invalid"
-            )
+            (not marker_keys and invocation != "not_launched")
+            or (marker_keys and "invocation" in attempt)
+            or marker_keys == {"launch_pending_at_utc"}
+        ):
+            raise ValueError("Private provider authentication state is invalid")
     elif not marker_keys:
         if "invocation" not in attempt:
-            raise ValueError(
-                "Private provider authentication state is invalid"
-            )
+            raise ValueError("Private provider authentication state is invalid")
     elif invocation == "not_launched":
         raise ValueError("Private provider authentication state is invalid")
     elif (
         "invocation" in attempt
-        and invocation
-        not in _AUTHENTICATION_PROVIDER_INVOCATIONS - {"not_launched"}
+        and invocation not in _AUTHENTICATION_PROVIDER_INVOCATIONS - {"not_launched"}
     ):
-        raise ValueError(
-            "Private provider authentication state is invalid"
-        )
+        raise ValueError("Private provider authentication state is invalid")
     return str(status)
 
 
@@ -9009,22 +8438,18 @@ def _validate_authentication_setup_state(
                 }
                 or incident.get("schema_version")
                 != _AUTHENTICATION_TERMINAL_INCIDENT_SCHEMA
-                or incident.get("code")
-                not in _AUTHENTICATION_TERMINAL_INCIDENTS
+                or incident.get("code") not in _AUTHENTICATION_TERMINAL_INCIDENTS
                 or incident.get("stage")
                 != _AUTHENTICATION_TERMINAL_INCIDENTS[incident["code"]]
                 or type(incident.get("provider_processes_started")) is not int
                 or incident["provider_processes_started"] < 0
-                or type(incident.get("provider_process_starts_ambiguous"))
-                is not int
+                or type(incident.get("provider_process_starts_ambiguous")) is not int
                 or incident["provider_process_starts_ambiguous"] < 0
                 or incident.get("model_calls_started") != 0
                 or type(incident.get("model_calls_started")) is not int
                 or incident.get("retry_permitted") is not False
             ):
-                raise ValueError(
-                    "Private authentication terminal incident is invalid"
-                )
+                raise ValueError("Private authentication terminal incident is invalid")
         elif incident is not None:
             raise ValueError("Private authentication ceremony state is invalid")
     ceremony_status = ceremony["status"]
@@ -9036,9 +8461,7 @@ def _validate_authentication_setup_state(
         or ceremony["attempts"][-1].get("status") != ceremony_status
     ):
         raise ValueError("Private authentication ceremony state is invalid")
-    ceremony_statuses = [
-        str(attempt["status"]) for attempt in ceremony["attempts"]
-    ]
+    ceremony_statuses = [str(attempt["status"]) for attempt in ceremony["attempts"]]
     for index, status in enumerate(ceremony_statuses[:-1]):
         if status == "retryable_failed":
             continue
@@ -9048,9 +8471,7 @@ def _validate_authentication_setup_state(
             and ceremony_statuses[-1] == "terminal_failed"
         ):
             continue
-        raise ValueError(
-            "Private authentication ceremony history is invalid"
-        )
+        raise ValueError("Private authentication ceremony history is invalid")
     for provider in ("codex", "managed_glean"):
         value = setup.get(provider)
         if (
@@ -9061,8 +8482,7 @@ def _validate_authentication_setup_state(
             raise ValueError("Private provider authentication state is invalid")
         attempts = value["attempts"]
         statuses = [
-            _validate_authentication_provider_attempt(attempt)
-            for attempt in attempts
+            _validate_authentication_provider_attempt(attempt) for attempt in attempts
         ]
         for index, status in enumerate(statuses[:-1]):
             if status == "retryable_failed":
@@ -9072,44 +8492,32 @@ def _validate_authentication_setup_state(
                 and index == len(statuses) - 2
                 and statuses[-1] == "terminal_failed"
                 and attempts[-1].get("invocation")
-                in _AUTHENTICATION_PROVIDER_INVOCATIONS
-                - {"not_launched"}
+                in _AUTHENTICATION_PROVIDER_INVOCATIONS - {"not_launched"}
             ):
                 continue
-            raise ValueError(
-                "Private provider authentication history is invalid"
-            )
+            raise ValueError("Private provider authentication history is invalid")
         provider_status = value["status"]
         if provider_status == "required":
             if attempts:
-                raise ValueError(
-                    "Private provider authentication state is invalid"
-                )
+                raise ValueError("Private provider authentication state is invalid")
         elif (
             not attempts
             or attempts[-1].get("status") != provider_status
             and not (
                 provider_status == "running"
-                and statuses[-1]
-                in _AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES
+                and statuses[-1] in _AUTHENTICATION_ACTIVE_ATTEMPT_STATUSES
             )
         ):
-            raise ValueError(
-                "Private provider authentication state is invalid"
-            )
-    started_count, ambiguous_count = (
-        _authentication_provider_exposure_counts(setup)
-    )
+            raise ValueError("Private provider authentication state is invalid")
+    started_count, ambiguous_count = _authentication_provider_exposure_counts(setup)
     for attempt in ceremony["attempts"]:
         incident = attempt.get("incident")
         if incident is not None and (
             incident.get("provider_processes_started") != started_count
-            or incident.get("provider_process_starts_ambiguous")
-            != ambiguous_count
+            or incident.get("provider_process_starts_ambiguous") != ambiguous_count
         ):
             raise ValueError(
-                "Private authentication terminal incident accounting "
-                "is invalid"
+                "Private authentication terminal incident accounting is invalid"
             )
 
     overall = setup["status"]
@@ -9146,9 +8554,7 @@ def _validate_authentication_setup_state(
         "passed": {("passed", "passed")},
     }
     if provider_pair not in allowed_pairs[overall]:
-        raise ValueError(
-            "Private authentication setup state transition is invalid"
-        )
+        raise ValueError("Private authentication setup state transition is invalid")
     expected_ceremony_status = {
         "required": "required",
         "running": "running",
@@ -9158,9 +8564,7 @@ def _validate_authentication_setup_state(
         "passed": "passed",
     }[overall]
     if ceremony_status != expected_ceremony_status:
-        raise ValueError(
-            "Private authentication ceremony transition is invalid"
-        )
+        raise ValueError("Private authentication ceremony transition is invalid")
     return setup
 
 
@@ -9184,14 +8588,11 @@ def _require_completed_authentication_state(
             not isinstance(identity, Mapping)
             or set(identity) != {"device", "inode"}
             or any(
-                type(identity.get(name)) is not int
-                or int(identity[name]) < 0
+                type(identity.get(name)) is not int or int(identity[name]) < 0
                 for name in ("device", "inode")
             )
         ):
-            raise ValueError(
-                "Completed authentication credential identity is invalid"
-            )
+            raise ValueError("Completed authentication credential identity is invalid")
     return setup
 
 
@@ -9217,8 +8618,7 @@ def _validate_authentication_contracts(
         or public.get("results") != []
         or public.get("budget_contract") != _budget_contract(5.0)
         or not isinstance(run_contract, Mapping)
-        or run_contract.get("spend_authorization")
-        != _spend_authorization_contract()
+        or run_contract.get("spend_authorization") != _spend_authorization_contract()
         or run_contract.get("authentication_setup")
         != _authentication_setup_contract(public_manifest_path)
         or private.get("schema_version") != SCHEMA_VERSION
@@ -9278,14 +8678,10 @@ def _expected_authentication_receipt(
         "status": "passed",
         "development_only": True,
         "precommitment_sha256": public["precommitment_sha256"],
-        "authentication_contract_hashes": _authentication_contract_hashes(
-            public
-        ),
+        "authentication_contract_hashes": _authentication_contract_hashes(public),
         "spend_authorization_receipt_sha256": spend["receipt_sha256"],
         "authentication_dependency_identity": (
-            _sanitized_authentication_dependency_projection(
-                dependency_freeze
-            )
+            _sanitized_authentication_dependency_projection(dependency_freeze)
         ),
         "authentication_prerequisite": {
             "codex": "passed_before_preflight",
@@ -9339,12 +8735,9 @@ def _validate_public_authentication_receipt_semantics(
             "raw_provider_output_published",
             "raw_machine_paths_published",
         }
-        or dependency.get("schema_version")
-        != _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA
+        or dependency.get("schema_version") != _AUTHENTICATION_DEPENDENCY_FREEZE_SCHEMA
         or not _is_sha256(dependency.get("identity_sha256"))
-        or dependency.get(
-            "root_owned_single_link_regular_executable_policy_attested"
-        )
+        or dependency.get("root_owned_single_link_regular_executable_policy_attested")
         is not True
         or dependency.get("exact_bundle_identity_withheld") is not True
         or dependency.get("raw_provider_output_published") is not False
@@ -9364,12 +8757,8 @@ def _validate_public_authentication_receipt_semantics(
             "status": "passed",
             "development_only": True,
             "precommitment_sha256": public["precommitment_sha256"],
-            "authentication_contract_hashes": (
-                _authentication_contract_hashes(public)
-            ),
-            "spend_authorization_receipt_sha256": expected_spend[
-                "receipt_sha256"
-            ],
+            "authentication_contract_hashes": (_authentication_contract_hashes(public)),
+            "spend_authorization_receipt_sha256": expected_spend["receipt_sha256"],
             "authentication_dependency_identity": dict(dependency),
             "authentication_prerequisite": {
                 "codex": "passed_before_preflight",
@@ -9439,11 +8828,7 @@ def _authentication_status_payload(
     setup: Mapping[str, Any],
 ) -> dict[str, Any]:
     ceremony = setup.get("ceremony")
-    attempts = (
-        ceremony.get("attempts")
-        if isinstance(ceremony, Mapping)
-        else None
-    )
+    attempts = ceremony.get("attempts") if isinstance(ceremony, Mapping) else None
     terminal_incident = (
         attempts[-1].get("incident")
         if isinstance(attempts, list)
@@ -9476,8 +8861,7 @@ def _authentication_status_payload(
 def _require_operator_authentication_tty() -> None:
     streams = (sys.stdin, sys.stdout, sys.stderr)
     if any(
-        not callable(getattr(stream, "isatty", None))
-        or not stream.isatty()
+        not callable(getattr(stream, "isatty", None)) or not stream.isatty()
         for stream in streams
     ):
         raise RuntimeError(
@@ -9523,21 +8907,16 @@ def _claim_authentication_ceremony(
 ) -> None:
     setup = private["authentication_setup"]
     ceremony = setup["ceremony"]
-    if (
-        setup.get("status") not in {"required", "retryable_failed"}
-        or ceremony.get("status") not in {"required", "retryable_failed"}
-    ):
+    if setup.get("status") not in {"required", "retryable_failed"} or ceremony.get(
+        "status"
+    ) not in {"required", "retryable_failed"}:
         raise ProviderStateIsolationError(
             "Authentication ceremony state changed before claim"
         )
-    ceremony["attempts"].append(
-        {"status": "running", "claimed_at_utc": _utc_now()}
-    )
+    ceremony["attempts"].append({"status": "running", "claimed_at_utc": _utc_now()})
     ceremony["status"] = "running"
     setup["status"] = "running"
-    _write_private_state(
-        private_state_path, private, authentication_key
-    )
+    _write_private_state(private_state_path, private, authentication_key)
 
 
 def _finish_authentication_ceremony(
@@ -9567,9 +8946,7 @@ def _finish_authentication_ceremony(
     }
     ceremony["status"] = status
     if persist:
-        _write_private_state(
-            private_state_path, private, authentication_key
-        )
+        _write_private_state(private_state_path, private, authentication_key)
 
 
 def _terminalize_authentication_ceremony(
@@ -9590,17 +8967,13 @@ def _terminalize_authentication_ceremony(
     (
         provider_processes_started,
         provider_process_starts_ambiguous,
-    ) = _authentication_provider_exposure_counts(
-        setup
-    )
+    ) = _authentication_provider_exposure_counts(setup)
     incident = {
         "schema_version": _AUTHENTICATION_TERMINAL_INCIDENT_SCHEMA,
         "stage": stage,
         "code": code,
         "provider_processes_started": provider_processes_started,
-        "provider_process_starts_ambiguous": (
-            provider_process_starts_ambiguous
-        ),
+        "provider_process_starts_ambiguous": (provider_process_starts_ambiguous),
         "model_calls_started": 0,
         "retry_permitted": False,
     }
@@ -9627,9 +9000,7 @@ def _terminalize_authentication_ceremony(
     ceremony["status"] = "terminal_failed"
     setup["status"] = "terminal_failed"
     if persist:
-        _write_private_state(
-            private_state_path, private, authentication_key
-        )
+        _write_private_state(private_state_path, private, authentication_key)
 
 
 def _terminalize_authentication_incident(
@@ -9643,9 +9014,7 @@ def _terminalize_authentication_incident(
     incident_codes = {
         "interrupted_process_state": "interrupted_authentication_ceremony",
         "credential_integrity_incident": "credential_integrity_failed",
-        "execution_contract_incident": (
-            "execution_contract_attestation_failed"
-        ),
+        "execution_contract_incident": ("execution_contract_attestation_failed"),
         "authentication_dependency_incident": (
             "frozen_authentication_dependency_attestation_failed"
         ),
@@ -9688,9 +9057,7 @@ def _terminalize_authentication_incident(
                 }
             )
         state["status"] = "terminal_failed"
-    _write_private_state(
-        private_state_path, private, authentication_key
-    )
+    _write_private_state(private_state_path, private, authentication_key)
 
 
 def _persist_authentication_attempt(
@@ -9708,9 +9075,7 @@ def _persist_authentication_attempt(
     now = _utc_now()
     if action == "launch_pending":
         if state.get("status") not in {"required", "retryable_failed"}:
-            raise ProviderStateIsolationError(
-                "Authentication invocation state changed"
-            )
+            raise ProviderStateIsolationError("Authentication invocation state changed")
         attempts.append(
             {
                 "status": "launch_pending",
@@ -9721,19 +9086,12 @@ def _persist_authentication_attempt(
         setup["status"] = "running"
     else:
         if state.get("status") != "running" or not attempts:
-            raise ProviderStateIsolationError(
-                "Authentication invocation state changed"
-            )
+            raise ProviderStateIsolationError("Authentication invocation state changed")
         attempt = attempts[-1]
         if action == "started" and attempt.get("status") == "launch_pending":
             attempt.update({"status": "started", "started_at_utc": now})
-        elif (
-            action == "start_failed"
-            and attempt.get("status") == "launch_pending"
-        ):
-            attempt.update(
-                {"status": "start_failed", "start_failed_at_utc": now}
-            )
+        elif action == "start_failed" and attempt.get("status") == "launch_pending":
+            attempt.update({"status": "start_failed", "start_failed_at_utc": now})
         elif (
             action == "returned"
             and attempt.get("status") == "started"
@@ -9747,9 +9105,7 @@ def _persist_authentication_attempt(
                 }
             )
         else:
-            raise ProviderStateIsolationError(
-                "Authentication invocation state changed"
-            )
+            raise ProviderStateIsolationError("Authentication invocation state changed")
     try:
         _write_private_state(private_state_path, private, authentication_key)
     except Exception as error:
@@ -9773,9 +9129,7 @@ def _finish_authentication_provider_attempt(
     if status not in {"retryable_failed", "terminal_failed", "passed"}:
         raise ValueError("Invalid authentication attempt outcome")
     if terminal_code is not None and status != "terminal_failed":
-        raise ValueError(
-            "Authentication terminal code requires a terminal outcome"
-        )
+        raise ValueError("Authentication terminal code requires a terminal outcome")
     if (
         terminal_code is not None
         and terminal_code not in _AUTHENTICATION_TERMINAL_INCIDENTS
@@ -9799,8 +9153,7 @@ def _finish_authentication_provider_attempt(
         or type(active_attempt.get("returncode")) is not int
     ):
         raise ProviderStateIsolationError(
-            "Authentication provider passed without a durable successful "
-            "process return"
+            "Authentication provider passed without a durable successful process return"
         )
     if active_attempt is None:
         attempts.append(
@@ -9822,10 +9175,7 @@ def _finish_authentication_provider_attempt(
             private=private,
             private_state_path=private_state_path,
             authentication_key=authentication_key,
-            code=(
-                terminal_code
-                or "provider_authentication_terminal_failure"
-            ),
+            code=(terminal_code or "provider_authentication_terminal_failure"),
             persist=False,
         )
     elif status == "retryable_failed":
@@ -9838,8 +9188,7 @@ def _finish_authentication_provider_attempt(
             persist=False,
         )
     elif all(
-        setup[name].get("status") == "passed"
-        for name in ("codex", "managed_glean")
+        setup[name].get("status") == "passed" for name in ("codex", "managed_glean")
     ):
         setup["status"] = "pending_publication"
         _finish_authentication_ceremony(
@@ -9870,9 +9219,7 @@ def _publish_authentication_receipt(
         candidate = setup.get("pending_public_receipt")
         if candidate is None:
             setup["pending_public_receipt"] = expected
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
         elif candidate != expected:
             raise ProviderStateIsolationError(
                 "Authentication receipt publication state changed"
@@ -9882,18 +9229,14 @@ def _publish_authentication_receipt(
 
     if receipt_path.exists() or receipt_path.is_symlink():
         observed = _load_json(receipt_path)
-        _validate_authentication_receipt(
-            observed, private=private, public=public
-        )
+        _validate_authentication_receipt(observed, private=private, public=public)
     else:
         try:
             _create_public_json_once(receipt_path, expected)
         except FileExistsError:
             pass
         observed = _load_json(receipt_path)
-        _validate_authentication_receipt(
-            observed, private=private, public=public
-        )
+        _validate_authentication_receipt(observed, private=private, public=public)
     if setup.get("status") != "passed":
         setup.pop("pending_public_receipt", None)
         setup["status"] = "passed"
@@ -9935,16 +9278,12 @@ def _attest_authentication_credentials(
         identity = private.get("codex_auth_file_identity")
         if not isinstance(identity, Mapping):
             raise ValueError("Codex credential identity is unavailable")
-        _require_codex_auth_file_identity(
-            codex_secure_storage_dir, identity
-        )
+        _require_codex_auth_file_identity(codex_secure_storage_dir, identity)
     if glean_passed:
         identity = private.get("managed_glean_auth_file_identity")
         if not isinstance(identity, Mapping):
             raise ValueError("Managed Glean credential identity is unavailable")
-        _require_managed_glean_auth_file_identity(
-            claude_secure_storage_dir, identity
-        )
+        _require_managed_glean_auth_file_identity(claude_secure_storage_dir, identity)
 
 
 def authenticate_panel(
@@ -9963,7 +9302,7 @@ def authenticate_panel(
         raise RuntimeError(
             "Explicit acknowledgement of foreground interactive "
             "authentication is required"
-    )
+        )
     receipt_path = _authentication_receipt_path(public_manifest_path)
     _assert_distinct_paths(
         authentication_key_file,
@@ -9989,9 +9328,7 @@ def authenticate_panel(
         )
         _assert_spend_authorization(private, public)
         if setup.get("status") == "terminal_failed":
-            raise RuntimeError(
-                "This panel has a terminal authentication incident"
-            )
+            raise RuntimeError("This panel has a terminal authentication incident")
         if setup.get("status") in {"pending_publication", "passed"}:
             try:
                 resolved_claude = _validate_claude_secure_storage_dir(
@@ -10002,8 +9339,7 @@ def authenticate_panel(
                 )
                 if _paths_overlap(resolved_claude, resolved_codex):
                     raise ValueError(
-                        "Claude and Codex secure storage directories must "
-                        "not overlap"
+                        "Claude and Codex secure storage directories must not overlap"
                     )
                 setup = _validate_authentication_contracts(
                     root=root,
@@ -10030,7 +9366,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V35 panel cannot retry"
+                    "state; this V48 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -10043,7 +9379,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state; this V35 panel cannot retry"
+                    "state; this V48 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -10056,7 +9392,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state; this V35 panel cannot retry"
+                    "state; this V48 panel cannot retry"
                 ) from None
             if (
                 setup.get("status") == "pending_publication"
@@ -10078,7 +9414,7 @@ def authenticate_panel(
                     )
                     raise RuntimeError(
                         "Authentication entered a terminal "
-                        "repository-contract state; this V35 panel cannot retry"
+                        "repository-contract state; this V48 panel cannot retry"
                     ) from None
             _publish_authentication_receipt(
                 root=root,
@@ -10088,9 +9424,7 @@ def authenticate_panel(
                 public_manifest_path=public_manifest_path,
                 authentication_key=key,
             )
-            return _authentication_status_payload(
-                private["authentication_setup"]
-            )
+            return _authentication_status_payload(private["authentication_setup"])
         if setup.get("status") == "running":
             _terminalize_authentication_incident(
                 private=private,
@@ -10099,8 +9433,7 @@ def authenticate_panel(
                 incident="interrupted_process_state",
             )
             raise RuntimeError(
-                "Authentication process state is ambiguous; this V35 panel "
-                "cannot retry"
+                "Authentication process state is ambiguous; this V48 panel cannot retry"
             )
         if (
             private.get("status") != "prepared"
@@ -10130,7 +9463,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             resolved_claude = _validate_claude_secure_storage_dir(
@@ -10141,8 +9474,7 @@ def authenticate_panel(
             )
             if _paths_overlap(resolved_claude, resolved_codex):
                 raise ValueError(
-                    "Claude and Codex secure storage directories must not "
-                    "overlap"
+                    "Claude and Codex secure storage directories must not overlap"
                 )
             setup = _validate_authentication_contracts(
                 root=root,
@@ -10162,7 +9494,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V35 panel cannot retry"
+                "state; this V48 panel cannot retry"
             ) from None
         try:
             _attest_execution_contracts(root=root, public=public)
@@ -10175,7 +9507,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -10188,7 +9520,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -10205,7 +9537,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -10224,7 +9556,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V35 panel cannot retry"
+                "state; this V48 panel cannot retry"
             ) from None
         timeout = int(public["timeout_contract"]["seconds_per_assignment"])
         providers = (
@@ -10232,46 +9564,34 @@ def authenticate_panel(
                 "codex",
                 lambda: _bootstrap_codex_credentials(
                     resolved_codex,
-                    executable=str(
-                        _PROFILE_BY_ID["codex-sol"]["executable"]
-                    ),
+                    executable=str(_PROFILE_BY_ID["codex-sol"]["executable"]),
                     expected_provider_cli_identity=(
                         _expected_provider_cli_identity(
                             public,
-                            str(
-                                _PROFILE_BY_ID["codex-sol"][
-                                    "executable"
-                                ]
-                            ),
+                            str(_PROFILE_BY_ID["codex-sol"]["executable"]),
                         )
                     ),
                     timeout_seconds=timeout,
-                    invocation_launch_pending=lambda: (
-                        _persist_authentication_attempt(
-                            private=private,
-                            provider="codex",
-                            private_state_path=private_state_path,
-                            authentication_key=key,
-                            action="launch_pending",
-                        )
+                    invocation_launch_pending=lambda: _persist_authentication_attempt(
+                        private=private,
+                        provider="codex",
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        action="launch_pending",
                     ),
-                    invocation_started=lambda: (
-                        _persist_authentication_attempt(
-                            private=private,
-                            provider="codex",
-                            private_state_path=private_state_path,
-                            authentication_key=key,
-                            action="started",
-                        )
+                    invocation_started=lambda: _persist_authentication_attempt(
+                        private=private,
+                        provider="codex",
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        action="started",
                     ),
-                    invocation_start_failed=lambda: (
-                        _persist_authentication_attempt(
-                            private=private,
-                            provider="codex",
-                            private_state_path=private_state_path,
-                            authentication_key=key,
-                            action="start_failed",
-                        )
+                    invocation_start_failed=lambda: _persist_authentication_attempt(
+                        private=private,
+                        provider="codex",
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        action="start_failed",
                     ),
                     invocation_returned=lambda returncode: (
                         _persist_authentication_attempt(
@@ -10291,32 +9611,26 @@ def authenticate_panel(
                     resolved_claude,
                     oauth_client_id=_glean_claude_oauth_client_id(),
                     timeout_seconds=timeout,
-                    invocation_launch_pending=lambda: (
-                        _persist_authentication_attempt(
-                            private=private,
-                            provider="managed_glean",
-                            private_state_path=private_state_path,
-                            authentication_key=key,
-                            action="launch_pending",
-                        )
+                    invocation_launch_pending=lambda: _persist_authentication_attempt(
+                        private=private,
+                        provider="managed_glean",
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        action="launch_pending",
                     ),
-                    invocation_started=lambda: (
-                        _persist_authentication_attempt(
-                            private=private,
-                            provider="managed_glean",
-                            private_state_path=private_state_path,
-                            authentication_key=key,
-                            action="started",
-                        )
+                    invocation_started=lambda: _persist_authentication_attempt(
+                        private=private,
+                        provider="managed_glean",
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        action="started",
                     ),
-                    invocation_start_failed=lambda: (
-                        _persist_authentication_attempt(
-                            private=private,
-                            provider="managed_glean",
-                            private_state_path=private_state_path,
-                            authentication_key=key,
-                            action="start_failed",
-                        )
+                    invocation_start_failed=lambda: _persist_authentication_attempt(
+                        private=private,
+                        provider="managed_glean",
+                        private_state_path=private_state_path,
+                        authentication_key=key,
+                        action="start_failed",
                     ),
                     invocation_returned=lambda returncode: (
                         _persist_authentication_attempt(
@@ -10346,7 +9660,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state before provider launch; this V35 panel cannot retry"
+                    "state before provider launch; this V48 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -10355,13 +9669,11 @@ def authenticate_panel(
                     private=private,
                     private_state_path=private_state_path,
                     authentication_key=key,
-                    code=(
-                        "frozen_authentication_dependency_attestation_failed"
-                    ),
+                    code=("frozen_authentication_dependency_attestation_failed"),
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state before provider launch; this V35 panel cannot retry"
+                    "state before provider launch; this V48 panel cannot retry"
                 ) from None
             try:
                 _assert_authorization_worktree(
@@ -10378,7 +9690,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal repository-contract "
-                    "state before provider launch; this V35 panel cannot retry"
+                    "state before provider launch; this V48 panel cannot retry"
                 ) from None
             try:
                 _attest_authentication_credentials(
@@ -10397,7 +9709,7 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state; this V35 panel cannot retry"
+                    "state; this V48 panel cannot retry"
                 ) from None
             try:
                 bootstrap()
@@ -10414,8 +9726,7 @@ def authenticate_panel(
                 provider_attempts = setup[provider]["attempts"]
                 launch_state_ambiguous = bool(
                     provider_attempts
-                    and provider_attempts[-1].get("status")
-                    == "launch_pending"
+                    and provider_attempts[-1].get("status") == "launch_pending"
                 )
                 retryable = (
                     not isinstance(error, ProviderExecutionIsolationError)
@@ -10431,11 +9742,7 @@ def authenticate_panel(
                 _finish_authentication_provider_attempt(
                     private=private,
                     provider=provider,
-                    status=(
-                        "retryable_failed"
-                        if retryable
-                        else "terminal_failed"
-                    ),
+                    status=("retryable_failed" if retryable else "terminal_failed"),
                     private_state_path=private_state_path,
                     authentication_key=key,
                 )
@@ -10445,7 +9752,7 @@ def authenticate_panel(
                     )
                 raise RuntimeError(
                     "Authentication entered a terminal ambiguous state; this "
-                    "V35 panel cannot retry"
+                    "V48 panel cannot retry"
                 ) from None
             try:
                 _attest_execution_contracts(root=root, public=public)
@@ -10457,13 +9764,12 @@ def authenticate_panel(
                     private_state_path=private_state_path,
                     authentication_key=key,
                     terminal_code=(
-                        "execution_contract_attestation_failed_after_"
-                        "provider_return"
+                        "execution_contract_attestation_failed_after_provider_return"
                     ),
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal execution-contract "
-                    "state after provider return; this V35 panel cannot retry"
+                    "state after provider return; this V48 panel cannot retry"
                 ) from None
             try:
                 _attest_frozen_glean_auth_dependencies(private, public)
@@ -10481,28 +9787,24 @@ def authenticate_panel(
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal dependency-contract "
-                    "state after provider return; this V35 panel cannot retry"
+                    "state after provider return; this V48 panel cannot retry"
                 ) from None
             try:
                 if provider == "codex":
                     _require_codex_credential_state(
                         resolved_codex,
                         root=root,
-                        expected_identity=_private_codex_storage_identity(
-                            private
-                        ),
+                        expected_identity=_private_codex_storage_identity(private),
                         credentials_present=True,
                     )
-                    private["codex_auth_file_identity"] = (
-                        _codex_auth_file_identity(resolved_codex)
+                    private["codex_auth_file_identity"] = _codex_auth_file_identity(
+                        resolved_codex
                     )
                 else:
                     _require_claude_credential_state(
                         resolved_claude,
                         root=root,
-                        expected_identity=_private_claude_storage_identity(
-                            private
-                        ),
+                        expected_identity=_private_claude_storage_identity(private),
                         managed_glean_credentials_present=True,
                     )
                     private["managed_glean_auth_file_identity"] = (
@@ -10515,13 +9817,11 @@ def authenticate_panel(
                     status="terminal_failed",
                     private_state_path=private_state_path,
                     authentication_key=key,
-                    terminal_code=(
-                        "credential_integrity_failed_after_provider_return"
-                    ),
+                    terminal_code=("credential_integrity_failed_after_provider_return"),
                 )
                 raise RuntimeError(
                     "Authentication entered a terminal credential-integrity "
-                    "state after provider return; this V35 panel cannot retry"
+                    "state after provider return; this V48 panel cannot retry"
                 ) from None
             try:
                 _finish_authentication_provider_attempt(
@@ -10543,7 +9843,7 @@ def authenticate_panel(
                     pass
                 raise RuntimeError(
                     "Authentication provider completion state is ambiguous; "
-                    "this V35 panel cannot retry"
+                    "this V48 panel cannot retry"
                 ) from None
 
         try:
@@ -10557,7 +9857,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal execution-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             _attest_frozen_glean_auth_dependencies(private, public)
@@ -10570,7 +9870,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal dependency-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             _assert_authorization_worktree(
@@ -10587,7 +9887,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal repository-contract state; "
-                "this V35 panel cannot retry"
+                "this V48 panel cannot retry"
             ) from None
         try:
             _attest_authentication_credentials(
@@ -10606,7 +9906,7 @@ def authenticate_panel(
             )
             raise RuntimeError(
                 "Authentication entered a terminal credential-integrity "
-                "state; this V35 panel cannot retry"
+                "state; this V48 panel cannot retry"
             ) from None
         _publish_authentication_receipt(
             root=root,
@@ -10616,9 +9916,7 @@ def authenticate_panel(
             public_manifest_path=public_manifest_path,
             authentication_key=key,
         )
-        return _authentication_status_payload(
-            private["authentication_setup"]
-        )
+        return _authentication_status_payload(private["authentication_setup"])
 
 
 def panel_authentication_status(
@@ -10682,12 +9980,8 @@ def panel_authentication_status(
             }
             return terminal
         if setup.get("status") == "passed":
-            receipt = _load_json(
-                _authentication_receipt_path(public_manifest_path)
-            )
-            _validate_authentication_receipt(
-                receipt, private=private, public=public
-            )
+            receipt = _load_json(_authentication_receipt_path(public_manifest_path))
+            _validate_authentication_receipt(receipt, private=private, public=public)
         return _authentication_status_payload(setup)
 
 
@@ -10747,9 +10041,7 @@ def reconcile_authentication_ceremony(
             authentication_key=key,
             incident="interrupted_process_state",
         )
-        return _authentication_status_payload(
-            private["authentication_setup"]
-        )
+        return _authentication_status_payload(private["authentication_setup"])
 
 
 def assert_panel_authentication_ready(
@@ -10802,9 +10094,7 @@ def assert_panel_authentication_ready(
     )
     receipt_path = _authentication_receipt_path(public_manifest_path)
     receipt = _load_json(receipt_path)
-    _validate_authentication_receipt(
-        receipt, private=private, public=public
-    )
+    _validate_authentication_receipt(receipt, private=private, public=public)
     if setup.get("public_receipt_sha256") != receipt.get("receipt_sha256"):
         raise RuntimeError("Authentication receipt binding changed")
     _validate_repository_receipt_binding(
@@ -10824,9 +10114,7 @@ def assert_panel_authentication_ready(
         )
         receipt_relative = _relative_to_root(receipt_path, root)
         if (
-            _git_output(
-                root, "ls-files", "--error-unmatch", receipt_relative
-            )
+            _git_output(root, "ls-files", "--error-unmatch", receipt_relative)
             != receipt_relative
         ):
             raise RuntimeError(
@@ -10881,12 +10169,8 @@ def bind_panel_receipt_commit(
         )
         _assert_spend_authorization(private, public)
         if setup.get("status") != "passed":
-            raise RuntimeError(
-                "Authentication receipt must pass before commit binding"
-            )
-        authentication_receipt_path = _authentication_receipt_path(
-            public_manifest_path
-        )
+            raise RuntimeError("Authentication receipt must pass before commit binding")
+        authentication_receipt_path = _authentication_receipt_path(public_manifest_path)
         authentication_receipt = _load_json(authentication_receipt_path)
         _validate_authentication_receipt(
             authentication_receipt, private=private, public=public
@@ -10941,23 +10225,17 @@ def bind_panel_receipt_commit(
         )
         relative = str(binding["repository_relative_path"])
         if (
-            _git_output(root, "ls-files", "--error-unmatch", relative)
-            != relative
-            or _git_blob_sha256(root, head, relative)
-            != binding["file_sha256"]
+            _git_output(root, "ls-files", "--error-unmatch", relative) != relative
+            or _git_blob_sha256(root, head, relative) != binding["file_sha256"]
         ):
-            raise RuntimeError(
-                "Public receipt must be committed with its exact bytes"
-            )
+            raise RuntimeError("Public receipt must be committed with its exact bytes")
         existing_commit = binding.get("published_commit")
         if existing_commit is None:
             state["public_receipt_binding"] = {
                 **binding,
                 "published_commit": head,
             }
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
             published_commit = head
         else:
             _validate_repository_receipt_binding(
@@ -11028,13 +10306,12 @@ class _PreflightControlBoundaryError(RuntimeError):
             raise ValueError("Completed preflight control operation is invalid")
         if (
             contract_failure_code is not None
-            and contract_failure_code
-            not in _CONTRACT_ATTESTATION_FAILURE_CODES
+            and contract_failure_code not in _CONTRACT_ATTESTATION_FAILURE_CODES
         ):
             raise ValueError("Contract-attestation failure code is invalid")
-        if (
-            incident_code == "contract_attestation_failed"
-        ) != (contract_failure_code is not None):
+        if (incident_code == "contract_attestation_failed") != (
+            contract_failure_code is not None
+        ):
             raise ValueError("Contract-attestation failure projection is invalid")
         super().__init__("Preflight control boundary failed")
         self.incident_code = incident_code
@@ -11047,18 +10324,14 @@ class _PreclaimStorageAmbiguityError(RuntimeError):
     """The authenticated checkpoint cannot prove prior or next state."""
 
     def __init__(self) -> None:
-        super().__init__(
-            "Provider-free preclaim storage state is ambiguous"
-        )
+        super().__init__("Provider-free preclaim storage state is ambiguous")
 
 
 class _PreclaimTransitionNotCommittedError(RuntimeError):
     """A terminal transition was proven not committed and is not retried."""
 
     def __init__(self) -> None:
-        super().__init__(
-            "Provider-free preclaim terminal transition was not committed"
-        )
+        super().__init__("Provider-free preclaim terminal transition was not committed")
 
 
 class _DeferredCursorCredentialError(ProviderEnvironmentSetupError):
@@ -11100,11 +10373,7 @@ class _DeferredCursorCredentialSession:
                 raise _DeferredCursorCredentialError(
                     "Deferred Cursor credential retrieval failed"
                 ) from None
-            if (
-                not isinstance(loaded, str)
-                or not loaded.strip()
-                or "\x00" in loaded
-            ):
+            if not isinstance(loaded, str) or not loaded.strip() or "\x00" in loaded:
                 raise _DeferredCursorCredentialError(
                     "Deferred Cursor credential retrieval failed"
                 )
@@ -11213,9 +10482,7 @@ def _run_preflight_contract_attestation_boundary(
 
     def record_operation(operation: str) -> None:
         nonlocal attempted_operation, completed_operation
-        invalid_operation = (
-            operation not in _CONTRACT_ATTESTATION_OPERATION_SET
-        )
+        invalid_operation = operation not in _CONTRACT_ATTESTATION_OPERATION_SET
         if invalid_operation:
             operation = "contract_internal"
         if attempted_operation in _CONTRACT_ATTESTATION_OPERATION_SET:
@@ -11243,9 +10510,7 @@ def _run_preflight_contract_attestation_boundary(
     except BaseException:
         if attempted_operation not in _CONTRACT_ATTESTATION_OPERATION_SET:
             attempted_operation = "contract_internal"
-        failure_code = _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
-            attempted_operation
-        ]
+        failure_code = _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[attempted_operation]
         error = boundary_error(
             "contract_attestation_failed",
             attempted=attempted_operation,
@@ -11343,16 +10608,13 @@ def _validate_preflight_incident_envelope(
     finished_at = value.get("finished_at_utc")
     profiles_recorded = value.get("profiles_recorded")
     profiles_terminal = value.get("profiles_terminal")
-    chargeable = value.get(
-        "model_invocations_conservatively_chargeable"
-    )
+    chargeable = value.get("model_invocations_conservatively_chargeable")
     incident_code = value.get("incident_code")
     attempted_operation = value.get("attempted_operation")
     completed_operation = value.get("completed_operation")
     contract_failure_code = value.get("contract_failure_code")
     if (
-        value.get("schema_version")
-        != _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA
+        value.get("schema_version") != _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA
         or status not in {"active", "terminal", "complete"}
         or phase not in _PREFLIGHT_INCIDENT_PHASE_SET
         or not isinstance(history, list)
@@ -11378,26 +10640,21 @@ def _validate_preflight_incident_envelope(
         )
         or (
             contract_failure_code is not None
-            and contract_failure_code
-            not in _CONTRACT_ATTESTATION_FAILURE_CODES
+            and contract_failure_code not in _CONTRACT_ATTESTATION_FAILURE_CODES
         )
         or (
             contract_failure_code is not None
             and (
-                attempted_operation
-                not in _CONTRACT_ATTESTATION_OPERATION_SET
+                attempted_operation not in _CONTRACT_ATTESTATION_OPERATION_SET
                 or contract_failure_code
-                != _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
-                    attempted_operation
-                ]
+                != _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[attempted_operation]
             )
         )
         or (
             status == "active"
             and (
                 finished_at is not None
-                or incident_code
-                not in {None, *_PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES}
+                or incident_code not in {None, *_PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES}
             )
         )
         or (
@@ -11432,8 +10689,7 @@ def _validate_preflight_incident_envelope(
         or (
             incident_code == "control_phase_checkpoint_persist_failed"
             and (
-                attempted_operation
-                != "one_shot_state_validation_checkpoint"
+                attempted_operation != "one_shot_state_validation_checkpoint"
                 or completed_operation != "contract_attestation"
             )
         )
@@ -11452,9 +10708,7 @@ def _preflight_terminal_attempt_count(
         "skipped_dependency",
         "terminal_abort",
     }
-    return sum(
-        1 for attempt in attempts if attempt.get("status") in terminal_statuses
-    )
+    return sum(1 for attempt in attempts if attempt.get("status") in terminal_statuses)
 
 
 def _advance_preflight_incident_envelope(
@@ -11472,13 +10726,8 @@ def _advance_preflight_incident_envelope(
         raise ValueError("Preflight incident phase is invalid")
     if status not in {"active", "terminal", "complete"}:
         raise ValueError("Preflight incident status is invalid")
-    envelope = _validate_preflight_incident_envelope(
-        preflight.get("incident_envelope")
-    )
-    if (
-        incident_code is not None
-        and incident_code not in _PROVIDER_INCIDENT_CODES
-    ):
+    envelope = _validate_preflight_incident_envelope(preflight.get("incident_envelope"))
+    if incident_code is not None and incident_code not in _PROVIDER_INCIDENT_CODES:
         raise ValueError("Preflight incident code is invalid")
     if (
         attempted_operation is not None
@@ -11519,14 +10768,10 @@ def _advance_preflight_incident_envelope(
                 _utc_now() if status in {"terminal", "complete"} else None
             ),
             "profiles_recorded": len(attempts),
-            "profiles_terminal": _preflight_terminal_attempt_count(
-                attempts
-            ),
+            "profiles_terminal": _preflight_terminal_attempt_count(attempts),
             "model_invocations_conservatively_chargeable": chargeable,
             "incident_code": (
-                terminal_incident_code
-                if status == "terminal"
-                else incident_code
+                terminal_incident_code if status == "terminal" else incident_code
             ),
             "attempted_operation": (
                 attempted_operation
@@ -11545,9 +10790,7 @@ def _advance_preflight_incident_envelope(
             ),
         }
     )
-    preflight["incident_envelope"] = _validate_preflight_incident_envelope(
-        envelope
-    )
+    preflight["incident_envelope"] = _validate_preflight_incident_envelope(envelope)
     return preflight["incident_envelope"]
 
 
@@ -11561,9 +10804,7 @@ def _provider_free_preclaim_contract_sha256(
         else None
     )
     if not _is_sha256(value):
-        raise ValueError(
-            "Provider-free preclaim contract commitment is invalid"
-        )
+        raise ValueError("Provider-free preclaim contract commitment is invalid")
     return str(value)
 
 
@@ -11585,9 +10826,7 @@ def _validate_provider_free_preclaim_prerequisite_bundle(
         "model_calls_started",
     }
     if not isinstance(value, dict) or set(value) != keys:
-        raise ValueError(
-            "Provider-free preclaim prerequisite bundle is invalid"
-        )
+        raise ValueError("Provider-free preclaim prerequisite bundle is invalid")
     repository_binding = value.get("authentication_repository_binding")
     supervisor_binding = value.get("supervisor_execution_binding")
     published_commit = (
@@ -11606,43 +10845,33 @@ def _validate_provider_free_preclaim_prerequisite_bundle(
         else None
     )
     if (
-        value.get("schema_version")
-        != _PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA
+        value.get("schema_version") != _PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA
         or value.get("panel_id") != PANEL_ID
         or not _is_sha256(public_precommitment_sha256)
-        or value.get("public_precommitment_sha256")
-        != public_precommitment_sha256
-        or not _is_sha256(
-            value.get("spend_authorization_receipt_sha256")
-        )
+        or value.get("public_precommitment_sha256") != public_precommitment_sha256
+        or not _is_sha256(value.get("spend_authorization_receipt_sha256"))
         or not _is_sha256(value.get("authentication_receipt_sha256"))
         or not isinstance(repository_binding, dict)
         or set(repository_binding) != _PUBLIC_RECEIPT_BINDING_KEYS
-        or repository_binding.get("schema_version")
-        != _PUBLIC_RECEIPT_BINDING_SCHEMA
+        or repository_binding.get("schema_version") != _PUBLIC_RECEIPT_BINDING_SCHEMA
         or repository_binding.get("artifact_kind") != "authentication"
         or not isinstance(repository_relative_path, str)
         or not repository_relative_path
         or "\x00" in repository_relative_path
         or Path(repository_relative_path).is_absolute()
-        or Path(repository_relative_path) != Path(
-            os.path.normpath(repository_relative_path)
-        )
+        or Path(repository_relative_path)
+        != Path(os.path.normpath(repository_relative_path))
         or not _is_sha256(repository_binding.get("file_sha256"))
         or repository_binding.get("content_sha256")
         != value.get("authentication_receipt_sha256")
         or not isinstance(published_commit, str)
         or len(published_commit) != 40
-        or any(
-            character not in "0123456789abcdef"
-            for character in published_commit
-        )
+        or any(character not in "0123456789abcdef" for character in published_commit)
         or not isinstance(supervisor_binding, dict)
         or set(supervisor_binding) != _SUPERVISOR_BINDING_FIELDS
         or supervisor_binding.get("operation") != "preflight"
         or supervisor_binding.get("panel_id") != PANEL_ID
-        or supervisor_binding.get("precommitment_sha256")
-        != public_precommitment_sha256
+        or supervisor_binding.get("precommitment_sha256") != public_precommitment_sha256
         or not isinstance(supervisor_label, str)
         or not supervisor_label
         or len(supervisor_label) > 255
@@ -11667,9 +10896,7 @@ def _validate_provider_free_preclaim_prerequisite_bundle(
             )
         )
     ):
-        raise ValueError(
-            "Provider-free preclaim prerequisite bundle is invalid"
-        )
+        raise ValueError("Provider-free preclaim prerequisite bundle is invalid")
     return copy.deepcopy(value)
 
 
@@ -11690,9 +10917,7 @@ def _provider_free_preclaim_prerequisite_bundle(
         raise RuntimeError(
             "Published authentication must pass before preflight preclaim"
         )
-    authentication_receipt_path = _authentication_receipt_path(
-        public_manifest_path
-    )
+    authentication_receipt_path = _authentication_receipt_path(public_manifest_path)
     authentication_receipt = _load_json(authentication_receipt_path)
     _validate_authentication_receipt(
         authentication_receipt,
@@ -11712,12 +10937,10 @@ def _provider_free_preclaim_prerequisite_bundle(
         payload=authentication_receipt,
         require_published_commit=True,
     )
-    authentication_receipt_file_sha256 = (
-        _assert_exact_public_json_bytes(
-            authentication_receipt_path,
-            authentication_receipt,
-            label="authentication receipt",
-        )
+    authentication_receipt_file_sha256 = _assert_exact_public_json_bytes(
+        authentication_receipt_path,
+        authentication_receipt,
+        label="authentication receipt",
     )
     if not hmac.compare_digest(
         authentication_receipt_file_sha256,
@@ -11737,19 +10960,11 @@ def _provider_free_preclaim_prerequisite_bundle(
         raise RuntimeError("Persistent preflight supervisor is required")
     return _validate_provider_free_preclaim_prerequisite_bundle(
         {
-            "schema_version": (
-                _PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA
-            ),
+            "schema_version": (_PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA),
             "panel_id": PANEL_ID,
-            "public_precommitment_sha256": public.get(
-                "precommitment_sha256"
-            ),
-            "spend_authorization_receipt_sha256": spend[
-                "receipt_sha256"
-            ],
-            "authentication_receipt_sha256": authentication_receipt[
-                "receipt_sha256"
-            ],
+            "public_precommitment_sha256": public.get("precommitment_sha256"),
+            "spend_authorization_receipt_sha256": spend["receipt_sha256"],
+            "authentication_receipt_sha256": authentication_receipt["receipt_sha256"],
             "authentication_repository_binding": dict(repository_binding),
             "supervisor_execution_binding": dict(supervisor_binding),
             "provider_processes_started": 0,
@@ -11765,28 +10980,20 @@ def _new_provider_free_preclaim(
     *,
     prerequisite_bundle: Mapping[str, Any],
 ) -> dict[str, Any]:
-    validated_prerequisites = (
-        _validate_provider_free_preclaim_prerequisite_bundle(
-            dict(prerequisite_bundle),
-            public_precommitment_sha256=public.get(
-                "precommitment_sha256"
-            ),
-        )
+    validated_prerequisites = _validate_provider_free_preclaim_prerequisite_bundle(
+        dict(prerequisite_bundle),
+        public_precommitment_sha256=public.get("precommitment_sha256"),
     )
     return {
         "schema_version": _PROVIDER_FREE_PRECLAIM_SCHEMA,
         "panel_id": PANEL_ID,
         "status": "running",
-        "public_precommitment_sha256": public.get(
-            "precommitment_sha256"
-        ),
+        "public_precommitment_sha256": public.get("precommitment_sha256"),
         "preparation_runtime_contract_sha256": (
             _provider_free_preclaim_contract_sha256(public)
         ),
         "prerequisite_bundle": validated_prerequisites,
-        "prerequisite_bundle_sha256": _component_hash(
-            validated_prerequisites
-        ),
+        "prerequisite_bundle_sha256": _component_hash(validated_prerequisites),
         "attempted_operation": None,
         "completed_operation": None,
         "completed_preparation_operations": [],
@@ -11827,19 +11034,13 @@ def _validate_provider_free_preclaim(
     status = value.get("status")
     attempted_operation = value.get("attempted_operation")
     completed_operation = value.get("completed_operation")
-    completed_preparation = value.get(
-        "completed_preparation_operations"
-    )
+    completed_preparation = value.get("completed_preparation_operations")
     incident_code = value.get("incident_code")
     contract_failure_code = value.get("contract_failure_code")
     try:
-        prerequisite_bundle = (
-            _validate_provider_free_preclaim_prerequisite_bundle(
-                value.get("prerequisite_bundle"),
-                public_precommitment_sha256=(
-                    public_precommitment_sha256
-                ),
-            )
+        prerequisite_bundle = _validate_provider_free_preclaim_prerequisite_bundle(
+            value.get("prerequisite_bundle"),
+            public_precommitment_sha256=(public_precommitment_sha256),
         )
     except ValueError:
         prerequisite_bundle = None
@@ -11852,40 +11053,26 @@ def _validate_provider_free_preclaim(
         (
             "assignment_state"
             if preparation_attempt_index == 0
-            else _PREPARATION_RUNTIME_OPERATIONS[
-                preparation_attempt_index - 1
-            ]
+            else _PREPARATION_RUNTIME_OPERATIONS[preparation_attempt_index - 1]
         )
         if preparation_attempt_index is not None
         else None
     )
-    running_shape_valid = (
-        status == "running"
-        and (
-            (
-                attempted_operation is None
-                and completed_operation is None
-                and completed_preparation == []
-            )
-            or (
-                attempted_operation
-                in _CONTRACT_ATTESTATION_OPERATION_SET
-                and (
-                    (
-                        preparation_attempt_index is None
-                        and completed_preparation == []
-                    )
-                    or (
-                        preparation_attempt_index is not None
-                        and completed_preparation
-                        == list(
-                            _PREPARATION_RUNTIME_OPERATIONS[
-                                :preparation_attempt_index
-                            ]
-                        )
-                        and completed_operation
-                        == expected_preparation_predecessor
-                    )
+    running_shape_valid = status == "running" and (
+        (
+            attempted_operation is None
+            and completed_operation is None
+            and completed_preparation == []
+        )
+        or (
+            attempted_operation in _CONTRACT_ATTESTATION_OPERATION_SET
+            and (
+                (preparation_attempt_index is None and completed_preparation == [])
+                or (
+                    preparation_attempt_index is not None
+                    and completed_preparation
+                    == list(_PREPARATION_RUNTIME_OPERATIONS[:preparation_attempt_index])
+                    and completed_operation == expected_preparation_predecessor
                 )
             )
         )
@@ -11900,20 +11087,12 @@ def _validate_provider_free_preclaim(
         status == "failed"
         and attempted_operation in _CONTRACT_ATTESTATION_OPERATION_SET
         and (
-            (
-                preparation_attempt_index is None
-                and completed_preparation == []
-            )
+            (preparation_attempt_index is None and completed_preparation == [])
             or (
                 preparation_attempt_index is not None
                 and completed_preparation
-                == list(
-                    _PREPARATION_RUNTIME_OPERATIONS[
-                        :preparation_attempt_index
-                    ]
-                )
-                and completed_operation
-                == expected_preparation_predecessor
+                == list(_PREPARATION_RUNTIME_OPERATIONS[:preparation_attempt_index])
+                and completed_operation == expected_preparation_predecessor
             )
         )
     )
@@ -11924,8 +11103,7 @@ def _validate_provider_free_preclaim(
         or (required_status is not None and status != required_status)
         or not _is_sha256(public_precommitment_sha256)
         or not _is_sha256(preparation_runtime_contract_sha256)
-        or value.get("public_precommitment_sha256")
-        != public_precommitment_sha256
+        or value.get("public_precommitment_sha256") != public_precommitment_sha256
         or value.get("preparation_runtime_contract_sha256")
         != preparation_runtime_contract_sha256
         or prerequisite_bundle is None
@@ -11933,28 +11111,17 @@ def _validate_provider_free_preclaim(
         != _component_hash(prerequisite_bundle)
         or (
             attempted_operation is not None
-            and attempted_operation
-            not in _CONTRACT_ATTESTATION_OPERATION_SET
+            and attempted_operation not in _CONTRACT_ATTESTATION_OPERATION_SET
         )
         or (
             completed_operation is not None
-            and completed_operation
-            not in _CONTRACT_ATTESTATION_OPERATION_SET
+            and completed_operation not in _CONTRACT_ATTESTATION_OPERATION_SET
         )
         or not isinstance(completed_preparation, list)
         or completed_preparation
-        != list(
-            _PREPARATION_RUNTIME_OPERATIONS[
-                : len(completed_preparation)
-            ]
-        )
-        or len(completed_preparation)
-        > len(_PREPARATION_RUNTIME_OPERATIONS)
-        or not (
-            running_shape_valid
-            or passed_shape_valid
-            or failed_shape_valid
-        )
+        != list(_PREPARATION_RUNTIME_OPERATIONS[: len(completed_preparation)])
+        or len(completed_preparation) > len(_PREPARATION_RUNTIME_OPERATIONS)
+        or not (running_shape_valid or passed_shape_valid or failed_shape_valid)
         or any(
             value.get(name) != 0
             for name in (
@@ -11965,16 +11132,12 @@ def _validate_provider_free_preclaim(
         )
         or (
             status in {"running", "passed"}
-            and (
-                incident_code is not None
-                or contract_failure_code is not None
-            )
+            and (incident_code is not None or contract_failure_code is not None)
         )
         or (
             status == "failed"
             and (
-                attempted_operation
-                not in _CONTRACT_ATTESTATION_OPERATION_SET
+                attempted_operation not in _CONTRACT_ATTESTATION_OPERATION_SET
                 or incident_code
                 not in {
                     "contract_attestation_failed",
@@ -11983,13 +11146,10 @@ def _validate_provider_free_preclaim(
                 or (
                     incident_code == "contract_attestation_failed"
                     and contract_failure_code
-                    != _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
-                        attempted_operation
-                    ]
+                    != _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[attempted_operation]
                 )
                 or (
-                    incident_code
-                    == "contract_attestation_checkpoint_persist_failed"
+                    incident_code == "contract_attestation_checkpoint_persist_failed"
                     and contract_failure_code is not None
                 )
             )
@@ -12003,14 +11163,10 @@ def _require_provider_free_preclaim_operation(
     value: Mapping[str, Any],
     operation: str,
 ) -> None:
-    if (
-        operation not in _PREPARATION_RUNTIME_OPERATIONS
-        or operation
-        not in value.get("completed_preparation_operations", [])
+    if operation not in _PREPARATION_RUNTIME_OPERATIONS or operation not in value.get(
+        "completed_preparation_operations", []
     ):
-        raise ValueError(
-            "Provider-free preparation-runtime preclaim is incomplete"
-        )
+        raise ValueError("Provider-free preparation-runtime preclaim is incomplete")
 
 
 def _advance_provider_free_preclaim_operation(
@@ -12025,16 +11181,13 @@ def _advance_provider_free_preclaim_operation(
         raise ValueError("Provider-free preclaim operation is invalid")
     advanced = dict(value)
     previous = advanced.get("attempted_operation")
-    completed_preparation = list(
-        advanced.get("completed_preparation_operations", [])
-    )
+    completed_preparation = list(advanced.get("completed_preparation_operations", []))
     if previous in _PREPARATION_RUNTIME_OPERATIONS:
         previous_index = _PREPARATION_RUNTIME_OPERATIONS.index(previous)
         if (
             previous_index != len(completed_preparation)
             or previous_index + 1 >= len(_PREPARATION_RUNTIME_OPERATIONS)
-            or operation
-            != _PREPARATION_RUNTIME_OPERATIONS[previous_index + 1]
+            or operation != _PREPARATION_RUNTIME_OPERATIONS[previous_index + 1]
         ):
             raise ValueError("Provider-free preclaim operation is invalid")
     elif completed_preparation:
@@ -12044,12 +11197,8 @@ def _advance_provider_free_preclaim_operation(
         expected_operation_index = len(completed_preparation) + int(
             previous in _PREPARATION_RUNTIME_OPERATIONS
         )
-        if (
-            operation_index != expected_operation_index
-            or (
-                operation_index == 0
-                and previous != "assignment_state"
-            )
+        if operation_index != expected_operation_index or (
+            operation_index == 0 and previous != "assignment_state"
         ):
             raise ValueError("Provider-free preclaim operation is invalid")
     if previous in _CONTRACT_ATTESTATION_OPERATION_SET:
@@ -12076,16 +11225,12 @@ def _complete_provider_free_preclaim(
 ) -> dict[str, Any]:
     completed = dict(value)
     operation = completed.get("attempted_operation")
-    completed_preparation = list(
-        completed.get("completed_preparation_operations", [])
-    )
+    completed_preparation = list(completed.get("completed_preparation_operations", []))
     if (
         completed.get("status") != "running"
         or operation != _PREPARATION_RUNTIME_OPERATIONS[-1]
-        or completed_preparation
-        != list(_PREPARATION_RUNTIME_OPERATIONS[:-1])
-        or completed.get("completed_operation")
-        != _PREPARATION_RUNTIME_OPERATIONS[-2]
+        or completed_preparation != list(_PREPARATION_RUNTIME_OPERATIONS[:-1])
+        or completed.get("completed_operation") != _PREPARATION_RUNTIME_OPERATIONS[-2]
     ):
         raise ValueError("Provider-free preclaim operation is invalid")
     if (
@@ -12154,9 +11299,7 @@ def _provider_free_preclaim_terminal_candidate(
 ) -> dict[str, Any]:
     trace = _validate_provider_free_preclaim(
         preflight.get("provider_free_preclaim"),
-        public_precommitment_sha256=public.get(
-            "precommitment_sha256"
-        ),
+        public_precommitment_sha256=public.get("precommitment_sha256"),
         preparation_runtime_contract_sha256=(
             _provider_free_preclaim_contract_sha256(public)
         ),
@@ -12197,9 +11340,7 @@ def _persist_or_reconcile_preclaim_transition(
 
     prior = copy.deepcopy(dict(prior_private))
     next_state = copy.deepcopy(dict(next_private))
-    if hmac.compare_digest(
-        _canonical_bytes(prior), _canonical_bytes(next_state)
-    ):
+    if hmac.compare_digest(_canonical_bytes(prior), _canonical_bytes(next_state)):
         raise ValueError("Provider-free preclaim transition is empty")
     try:
         _write_private_state(
@@ -12216,13 +11357,9 @@ def _persist_or_reconcile_preclaim_transition(
         except BaseException:
             raise _PreclaimStorageAmbiguityError() from None
         observed_bytes = _canonical_bytes(observed)
-        if hmac.compare_digest(
-            observed_bytes, _canonical_bytes(next_state)
-        ):
+        if hmac.compare_digest(observed_bytes, _canonical_bytes(next_state)):
             return True
-        if hmac.compare_digest(
-            observed_bytes, _canonical_bytes(prior)
-        ):
+        if hmac.compare_digest(observed_bytes, _canonical_bytes(prior)):
             return False
         raise _PreclaimStorageAmbiguityError() from None
     return True
@@ -12338,9 +11475,7 @@ def _claim_preflight_incident_envelope(
                 "Refusing to replace an environment preflight receipt"
             )
         if preflight.get("provider_free_preclaim") is not None:
-            raise RuntimeError(
-                "Provider-free preclaim is no longer in its fresh state"
-            )
+            raise RuntimeError("Provider-free preclaim is no longer in its fresh state")
         prerequisite_bundle = _provider_free_preclaim_prerequisite_bundle(
             root=root,
             authentication_key_file=authentication_key_file,
@@ -12354,9 +11489,7 @@ def _claim_preflight_incident_envelope(
                 public,
                 prerequisite_bundle=prerequisite_bundle,
             ),
-            public_precommitment_sha256=public.get(
-                "precommitment_sha256"
-            ),
+            public_precommitment_sha256=public.get("precommitment_sha256"),
             preparation_runtime_contract_sha256=(
                 _provider_free_preclaim_contract_sha256(public)
             ),
@@ -12390,18 +11523,14 @@ def _claim_preflight_incident_envelope(
                     attempted_operation=error.attempted_operation,
                     completed_operation=error.completed_operation,
                 ),
-                public_precommitment_sha256=public.get(
-                    "precommitment_sha256"
-                ),
+                public_precommitment_sha256=public.get("precommitment_sha256"),
                 preparation_runtime_contract_sha256=(
                     _provider_free_preclaim_contract_sha256(public)
                 ),
                 required_status="failed",
             )
             next_private = copy.deepcopy(private)
-            next_preflight = copy.deepcopy(
-                next_private["environment_preflight"]
-            )
+            next_preflight = copy.deepcopy(next_private["environment_preflight"])
             next_preflight["provider_free_preclaim"] = failed_trace
             candidate = _provider_free_preclaim_terminal_candidate(
                 preflight=next_preflight,
@@ -12432,9 +11561,7 @@ def _claim_preflight_incident_envelope(
             terminalize_preclaim_failure(
                 source_trace=trace,
                 error=_PreflightControlBoundaryError(
-                    incident_code=(
-                        "contract_attestation_checkpoint_persist_failed"
-                    ),
+                    incident_code=("contract_attestation_checkpoint_persist_failed"),
                     attempted_operation="contract_internal",
                     completed_operation=None,
                 ),
@@ -12447,18 +11574,14 @@ def _claim_preflight_incident_envelope(
                     trace,
                     operation=operation,
                 ),
-                public_precommitment_sha256=public.get(
-                    "precommitment_sha256"
-                ),
+                public_precommitment_sha256=public.get("precommitment_sha256"),
                 preparation_runtime_contract_sha256=(
                     _provider_free_preclaim_contract_sha256(public)
                 ),
                 required_status="running",
             )
             next_private = copy.deepcopy(private)
-            next_private["environment_preflight"][
-                "provider_free_preclaim"
-            ] = next_trace
+            next_private["environment_preflight"]["provider_free_preclaim"] = next_trace
             if not persist_transition(next_private):
                 terminalize_preclaim_failure(
                     source_trace=next_trace,
@@ -12467,9 +11590,7 @@ def _claim_preflight_incident_envelope(
                             "contract_attestation_checkpoint_persist_failed"
                         ),
                         attempted_operation=operation,
-                        completed_operation=next_trace.get(
-                            "completed_operation"
-                        ),
+                        completed_operation=next_trace.get("completed_operation"),
                     ),
                 )
             trace = next_trace
@@ -12486,8 +11607,7 @@ def _claim_preflight_incident_envelope(
             )
             if _paths_overlap(resolved_claude, resolved_codex):
                 raise ValueError(
-                    "Claude and Codex secure storage directories must not "
-                    "overlap"
+                    "Claude and Codex secure storage directories must not overlap"
                 )
             _validate_contracts(
                 root=root,
@@ -12515,34 +11635,26 @@ def _claim_preflight_incident_envelope(
                     attempted_operation=str(operation),
                     completed_operation=trace.get("completed_operation"),
                     contract_failure_code=(
-                        _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
-                            str(operation)
-                        ]
+                        _CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[str(operation)]
                     ),
                 ),
             )
 
         passed_trace = _validate_provider_free_preclaim(
             _complete_provider_free_preclaim(trace),
-            public_precommitment_sha256=public.get(
-                "precommitment_sha256"
-            ),
+            public_precommitment_sha256=public.get("precommitment_sha256"),
             preparation_runtime_contract_sha256=(
                 _provider_free_preclaim_contract_sha256(public)
             ),
             required_status="passed",
         )
         passed_private = copy.deepcopy(private)
-        passed_private["environment_preflight"][
-            "provider_free_preclaim"
-        ] = passed_trace
+        passed_private["environment_preflight"]["provider_free_preclaim"] = passed_trace
         if not persist_transition(passed_private):
             terminalize_preclaim_failure(
                 source_trace=trace,
                 error=_PreflightControlBoundaryError(
-                    incident_code=(
-                        "contract_attestation_checkpoint_persist_failed"
-                    ),
+                    incident_code=("contract_attestation_checkpoint_persist_failed"),
                     attempted_operation=str(trace["attempted_operation"]),
                     completed_operation=trace.get("completed_operation"),
                 ),
@@ -12589,15 +11701,13 @@ def _claim_preflight_incident_envelope(
             raise error from None
 
         try:
-            reattested_prerequisites = (
-                _provider_free_preclaim_prerequisite_bundle(
-                    root=root,
-                    authentication_key_file=authentication_key_file,
-                    private=private,
-                    public=public,
-                    public_manifest_path=public_manifest_path,
-                    supervisor_runtime_dir=supervisor_runtime_dir,
-                )
+            reattested_prerequisites = _provider_free_preclaim_prerequisite_bundle(
+                root=root,
+                authentication_key_file=authentication_key_file,
+                private=private,
+                public=public,
+                public_manifest_path=public_manifest_path,
+                supervisor_runtime_dir=supervisor_runtime_dir,
             )
         except BaseException:
             terminalize_post_pass_failure(
@@ -12631,9 +11741,7 @@ def _claim_preflight_incident_envelope(
         if not persist_transition(claimed_private):
             terminalize_post_pass_failure(
                 error=_PreflightControlBoundaryError(
-                    incident_code=(
-                        "preflight_state_claim_checkpoint_persist_failed"
-                    ),
+                    incident_code=("preflight_state_claim_checkpoint_persist_failed"),
                     attempted_operation="preflight_state_claim",
                     completed_operation=_PREPARATION_RUNTIME_OPERATIONS[-1],
                 ),
@@ -12683,9 +11791,7 @@ def _minimal_terminal_preflight_candidate(
         status="terminal",
         incident_code=str(incident_code),
     )
-    envelope = _validate_preflight_incident_envelope(
-        preflight["incident_envelope"]
-    )
+    envelope = _validate_preflight_incident_envelope(preflight["incident_envelope"])
     return {
         "schema_version": SCHEMA_VERSION,
         "panel_id": PANEL_ID,
@@ -12693,9 +11799,7 @@ def _minimal_terminal_preflight_candidate(
         "development_only": True,
         "production_episodes_consumed": 0,
         "precommitment_sha256": public["precommitment_sha256"],
-        "terminal_envelope_schema": (
-            _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA
-        ),
+        "terminal_envelope_schema": (_PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA),
         "incident_phase": failure_phase,
         "profiles_recorded": envelope["profiles_recorded"],
         "profiles_terminal": envelope["profiles_terminal"],
@@ -12740,9 +11844,7 @@ def _seal_minimal_terminal_preflight_candidate(
             "running",
             _PENDING_PREFLIGHT_STATUS,
         }:
-            raise RuntimeError(
-                "Preflight incident cannot be sealed from this state"
-            )
+            raise RuntimeError("Preflight incident cannot be sealed from this state")
         candidate = _minimal_terminal_preflight_candidate(
             private=private,
             public=public,
@@ -12755,9 +11857,7 @@ def _seal_minimal_terminal_preflight_candidate(
             "terminal_public_receipt": candidate,
             "public_receipt_sha256": _component_hash(candidate),
         }
-        _write_private_state(
-            private_state_path, private, authentication_key
-        )
+        _write_private_state(private_state_path, private, authentication_key)
         return candidate
 
 
@@ -12791,9 +11891,7 @@ def _publish_terminal_preflight_candidate(
             if not isinstance(attempts, list) or any(
                 not isinstance(attempt, Mapping) for attempt in attempts
             ):
-                raise RuntimeError(
-                    "Durable preflight attempt state is invalid"
-                )
+                raise RuntimeError("Durable preflight attempt state is invalid")
             if preflight.get("incident_envelope") is not None:
                 _advance_preflight_incident_envelope(
                     preflight,
@@ -12802,9 +11900,7 @@ def _publish_terminal_preflight_candidate(
                     status="terminal",
                 )
             preflight["public_receipt_binding"] = binding
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
         binding = _validate_repository_receipt_binding(
             binding,
             root=root,
@@ -12816,9 +11912,7 @@ def _publish_terminal_preflight_candidate(
         )
         if public_preflight_path.exists() or public_preflight_path.is_symlink():
             if _load_json(public_preflight_path) != candidate:
-                raise RuntimeError(
-                    "Refusing to replace a conflicting terminal receipt"
-                )
+                raise RuntimeError("Refusing to replace a conflicting terminal receipt")
         else:
             _create_public_json_once(public_preflight_path, candidate)
         observed_file_sha256 = _assert_exact_public_json_bytes(
@@ -12826,9 +11920,7 @@ def _publish_terminal_preflight_candidate(
             candidate,
             label="terminal preflight receipt",
         )
-        if not hmac.compare_digest(
-            observed_file_sha256, str(binding["file_sha256"])
-        ):
+        if not hmac.compare_digest(observed_file_sha256, str(binding["file_sha256"])):
             raise RuntimeError("Terminal preflight receipt bytes changed")
         return candidate
 
@@ -12849,33 +11941,25 @@ def _terminal_preflight_candidate(
         or not isinstance(candidate, dict)
         or candidate.get("schema_version") != SCHEMA_VERSION
         or candidate.get("panel_id") != PANEL_ID
-        or candidate.get("status")
-        not in {"failed", "stopped_supervisor_incident"}
+        or candidate.get("status") not in {"failed", "stopped_supervisor_incident"}
         or candidate.get("development_only") is not True
         or type(candidate.get("production_episodes_consumed")) is not int
         or candidate.get("production_episodes_consumed") != 0
         or candidate.get("scores_reported") is not False
-        or candidate.get("precommitment_sha256")
-        != public.get("precommitment_sha256")
-        or preflight.get("public_receipt_sha256")
-        != _component_hash(candidate)
+        or candidate.get("precommitment_sha256") != public.get("precommitment_sha256")
+        or preflight.get("public_receipt_sha256") != _component_hash(candidate)
     ):
-        raise RuntimeError(
-            "Authenticated terminal preflight candidate is invalid"
-        )
+        raise RuntimeError("Authenticated terminal preflight candidate is invalid")
     incident_code = candidate.get("incident_code")
     incident_phase = candidate.get("incident_phase")
-    terminal_envelope_schema = candidate.get(
-        "terminal_envelope_schema"
-    )
+    terminal_envelope_schema = candidate.get("terminal_envelope_schema")
     control_incident_codes = {
         "unexpected_control_path_failure",
         *_PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES,
     }
     control_envelope_incident = (
         incident_code in control_incident_codes
-        and candidate.get("failure_stage")
-        == "preflight_control_boundary"
+        and candidate.get("failure_stage") == "preflight_control_boundary"
     )
     control_candidate_keys = {
         "schema_version",
@@ -12902,16 +11986,13 @@ def _terminal_preflight_candidate(
     provider_free_preclaim_incident = (
         terminal_envelope_schema == _PROVIDER_FREE_PRECLAIM_SCHEMA
         and incident_phase == "provider_free_preclaim_validation"
-        and candidate.get("failure_stage")
-        == "preflight_control_boundary"
+        and candidate.get("failure_stage") == "preflight_control_boundary"
     )
     if provider_free_preclaim_incident:
         attempts = preflight.get("attempts", [])
         trace = _validate_provider_free_preclaim(
             preflight.get("provider_free_preclaim"),
-            public_precommitment_sha256=public.get(
-                "precommitment_sha256"
-            ),
+            public_precommitment_sha256=public.get("precommitment_sha256"),
             preparation_runtime_contract_sha256=(
                 _provider_free_preclaim_contract_sha256(public)
             ),
@@ -12923,57 +12004,40 @@ def _terminal_preflight_candidate(
             or preflight.get("incident_envelope") is not None
             or candidate.get("status") != "failed"
             or candidate.get("failure_reason") != "terminal_abort"
-            or candidate.get("incident_code")
-            != trace.get("incident_code")
-            or candidate.get("attempted_operation")
-            != trace.get("attempted_operation")
-            or candidate.get("completed_operation")
-            != trace.get("completed_operation")
+            or candidate.get("incident_code") != trace.get("incident_code")
+            or candidate.get("attempted_operation") != trace.get("attempted_operation")
+            or candidate.get("completed_operation") != trace.get("completed_operation")
             or candidate.get("contract_failure_code")
             != trace.get("contract_failure_code")
             or candidate.get("profiles_recorded") != 0
             or candidate.get("profiles_terminal") != 0
-            or candidate.get(
-                "model_invocations_conservatively_chargeable"
-            )
-            != 0
+            or candidate.get("model_invocations_conservatively_chargeable") != 0
             or candidate.get("timed_out") is not False
             or candidate.get("timeout_stages") != []
         ):
-            raise RuntimeError(
-                "Terminal provider-free preclaim receipt is invalid"
-            )
+            raise RuntimeError("Terminal provider-free preclaim receipt is invalid")
     elif control_envelope_incident:
         attempts = preflight.get("attempts", [])
         envelope_value = preflight.get("incident_envelope")
         if not isinstance(attempts, list) or any(
             not isinstance(attempt, Mapping) for attempt in attempts
         ):
-            raise RuntimeError(
-                "Terminal preflight control envelope is invalid"
-            )
+            raise RuntimeError("Terminal preflight control envelope is invalid")
         try:
-            envelope = _validate_preflight_incident_envelope(
-                envelope_value
-            )
+            envelope = _validate_preflight_incident_envelope(envelope_value)
         except ValueError as error:
             raise RuntimeError(
                 "Terminal preflight control envelope is invalid"
             ) from error
         profiles_recorded = candidate.get("profiles_recorded")
         profiles_terminal = candidate.get("profiles_terminal")
-        chargeable = candidate.get(
-            "model_invocations_conservatively_chargeable"
-        )
+        chargeable = candidate.get("model_invocations_conservatively_chargeable")
         expected_recorded = len(attempts)
         expected_terminal = _preflight_terminal_attempt_count(attempts)
-        expected_chargeable = _conservatively_chargeable_provider_calls(
-            attempts
-        )
+        expected_chargeable = _conservatively_chargeable_provider_calls(attempts)
         if (
             set(candidate) != control_candidate_keys
-            or terminal_envelope_schema
-            != _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA
+            or terminal_envelope_schema != _PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA
             or incident_phase not in _PREFLIGHT_INCIDENT_PHASE_SET
             or incident_phase == "terminal_candidate_commit"
             or candidate.get("status") != "failed"
@@ -13008,35 +12072,25 @@ def _terminal_preflight_candidate(
                 and (
                     candidate.get("attempted_operation")
                     != "one_shot_state_validation_checkpoint"
-                    or candidate.get("completed_operation")
-                    != "contract_attestation"
+                    or candidate.get("completed_operation") != "contract_attestation"
                 )
             )
             or envelope.get("profiles_recorded") != expected_recorded
             or envelope.get("profiles_terminal") != expected_terminal
-            or envelope.get(
-                "model_invocations_conservatively_chargeable"
-            )
+            or envelope.get("model_invocations_conservatively_chargeable")
             != expected_chargeable
             or candidate.get("timed_out") is not False
             or candidate.get("timeout_stages") != []
         ):
-            raise RuntimeError(
-                "Terminal preflight control envelope is invalid"
-            )
+            raise RuntimeError("Terminal preflight control envelope is invalid")
     elif (
         incident_phase is not None
         or terminal_envelope_schema is not None
         or "profiles_recorded" in candidate
     ):
-        raise RuntimeError(
-            "Terminal preflight control envelope is invalid"
-        )
+        raise RuntimeError("Terminal preflight control envelope is invalid")
     if (
-        (
-            incident_code is not None
-            and incident_code not in _PROVIDER_INCIDENT_CODES
-        )
+        (incident_code is not None and incident_code not in _PROVIDER_INCIDENT_CODES)
         or (
             candidate.get("status") == "stopped_supervisor_incident"
             and incident_code != "supervisor_boundary_attestation_failed"
@@ -13046,38 +12100,27 @@ def _terminal_preflight_candidate(
             and incident_code not in _PROVIDER_INCIDENT_CODES
         )
     ):
-        raise RuntimeError(
-            "Terminal preflight receipt incident code is invalid"
-        )
+        raise RuntimeError("Terminal preflight receipt incident code is invalid")
     episode_startup_stage = candidate.get("episode_startup_stage")
     if (
         incident_code == "provider_episode_start_failed"
         and (
             not isinstance(episode_startup_stage, str)
-            or episode_startup_stage
-            not in TRUSTED_EVALUATOR_STARTUP_STAGES
+            or episode_startup_stage not in TRUSTED_EVALUATOR_STARTUP_STAGES
         )
     ) or (
         incident_code != "provider_episode_start_failed"
         and episode_startup_stage is not None
     ):
-        raise RuntimeError(
-            "Terminal preflight episode-startup stage is invalid"
-        )
+        raise RuntimeError("Terminal preflight episode-startup stage is invalid")
     failure_stage = candidate.get("failure_stage")
     if (
-        (
-            failure_stage is not None
-            and failure_stage not in _PREFLIGHT_FAILURE_STAGES
-        )
-        or (
-            candidate.get("failure_reason") == "terminal_abort"
-            and failure_stage not in _PREFLIGHT_FAILURE_STAGES
-        )
+        failure_stage is not None and failure_stage not in _PREFLIGHT_FAILURE_STAGES
+    ) or (
+        candidate.get("failure_reason") == "terminal_abort"
+        and failure_stage not in _PREFLIGHT_FAILURE_STAGES
     ):
-        raise RuntimeError(
-            "Terminal preflight receipt failure stage is invalid"
-        )
+        raise RuntimeError("Terminal preflight receipt failure stage is invalid")
     profiles = candidate.get("profiles")
     if isinstance(profiles, list) and (
         any(
@@ -13085,12 +12128,9 @@ def _terminal_preflight_candidate(
             or not _valid_preflight_phase_projection(profile)
             for profile in profiles
         )
-        or candidate.get("failed_pre_model_phase")
-        not in {*PRE_MODEL_PHASES, None}
+        or candidate.get("failed_pre_model_phase") not in {*PRE_MODEL_PHASES, None}
     ):
-        raise RuntimeError(
-            "Terminal preflight receipt phase projection is invalid"
-        )
+        raise RuntimeError("Terminal preflight receipt phase projection is invalid")
     failed_profile_id = candidate.get("failed_profile_id")
     if isinstance(profiles, list) and isinstance(failed_profile_id, str):
         failed_profiles = [
@@ -13106,9 +12146,7 @@ def _terminal_preflight_candidate(
             or candidate.get("episode_startup_stage")
             != failed_profiles[0].get("episode_startup_stage")
         ):
-            raise RuntimeError(
-                "Terminal preflight failed phase projection is invalid"
-            )
+            raise RuntimeError("Terminal preflight failed phase projection is invalid")
     if candidate.get("failure_reason") == "provider_cli_readiness_timeout":
         readiness_profiles: list[Mapping[str, Any]] = []
         expected_chargeable = 0
@@ -13118,9 +12156,7 @@ def _terminal_preflight_candidate(
                 if not isinstance(profile, Mapping):
                     profiles_consistent = False
                     break
-                model_invocation_state = profile.get(
-                    "model_invocation_state"
-                )
+                model_invocation_state = profile.get("model_invocation_state")
                 if model_invocation_state not in {
                     "not_started",
                     "started_not_finished",
@@ -13136,41 +12172,30 @@ def _terminal_preflight_candidate(
                 if profile.get("profile_id") == failed_profile_id:
                     readiness_profiles.append(profile)
         readiness_profile = (
-            readiness_profiles[0]
-            if len(readiness_profiles) == 1
-            else None
+            readiness_profiles[0] if len(readiness_profiles) == 1 else None
         )
         if (
             candidate.get("failure_stage") != "provider_cli_readiness"
-            or candidate.get("incident_code")
-            != "provider_cli_readiness_timeout"
-            or candidate.get("failed_model_invocation_state")
-            != "not_started"
+            or candidate.get("incident_code") != "provider_cli_readiness_timeout"
+            or candidate.get("failed_model_invocation_state") != "not_started"
             or not profiles_consistent
             or readiness_profile is None
-            or readiness_profile.get("model_invocation_state")
-            != "not_started"
+            or readiness_profile.get("model_invocation_state") != "not_started"
             or readiness_profile.get("conservative_chargeable") is not False
-            or readiness_profile.get("pre_model_phase")
-            != "provider_cli_readiness"
+            or readiness_profile.get("pre_model_phase") != "provider_cli_readiness"
             or readiness_profile.get("failed_pre_model_phase")
             != "provider_cli_readiness"
-            or candidate.get("failed_pre_model_phase")
-            != "provider_cli_readiness"
+            or candidate.get("failed_pre_model_phase") != "provider_cli_readiness"
             or readiness_profile.get("outcome")
             != "failed_provider_cli_readiness_timeout"
             or readiness_profile.get("timed_out") is not True
-            or readiness_profile.get("timeout_stage")
-            != "provider_cli_readiness"
+            or readiness_profile.get("timeout_stage") != "provider_cli_readiness"
             or candidate.get("model_invocations_conservatively_chargeable")
             != expected_chargeable
             or candidate.get("timed_out") is not True
-            or candidate.get("timeout_stages")
-            != ["provider_cli_readiness"]
+            or candidate.get("timeout_stages") != ["provider_cli_readiness"]
         ):
-            raise RuntimeError(
-                "Terminal readiness-timeout receipt is inconsistent"
-            )
+            raise RuntimeError("Terminal readiness-timeout receipt is inconsistent")
     return preflight, candidate
 
 
@@ -13185,10 +12210,7 @@ def _sealed_terminal_preflight_projection(
         not isinstance(attempt, Mapping) for attempt in attempts
     ):
         raise RuntimeError("Sealed terminal preflight attempts are invalid")
-    if (
-        candidate.get("terminal_envelope_schema")
-        == _PROVIDER_FREE_PRECLAIM_SCHEMA
-    ):
+    if candidate.get("terminal_envelope_schema") == _PROVIDER_FREE_PRECLAIM_SCHEMA:
         required_hashes = preflight.get("required_contract_hashes")
         preparation_runtime_sha256 = (
             required_hashes.get("preparation_runtime_sha256")
@@ -13198,41 +12220,26 @@ def _sealed_terminal_preflight_projection(
         try:
             trace = _validate_provider_free_preclaim(
                 preflight.get("provider_free_preclaim"),
-                public_precommitment_sha256=candidate.get(
-                    "precommitment_sha256"
-                ),
-                preparation_runtime_contract_sha256=(
-                    preparation_runtime_sha256
-                ),
+                public_precommitment_sha256=candidate.get("precommitment_sha256"),
+                preparation_runtime_contract_sha256=(preparation_runtime_sha256),
                 required_status="failed",
             )
         except ValueError as error:
-            raise RuntimeError(
-                "Sealed provider-free preclaim is invalid"
-            ) from error
+            raise RuntimeError("Sealed provider-free preclaim is invalid") from error
         if (
             attempts != []
             or preflight.get("incident_envelope") is not None
-            or candidate.get("incident_phase")
-            != "provider_free_preclaim_validation"
-            or candidate.get("incident_code")
-            != trace.get("incident_code")
-            or candidate.get("attempted_operation")
-            != trace.get("attempted_operation")
-            or candidate.get("completed_operation")
-            != trace.get("completed_operation")
+            or candidate.get("incident_phase") != "provider_free_preclaim_validation"
+            or candidate.get("incident_code") != trace.get("incident_code")
+            or candidate.get("attempted_operation") != trace.get("attempted_operation")
+            or candidate.get("completed_operation") != trace.get("completed_operation")
             or candidate.get("contract_failure_code")
             != trace.get("contract_failure_code")
             or candidate.get("profiles_recorded") != 0
             or candidate.get("profiles_terminal") != 0
-            or candidate.get(
-                "model_invocations_conservatively_chargeable"
-            )
-            != 0
+            or candidate.get("model_invocations_conservatively_chargeable") != 0
         ):
-            raise RuntimeError(
-                "Sealed provider-free preclaim projection is invalid"
-            )
+            raise RuntimeError("Sealed provider-free preclaim projection is invalid")
         return {
             "terminal_status": str(candidate["status"]),
             "incident_code": str(trace["incident_code"]),
@@ -13249,15 +12256,11 @@ def _sealed_terminal_preflight_projection(
             preflight.get("incident_envelope")
         )
     except ValueError as error:
-        raise RuntimeError(
-            "Sealed terminal preflight envelope is invalid"
-        ) from error
+        raise RuntimeError("Sealed terminal preflight envelope is invalid") from error
     recorded = len(attempts)
     terminal = _preflight_terminal_attempt_count(attempts)
     chargeable = _conservatively_chargeable_provider_calls(attempts)
-    candidate_chargeable = candidate.get(
-        "model_invocations_conservatively_chargeable"
-    )
+    candidate_chargeable = candidate.get("model_invocations_conservatively_chargeable")
     candidate_profiles = candidate.get("profiles")
     candidate_terminal = candidate.get("profiles_terminal")
     history = envelope.get("phase_history")
@@ -13267,18 +12270,12 @@ def _sealed_terminal_preflight_projection(
         not in {"terminal_candidate_commit", "public_receipt_commit"}
         or envelope.get("profiles_recorded") != recorded
         or envelope.get("profiles_terminal") != terminal
-        or envelope.get(
-            "model_invocations_conservatively_chargeable"
-        )
-        != chargeable
+        or envelope.get("model_invocations_conservatively_chargeable") != chargeable
         or type(candidate_chargeable) is not int
         or candidate_chargeable != chargeable
         or (
             candidate_terminal is not None
-            and (
-                type(candidate_terminal) is not int
-                or candidate_terminal != terminal
-            )
+            and (type(candidate_terminal) is not int or candidate_terminal != terminal)
         )
         or (
             candidate_profiles is not None
@@ -13295,19 +12292,15 @@ def _sealed_terminal_preflight_projection(
         prior_phases = [
             phase
             for phase in history
-            if phase
-            not in {"terminal_candidate_commit", "public_receipt_commit"}
+            if phase not in {"terminal_candidate_commit", "public_receipt_commit"}
         ]
         if not prior_phases:
-            raise RuntimeError(
-                "Sealed terminal preflight projection is invalid"
-            )
+            raise RuntimeError("Sealed terminal preflight projection is invalid")
         incident_phase = prior_phases[-1]
     if (
         not isinstance(incident_phase, str)
         or incident_phase not in _PREFLIGHT_INCIDENT_PHASE_SET
-        or incident_phase
-        in {"terminal_candidate_commit", "public_receipt_commit"}
+        or incident_phase in {"terminal_candidate_commit", "public_receipt_commit"}
         or incident_phase not in history
     ):
         raise RuntimeError("Sealed terminal preflight projection is invalid")
@@ -13335,23 +12328,15 @@ def _sealed_terminal_preflight_projection(
         )
     ):
         raise RuntimeError("Sealed terminal preflight projection is invalid")
-    typed_control_incident = (
-        incident_code in _PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES
-    )
+    typed_control_incident = incident_code in _PREFLIGHT_TYPED_CONTROL_INCIDENT_CODES
     attempted_operation = (
-        candidate.get("attempted_operation")
-        if typed_control_incident
-        else None
+        candidate.get("attempted_operation") if typed_control_incident else None
     )
     completed_operation = (
-        candidate.get("completed_operation")
-        if typed_control_incident
-        else None
+        candidate.get("completed_operation") if typed_control_incident else None
     )
     contract_failure_code = (
-        candidate.get("contract_failure_code")
-        if typed_control_incident
-        else None
+        candidate.get("contract_failure_code") if typed_control_incident else None
     )
     if typed_control_incident and (
         attempted_operation not in _PREFLIGHT_CONTROL_OPERATIONS
@@ -13361,12 +12346,9 @@ def _sealed_terminal_preflight_projection(
         )
         or (
             contract_failure_code is not None
-            and contract_failure_code
-            not in _CONTRACT_ATTESTATION_FAILURE_CODES
+            and contract_failure_code not in _CONTRACT_ATTESTATION_FAILURE_CODES
         )
-        or (
-            incident_code == "contract_attestation_failed"
-        )
+        or (incident_code == "contract_attestation_failed")
         != (contract_failure_code is not None)
     ):
         raise RuntimeError("Sealed terminal preflight projection is invalid")
@@ -13427,9 +12409,7 @@ def assert_terminal_incident_ready_for_exit(
     """
 
     if operation != "preflight":
-        raise ValueError(
-            "Terminal incident audit is supported only for preflight"
-        )
+        raise ValueError("Terminal incident audit is supported only for preflight")
     _assert_canonical_public_output_path(
         public_manifest_path,
         public_output_path,
@@ -13441,9 +12421,7 @@ def assert_terminal_incident_ready_for_exit(
         public_manifest_path=public_manifest_path,
     )
     return {
-        "schema_version": (
-            "epiagentbench.terminal_incident_attestation.v2"
-        ),
+        "schema_version": ("epiagentbench.terminal_incident_attestation.v2"),
         "panel_id": PANEL_ID,
         "operation": operation,
         "status": "sealed_private_candidate",
@@ -13517,13 +12495,9 @@ def assert_terminal_receipt_ready_for_exit(
                 observed_file_sha256,
                 str(binding["file_sha256"]),
             ):
-                raise RuntimeError(
-                    "Terminal preflight receipt bytes changed"
-                )
+                raise RuntimeError("Terminal preflight receipt bytes changed")
             return {
-                "schema_version": (
-                    "epiagentbench.terminal_receipt_attestation.v1"
-                ),
+                "schema_version": ("epiagentbench.terminal_receipt_attestation.v1"),
                 "panel_id": PANEL_ID,
                 "operation": operation,
                 "status": "attested",
@@ -13544,54 +12518,36 @@ def assert_terminal_receipt_ready_for_exit(
         execution_incident = private.get("execution_incident")
         codex_auth_incident = private.get("codex_auth_incident")
         if execution_incident is None and codex_auth_incident is None:
-            raise RuntimeError(
-                "Production terminal receipt has no durable incident"
-            )
+            raise RuntimeError("Production terminal receipt has no durable incident")
         assignments = private.get("assignments")
         if not isinstance(assignments, list):
-            raise RuntimeError(
-                "Production terminal receipt assignments are invalid"
-            )
-        if (
-            codex_auth_incident is not None
-            and not _codex_auth_incident_is_valid(
-                codex_auth_incident, assignments
-            )
+            raise RuntimeError("Production terminal receipt assignments are invalid")
+        if codex_auth_incident is not None and not _codex_auth_incident_is_valid(
+            codex_auth_incident, assignments
         ):
-            raise RuntimeError(
-                "Production Codex authentication incident is invalid"
-            )
+            raise RuntimeError("Production Codex authentication incident is invalid")
         if execution_incident is not None:
             if (
                 not isinstance(execution_incident, Mapping)
                 or execution_incident.get("status") != "terminal"
                 or execution_incident.get("incident_code")
                 not in _PROVIDER_INCIDENT_CODES
-                or not isinstance(
-                    execution_incident.get("failure_class"), str
-                )
+                or not isinstance(execution_incident.get("failure_class"), str)
                 or not execution_incident["failure_class"]
             ):
-                raise RuntimeError(
-                    "Production execution incident is invalid"
-                )
+                raise RuntimeError("Production execution incident is invalid")
             failure_class = execution_incident["failure_class"]
-            failure_code = execution_incident.get(
-                "attestation_failure_code"
-            )
+            failure_code = execution_incident.get("attestation_failure_code")
             supervisor_incident = (
                 execution_incident.get("boundary")
                 in {"clean_before_assignment", "final_completion"}
                 or failure_code in _PERSISTENT_ATTESTATION_FAILURE_CODES
                 or (
                     "boundary" not in execution_incident
-                    and failure_class
-                    in _PROVIDER_ISOLATION_FAILURE_CLASSES
+                    and failure_class in _PROVIDER_ISOLATION_FAILURE_CLASSES
                 )
             )
-            if supervisor_incident != (
-                status == "stopped_supervisor_incident"
-            ):
+            if supervisor_incident != (status == "stopped_supervisor_incident"):
                 raise RuntimeError(
                     "Production terminal incident classification changed"
                 )
@@ -13618,12 +12574,9 @@ def assert_terminal_receipt_ready_for_exit(
                     or "boundary" in incident
                     or type(assignment_index) is not int
                     or not 0 <= assignment_index < len(assignments)
-                    or assignments[assignment_index].get("status")
-                    != "transport_void"
+                    or assignments[assignment_index].get("status") != "transport_void"
                 ):
-                    raise RuntimeError(
-                        "Production transport incident is inconsistent"
-                    )
+                    raise RuntimeError("Production transport incident is inconsistent")
         expected = _public_running(public, private, status=str(status))
         if (
             observed != expected
@@ -13696,30 +12649,23 @@ def reconcile_terminal_receipt(
                     root=root,
                     path=public_output_path,
                     artifact_kind="preflight",
-                    content_sha256=str(
-                        preflight["public_receipt_sha256"]
-                    ),
+                    content_sha256=str(preflight["public_receipt_sha256"]),
                     payload=candidate,
                 )
                 preflight["public_receipt_binding"] = binding
                 if preflight.get("incident_envelope") is not None:
                     attempts = preflight.get("attempts", [])
                     if not isinstance(attempts, list) or any(
-                        not isinstance(attempt, Mapping)
-                        for attempt in attempts
+                        not isinstance(attempt, Mapping) for attempt in attempts
                     ):
-                        raise RuntimeError(
-                            "Durable preflight attempt state is invalid"
-                        )
+                        raise RuntimeError("Durable preflight attempt state is invalid")
                     _advance_preflight_incident_envelope(
                         preflight,
                         phase="public_receipt_commit",
                         attempts=attempts,
                         status="terminal",
                     )
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
+                _write_private_state(private_state_path, private, authentication_key)
             binding = _validate_repository_receipt_binding(
                 binding,
                 root=root,
@@ -13742,9 +12688,7 @@ def reconcile_terminal_receipt(
             else:
                 _create_public_json_once(public_output_path, candidate)
             if _load_json(public_output_path) != candidate:
-                raise RuntimeError(
-                    "Terminal preflight receipt failed durable reload"
-                )
+                raise RuntimeError("Terminal preflight receipt failed durable reload")
             observed_file_sha256 = _assert_exact_public_json_bytes(
                 public_output_path,
                 candidate,
@@ -13754,13 +12698,9 @@ def reconcile_terminal_receipt(
                 observed_file_sha256,
                 str(binding["file_sha256"]),
             ):
-                raise RuntimeError(
-                    "Terminal preflight receipt bytes changed"
-                )
+                raise RuntimeError("Terminal preflight receipt bytes changed")
             return {
-                "schema_version": (
-                    "epiagentbench.terminal_receipt_reconciliation.v1"
-                ),
+                "schema_version": ("epiagentbench.terminal_receipt_reconciliation.v1"),
                 "panel_id": PANEL_ID,
                 "operation": operation,
                 "status": "reconciled",
@@ -13782,9 +12722,7 @@ def reconcile_terminal_receipt(
             label="terminal production receipt",
         )
         return {
-            "schema_version": (
-                "epiagentbench.terminal_receipt_reconciliation.v1"
-            ),
+            "schema_version": ("epiagentbench.terminal_receipt_reconciliation.v1"),
             "panel_id": PANEL_ID,
             "operation": operation,
             "status": "reconciled",
@@ -13838,12 +12776,9 @@ def audit_terminal_incident(
     if (
         reconciled.get("status") != "reconciled"
         or attested.get("status") != "attested"
-        or reconciled.get("terminal_status")
-        != sealed.get("terminal_status")
-        or attested.get("terminal_status")
-        != sealed.get("terminal_status")
-        or reconciled.get("file_sha256")
-        != attested.get("file_sha256")
+        or reconciled.get("terminal_status") != sealed.get("terminal_status")
+        or attested.get("terminal_status") != sealed.get("terminal_status")
+        or reconciled.get("file_sha256") != attested.get("file_sha256")
     ):
         raise RuntimeError("Terminal incident audit is inconsistent")
     return {
@@ -13930,9 +12865,7 @@ def _assert_environment_preflight(
     private_attempts = (
         preflight.get("attempts") if isinstance(preflight, dict) else None
     )
-    authentication_setup = _validate_authentication_setup_state(
-        private, public
-    )
+    authentication_setup = _validate_authentication_setup_state(private, public)
     expected_authentication_prerequisite = {
         "receipt_sha256": authentication_setup.get("public_receipt_sha256"),
         "codex": "passed_before_preflight",
@@ -13944,9 +12877,7 @@ def _assert_environment_preflight(
         try:
             _validate_provider_free_preclaim(
                 preflight.get("provider_free_preclaim"),
-                public_precommitment_sha256=public.get(
-                    "precommitment_sha256"
-                ),
+                public_precommitment_sha256=public.get("precommitment_sha256"),
                 preparation_runtime_contract_sha256=(
                     _provider_free_preclaim_contract_sha256(public)
                 ),
@@ -13961,9 +12892,7 @@ def _assert_environment_preflight(
         not isinstance(preflight, dict)
         or not provider_free_preclaim_valid
         or authentication_setup.get("status") != "passed"
-        or not isinstance(
-            authentication_setup.get("public_receipt_sha256"), str
-        )
+        or not isinstance(authentication_setup.get("public_receipt_sha256"), str)
         or preflight.get("status") != "passed"
         or preflight.get("passed_contract_hashes") != expected
         or preflight.get("authentication_prerequisite")
@@ -13980,8 +12909,7 @@ def _assert_environment_preflight(
             not isinstance(attempt, dict)
             or attempt.get("status") != "passed"
             or _durable_model_invocation_state(attempt) != "finished"
-            or _durable_pre_model_phase(attempt)
-            != "model_spawn_boundary"
+            or _durable_pre_model_phase(attempt) != "model_spawn_boundary"
             for attempt in private_attempts
         )
     ):
@@ -13990,15 +12918,11 @@ def _assert_environment_preflight(
             "contracts must pass before any production episode is launched"
         )
     binding = preflight.get("public_receipt_binding")
-    receipt_path = _receipt_path_from_binding(
-        root, binding, artifact_kind="preflight"
-    )
+    receipt_path = _receipt_path_from_binding(root, binding, artifact_kind="preflight")
     receipt = _load_json(receipt_path)
     profile_receipts = receipt.get("profiles")
 
-    def valid_profile_receipt(
-        item: Any, expected_profile: Mapping[str, Any]
-    ) -> bool:
+    def valid_profile_receipt(item: Any, expected_profile: Mapping[str, Any]) -> bool:
         if not isinstance(item, dict):
             return False
         observed_models = item.get("observed_models")
@@ -14007,22 +12931,18 @@ def _assert_environment_preflight(
         ):
             return False
         receipt_required = (
-            expected_profile["model_receipt_policy"]
-            == "provider_match_required"
+            expected_profile["model_receipt_policy"] == "provider_match_required"
         )
         model_receipt_valid = (
             item.get("model_receipt_satisfied") is True
-            and _exact_model_receipt_satisfied(
-                expected_profile, observed_models
-            )
+            and _exact_model_receipt_satisfied(expected_profile, observed_models)
             if receipt_required
             else item.get("model_receipt_satisfied") is None
         )
         return (
             item.get("profile_id") == expected_profile["profile_id"]
             and item.get("system") == expected_profile["system"]
-            and item.get("requested_model")
-            == expected_profile["requested_model"]
+            and item.get("requested_model") == expected_profile["requested_model"]
             and item.get("requested_reasoning")
             == expected_profile["requested_reasoning"]
             and item.get("model_invocation_state") == "finished"
@@ -14098,13 +13018,11 @@ def _assert_environment_preflight(
         or receipt.get("failed_profile_ids") != []
         or receipt.get("failure_reason") is not None
         or receipt.get("timed_out") is not False
-        or receipt.get("model_invocations_conservatively_chargeable")
-        != len(PROFILES)
+        or receipt.get("model_invocations_conservatively_chargeable") != len(PROFILES)
         or not exact_profile_receipts
         or receipt.get("profiles_passed") != profile_receipts
         or receipt.get("contract_hashes") != expected
-        or receipt.get("precommitment_sha256")
-        != public.get("precommitment_sha256")
+        or receipt.get("precommitment_sha256") != public.get("precommitment_sha256")
         or preflight.get("public_receipt_sha256") != _component_hash(receipt)
     ):
         raise RuntimeError("The committed environment preflight receipt is invalid")
@@ -14138,8 +13056,7 @@ def _durable_model_invocation_state(marker: Mapping[str, Any]) -> str:
         return "started_not_finished"
     if (
         status == "finished"
-        and set(invocation)
-        == {"status", "started_at_utc", "finished_at_utc"}
+        and set(invocation) == {"status", "started_at_utc", "finished_at_utc"}
         and isinstance(invocation.get("finished_at_utc"), str)
         and bool(invocation["finished_at_utc"])
     ):
@@ -14178,9 +13095,7 @@ def _codex_auth_incident_is_valid(
     if incident["failure_class"] == "CodexAuthenticationIncidentError":
         return True
     try:
-        return (
-            _durable_model_invocation_state(assignment) != "not_started"
-        )
+        return _durable_model_invocation_state(assignment) != "not_started"
     except RuntimeError:
         return False
 
@@ -14243,10 +13158,7 @@ def _safe_provider_progress(result: PilotRunResult) -> dict[str, Any]:
     permitted_mcp_calls = (
         metrics.get("tool_calls") if isinstance(metrics, Mapping) else None
     )
-    if (
-        type(permitted_mcp_calls) is not int
-        or not 0 <= permitted_mcp_calls <= 50
-    ):
+    if type(permitted_mcp_calls) is not int or not 0 <= permitted_mcp_calls <= 50:
         raise RuntimeError("Trusted provider progress count is invalid")
     raw = result.progress_telemetry
     base_keys = {
@@ -14285,14 +13197,17 @@ def _safe_provider_progress(result: PilotRunResult) -> dict[str, Any]:
         raise RuntimeError("Provider progress telemetry has an invalid schema")
     if type(progress.get("output_seen")) is not bool:
         raise RuntimeError("Provider progress telemetry has an invalid value")
-    if any(
-        progress.get(name) not in _PROGRESS_ELAPSED_BUCKETS
-        for name in (
-            "observed_elapsed_bucket",
-            "first_output_elapsed_bucket",
-            "last_output_elapsed_bucket",
+    if (
+        any(
+            progress.get(name) not in _PROGRESS_ELAPSED_BUCKETS
+            for name in (
+                "observed_elapsed_bucket",
+                "first_output_elapsed_bucket",
+                "last_output_elapsed_bucket",
+            )
         )
-    ) or progress.get("combined_output_bytes_bucket") not in _PROGRESS_BYTE_BUCKETS:
+        or progress.get("combined_output_bytes_bucket") not in _PROGRESS_BYTE_BUCKETS
+    ):
         raise RuntimeError("Provider progress telemetry has an invalid value")
     if progress["output_seen"] is False and (
         progress["first_output_elapsed_bucket"] != "none"
@@ -14306,16 +13221,13 @@ def _safe_provider_progress(result: PilotRunResult) -> dict[str, Any]:
             or progress.get("last_activity_elapsed_bucket")
             not in _PROGRESS_ELAPSED_BUCKETS
             or progress.get("permitted_mcp_calls") != permitted_mcp_calls
-            or progress.get("activity_count_source")
-            != "trusted_terminal_scorecard"
+            or progress.get("activity_count_source") != "trusted_terminal_scorecard"
         ):
             raise RuntimeError("Provider progress telemetry is inconsistent")
         return progress
     return {
         **progress,
-        "first_activity_elapsed_bucket": progress[
-            "first_output_elapsed_bucket"
-        ],
+        "first_activity_elapsed_bucket": progress["first_output_elapsed_bucket"],
         "last_activity_elapsed_bucket": progress["last_output_elapsed_bucket"],
         "permitted_mcp_calls": permitted_mcp_calls,
         "activity_count_source": "trusted_terminal_scorecard",
@@ -14350,28 +13262,20 @@ def _safe_live_provider_progress(value: Mapping[str, Any]) -> dict[str, Any]:
     if set(snapshot) not in (base_keys, terminal_keys):
         raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
     if (
-        snapshot.get("schema_version")
-        != "epiagentbench.provider_progress.v1"
+        snapshot.get("schema_version") != "epiagentbench.provider_progress.v1"
         or type(snapshot.get("output_seen")) is not bool
-        or snapshot.get("observed_elapsed_bucket")
-        not in _PROGRESS_ELAPSED_BUCKETS
-        or snapshot.get("first_output_elapsed_bucket")
-        not in _PROGRESS_ELAPSED_BUCKETS
-        or snapshot.get("last_output_elapsed_bucket")
-        not in _PROGRESS_ELAPSED_BUCKETS
-        or snapshot.get("combined_output_bytes_bucket")
-        not in _PROGRESS_BYTE_BUCKETS
+        or snapshot.get("observed_elapsed_bucket") not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("first_output_elapsed_bucket") not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("last_output_elapsed_bucket") not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("combined_output_bytes_bucket") not in _PROGRESS_BYTE_BUCKETS
     ):
         raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
     if set(snapshot) == terminal_keys and (
-        snapshot.get("first_activity_elapsed_bucket")
-        not in _PROGRESS_ELAPSED_BUCKETS
-        or snapshot.get("last_activity_elapsed_bucket")
-        not in _PROGRESS_ELAPSED_BUCKETS
+        snapshot.get("first_activity_elapsed_bucket") not in _PROGRESS_ELAPSED_BUCKETS
+        or snapshot.get("last_activity_elapsed_bucket") not in _PROGRESS_ELAPSED_BUCKETS
         or type(snapshot.get("permitted_mcp_calls")) is not int
         or not 0 <= snapshot["permitted_mcp_calls"] <= 50
-        or snapshot.get("activity_count_source")
-        != "trusted_terminal_scorecard"
+        or snapshot.get("activity_count_source") != "trusted_terminal_scorecard"
     ):
         raise ProviderStateIsolationError("Provider progress checkpoint was invalid")
     return snapshot
@@ -14380,10 +13284,7 @@ def _safe_live_provider_progress(value: Mapping[str, Any]) -> dict[str, Any]:
 def _result_timed_out(result: PilotRunResult) -> bool:
     return bool(
         result.timed_out
-        or (
-            result.returncode == 124
-            and "agent_failure:timeout" in result.audit_events
-        )
+        or (result.returncode == 124 and "agent_failure:timeout" in result.audit_events)
     )
 
 
@@ -14522,8 +13423,7 @@ def _valid_preflight_phase_projection(item: Mapping[str, Any]) -> bool:
         state not in {"not_started", "started_not_finished", "finished"}
         or phase not in {*PRE_MODEL_PHASES, None}
         or failed_phase not in {*PRE_MODEL_PHASES, None}
-        or item.get("conservative_chargeable")
-        is not (state != "not_started")
+        or item.get("conservative_chargeable") is not (state != "not_started")
     ):
         return False
     startup_stage = item.get("episode_startup_stage")
@@ -14570,9 +13470,7 @@ def _persistent_attestation_error(
             "Persistent-supervisor runtime replacement was refused"
         ),
     }.get(failure_code, "Live persistent-supervisor attestation failed")
-    error = ProviderExecutionIsolationError(
-        message
-    )
+    error = ProviderExecutionIsolationError(message)
     error.attestation_failure_code = failure_code
     return error
 
@@ -14744,11 +13642,9 @@ def _attest_with_transient_snapshot_retry(
         try:
             return attestation()
         except ProviderExecutionIsolationError as error:
-            if (
-                getattr(error, "attestation_failure_code", None)
-                != "status_snapshot_unstable"
-                or attempt == len(retry_delays)
-            ):
+            if getattr(
+                error, "attestation_failure_code", None
+            ) != "status_snapshot_unstable" or attempt == len(retry_delays):
                 raise
             delay = retry_delays[attempt]
             if time.monotonic() + delay > deadline:
@@ -14803,9 +13699,7 @@ def _attest_required_persistent_execution(
             expected_precommitment_sha256=precommitment,
         )
     except LiveAttestationError as error:
-        raise _persistent_attestation_error(
-            str(error.failure_code)
-        ) from None
+        raise _persistent_attestation_error(str(error.failure_code)) from None
     except Exception:
         raise _persistent_attestation_error("attestation_internal") from None
     return _normalized_supervisor_binding(
@@ -14845,7 +13739,11 @@ def _normalized_supervisor_binding(
         or not isinstance(label, str)
         or not label
         or len(label) > 255
-        or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.@+-" for character in label)
+        or any(
+            character
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.@+-"
+            for character in label
+        )
         or not isinstance(context, str)
         or not context.startswith("sha256:")
         or len(context) != 71
@@ -14980,8 +13878,7 @@ def _run_environment_preflight_core(
 
     if acknowledge_unbounded_provider_spend is not True:
         raise RuntimeError(
-            "Explicit acknowledgement of unbounded preflight provider spend "
-            "is required"
+            "Explicit acknowledgement of unbounded preflight provider spend is required"
         )
     if not require_persistent_supervisor:
         _assert_ephemeral_offline_test_namespace(
@@ -15010,12 +13907,8 @@ def _run_environment_preflight_core(
             operation="preflight",
         )
     if require_persistent_supervisor and "CURSOR_API_KEY" in os.environ:
-        raise RuntimeError(
-            "Supervised preflight must start without CURSOR_API_KEY"
-        )
-    if require_persistent_supervisor and not callable(
-        cursor_credential_loader
-    ):
+        raise RuntimeError("Supervised preflight must start without CURSOR_API_KEY")
+    if require_persistent_supervisor and not callable(cursor_credential_loader):
         raise RuntimeError(
             "Supervised preflight requires a deferred Cursor credential loader"
         )
@@ -15108,12 +14001,10 @@ def _run_environment_preflight_core(
                 public_preflight_path=public_preflight_path,
             )
         except BaseException:
-            sealed = (
-                _authenticated_sealed_terminal_preflight_projection(
-                    authentication_key_file=authentication_key_file,
-                    private_state_path=private_state_path,
-                    public_manifest_path=public_manifest_path,
-                )
+            sealed = _authenticated_sealed_terminal_preflight_projection(
+                authentication_key_file=authentication_key_file,
+                private_state_path=private_state_path,
+                public_manifest_path=public_manifest_path,
             )
             return {
                 "schema_version": SCHEMA_VERSION,
@@ -15125,9 +14016,7 @@ def _run_environment_preflight_core(
                 "incident_phase": sealed["incident_phase"],
                 "attempted_operation": sealed["attempted_operation"],
                 "completed_operation": sealed["completed_operation"],
-                "contract_failure_code": sealed[
-                    "contract_failure_code"
-                ],
+                "contract_failure_code": sealed["contract_failure_code"],
                 "profiles_recorded": sealed["profiles_recorded"],
                 "profiles_terminal": sealed["profiles_terminal"],
                 "model_invocations_conservatively_chargeable": sealed[
@@ -15185,9 +14074,7 @@ def _run_environment_preflight_core_claimed(
     )
     if cursor_credential_session is None:
         cursor_credential_session = _DeferredCursorCredentialSession(None)
-    evaluator = _deferred_cursor_evaluator(
-        evaluator, cursor_credential_session
-    )
+    evaluator = _deferred_cursor_evaluator(evaluator, cursor_credential_session)
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
     )
@@ -15220,40 +14107,27 @@ def _run_environment_preflight_core_claimed(
         )
         validated_provider_free_preclaim: dict[str, Any] | None = None
         if provider_free_preclaim is not None:
-            validated_provider_free_preclaim = (
-                _validate_provider_free_preclaim(
-                    dict(provider_free_preclaim),
-                    public_precommitment_sha256=public.get(
-                        "precommitment_sha256"
-                    ),
-                    preparation_runtime_contract_sha256=(
-                        _provider_free_preclaim_contract_sha256(public)
-                    ),
-                    required_status="passed",
-                )
+            validated_provider_free_preclaim = _validate_provider_free_preclaim(
+                dict(provider_free_preclaim),
+                public_precommitment_sha256=public.get("precommitment_sha256"),
+                preparation_runtime_contract_sha256=(
+                    _provider_free_preclaim_contract_sha256(public)
+                ),
+                required_status="passed",
             )
-            if durable_provider_free_preclaim != (
-                validated_provider_free_preclaim
-            ):
-                raise RuntimeError(
-                    "Durable provider-free preclaim changed"
-                )
+            if durable_provider_free_preclaim != (validated_provider_free_preclaim):
+                raise RuntimeError("Durable provider-free preclaim changed")
         elif isinstance(durable_provider_free_preclaim, Mapping):
-            validated_provider_free_preclaim = (
-                _validate_provider_free_preclaim(
-                    dict(durable_provider_free_preclaim),
-                    public_precommitment_sha256=public.get(
-                        "precommitment_sha256"
-                    ),
-                    preparation_runtime_contract_sha256=(
-                        _provider_free_preclaim_contract_sha256(public)
-                    ),
-                    required_status="passed",
-                )
+            validated_provider_free_preclaim = _validate_provider_free_preclaim(
+                dict(durable_provider_free_preclaim),
+                public_precommitment_sha256=public.get("precommitment_sha256"),
+                preparation_runtime_contract_sha256=(
+                    _provider_free_preclaim_contract_sha256(public)
+                ),
+                required_status="passed",
             )
         if require_persistent_supervisor and (
-            provider_free_preclaim is None
-            or validated_provider_free_preclaim is None
+            provider_free_preclaim is None or validated_provider_free_preclaim is None
         ):
             raise RuntimeError(
                 "Supervised preflight requires its passed preclaim argument"
@@ -15265,9 +14139,7 @@ def _run_environment_preflight_core_claimed(
             if validated_provider_free_preclaim is not None
             else None
         )
-        persistent_bindings = private.get(
-            _PERSISTENT_EXECUTION_BINDINGS_KEY
-        )
+        persistent_bindings = private.get(_PERSISTENT_EXECUTION_BINDINGS_KEY)
         durable_supervisor_binding = (
             persistent_bindings.get("preflight")
             if isinstance(persistent_bindings, Mapping)
@@ -15281,9 +14153,7 @@ def _run_environment_preflight_core_claimed(
                 _canonical_bytes(dict(durable_supervisor_binding)),
             )
         ):
-            raise RuntimeError(
-                "Durable preflight supervisor binding changed"
-            )
+            raise RuntimeError("Durable preflight supervisor binding changed")
 
         def persist_control_state(
             *,
@@ -15298,12 +14168,9 @@ def _run_environment_preflight_core_claimed(
                 raise RuntimeError("Durable preflight state is invalid")
             durable_attempts = preflight_state.get("attempts", [])
             if not isinstance(durable_attempts, list) or any(
-                not isinstance(attempt, Mapping)
-                for attempt in durable_attempts
+                not isinstance(attempt, Mapping) for attempt in durable_attempts
             ):
-                raise RuntimeError(
-                    "Durable preflight attempt state is invalid"
-                )
+                raise RuntimeError("Durable preflight attempt state is invalid")
             _advance_preflight_incident_envelope(
                 preflight_state,
                 phase=phase,
@@ -15361,9 +14228,7 @@ def _run_environment_preflight_core_claimed(
             )
             if expected_supervisor_binding is None:
                 if observed_binding is not None:
-                    raise _persistent_attestation_error(
-                        "private_binding_invalid"
-                    )
+                    raise _persistent_attestation_error("private_binding_invalid")
                 return
             if not isinstance(observed_binding, Mapping) or not (
                 hmac.compare_digest(
@@ -15374,9 +14239,7 @@ def _run_environment_preflight_core_claimed(
                 raise _persistent_attestation_error("runtime_replacement")
 
         persist_control_phase("supervisor_binding")
-        _attest_with_transient_snapshot_retry(
-            attest_current_supervisor
-        )
+        _attest_with_transient_snapshot_retry(attest_current_supervisor)
 
         persist_control_phase("spend_authorization")
         _assert_spend_authorization(private, public)
@@ -15393,9 +14256,7 @@ def _run_environment_preflight_core_claimed(
             private=private,
             public=public,
         )
-        claude_secure_storage_identity = _private_claude_storage_identity(
-            private
-        )
+        claude_secure_storage_identity = _private_claude_storage_identity(private)
         codex_secure_storage_identity = _private_codex_storage_identity(private)
         cohort_manifest_path = _existing_path_without_final_symlink(
             str(private.get("cohort_manifest_path"))
@@ -15424,25 +14285,25 @@ def _run_environment_preflight_core_claimed(
                 private=private,
                 public=public,
                 authentication_key=authentication_key,
-                claude_secure_storage_dir=(
-                    resolved_claude_secure_storage_dir
-                ),
-                codex_secure_storage_dir=(
-                    resolved_codex_secure_storage_dir
-                ),
+                claude_secure_storage_dir=(resolved_claude_secure_storage_dir),
+                codex_secure_storage_dir=(resolved_codex_secure_storage_dir),
                 operation_recorder=record_operation,
-                provider_free_preclaim=(
-                    validated_provider_free_preclaim
-                ),
+                provider_free_preclaim=(validated_provider_free_preclaim),
             ),
         )
         if private.get("assignments") or private.get("status") != "prepared":
-            raise RuntimeError("Environment preflight must precede production execution")
+            raise RuntimeError(
+                "Environment preflight must precede production execution"
+            )
         preflight = private.get("environment_preflight")
         if not isinstance(preflight, dict) or preflight.get("status") != "claimed":
-            raise RuntimeError("Environment preflight is not in its one-shot required state")
+            raise RuntimeError(
+                "Environment preflight is not in its one-shot required state"
+            )
         if public_preflight_path.exists() or public_preflight_path.is_symlink():
-            raise FileExistsError("Refusing to replace an environment preflight receipt")
+            raise FileExistsError(
+                "Refusing to replace an environment preflight receipt"
+            )
         persist_control_phase("credential_precheck")
         _require_claude_credential_state(
             resolved_claude_secure_storage_dir,
@@ -15500,9 +14361,7 @@ def _run_environment_preflight_core_claimed(
             "managed_glean_auth_file_identity"
         )
         if not isinstance(managed_glean_auth_file_identity, Mapping):
-            raise RuntimeError(
-                "Managed Glean credential identity is unavailable"
-            )
+            raise RuntimeError("Managed Glean credential identity is unavailable")
         budget = float(
             public["budget_contract"]["claude_max_budget_usd_per_assignment"]
         )
@@ -15510,11 +14369,7 @@ def _run_environment_preflight_core_claimed(
         private["environment_preflight"] = {
             "incident_envelope": preflight["incident_envelope"],
             **(
-                {
-                    "provider_free_preclaim": (
-                        validated_provider_free_preclaim
-                    )
-                }
+                {"provider_free_preclaim": (validated_provider_free_preclaim)}
                 if validated_provider_free_preclaim is not None
                 else {}
             ),
@@ -15551,8 +14406,7 @@ def _run_environment_preflight_core_claimed(
                 status="terminal",
                 incident_code=(
                     str(candidate["incident_code"])
-                    if candidate.get("incident_code")
-                    in _PROVIDER_INCIDENT_CODES
+                    if candidate.get("incident_code") in _PROVIDER_INCIDENT_CODES
                     else "unexpected_control_path_failure"
                 ),
             )
@@ -15566,18 +14420,14 @@ def _run_environment_preflight_core_claimed(
             }
             # The minimal authenticated candidate is durable before any
             # repository binding or public-write dependency is evaluated.
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
             preflight_state = private["environment_preflight"]
-            preflight_state["public_receipt_binding"] = (
-                _repository_receipt_binding(
-                    root=root,
-                    path=public_preflight_path,
-                    artifact_kind="preflight",
-                    content_sha256=_component_hash(candidate),
-                    payload=candidate,
-                )
+            preflight_state["public_receipt_binding"] = _repository_receipt_binding(
+                root=root,
+                path=public_preflight_path,
+                artifact_kind="preflight",
+                content_sha256=_component_hash(candidate),
+                payload=candidate,
             )
             _advance_preflight_incident_envelope(
                 preflight_state,
@@ -15585,9 +14435,7 @@ def _run_environment_preflight_core_claimed(
                 attempts=attempts,
                 status="terminal",
             )
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
             _create_public_json_once(public_preflight_path, candidate)
             return candidate
 
@@ -15603,9 +14451,7 @@ def _run_environment_preflight_core_claimed(
         ).digest()
         for profile in PROFILES:
             profile_id = str(profile["profile_id"])
-            quarantine = private["environment_preflight"][
-                "codex_auth_quarantine"
-            ]
+            quarantine = private["environment_preflight"]["codex_auth_quarantine"]
             if (
                 profile["system"] == "codex"
                 and quarantine.get("status") == "quarantined"
@@ -15633,9 +14479,7 @@ def _run_environment_preflight_core_claimed(
                     }
                 )
                 public_attempts.append(skipped)
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
+                _write_private_state(private_state_path, private, authentication_key)
                 continue
             marker: dict[str, Any] = {
                 "profile_id": profile_id,
@@ -15695,17 +14539,11 @@ def _run_environment_preflight_core_claimed(
                         "claude_secure_storage_dir": (
                             resolved_claude_secure_storage_dir
                         ),
-                        "claude_glean_oauth_client_id": (
-                            claude_glean_oauth_client_id
-                        ),
+                        "claude_glean_oauth_client_id": (claude_glean_oauth_client_id),
                     }
                     if profile["system"] == "claude"
                     else (
-                        {
-                            "codex_auth_storage_dir": (
-                                resolved_codex_secure_storage_dir
-                            )
-                        }
+                        {"codex_auth_storage_dir": (resolved_codex_secure_storage_dir)}
                         if profile["system"] == "codex"
                         else {}
                     )
@@ -15721,12 +14559,8 @@ def _run_environment_preflight_core_claimed(
                 def persist_pre_model_phase(phase: str) -> None:
                     nonlocal failure_stage, incident_code
                     failure_stage = "pre_model_phase_checkpoint"
-                    incident_code = (
-                        "provider_pre_model_phase_checkpoint_persist_failed"
-                    )
-                    checkpoints = marker.get(
-                        "pre_model_phase_checkpoints", []
-                    )
+                    incident_code = "provider_pre_model_phase_checkpoint_persist_failed"
+                    checkpoints = marker.get("pre_model_phase_checkpoints", [])
                     if (
                         not isinstance(checkpoints, list)
                         or len(checkpoints) >= len(PRE_MODEL_PHASES)
@@ -15753,12 +14587,9 @@ def _run_environment_preflight_core_claimed(
                             authentication_key,
                         )
                     except Exception:
-                        persistence_error = (
-                            ProviderPreModelPhasePersistenceError(
-                                "Pre-model phase checkpoint could not be "
-                                "persisted",
-                                pre_model_phase=phase,
-                            )
+                        persistence_error = ProviderPreModelPhasePersistenceError(
+                            "Pre-model phase checkpoint could not be persisted",
+                            pre_model_phase=phase,
                         )
                         raise persistence_error from None
                     failure_stage = phase
@@ -15767,20 +14598,14 @@ def _run_environment_preflight_core_claimed(
                 def persist_model_invocation_start() -> None:
                     nonlocal failure_stage, incident_code
                     failure_stage = "model_invocation_marker"
-                    incident_code = (
-                        "model_invocation_marker_persist_failed"
-                    )
+                    incident_code = "model_invocation_marker_persist_failed"
                     if "model_invocation" in marker:
                         raise ProviderStateIsolationError(
                             "Model invocation marker transition is invalid"
                         )
-                    if (
-                        _durable_pre_model_phase(marker)
-                        != "model_spawn_boundary"
-                    ):
+                    if _durable_pre_model_phase(marker) != "model_spawn_boundary":
                         raise ProviderStateIsolationError(
-                            "Model invocation preceded its durable phase "
-                            "checkpoint"
+                            "Model invocation preceded its durable phase checkpoint"
                         )
                     marker["model_invocation"] = {
                         "status": "started",
@@ -15807,12 +14632,10 @@ def _run_environment_preflight_core_claimed(
                 def persist_progress(snapshot: Mapping[str, Any]) -> None:
                     nonlocal failure_stage, incident_code
                     failure_stage = "provider_progress_checkpoint"
-                    incident_code = (
-                        "provider_progress_checkpoint_persist_failed"
-                    )
+                    incident_code = "provider_progress_checkpoint_persist_failed"
                     try:
-                        marker["progress_telemetry"] = (
-                            _safe_live_provider_progress(snapshot)
+                        marker["progress_telemetry"] = _safe_live_provider_progress(
+                            snapshot
                         )
                         _write_private_state(
                             private_state_path,
@@ -15840,9 +14663,7 @@ def _run_environment_preflight_core_claimed(
                     executable=str(profile["executable"]),
                     timeout_seconds=timeout,
                     claude_max_budget_usd=budget,
-                    claude_effort=(
-                        "high" if profile["system"] == "claude" else None
-                    ),
+                    claude_effort=("high" if profile["system"] == "claude" else None),
                     codex_reasoning_effort=(
                         str(profile["requested_reasoning"])
                         if profile["system"] == "codex"
@@ -15850,9 +14671,7 @@ def _run_environment_preflight_core_claimed(
                     ),
                     progress_callback=persist_progress,
                     pre_model_phase_callback=persist_pre_model_phase,
-                    model_invocation_start_callback=(
-                        persist_model_invocation_start
-                    ),
+                    model_invocation_start_callback=(persist_model_invocation_start),
                     **(
                         {
                             "expected_provider_cli_identity": (
@@ -15934,12 +14753,9 @@ def _run_environment_preflight_core_claimed(
                     result.system != profile["system"]
                     or result.requested_model != profile["requested_model"]
                 ):
-                    raise RuntimeError(
-                        "Disposable provider result contract drifted"
-                    )
+                    raise RuntimeError("Disposable provider result contract drifted")
                 receipt_required = (
-                    profile["model_receipt_policy"]
-                    == "provider_match_required"
+                    profile["model_receipt_policy"] == "provider_match_required"
                 )
                 receipt_ok = _exact_model_receipt_satisfied(
                     profile, result.observed_models
@@ -15969,12 +14785,8 @@ def _run_environment_preflight_core_claimed(
                 raw_hash = _component_hash(asdict(result))
                 if timed_out and profile["system"] == "codex":
                     failure_stage = "codex_quarantine_checkpoint"
-                    incident_code = (
-                        "provider_quarantine_checkpoint_persist_failed"
-                    )
-                    private["environment_preflight"][
-                        "codex_auth_quarantine"
-                    ] = {
+                    incident_code = "provider_quarantine_checkpoint_persist_failed"
+                    private["environment_preflight"]["codex_auth_quarantine"] = {
                         "status": "quarantined",
                         "reason": "cleanly_quiesced_timeout",
                         "profile_id": profile_id,
@@ -16014,9 +14826,7 @@ def _run_environment_preflight_core_claimed(
                         else "failed_provider"
                     ),
                     timed_out=timed_out,
-                    timeout_stage=(
-                        "model_invocation" if timed_out else None
-                    ),
+                    timeout_stage=("model_invocation" if timed_out else None),
                 )
                 public_attempt.update(
                     {
@@ -16036,9 +14846,7 @@ def _run_environment_preflight_core_claimed(
                     public_attempt["managed_glean_credentials_state_before"] = (
                         managed_glean_state_before
                     )
-                    public_attempt["managed_glean_credentials_state_after"] = (
-                        "present"
-                    )
+                    public_attempt["managed_glean_credentials_state_after"] = "present"
                 if profile["system"] == "codex":
                     public_attempt.update(
                         {
@@ -16052,9 +14860,7 @@ def _run_environment_preflight_core_claimed(
                         }
                     )
                 failure_stage = "provider_result_checkpoint"
-                incident_code = (
-                    "provider_result_checkpoint_persist_failed"
-                )
+                incident_code = "provider_result_checkpoint_persist_failed"
                 try:
                     _write_private_state(
                         private_state_path, private, authentication_key
@@ -16070,21 +14876,18 @@ def _run_environment_preflight_core_claimed(
                 durable_private = _load_private_state(
                     private_state_path, authentication_key
                 )
-                durable_preflight = durable_private.get(
-                    "environment_preflight"
-                )
+                durable_preflight = durable_private.get("environment_preflight")
                 durable_attempts = (
                     durable_preflight.get("attempts")
                     if isinstance(durable_preflight, dict)
                     else None
                 )
-                if (
-                    not isinstance(durable_attempts, list)
-                    or len(durable_attempts) not in {
-                        attempt_index,
-                        attempt_index + 1,
-                    }
-                ):
+                if not isinstance(durable_attempts, list) or len(
+                    durable_attempts
+                ) not in {
+                    attempt_index,
+                    attempt_index + 1,
+                }:
                     raise ProviderStateIsolationError(
                         "Durable preflight attempt state changed"
                     ) from None
@@ -16108,16 +14911,10 @@ def _run_environment_preflight_core_claimed(
                 private = durable_private
                 attempts = durable_attempts
                 marker = durable_marker
-                if isinstance(
-                    error, ProviderQuarantinePersistenceError
-                ):
-                    private["environment_preflight"][
-                        "codex_auth_quarantine"
-                    ] = {
+                if isinstance(error, ProviderQuarantinePersistenceError):
+                    private["environment_preflight"]["codex_auth_quarantine"] = {
                         "status": "quarantined",
-                        "reason": (
-                            "quarantine_checkpoint_persist_failed"
-                        ),
+                        "reason": ("quarantine_checkpoint_persist_failed"),
                         "profile_id": profile_id,
                         "quarantined_at_utc": _utc_now(),
                     }
@@ -16126,9 +14923,7 @@ def _run_environment_preflight_core_claimed(
                     (CodexAuthenticationIncidentError, ProviderStateIsolationError),
                 ):
                     marker.pop("progress_telemetry", None)
-                model_invocation_state = (
-                    _durable_model_invocation_state(marker)
-                )
+                model_invocation_state = _durable_model_invocation_state(marker)
                 pre_model_phase = _durable_pre_model_phase(marker)
                 failed_pre_model_phase = _failed_pre_model_phase(
                     error,
@@ -16151,9 +14946,7 @@ def _run_environment_preflight_core_claimed(
                         **_episode_startup_incident_fields(error),
                     }
                 )
-                timeout_stage = _provider_timeout_stage(
-                    error, result=result
-                )
+                timeout_stage = _provider_timeout_stage(error, result=result)
                 timed_out = timeout_stage is not None
                 terminal_failure_stage = _provider_failure_stage(
                     error, fallback=failure_stage
@@ -16161,9 +14954,7 @@ def _run_environment_preflight_core_claimed(
                 terminal_incident_code = _provider_incident_code(
                     error, fallback=incident_code
                 )
-                readiness_timeout = isinstance(
-                    error, ProviderCLIReadinessTimeoutError
-                )
+                readiness_timeout = isinstance(error, ProviderCLIReadinessTimeoutError)
                 failure_reason = (
                     "provider_cli_readiness_timeout"
                     if readiness_timeout
@@ -16226,25 +15017,19 @@ def _run_environment_preflight_core_claimed(
                     "production_episodes_consumed": 0,
                     "contract_hashes": contract_hashes,
                     "precommitment_sha256": public["precommitment_sha256"],
-                    "authentication_prerequisite": private[
-                        "environment_preflight"
-                    ]["authentication_prerequisite"],
-                    "codex_auth_quarantine": private[
-                        "environment_preflight"
-                    ]["codex_auth_quarantine"]["status"],
-                    "preflight_purpose": (
-                        "unscored_infrastructure_routing_handshake"
-                    ),
+                    "authentication_prerequisite": private["environment_preflight"][
+                        "authentication_prerequisite"
+                    ],
+                    "codex_auth_quarantine": private["environment_preflight"][
+                        "codex_auth_quarantine"
+                    ]["status"],
+                    "preflight_purpose": ("unscored_infrastructure_routing_handshake"),
                     "profiles": public_attempts,
                     "profiles_passed": [
-                        item
-                        for item in public_attempts
-                        if item["outcome"] == "passed"
+                        item for item in public_attempts if item["outcome"] == "passed"
                     ],
                     "failed_profile_id": profile_id,
-                    "failed_model_invocation_state": (
-                        model_invocation_state
-                    ),
+                    "failed_model_invocation_state": (model_invocation_state),
                     "failed_pre_model_phase": failed_pre_model_phase,
                     "model_invocations_conservatively_chargeable": (
                         _conservatively_chargeable_provider_calls(attempts)
@@ -16283,9 +15068,9 @@ def _run_environment_preflight_core_claimed(
             "production_episodes_consumed": 0,
             "contract_hashes": contract_hashes,
             "precommitment_sha256": public["precommitment_sha256"],
-            "authentication_prerequisite": private[
-                "environment_preflight"
-            ]["authentication_prerequisite"],
+            "authentication_prerequisite": private["environment_preflight"][
+                "authentication_prerequisite"
+            ],
             "codex_auth_quarantine": private["environment_preflight"][
                 "codex_auth_quarantine"
             ]["status"],
@@ -16294,9 +15079,7 @@ def _run_environment_preflight_core_claimed(
             "profiles_passed": [
                 item for item in public_attempts if item["outcome"] == "passed"
             ],
-            "failed_profile_ids": [
-                item["profile_id"] for item in profile_failures
-            ],
+            "failed_profile_ids": [item["profile_id"] for item in profile_failures],
             "failed_model_invocation_state": (
                 profile_failures[0]["model_invocation_state"]
                 if profile_failures
@@ -16351,12 +15134,8 @@ def _run_environment_preflight_core_claimed(
                     "model_invocations_conservatively_chargeable": (
                         _conservatively_chargeable_provider_calls(attempts)
                     ),
-                    "failure_stage": (
-                        "supervisor_attestation_final_completion"
-                    ),
-                    "incident_code": (
-                        "supervisor_boundary_attestation_failed"
-                    ),
+                    "failure_stage": ("supervisor_attestation_final_completion"),
+                    "incident_code": ("supervisor_boundary_attestation_failed"),
                     **_attestation_incident_fields(error),
                     "scores_reported": False,
                 }
@@ -16367,9 +15146,7 @@ def _run_environment_preflight_core_claimed(
                             "status": "terminal",
                             "failure_class": type(error).__name__,
                             "boundary": "final_completion",
-                            "incident_code": (
-                                "supervisor_boundary_attestation_failed"
-                            ),
+                            "incident_code": ("supervisor_boundary_attestation_failed"),
                             **_attestation_incident_fields(error),
                         },
                     },
@@ -16393,9 +15170,7 @@ def _run_environment_preflight_core_claimed(
                     "operation": "preflight",
                 },
             }
-            private["environment_preflight"][
-                "passed_contract_hashes"
-            ] = contract_hashes
+            private["environment_preflight"]["passed_contract_hashes"] = contract_hashes
             # The sealed candidate must be durable before even the trace-free
             # public watermark appears.
             _write_private_state(private_state_path, private, authentication_key)
@@ -16426,9 +15201,7 @@ def _run_environment_preflight_core_claimed(
             "pending_public_receipt_sha256": _component_hash(receipt),
         }
         if not profile_failures:
-            private["environment_preflight"][
-                "passed_contract_hashes"
-            ] = contract_hashes
+            private["environment_preflight"]["passed_contract_hashes"] = contract_hashes
         _write_private_state(private_state_path, private, authentication_key)
         public_receipt_binding = _repository_receipt_binding(
             root=root,
@@ -16509,9 +15282,7 @@ def run_environment_preflight(
         require_persistent_supervisor=True,
         offline_test_evaluator=None,
         cursor_credential_loader=cursor_credential_loader,
-        acknowledge_unbounded_provider_spend=(
-            acknowledge_unbounded_provider_spend
-        ),
+        acknowledge_unbounded_provider_spend=(acknowledge_unbounded_provider_spend),
     )
 
 
@@ -16535,8 +15306,7 @@ def _assert_ephemeral_offline_test_namespace(
             "Offline test evaluation requires an existing ephemeral root"
         ) from None
     if any(
-        (ancestor / ".git").exists()
-        or (ancestor / ".git").is_symlink()
+        (ancestor / ".git").exists() or (ancestor / ".git").is_symlink()
         for ancestor in (resolved_root, *resolved_root.parents)
     ):
         raise RuntimeError(
@@ -16552,16 +15322,13 @@ def _assert_ephemeral_offline_test_namespace(
         ) from None
     if (
         namespace_root != resolved_namespace_root
-        or namespace_root
-        in {Path("/"), Path("/tmp"), Path("/private/tmp")}
+        or namespace_root in {Path("/"), Path("/tmp"), Path("/private/tmp")}
         or not stat.S_ISDIR(namespace_metadata.st_mode)
         or stat.S_ISLNK(namespace_metadata.st_mode)
         or namespace_metadata.st_uid != os.getuid()
         or stat.S_IMODE(namespace_metadata.st_mode) != 0o700
     ):
-        raise RuntimeError(
-            "Offline test evaluation requires an isolated namespace"
-        )
+        raise RuntimeError("Offline test evaluation requires an isolated namespace")
     for path in mutable_paths:
         try:
             resolved_path = path.resolve(strict=False)
@@ -16570,9 +15337,7 @@ def _assert_ephemeral_offline_test_namespace(
                 "Offline test evaluation has an invalid mutable path"
             ) from None
         if not _path_is_within(resolved_path, resolved_root):
-            raise RuntimeError(
-                "Offline test evaluation cannot target a live namespace"
-            )
+            raise RuntimeError("Offline test evaluation cannot target a live namespace")
     for path in secure_storage_paths:
         try:
             resolved_path = path.resolve(strict=False)
@@ -16580,13 +15345,10 @@ def _assert_ephemeral_offline_test_namespace(
             raise RuntimeError(
                 "Offline test evaluation has an invalid secure-storage path"
             ) from None
-        if (
-            not _path_is_within(resolved_path, namespace_root)
-            or _path_is_within(resolved_path, resolved_root)
+        if not _path_is_within(resolved_path, namespace_root) or _path_is_within(
+            resolved_path, resolved_root
         ):
-            raise RuntimeError(
-                "Offline test evaluation cannot target live credentials"
-            )
+            raise RuntimeError("Offline test evaluation cannot target live credentials")
 
 
 def _run_environment_preflight_for_offline_test(
@@ -16627,9 +15389,7 @@ def _run_environment_preflight_for_offline_test(
         supervisor_runtime_dir=None,
         require_persistent_supervisor=False,
         offline_test_evaluator=offline_test_evaluator,
-        acknowledge_unbounded_provider_spend=(
-            acknowledge_unbounded_provider_spend
-        ),
+        acknowledge_unbounded_provider_spend=(acknowledge_unbounded_provider_spend),
     )
 
 
@@ -16647,11 +15407,12 @@ def _preflight_execution(
     except ValueError:
         private_relative = None
     results_relative = _relative_to_root(public_results_path, root)
-    if _git_output(root, "ls-files", "--error-unmatch", public_relative) != public_relative:
-        raise RuntimeError("Public matched-panel precommitment has not been committed")
-    if private_relative is not None and _git_output(
-        root, "ls-files", private_relative
+    if (
+        _git_output(root, "ls-files", "--error-unmatch", public_relative)
+        != public_relative
     ):
+        raise RuntimeError("Public matched-panel precommitment has not been committed")
+    if private_relative is not None and _git_output(root, "ls-files", private_relative):
         raise RuntimeError("Private matched-panel state must never be tracked")
     if os.stat(private_state_path).st_mode & 0o077:
         raise RuntimeError("Private matched-panel state permissions are too broad")
@@ -16662,10 +15423,7 @@ def _preflight_execution(
         if not artifact_path.exists() and not artifact_path.is_symlink():
             continue
         metadata = artifact_path.lstat()
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_mode & 0o077
-        ):
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077:
             raise RuntimeError("Authenticated private run artifact is unsafe")
         try:
             artifact_relative = _relative_to_root(artifact_path, root)
@@ -16676,9 +15434,7 @@ def _preflight_execution(
         if _git_output(root, "ls-files", artifact_relative):
             raise RuntimeError("Authenticated private run artifact is unsafe")
         expected_dirty.add(f"?? {artifact_relative}")
-    observed_dirty = _git_output(
-        root, "status", "--porcelain", "--untracked-files=all"
-    )
+    observed_dirty = _git_output(root, "status", "--porcelain", "--untracked-files=all")
     observed_lines = {line for line in observed_dirty.splitlines() if line}
     if observed_lines != expected_dirty:
         raise RuntimeError("Matched-panel execution worktree is not clean")
@@ -16736,8 +15492,7 @@ def _public_supervisor_incident_fields(
     incident_code = incident.get("incident_code")
     if (
         incident_code not in _PROVIDER_INCIDENT_CODES
-        or
-        failure_code is not None
+        or failure_code is not None
         and failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES
     ):
         raise ValueError("Stopped supervisor artifact has an unsafe incident code")
@@ -16754,10 +15509,7 @@ def _public_supervisor_incident_fields(
             else "provider_isolation_before_provider"
         )
     elif boundary == "final_completion":
-        if (
-            type(assignment_index) is not int
-            or assignment_index != len(assignments)
-        ):
+        if type(assignment_index) is not int or assignment_index != len(assignments):
             raise ValueError("Stopped supervisor incident boundary is invalid")
         failure_stage = (
             "supervisor_attestation_final_completion"
@@ -16769,8 +15521,7 @@ def _public_supervisor_incident_fields(
             "boundary" in incident
             or type(assignment_index) is not int
             or not 0 <= assignment_index < len(assignments)
-            or assignments[assignment_index].get("status")
-            != "transport_void"
+            or assignments[assignment_index].get("status") != "transport_void"
         ):
             raise ValueError("Stopped supervisor incident boundary is invalid")
         if failure_code is not None:
@@ -16778,9 +15529,7 @@ def _public_supervisor_incident_fields(
         else:
             failure_stage = (
                 "provider_isolation_before_model_invocation"
-                if _durable_model_invocation_state(
-                    assignments[assignment_index]
-                )
+                if _durable_model_invocation_state(assignments[assignment_index])
                 == "not_started"
                 else "provider_isolation_after_model_invocation_start"
             )
@@ -16800,9 +15549,7 @@ def _public_preflight_pending(
     profiles = receipt.get("profiles")
     if not isinstance(profiles, list):
         raise ValueError("Pending preflight candidate has no profile matrix")
-    chargeable = receipt.get(
-        "model_invocations_conservatively_chargeable"
-    )
+    chargeable = receipt.get("model_invocations_conservatively_chargeable")
     if type(chargeable) is not int or chargeable < 0:
         raise ValueError(
             "Pending preflight candidate has invalid model-invocation count"
@@ -16844,27 +15591,21 @@ def _reconcile_terminal_incident_public_progress(
         if (
             not isinstance(execution_incident, Mapping)
             or execution_incident.get("status") != "terminal"
-            or not isinstance(
-                execution_incident.get("failure_class"), str
-            )
+            or not isinstance(execution_incident.get("failure_class"), str)
             or not execution_incident["failure_class"]
-            or execution_incident.get("incident_code")
-            not in _PROVIDER_INCIDENT_CODES
+            or execution_incident.get("incident_code") not in _PROVIDER_INCIDENT_CODES
             or type(assignment_index) is not int
             or not isinstance(assignments, list)
         ):
             raise ValueError("Terminal execution incident state is invalid")
         if "boundary" not in execution_incident and (
             not 0 <= assignment_index < len(assignments)
-            or assignments[assignment_index].get("status")
-            != "transport_void"
+            or assignments[assignment_index].get("status") != "transport_void"
         ):
             raise ValueError("Terminal execution incident state is invalid")
     if codex_auth_incident is not None:
         assignments = private.get("assignments")
-        if not _codex_auth_incident_is_valid(
-            codex_auth_incident, assignments
-        ):
+        if not _codex_auth_incident_is_valid(codex_auth_incident, assignments):
             raise ValueError("Terminal Codex authentication incident is invalid")
     if (
         isinstance(execution_incident, Mapping)
@@ -16880,8 +15621,7 @@ def _reconcile_terminal_incident_public_progress(
     )
     if (
         attestation_failure_code is not None
-        and attestation_failure_code
-        not in _PERSISTENT_ATTESTATION_FAILURE_CODES
+        and attestation_failure_code not in _PERSISTENT_ATTESTATION_FAILURE_CODES
     ):
         raise ValueError("Terminal supervisor incident failure code is unsafe")
     failure_class = (
@@ -16889,17 +15629,13 @@ def _reconcile_terminal_incident_public_progress(
         if isinstance(execution_incident, Mapping)
         else None
     )
-    supervisor_boundary = (
-        isinstance(execution_incident, Mapping)
-        and (
-            execution_incident.get("boundary")
-            in {"clean_before_assignment", "final_completion"}
-            or attestation_failure_code
-            in _PERSISTENT_ATTESTATION_FAILURE_CODES
-            or (
-                "boundary" not in execution_incident
-                and failure_class in _PROVIDER_ISOLATION_FAILURE_CLASSES
-            )
+    supervisor_boundary = isinstance(execution_incident, Mapping) and (
+        execution_incident.get("boundary")
+        in {"clean_before_assignment", "final_completion"}
+        or attestation_failure_code in _PERSISTENT_ATTESTATION_FAILURE_CODES
+        or (
+            "boundary" not in execution_incident
+            and failure_class in _PROVIDER_ISOLATION_FAILURE_CLASSES
         )
     )
     expected_status = (
@@ -16907,9 +15643,7 @@ def _reconcile_terminal_incident_public_progress(
         if supervisor_boundary
         else "stopped_transport_void"
     )
-    expected = _public_running(
-        public_manifest, private, status=expected_status
-    )
+    expected = _public_running(public_manifest, private, status=expected_status)
     relative = _relative_to_root(public_results_path, root)
     if _git_output(root, "ls-files", relative):
         raise RuntimeError(
@@ -16929,9 +15663,7 @@ def _reconcile_terminal_incident_public_progress(
             else set()
         )
         if set(existing) != expected_schema:
-            raise ValueError(
-                "Terminal-incident public progress has an unsafe schema"
-            )
+            raise ValueError("Terminal-incident public progress has an unsafe schema")
         fixed_fields = (
             "schema_version",
             "panel_id",
@@ -16943,15 +15675,11 @@ def _reconcile_terminal_incident_public_progress(
             "planned_assignments",
         )
         if any(existing[name] != expected[name] for name in fixed_fields):
-            raise ValueError(
-                "Terminal-incident public progress differs from its panel"
-            )
+            raise ValueError("Terminal-incident public progress differs from its panel")
         if existing["results"] != [] or existing["summary"] != {
             "primary_estimand": "pending"
         }:
-            raise ValueError(
-                "Terminal-incident public progress must remain trace-free"
-            )
+            raise ValueError("Terminal-incident public progress must remain trace-free")
         count_fields = (
             "terminal_assignments",
             "completed_assignments",
@@ -16960,11 +15688,7 @@ def _reconcile_terminal_incident_public_progress(
         )
         for name in count_fields:
             value = existing[name]
-            if (
-                type(value) is not int
-                or value < 0
-                or value > expected[name]
-            ):
+            if type(value) is not int or value < 0 or value > expected[name]:
                 raise ValueError(
                     "Terminal-incident public progress watermark is unsafe"
                 )
@@ -16979,9 +15703,7 @@ def _reconcile_terminal_incident_public_progress(
 
     _atomic_json(public_results_path, expected)
     if _load_json(public_results_path) != expected:
-        raise RuntimeError(
-            "Terminal-incident public progress failed durable reload"
-        )
+        raise RuntimeError("Terminal-incident public progress failed durable reload")
     return expected
 
 
@@ -17066,9 +15788,14 @@ def _stratified_ci(
                 digest = hashlib.sha256(
                     f"{PANEL_ID}|{tag}|{replicate}|{family}|{draw}".encode("ascii")
                 ).digest()
-                selected.append(population[int.from_bytes(digest[:8], "big") % len(population)])
+                selected.append(
+                    population[int.from_bytes(digest[:8], "big") % len(population)]
+                )
         samples.append(statistics.fmean(selected))
-    return [round(_percentile(samples, lower), 3), round(_percentile(samples, upper), 3)]
+    return [
+        round(_percentile(samples, lower), 3),
+        round(_percentile(samples, upper), 3),
+    ]
 
 
 def aggregate_complete_results(
@@ -17207,7 +15934,9 @@ def verify_revealed_commitments(
     try:
         nonce = bytes.fromhex(str(reveal.get("schedule_nonce_hex")))
     except (AttributeError, ValueError):
-        raise ValueError("Completed matched panel has no valid commitment reveal") from None
+        raise ValueError(
+            "Completed matched panel has no valid commitment reveal"
+        ) from None
     if len(nonce) != 32:
         raise ValueError("Completed matched panel has no valid commitment reveal")
     schedule = completed_artifact.get("schedule")
@@ -17289,9 +16018,7 @@ def _complete_artifact(
         )
     episodes = {str(item["episode_ref"]): item for item in private["episodes"]}
     results: list[dict[str, Any]] = []
-    no_action_by_episode: dict[
-        str, tuple[tuple[int, int, int, int], ...]
-    ] = {}
+    no_action_by_episode: dict[str, tuple[tuple[int, int, int, int], ...]] = {}
     recorded_by_episode: Counter[str] = Counter()
     voids = 0
     for assignment in private["assignments"]:
@@ -17313,9 +16040,7 @@ def _complete_artifact(
             recorded_by_episode[episode_ref] += 1
         else:
             voids += 1
-            model_invocation_state = _durable_model_invocation_state(
-                assignment
-            )
+            model_invocation_state = _durable_model_invocation_state(assignment)
             void_reason = assignment.get("void_reason")
             timeout_stage = assignment.get("timeout_stage")
             failure_stage = assignment.get("failure_stage")
@@ -17324,9 +16049,7 @@ def _complete_artifact(
                 or timeout_stage not in _TRANSPORT_VOID_TIMEOUT_STAGES
                 or failure_stage not in _TRANSPORT_VOID_FAILURE_STAGES
             ):
-                raise ValueError(
-                    "Transport-void public projection is invalid"
-                )
+                raise ValueError("Transport-void public projection is invalid")
             result = {
                 "episode_ref": assignment["episode_ref"],
                 "profile_id": assignment["profile_id"],
@@ -17335,9 +16058,7 @@ def _complete_artifact(
                 "reason": void_reason,
                 "trace_status": "unavailable_transport_void",
                 "model_invocation_state": model_invocation_state,
-                "conservative_chargeable": (
-                    model_invocation_state != "not_started"
-                ),
+                "conservative_chargeable": (model_invocation_state != "not_started"),
                 "timeout_stage": timeout_stage,
                 "failure_stage": failure_stage,
             }
@@ -17370,9 +16091,7 @@ def _complete_artifact(
         "terminal_assignments": len(private["assignments"]),
         "transport_voids": voids,
         "model_invocations_conservatively_chargeable": (
-            _conservatively_chargeable_provider_calls(
-                private["assignments"]
-            )
+            _conservatively_chargeable_provider_calls(private["assignments"])
         ),
         "episodes": [
             {
@@ -17380,7 +16099,9 @@ def _complete_artifact(
                 "pack_commitment": item["pack_commitment"],
                 "family": item["family"],
             }
-            for item in sorted(private["episodes"], key=lambda value: str(value["episode_ref"]))
+            for item in sorted(
+                private["episodes"], key=lambda value: str(value["episode_ref"])
+            )
         ],
         "schedule": [
             {
@@ -17420,9 +16141,7 @@ def _completed_supervisor_binding(
             authentication_key_file=authentication_key_file,
             expected_operation=operation,
             expected_panel_id=PANEL_ID,
-            expected_precommitment_sha256=public_manifest[
-                "precommitment_sha256"
-            ],
+            expected_precommitment_sha256=public_manifest["precommitment_sha256"],
         )
     except Exception:
         raise _release_validation_error(
@@ -17433,9 +16152,7 @@ def _completed_supervisor_binding(
         or attestation.get("attested") is not True
         or attestation.get("lifecycle") != "completed"
     ):
-        raise _release_validation_error(
-            "release_completion_attestation_invalid"
-        )
+        raise _release_validation_error("release_completion_attestation_invalid")
     return _normalized_supervisor_binding(
         attestation,
         operation=operation,
@@ -17459,9 +16176,7 @@ def _require_existing_persistent_execution_binding(
             _canonical_bytes(dict(completed_binding)),
         )
     ):
-        raise _release_validation_error(
-            "release_runtime_binding_invalid"
-        )
+        raise _release_validation_error("release_runtime_binding_invalid")
 
 
 def _release_validation_error(code: str) -> Exception:
@@ -17472,9 +16187,7 @@ def _release_validation_error(code: str) -> Exception:
         ReleaseValidationFailureCode,
     )
 
-    return ReleaseValidationError(
-        ReleaseValidationFailureCode(code)
-    )
+    return ReleaseValidationError(ReleaseValidationFailureCode(code))
 
 
 def _release_gate(code: str, operation: Callable[[], Any]) -> Any:
@@ -17541,16 +16254,12 @@ def finalize_supervised_release(
         authentication_key = _release_gate(
             "release_private_state_invalid",
             lambda: _read_authentication_key(
-                _existing_path_without_final_symlink(
-                    authentication_key_file
-                )
+                _existing_path_without_final_symlink(authentication_key_file)
             ),
         )
         private = _release_gate(
             "release_private_state_invalid",
-            lambda: _load_private_state(
-                private_state_path, authentication_key
-            ),
+            lambda: _load_private_state(private_state_path, authentication_key),
         )
         public = _release_gate(
             "release_contract_binding_invalid",
@@ -17569,9 +16278,7 @@ def finalize_supervised_release(
                     if isinstance(durable_preflight, Mapping)
                     else None
                 ),
-                public_precommitment_sha256=public.get(
-                    "precommitment_sha256"
-                ),
+                public_precommitment_sha256=public.get("precommitment_sha256"),
                 preparation_runtime_contract_sha256=(
                     _provider_free_preclaim_contract_sha256(public)
                 ),
@@ -17593,9 +16300,7 @@ def finalize_supervised_release(
             private.get(name) is not None
             for name in ("execution_incident", "codex_auth_incident")
         ):
-            raise _release_validation_error(
-                "release_private_state_invalid"
-            )
+            raise _release_validation_error("release_private_state_invalid")
         resolved_claude_storage = _release_gate(
             "release_contract_binding_invalid",
             lambda: _validate_claude_secure_storage_dir(
@@ -17628,15 +16333,9 @@ def finalize_supervised_release(
                 _PENDING_PREFLIGHT_STATUS,
                 "passed",
             }:
-                raise _release_validation_error(
-                    "release_candidate_invalid"
-                )
-            if preflight.get("provider_free_preclaim") != (
-                validated_release_preclaim
-            ):
-                raise _release_validation_error(
-                    "release_candidate_invalid"
-                )
+                raise _release_validation_error("release_candidate_invalid")
+            if preflight.get("provider_free_preclaim") != (validated_release_preclaim):
+                raise _release_validation_error("release_candidate_invalid")
             candidate = preflight.get("pending_public_receipt")
             if (
                 not isinstance(candidate, dict)
@@ -17647,9 +16346,7 @@ def finalize_supervised_release(
                 or preflight.get("pending_public_receipt_sha256")
                 != _component_hash(candidate)
             ):
-                raise _release_validation_error(
-                    "release_candidate_invalid"
-                )
+                raise _release_validation_error("release_candidate_invalid")
             candidate_sha256 = _component_hash(candidate)
             release = preflight.get(_PUBLIC_RELEASE_KEY)
             expected_release_status = (
@@ -17657,26 +16354,18 @@ def finalize_supervised_release(
                 if preflight.get("status") == "passed"
                 else "pending_supervisor_completion"
             )
-            if (
-                not isinstance(release, Mapping)
-                or dict(release)
-                != {
-                    "status": expected_release_status,
-                    "operation": "preflight",
-                }
-            ):
-                raise _release_validation_error(
-                    "release_candidate_invalid"
-                )
+            if not isinstance(release, Mapping) or dict(release) != {
+                "status": expected_release_status,
+                "operation": "preflight",
+            }:
+                raise _release_validation_error("release_candidate_invalid")
             expected_pending = _public_preflight_pending(public, candidate)
             existing = _release_gate(
                 "release_public_watermark_invalid",
                 lambda: _load_json(public_output_path),
             )
             if existing != expected_pending and existing != candidate:
-                raise _release_validation_error(
-                    "release_public_watermark_invalid"
-                )
+                raise _release_validation_error("release_public_watermark_invalid")
             if preflight.get("status") == "passed":
                 binding = preflight.get("public_receipt_binding")
                 published_commit = (
@@ -17685,9 +16374,7 @@ def finalize_supervised_release(
                     else None
                 )
                 if preflight.get("public_receipt_sha256") != candidate_sha256:
-                    raise _release_validation_error(
-                        "release_public_watermark_invalid"
-                    )
+                    raise _release_validation_error("release_public_watermark_invalid")
                 _release_gate(
                     "release_public_watermark_invalid",
                     lambda: _validate_repository_receipt_binding(
@@ -17697,9 +16384,7 @@ def finalize_supervised_release(
                         artifact_kind="preflight",
                         content_sha256=candidate_sha256,
                         payload=candidate,
-                        require_published_commit=(
-                            published_commit is not None
-                        ),
+                        require_published_commit=(published_commit is not None),
                     ),
                 )
                 if existing == expected_pending:
@@ -17709,9 +16394,7 @@ def finalize_supervised_release(
                         )
                     _release_gate(
                         "release_public_commit_failed",
-                        lambda: _atomic_json(
-                            public_output_path, candidate
-                        ),
+                        lambda: _atomic_json(public_output_path, candidate),
                     )
                 else:
                     _release_gate(
@@ -17769,9 +16452,7 @@ def finalize_supervised_release(
             if existing == expected_pending:
                 _release_gate(
                     "release_public_commit_failed",
-                    lambda: _atomic_json(
-                        public_output_path, candidate
-                    ),
+                    lambda: _atomic_json(public_output_path, candidate),
                 )
             return candidate
 
@@ -17779,9 +16460,7 @@ def finalize_supervised_release(
             _PENDING_PRODUCTION_STATUS,
             "complete",
         }:
-            raise _release_validation_error(
-                "release_candidate_invalid"
-            )
+            raise _release_validation_error("release_candidate_invalid")
         artifact = _release_gate(
             "release_candidate_invalid",
             lambda: _complete_artifact(public, private),
@@ -17792,12 +16471,9 @@ def finalize_supervised_release(
             or release.get("operation") != "production"
             or release.get("status")
             not in {"pending_supervisor_completion", "released"}
-            or release.get("candidate_results_sha256")
-            != artifact.get("results_sha256")
+            or release.get("candidate_results_sha256") != artifact.get("results_sha256")
         ):
-            raise _release_validation_error(
-                "release_candidate_invalid"
-            )
+            raise _release_validation_error("release_candidate_invalid")
         expected_pending = _public_running(
             public,
             private,
@@ -17808,9 +16484,7 @@ def finalize_supervised_release(
             lambda: _load_json(public_output_path),
         )
         if existing != expected_pending and existing != artifact:
-            raise _release_validation_error(
-                "release_public_watermark_invalid"
-            )
+            raise _release_validation_error("release_public_watermark_invalid")
         if existing == artifact:
             _release_gate(
                 "release_public_watermark_invalid",
@@ -17873,7 +16547,9 @@ def _run_panel_locked(
     """Run or resume the 300 assignments, never retrying a durable start."""
 
     if acknowledge_unbounded_provider_spend is not True:
-        raise RuntimeError("Explicit acknowledgement of unbounded provider spend is required")
+        raise RuntimeError(
+            "Explicit acknowledgement of unbounded provider spend is required"
+        )
     if not require_persistent_supervisor:
         _assert_ephemeral_offline_test_namespace(
             root=root,
@@ -17900,9 +16576,7 @@ def _run_panel_locked(
     )
     if cursor_credential_session is None:
         cursor_credential_session = _DeferredCursorCredentialSession(None)
-    evaluator = _deferred_cursor_evaluator(
-        evaluator, cursor_credential_session
-    )
+    evaluator = _deferred_cursor_evaluator(evaluator, cursor_credential_session)
     resolved_claude_secure_storage_dir = _validate_claude_secure_storage_dir(
         claude_secure_storage_dir, root=root
     )
@@ -17938,12 +16612,10 @@ def _run_panel_locked(
         )
         if private.get("execution_incident") is not None:
             raise RuntimeError(
-                "A terminal provider execution incident makes this panel "
-                "non-resumable"
+                "A terminal provider execution incident makes this panel non-resumable"
             )
         raise RuntimeError(
-            "A terminal Codex authentication incident makes this panel "
-            "non-resumable"
+            "A terminal Codex authentication incident makes this panel non-resumable"
         )
     _, binding_created = _attest_with_transient_snapshot_retry(
         lambda: _attest_and_match_persistent_execution(
@@ -17967,18 +16639,15 @@ def _run_panel_locked(
             public_manifest=public_manifest,
             private=private,
         )
+
     _assert_spend_authorization(private, public_manifest)
     preflight_state = private.get("environment_preflight")
     if not isinstance(preflight_state, Mapping):
-        raise RuntimeError(
-            "Production requires a passed provider-free preclaim"
-        )
+        raise RuntimeError("Production requires a passed provider-free preclaim")
     try:
         provider_free_preclaim = _validate_provider_free_preclaim(
             preflight_state.get("provider_free_preclaim"),
-            public_precommitment_sha256=public_manifest.get(
-                "precommitment_sha256"
-            ),
+            public_precommitment_sha256=public_manifest.get("precommitment_sha256"),
             preparation_runtime_contract_sha256=(
                 _provider_free_preclaim_contract_sha256(public_manifest)
             ),
@@ -17999,9 +16668,7 @@ def _run_panel_locked(
     )
     claude_secure_storage_identity = _private_claude_storage_identity(private)
     codex_secure_storage_identity = _private_codex_storage_identity(private)
-    managed_glean_auth_file_identity = private.get(
-        "managed_glean_auth_file_identity"
-    )
+    managed_glean_auth_file_identity = private.get("managed_glean_auth_file_identity")
     if not isinstance(managed_glean_auth_file_identity, Mapping):
         raise RuntimeError("Managed Glean credential identity is unavailable")
     cohort_manifest_path = _existing_path_without_final_symlink(
@@ -18029,9 +16696,7 @@ def _run_panel_locked(
         private_state_path=private_state_path,
         public_manifest_path=public_manifest_path,
         public_results_path=public_results_path,
-        allowed_private_artifact_paths=(
-            _cohort_retirement_path(cohort_manifest_path),
-        ),
+        allowed_private_artifact_paths=(_cohort_retirement_path(cohort_manifest_path),),
     )
     _git_output(
         root,
@@ -18045,7 +16710,8 @@ def _run_panel_locked(
     existing = _load_json(public_results_path) if public_results_path.exists() else None
     if existing is not None and (
         existing.get("panel_id") != PANEL_ID
-        or existing.get("precommitment_sha256") != public_manifest["precommitment_sha256"]
+        or existing.get("precommitment_sha256")
+        != public_manifest["precommitment_sha256"]
     ):
         raise ValueError("Public results belong to another matched panel")
     private_terminal = sum(
@@ -18091,12 +16757,8 @@ def _run_panel_locked(
 
         try:
             attest_clean_provider_boundary()
-            _attest_execution_contracts(
-                root=root, public=public_manifest
-            )
-            _attest_frozen_glean_auth_dependencies(
-                private, public_manifest
-            )
+            _attest_execution_contracts(root=root, public=public_manifest)
+            _attest_frozen_glean_auth_dependencies(private, public_manifest)
         except ProviderExecutionIsolationError:
             raise
         except (OSError, RuntimeError, ValueError):
@@ -18106,12 +16768,8 @@ def _run_panel_locked(
 
     if assignments and assignments[-1]["status"] == "started":
         interrupted_profile_id = str(assignments[-1]["profile_id"])
-        interrupted_model_state = _durable_model_invocation_state(
-            assignments[-1]
-        )
-        interrupted_pre_model_phase = _durable_pre_model_phase(
-            assignments[-1]
-        )
+        interrupted_model_state = _durable_model_invocation_state(assignments[-1])
+        interrupted_pre_model_phase = _durable_pre_model_phase(assignments[-1])
         private["execution_incident"] = {
             "status": "terminal",
             "assignment_index": len(assignments) - 1,
@@ -18129,15 +16787,9 @@ def _run_panel_locked(
             }
         assignments[-1]["status"] = "transport_void"
         assignments[-1]["finished_at_utc"] = _utc_now()
-        assignments[-1]["void_reason"] = (
-            "provider_interrupted_after_durable_attempt"
-        )
-        assignments[-1]["model_invocation_state"] = (
-            interrupted_model_state
-        )
-        assignments[-1]["pre_model_phase"] = (
-            interrupted_pre_model_phase
-        )
+        assignments[-1]["void_reason"] = "provider_interrupted_after_durable_attempt"
+        assignments[-1]["model_invocation_state"] = interrupted_model_state
+        assignments[-1]["pre_model_phase"] = interrupted_pre_model_phase
         assignments[-1]["failed_pre_model_phase"] = (
             interrupted_pre_model_phase
             if interrupted_model_state == "not_started"
@@ -18148,14 +16800,14 @@ def _run_panel_locked(
         )
         private["status"] = "running"
         _write_private_state(private_state_path, private, authentication_key)
-        stopped = _public_running(public_manifest, private, status="stopped_transport_void")
+        stopped = _public_running(
+            public_manifest, private, status="stopped_transport_void"
+        )
         _atomic_json(public_results_path, stopped)
         return stopped
 
     keys = _assignment_keys(schedule)
-    remaining_profile_ids = {
-        profile_id for _, profile_id in keys[len(assignments) :]
-    }
+    remaining_profile_ids = {profile_id for _, profile_id in keys[len(assignments) :]}
     remaining_systems = {
         str(_PROFILE_BY_ID[profile_id]["system"])
         for profile_id in remaining_profile_ids
@@ -18264,9 +16916,7 @@ def _run_panel_locked(
                 **_attestation_incident_fields(error),
             }
             private["status"] = "running"
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
             stopped = _public_running(
                 public_manifest,
                 private,
@@ -18287,9 +16937,7 @@ def _run_panel_locked(
         result: PilotRunResult | None = None
         try:
             try:
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
+                _write_private_state(private_state_path, private, authentication_key)
             except Exception:
                 raise ProviderAttemptPersistenceError(
                     "Provider attempt marker could not be persisted"
@@ -18307,12 +16955,8 @@ def _run_panel_locked(
 
             def persist_pre_model_phase(phase: str) -> None:
                 nonlocal incident_code
-                incident_code = (
-                    "provider_pre_model_phase_checkpoint_persist_failed"
-                )
-                checkpoints = marker.get(
-                    "pre_model_phase_checkpoints", []
-                )
+                incident_code = "provider_pre_model_phase_checkpoint_persist_failed"
+                checkpoints = marker.get("pre_model_phase_checkpoints", [])
                 if (
                     not isinstance(checkpoints, list)
                     or len(checkpoints) >= len(PRE_MODEL_PHASES)
@@ -18333,11 +16977,9 @@ def _run_panel_locked(
                         authentication_key,
                     )
                 except Exception:
-                    persistence_error = (
-                        ProviderPreModelPhasePersistenceError(
-                            "Pre-model phase checkpoint could not be persisted",
-                            pre_model_phase=phase,
-                        )
+                    persistence_error = ProviderPreModelPhasePersistenceError(
+                        "Pre-model phase checkpoint could not be persisted",
+                        pre_model_phase=phase,
                     )
                     raise persistence_error from None
                 incident_code = "provider_adapter_execution_failed"
@@ -18349,10 +16991,7 @@ def _run_panel_locked(
                     raise ProviderStateIsolationError(
                         "Model invocation marker transition is invalid"
                     )
-                if (
-                    _durable_pre_model_phase(marker)
-                    != "model_spawn_boundary"
-                ):
+                if _durable_pre_model_phase(marker) != "model_spawn_boundary":
                     raise ProviderStateIsolationError(
                         "Model invocation preceded its durable phase checkpoint"
                     )
@@ -18376,8 +17015,8 @@ def _run_panel_locked(
                 nonlocal incident_code
                 incident_code = "provider_progress_checkpoint_persist_failed"
                 try:
-                    marker["progress_telemetry"] = (
-                        _safe_live_provider_progress(snapshot)
+                    marker["progress_telemetry"] = _safe_live_provider_progress(
+                        snapshot
                     )
                     _write_private_state(
                         private_state_path, private, authentication_key
@@ -18392,20 +17031,12 @@ def _run_panel_locked(
 
             provider_auth_kwargs = (
                 {
-                    "claude_secure_storage_dir": (
-                        resolved_claude_secure_storage_dir
-                    ),
-                    "claude_glean_oauth_client_id": (
-                        claude_glean_oauth_client_id
-                    ),
+                    "claude_secure_storage_dir": (resolved_claude_secure_storage_dir),
+                    "claude_glean_oauth_client_id": (claude_glean_oauth_client_id),
                 }
                 if profile["system"] == "claude"
                 else (
-                    {
-                        "codex_auth_storage_dir": (
-                            resolved_codex_secure_storage_dir
-                        )
-                    }
+                    {"codex_auth_storage_dir": (resolved_codex_secure_storage_dir)}
                     if profile["system"] == "codex"
                     else {}
                 )
@@ -18418,9 +17049,7 @@ def _run_panel_locked(
                 executable=str(profile["executable"]),
                 timeout_seconds=timeout,
                 claude_max_budget_usd=budget,
-                claude_effort=(
-                    "high" if profile["system"] == "claude" else None
-                ),
+                claude_effort=("high" if profile["system"] == "claude" else None),
                 codex_reasoning_effort=(
                     str(profile["requested_reasoning"])
                     if profile["system"] == "codex"
@@ -18428,9 +17057,7 @@ def _run_panel_locked(
                 ),
                 progress_callback=persist_progress,
                 pre_model_phase_callback=persist_pre_model_phase,
-                model_invocation_start_callback=(
-                    persist_model_invocation_start
-                ),
+                model_invocation_start_callback=(persist_model_invocation_start),
                 **(
                     {
                         "expected_provider_cli_identity": (
@@ -18460,9 +17087,7 @@ def _run_panel_locked(
                 "finished_at_utc": _utc_now(),
             }
             try:
-                _write_private_state(
-                    private_state_path, private, authentication_key
-                )
+                _write_private_state(private_state_path, private, authentication_key)
             except Exception:
                 raise ProviderCompletionPersistenceError(
                     "Provider completion marker could not be persisted"
@@ -18512,13 +17137,10 @@ def _run_panel_locked(
                     "Codex timeout makes credential refresh state ambiguous"
                 )
             _raise_on_harness_startup_failure(
-                replace(result, returncode=0)
-                if fixed_denominator_timeout
-                else result
+                replace(result, returncode=0) if fixed_denominator_timeout else result
             )
             if (
-                type(result.returncode) is not int
-                or result.returncode != 0
+                type(result.returncode) is not int or result.returncode != 0
             ) and not fixed_denominator_timeout:
                 raise RuntimeError("Provider CLI returned a nonzero transport status")
             if (
@@ -18545,11 +17167,9 @@ def _run_panel_locked(
             )
             durable_assignments = durable_private.get("assignments")
             assignment_index = len(assignments) - 1
-            if (
-                not isinstance(durable_assignments, list)
-                or len(durable_assignments)
-                not in {assignment_index, assignment_index + 1}
-            ):
+            if not isinstance(durable_assignments, list) or len(
+                durable_assignments
+            ) not in {assignment_index, assignment_index + 1}:
                 raise ProviderStateIsolationError(
                     "Durable assignment state changed after provider failure"
                 ) from None
@@ -18575,9 +17195,7 @@ def _run_panel_locked(
             private = durable_private
             assignments = durable_assignments
             marker = durable_marker
-            model_invocation_state = _durable_model_invocation_state(
-                marker
-            )
+            model_invocation_state = _durable_model_invocation_state(marker)
             pre_model_phase = _durable_pre_model_phase(marker)
             failed_pre_model_phase = _failed_pre_model_phase(
                 error,
@@ -18664,9 +17282,7 @@ def _run_panel_locked(
                 if isinstance(error, ProviderExecutionIsolationError)
                 else "stopped_transport_void"
             )
-            stopped = _public_running(
-                public_manifest, private, status=stopped_status
-            )
+            stopped = _public_running(public_manifest, private, status=stopped_status)
             _atomic_json(public_results_path, stopped)
             return stopped
         marker["status"] = "complete"
@@ -18675,9 +17291,7 @@ def _run_panel_locked(
         marker["failed_pre_model_phase"] = None
         marker["public_result"] = sanitized
         try:
-            _write_private_state(
-                private_state_path, private, authentication_key
-            )
+            _write_private_state(private_state_path, private, authentication_key)
         except Exception:
             # The in-memory marker is not evidence that completion reached
             # durable storage. Reload the authenticated checkpoint and
@@ -18713,15 +17327,11 @@ def _run_panel_locked(
                 {
                     "status": "transport_void",
                     "finished_at_utc": _utc_now(),
-                    "void_reason": (
-                        "provider_completion_marker_persist_failed"
-                    ),
+                    "void_reason": ("provider_completion_marker_persist_failed"),
                     "model_invocation_state": (
                         _durable_model_invocation_state(durable_marker)
                     ),
-                    "pre_model_phase": (
-                        _durable_pre_model_phase(durable_marker)
-                    ),
+                    "pre_model_phase": (_durable_pre_model_phase(durable_marker)),
                     "failed_pre_model_phase": None,
                     "conservative_chargeable": True,
                     "failure_stage": None,
@@ -18777,9 +17387,7 @@ def _run_panel_locked(
         _atomic_json(public_results_path, stopped)
         return stopped
     private["status"] = (
-        _PENDING_PRODUCTION_STATUS
-        if require_persistent_supervisor
-        else "complete"
+        _PENDING_PRODUCTION_STATUS if require_persistent_supervisor else "complete"
     )
     private["panel_completed_at_utc"] = _utc_now()
     artifact = _complete_artifact(public_manifest, private)
@@ -18837,9 +17445,7 @@ def run_panel(
             "Supervised production requires a deferred Cursor credential loader"
         )
     if "CURSOR_API_KEY" in os.environ:
-        raise RuntimeError(
-            "Supervised production must start without CURSOR_API_KEY"
-        )
+        raise RuntimeError("Supervised production must start without CURSOR_API_KEY")
     cursor_credential_session = _DeferredCursorCredentialSession(
         cursor_credential_loader
     )

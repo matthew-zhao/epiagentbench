@@ -92,9 +92,7 @@ class V28TypedContractAttestationTests(unittest.TestCase):
 
         with (
             self._forbid_provider_and_auth_helpers() as forbidden_helpers,
-            self.assertRaises(
-                matched._PreflightControlBoundaryError
-            ) as raised,
+            self.assertRaises(matched._PreflightControlBoundaryError) as raised,
         ):
             matched._run_preflight_contract_attestation_boundary(
                 persist_control_state=persist_control_state,
@@ -139,9 +137,7 @@ class V28TypedContractAttestationTests(unittest.TestCase):
 
         with (
             self._forbid_provider_and_auth_helpers() as forbidden_helpers,
-            self.assertRaises(
-                matched._PreflightControlBoundaryError
-            ) as raised,
+            self.assertRaises(matched._PreflightControlBoundaryError) as raised,
         ):
             matched._run_preflight_contract_attestation_boundary(
                 persist_control_state=persist_control_state,
@@ -187,9 +183,7 @@ class V28TypedContractAttestationTests(unittest.TestCase):
             ):
                 raise OSError(secret)
 
-        with self.assertRaises(
-            matched._PreflightControlBoundaryError
-        ) as raised:
+        with self.assertRaises(matched._PreflightControlBoundaryError) as raised:
             matched._run_preflight_contract_attestation_boundary(
                 persist_control_state=persist_control_state,
                 validate_contracts=lambda _record_operation: "validated",
@@ -301,7 +295,7 @@ class V28TypedContractAttestationTests(unittest.TestCase):
         for forbidden in ("/hidden/", "exception", "provider_output"):
             self.assertNotIn(forbidden, serialized)
 
-    def test_v35_live_incident_envelope_schema_remains_closed(self) -> None:
+    def test_v48_live_incident_envelope_schema_remains_closed(self) -> None:
         envelope = matched._new_preflight_incident_envelope()
         self.assertEqual(
             envelope["schema_version"],

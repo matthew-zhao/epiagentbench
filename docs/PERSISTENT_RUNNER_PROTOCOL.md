@@ -40,23 +40,36 @@ zero helper, authentication, provider, and model starts and no later V34
 artifact or private state was created. Its exact two-file closeout is
 `038794aa1bf82440259c62afdabab44c01415978` on
 `refs/heads/codex/v34-runtime-publication-terminal-closeout`, under
-`epiagentbench.panel_supersession.v27`. That closeout is the sole public
-predecessor for V35. The [V34 runbook](V34_RUNBOOK.md) is terminal historical
-evidence only.
+`epiagentbench.panel_supersession.v27`. The
+[V34 runbook](V34_RUNBOOK.md) is terminal historical evidence only.
 
-V35 is the forward control-plane design. Its schemas and exact acknowledgement
+V35 published its control plane and later stopped during provider-free
+runtime-receipt publisher setup. V40 stopped during control-plane authoring;
+V46 stopped during provider-free scientific-runtime cache-isolation
+validation; and V47 stopped at its control-publication precreation scope gate
+after sealing but never committing or publishing two non-reusable local
+candidates. Their supersession records use schemas v28 through v31. The exact
+two-file V47 closeout is
+`31928645baff6182852c9c88a393b6fcaa6be557`, with sole parent
+`e8946a10997863412d4a2ec0113b72e066a73550`, tree
+`e21dacbbfc859206a15c7dbbbb9feaf214ca78d5`, and ref
+`refs/heads/codex/v48-v47-control-plane-publication-terminal-closeout`.
+That closeout is the sole public predecessor for V48. The
+[V35 runbook](V35_RUNBOOK.md) is terminal historical evidence only.
+
+V48 is the forward control-plane design. Its schemas and exact acknowledgement
 are source-owned, while its commit and runtime/manifest/authentication values
 remain unbound until their separately authorized create-once ceremonies
-publish and independently verify them. The [V35 runbook](V35_RUNBOOK.md) is
+publish and independently verify them. The [V48 runbook](V48_RUNBOOK.md) is
 authoritative; neither it nor this document authorizes execution or spend.
-V35 reconciles only the reviewed root-managed Glean contract: HTTPS route
-`/rest/api/v1`, an exact 17-key Claude managed environment, pinned helpers, and
-one exact managed `sonnet` default represented publicly by a redacted policy
-tag. The provider CLI contract advances to
-`epiagentbench.provider_cli_contract.v3`. Explicit per-invocation model
-selection and provider-reported model validation remain authoritative; no raw
-host, OAuth client identifier, credential, or managed configuration value is
-published.
+Published V35 reconciled the reviewed root-managed Glean contract and advanced
+the public provider CLI contract to `epiagentbench.provider_cli_contract.v3`.
+V48 retains that contract unchanged: HTTPS route `/rest/api/v1`, an exact
+17-key Claude managed environment, pinned helpers, and one exact managed
+`sonnet` default represented publicly by a redacted policy tag. Explicit
+per-invocation model selection and provider-reported model validation remain
+authoritative; no raw host, OAuth client identifier, credential, or managed
+configuration value is published.
 
 ## Purpose
 
@@ -93,7 +106,7 @@ terminate that job.
    schedule data, scores, traces, credentials, OAuth state, environment
    variables, and arbitrary exception text never enter supervisor status or
    logs.
-8. No V35 key, cohort, credential namespace, schedule, private state, or
+8. No V48 key, cohort, credential namespace, schedule, private state, or
    supervisor may exist until a provider-free scientific-runtime receipt has
    been produced twice identically, committed and pushed through GitButler,
    and re-attested from a fresh clean checkout at the receipt commit.
@@ -139,12 +152,12 @@ terminate that job.
     persistence failure, and following-phase checkpoint persistence failure
     remain distinct through the private incident, public terminal candidate,
     terminal-incident attestation, and provider-free outer audit.
-18. Before the first V35 preclaim mutation, the same supervised child
+18. Before the first V48 preclaim mutation, the same supervised child
     exact-checks the sealed spend receipt, canonical committed authentication
     receipt bytes and repository binding, and authenticated supervisor
     execution binding. The first trace stores that closed prerequisite bundle;
     the claim re-attests it and never creates a replacement binding.
-19. A V35 passed preclaim is separately durable before the exactly-once paid
+19. A V48 passed preclaim is separately durable before the exactly-once paid
     claim. Claim-write reconciliation accepts only the complete authenticated
     before-state or after-state and never repairs or retries an ambiguous
     transition.
@@ -156,24 +169,24 @@ terminate that job.
     path limit. Rejection exposes only `generation_environment_invalid` and
     performs no private read, runtime write, authentication, provider, or model
     start.
-21. V35 publishes its control plane exactly once from a fresh standalone
+21. V48 publishes its control plane exactly once from a fresh standalone
     GitButler primary clone after safely routing the personal `matthew-zhao`
     credential and proving managed hooks unchanged. A failed or ambiguous
     control publication closes only on
-    `refs/heads/codex/v35-control-plane-publication-terminal-closeout` as a
-    two-file direct child of `038794aa1bf82440259c62afdabab44c01415978` and
-    is never retried. After a uniquely pinned control commit, V35 publishes
+    `refs/heads/codex/v48-control-plane-publication-terminal-closeout` as a
+    two-file direct child of `31928645baff6182852c9c88a393b6fcaa6be557` and
+    is never retried. After a uniquely pinned control commit, V48 publishes
     runtime, manifest, sanitized authentication, and passing preflight receipts
     as four ordered one-file commits on
-    `refs/heads/codex/v35-runtime-preflight`. Every ref/path is absent before
+    `refs/heads/codex/v48-runtime-preflight`. Every ref/path is absent before
     first use, every write/publication is attempted at most once, and every
     public parent is independently pinned from the fixed origin. An early
     ambiguity closes on
-    `refs/heads/codex/v35-runtime-publication-terminal-closeout` from the last
+    `refs/heads/codex/v48-runtime-publication-terminal-closeout` from the last
     independently pinned commit—never local or provisional state. That path,
-    `refs/heads/codex/v35-preflight-terminal-closeout`,
-    `refs/heads/codex/v35-production-results`, and
-    `refs/heads/codex/v35-terminal-closeout` are mutually exclusive with each
+    `refs/heads/codex/v48-preflight-terminal-closeout`,
+    `refs/heads/codex/v48-production-results`, and
+    `refs/heads/codex/v48-terminal-closeout` are mutually exclusive with each
     other and with the control-publication closeout.
 
 ## Durable assignment phases and the current adapter
@@ -203,7 +216,7 @@ execution and fails closed.
 
 V21 introduced the separation of attempt accounting from model-invocation
 accounting and its durable, ordered, content-free pre-model phase field. V22
-added a finite trusted-evaluator startup substage. V35 retains both boundaries.
+added a finite trusted-evaluator startup substage. V48 retains both boundaries.
 The only permitted transitions are `provider_environment_setup`,
 `provider_cli_readiness`, `episode_startup`, and `model_spawn_boundary`.
 Unknown, duplicate, skipped, out-of-order, or provider-supplied phase values
@@ -230,7 +243,7 @@ provider-free exact-file reproduction showed that multiprocessing `spawn`
 inherited the parent’s manually extended isolated `sys.path`, replayed the
 runner as `__mp_main__`, and the runner appended the same two paths again. The
 strict validator correctly rejected the duplicates. V22 first accepted only
-the pristine parent or an exact one-copy inherited ordered tail; V35 retains
+the pristine parent or an exact one-copy inherited ordered tail; V48 retains
 that rule. Partial, duplicate, reversed, displaced, or trailing states still
 fail closed.
 
@@ -272,8 +285,8 @@ Python can perform its own validation.
 
 ## Pre-private scientific-runtime receipt
 
-V35 retains the provider-free boundary before the private panel exists. One
-operator-supplied, absolute, attested isolated interpreter runs every V35 CLI
+V48 retains the provider-free boundary before the private panel exists. One
+operator-supplied, absolute, attested isolated interpreter runs every V48 CLI
 and supervisor entrypoint with `-I -S -B`. The isolated bootstrap
 starts with only the standard library, manually appends the attested
 repository `src` and V5 virtual-environment `site-packages` in that order in
@@ -298,7 +311,7 @@ variables, the library checks the resulting exact 14-key environment before
 and after each runtime preflight. Any extra key fails even when its value is
 empty.
 
-V35 bounds the UTF-8 `TMPDIR` pathname to 72 bytes so its fixed
+V48 bounds the UTF-8 `TMPDIR` pathname to 72 bytes so its fixed
 28-byte episode-directory/socket suffix remains within the broker's 100-byte
 Unix-socket limit. LaunchAgent generation canonicalizes that directory and
 requires current ownership and exact mode `0700` before any private read or
@@ -351,10 +364,10 @@ estimate, or a benchmark score.
 
 The two closed-schema receipts must be byte-identical. The exact bytes are then
 committed and pushed through GitButler as
-`results/development-matched-50x6-v35.runtime.json`; they are never regenerated
+`results/development-matched-50x6-v48.runtime.json`; they are never regenerated
 for publication. A fresh clean checkout at that second commit re-runs the same
 attestation and compares its runtime identity to the tracked receipt before
-the matched V35 freezer or `prepare` command can create or read a key, cohort,
+the matched V48 freezer or `prepare` command can create or read a key, cohort,
 schedule, or private state.
 
 The operator stages the two receipts and every local verification/command
@@ -373,7 +386,7 @@ STARSIM_INSTALL_FONTS=0
 XDG_CACHE_HOME=<owner-only-cache>/xdg
 ```
 
-At every V35 preparation boundary, parsing these values only resolves and
+At every V48 preparation boundary, parsing these values only resolves and
 validates the normalized cache root. It does not walk the tree. The complete
 cache contract is inventoried exactly once, then the resulting authenticated
 object and opaque hash are passed to the bound-public and private-binding
@@ -439,10 +452,12 @@ failure code. Reconciliation can rebuild that trace-free projection from the
 authenticated private incident without releasing provider output or benchmark
 data. The same provider-free recovery can publish a privately sealed terminal
 preflight candidate after a public-write failure, but it can never resume an
-evaluator. V35 persistent-supervisor contract schema v20 intentionally rejects
+evaluator. V48 persistent-supervisor contract schema v24 intentionally rejects
 public V32 schema v17, burned unpublished V33 schema v18, terminal V34 schema
-v19, and all V32/V33/V34 panel and freeze namespaces; a run must be freshly
-versioned, prepared, and authorized under the new contract.
+v19, predecessor V35 schema v20, and non-reusable V40, V46, and V47 schemas
+v21, v22, and v23, together with every predecessor-specific panel, cohort,
+freeze, and lifecycle namespace. A run must be freshly versioned, prepared,
+and authorized under the new contract.
 
 ## Typed provider-free preflight control diagnostics
 
@@ -462,7 +477,7 @@ completed profiles, zero conservatively chargeable model invocations, zero
 production episodes, and no scores, but it cannot safely identify the failed
 inner predicate. V28 is terminal and non-resumable.
 
-V35 retains these exact ordered operations and matching
+V48 retains these exact ordered operations and matching
 `_failed` codes:
 
 1. `preparation_runtime_bound_contract`;
@@ -520,9 +535,9 @@ authentication, provider, and model starts, and independently repeats the exit
 public file, or any failed audit becomes terminal ambiguity and can never
 restart the evaluator.
 
-## V35 provider-free preclaim validation
+## V48 provider-free preclaim validation
 
-The V35 LaunchAgent starts the one supervised panel child with a sealed
+The V48 LaunchAgent starts the one supervised panel child with a sealed
 non-secret environment. The outer worker does not read Keychain and does not
 inject `CURSOR_API_KEY`. Before the child can persist the irreversible six-call
 preflight claim, it executes a provider-free phase using the exact executable,
@@ -567,7 +582,7 @@ outer session `finally` wipes the cached value and environment on every exit.
 Preclaim success is authenticated and bound to the exact prerequisite bundle,
 manifest, execution context, checkout, source, runtime, environment, and cache
 identity. Stale, missing, mismatched, failed, or ambiguous validation prevents
-the claim and terminates V35. Because validation and claim are phases of the
+the claim and terminates V48. Because validation and claim are phases of the
 same child and critical section, there is no public validate-only receipt,
 second child, or claim-time liveness sentinel. Production and successful
 post-supervisor finalization both independently require the same exact passed
@@ -599,7 +614,7 @@ publication step. It cannot relaunch the worker, evaluator, authentication
 bootstrap, or provider. A terminal release-validation incident is never
 retryable.
 
-V35's intentionally no-site outer worker does not re-import Starsim or
+V48's intentionally no-site outer worker does not re-import Starsim or
 re-inventory installed scientific distributions. Those live checks remain
 mandatory before and after provider calls. Release instead revalidates the
 sealed public component hashes, authenticated preparation/runtime-cache
@@ -665,7 +680,7 @@ command. It invokes only:
 ```
 
 The owner-only private config contains allowlisted paths and frozen command
-arguments. For V35, the worker starts the one supervised panel child without
+arguments. For V48, the worker starts the one supervised panel child without
 reading Keychain or injecting a secret. The child completes its provider-free
 preclaim phase, durably seals its passed trace, re-attests its exact
 prerequisites, and reconciles the paid-run claim before its credential session
@@ -677,7 +692,7 @@ is absent from the property list, command line, repository, status, and logs.
 LaunchAgent stdout and stderr are `/dev/null`; a bounded private event log
 contains only allowlisted event codes and finite scalar fields.
 
-For V35, generation also requires the exact manifest-bound runtime-cache root.
+For V48, generation also requires the exact manifest-bound runtime-cache root.
 The scientific environment is an exact projection of the six variables in the
 recomputed private cache contract whose opaque hash appears in the tracked
 runtime receipt. Generation derives and installs those values before
@@ -745,7 +760,7 @@ incident, even if the child happened to write a candidate artifact first.
 
 ## Required offline release gate
 
-No V35 model call may start until all of the following pass through the
+No V48 model call may start until all of the following pass through the
 same supervisor path intended for production:
 
 - a real macOS launchd test where the initiating process exits while the
@@ -787,7 +802,7 @@ same supervisor path intended for production:
   receipt-byte, installed-distribution-byte, cache environment/inventory,
   cache inode/mode, and tracked-commit drift tests proving failure before any
   private artifact or provider/authentication helper;
-- one injected failure for each V35 preparation-runtime operation, proving the
+- one injected failure for each V48 preparation-runtime operation, proving the
   exact attempted operation, preceding completed operation, matching finite
   failure code, and zero authentication/provider/model starts;
 - an exact call-count assertion proving one cache-identity boundary performs
@@ -1073,23 +1088,33 @@ enter successor source or ancestry. V33 closes on
 commit `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`, whose only delta is the V33
 supersession record and test.
 
-V34 published control commit `72ca992eed6c0faa5961d4063732a8a1da918301`
-but stopped at provider-free host-contract validation before runtime-receipt
-generation. Its zero-model-call closeout
-`038794aa1bf82440259c62afdabab44c01415978` contains only the V34
-supersession record and test, uses `epiagentbench.panel_supersession.v27`, and
-is V35's exact public parent.
+V35, V40, V46, and V47 all stopped without adding to provider spend. Their
+four published supersession JSON/test pairs remain byte-identical. The V47
+closeout `31928645baff6182852c9c88a393b6fcaa6be557` contains only the V47
+supersession record and test, uses `epiagentbench.panel_supersession.v31`, and
+is V48's exact public parent.
 
-V35 uses `development-matched-50x6-v35`,
-`development_matched_panel_v35`, fresh panel/cohort-specific namespaces, and
-`epiagentbench.persistent_supervisor_contract.v20`. Public V32 v17, burned V33
-v18, and terminal V34 v19 are rejected. The reconciled root-managed route and
-redacted default-model semantics advance the public provider CLI contract to
-`epiagentbench.provider_cli_contract.v3`; the exact 17-key managed environment,
-pinned helpers, explicit per-invocation model argument, and observed-model
-checks remain authoritative. All retained supervisor, identity, LaunchAgent,
+V48 uses `development-matched-50x6-v48`,
+`development_matched_panel_v48`, fresh panel/cohort-specific namespaces, and
+`epiagentbench.persistent_supervisor_contract.v24`. Predecessor-specific
+contracts v20, v21, v22, and v23 are rejected and v21–v23 are non-reusable.
+The root-managed route, redacted default-model semantics, and public provider
+CLI contract `epiagentbench.provider_cli_contract.v3` were reconciled in V35;
+V48 retains them unchanged. The exact 17-key managed environment, pinned
+helpers, explicit per-invocation model argument, and observed-model checks
+remain authoritative. All retained supervisor, identity, LaunchAgent,
 preparation, provider-free, authentication, and terminal wire schemas remain
-unchanged. V34 adds `$0`, so the `$160` conservative prior allowance, `$510`
-current-run ceiling, and `$670` cumulative source-owned ceiling remain
-unchanged and authorize nothing. The [V35 runbook](V35_RUNBOOK.md) is the
+unchanged.
+
+V48 fixes fresh `epiagentbench-cursor-v48` and `eab48-` namespaces and reserves
+`epiagentbench.panel_supersession.v32`. Its Starsim smoke projection identity is
+`sha256:e91a8e76e32048c3bbc63c02ee2a1279fc53a6af078130a7d3baaa91ac8a3d5f`,
+frozen after four independent cache-isolated discoveries and two ordinary
+final smokes reproduced the same exact value and safe aggregates. The exact
+source-owned acknowledgement SHA-256
+is `2521ee29ff8baaef2bdab86477e13ed7a384784aba62a76e27b9edac30bdea0f`.
+
+V35, V40, V46, and V47 add `$0`, so the `$160` conservative prior allowance,
+`$510` current-run ceiling, and `$670` cumulative source-owned ceiling remain
+unchanged and authorize nothing. The [V48 runbook](V48_RUNBOOK.md) is the
 authoritative fresh control-plane procedure.

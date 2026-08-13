@@ -71,14 +71,12 @@ _LAUNCHCTL_TIMEOUT_SECONDS = 15
 _PROTOCOL_VERSION = "persistent-supervisor-v9"
 _MATCHED_PANEL_ID_PREFIX = "development-matched-50x6-"
 _CURSOR_KEYCHAIN_SERVICE_PREFIX = "epiagentbench-cursor-"
-_FROZEN_PANEL_ID = "development-matched-50x6-v35"
-_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v35"
+_FROZEN_PANEL_ID = "development-matched-50x6-v48"
+_FROZEN_PANEL_SCHEMA_VERSION = "development_matched_panel_v48"
 _FROZEN_PERSISTENT_SUPERVISOR_CONTRACT_SCHEMA = (
-    "epiagentbench.persistent_supervisor_contract.v20"
+    "epiagentbench.persistent_supervisor_contract.v24"
 )
-_FROZEN_PROVIDER_CLI_CONTRACT_SCHEMA = (
-    "epiagentbench.provider_cli_contract.v3"
-)
+_FROZEN_PROVIDER_CLI_CONTRACT_SCHEMA = "epiagentbench.provider_cli_contract.v3"
 _SAFE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_.@+-]{0,127}\Z")
 _TOKEN = re.compile(r"\A[0-9a-f]{24}\Z")
 _SHA256 = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
@@ -109,15 +107,11 @@ _RUNTIME_CACHE_ENVIRONMENT_KEYS = frozenset(
         "XDG_CACHE_HOME",
     }
 )
-_PYTHON_ENTRYPOINT_BINDING_SCHEMA = (
-    "epiagentbench.python_entrypoint_binding.v2"
-)
+_PYTHON_ENTRYPOINT_BINDING_SCHEMA = "epiagentbench.python_entrypoint_binding.v2"
 _RUNTIME_CACHE_CONTRACT_SCHEMA = "epiagentbench.runtime_cache_contract.v3"
 _ISOLATED_PYTHON_FLAGS = ("-I", "-S", "-B")
 _LAUNCHD_AGENT_SOURCE = Path("src/epiagentbench/launchd_agent.py")
-_PERSISTENT_SUPERVISOR_SOURCE = Path(
-    "src/epiagentbench/persistent_supervisor.py"
-)
+_PERSISTENT_SUPERVISOR_SOURCE = Path("src/epiagentbench/persistent_supervisor.py")
 _DEVELOPMENT_MATCHED_PANEL_SOURCE = Path(
     "src/epiagentbench/development_matched_panel.py"
 )
@@ -304,9 +298,7 @@ class LiveAttestationError(LaunchAgentError):
 class ReleaseValidationFailureCode(StrEnum):
     """Finite, non-sensitive reasons a completed run was not released."""
 
-    COMPLETION_ATTESTATION_INVALID = (
-        "release_completion_attestation_invalid"
-    )
+    COMPLETION_ATTESTATION_INVALID = "release_completion_attestation_invalid"
     RUNTIME_BINDING_INVALID = "release_runtime_binding_invalid"
     PRIVATE_STATE_INVALID = "release_private_state_invalid"
     CONTRACT_BINDING_INVALID = "release_contract_binding_invalid"
@@ -315,9 +307,7 @@ class ReleaseValidationFailureCode(StrEnum):
     COHORT_RETIREMENT_FAILED = "release_cohort_retirement_failed"
     PRIVATE_COMMIT_FAILED = "release_private_commit_failed"
     PUBLIC_COMMIT_FAILED = "release_public_commit_failed"
-    POSTCOMMIT_ATTESTATION_FAILED = (
-        "release_postcommit_attestation_failed"
-    )
+    POSTCOMMIT_ATTESTATION_FAILED = "release_postcommit_attestation_failed"
     INTERNAL = "release_internal"
 
 
@@ -329,9 +319,7 @@ class SupervisorFailureCode(StrEnum):
     RUNNER_START = "runner_start_failed"
     RUNNER_EXIT = "runner_nonzero_exit"
     RUNNER_RESERVED_TERMINAL_EXIT = "runner_reserved_terminal_exit"
-    RUNNER_RESERVED_TERMINAL_AUDIT_EXIT = (
-        "runner_reserved_terminal_audit_exit"
-    )
+    RUNNER_RESERVED_TERMINAL_AUDIT_EXIT = "runner_reserved_terminal_audit_exit"
     RUNNER_PROTOCOL = "runner_protocol_failure"
     SUSPEND_GAP = "suspend_gap"
     INTEGRITY = "integrity_failure"
@@ -343,12 +331,8 @@ class ReleaseValidationError(LaunchAgentError):
     """A release refusal carrying only one authenticated finite code."""
 
     def __init__(self, failure_code: ReleaseValidationFailureCode):
-        if not isinstance(
-            failure_code, ReleaseValidationFailureCode
-        ):
-            raise TypeError(
-                "failure_code must be a ReleaseValidationFailureCode"
-            )
+        if not isinstance(failure_code, ReleaseValidationFailureCode):
+            raise TypeError("failure_code must be a ReleaseValidationFailureCode")
         self.failure_code = failure_code
         super().__init__("LaunchAgent release validation was safely refused")
 
@@ -452,7 +436,9 @@ def _absolute(path: Path | str, *, label: str) -> Path:
     return candidate
 
 
-def _lstat_path_without_links(path: Path, *, allow_missing_leaf: bool = False) -> os.stat_result | None:
+def _lstat_path_without_links(
+    path: Path, *, allow_missing_leaf: bool = False
+) -> os.stat_result | None:
     """lstat every component and reject symlink traversal."""
 
     current = Path(path.anchor)
@@ -562,9 +548,7 @@ def _read_bounded_json(path: Path, *, maximum_bytes: int, label: str) -> object:
                 or opened.st_size != metadata.st_size
                 or opened.st_nlink != 1
             ):
-                raise _TransientAtomicReadError(
-                    f"{label} changed while opening"
-                )
+                raise _TransientAtomicReadError(f"{label} changed while opening")
             raw = stream.read(maximum_bytes + 1)
     except OSError:
         raise ValueError(f"{label} is unavailable") from None
@@ -642,8 +626,7 @@ def _bounded_file_binding(
         with os.fdopen(descriptor, "rb", closefd=True) as stream:
             opened = os.fstat(stream.fileno())
             if (
-                (opened.st_dev, opened.st_ino)
-                != (before.st_dev, before.st_ino)
+                (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
                 or opened.st_size != before.st_size
                 or opened.st_nlink != 1
             ):
@@ -670,12 +653,8 @@ def _bounded_file_binding(
         "st_nlink",
         "st_uid",
     )
-    if (
-        observed_bytes != before.st_size
-        or any(
-            getattr(before, field) != getattr(after, field)
-            for field in stable_fields
-        )
+    if observed_bytes != before.st_size or any(
+        getattr(before, field) != getattr(after, field) for field in stable_fields
     ):
         raise ValueError(f"{label} changed while binding")
     return {
@@ -752,10 +731,7 @@ def _isolated_python_probe(path: Path) -> dict[str, Any]:
         )
     except (OSError, subprocess.TimeoutExpired):
         raise ValueError("Python isolated-bootstrap probe failed") from None
-    if (
-        completed.returncode != 0
-        or not 0 < len(completed.stdout) <= 64 * 1024
-    ):
+    if completed.returncode != 0 or not 0 < len(completed.stdout) <= 64 * 1024:
         raise ValueError("Python isolated-bootstrap probe failed")
     try:
         result = json.loads(completed.stdout)
@@ -831,18 +807,14 @@ def _python_startup_hook_inventory(
             key=lambda candidate: candidate.name,
         )
     except OSError:
-        raise ValueError(
-            "Python startup-hook inventory is unavailable"
-        ) from None
+        raise ValueError("Python startup-hook inventory is unavailable") from None
     inventory: list[dict[str, Any]] = []
     total_bytes = 0
     for candidate in candidates:
         try:
             metadata = candidate.lstat()
         except OSError:
-            raise ValueError(
-                "Python startup-hook inventory changed"
-            ) from None
+            raise ValueError("Python startup-hook inventory changed") from None
         if stat.S_ISLNK(metadata.st_mode):
             raise ValueError("Python startup hooks must not be symlinks")
         descendants = (
@@ -851,9 +823,7 @@ def _python_startup_hook_inventory(
             else (
                 sorted(
                     candidate.rglob("*"),
-                    key=lambda item: item.relative_to(
-                        site_packages_path
-                    ).as_posix(),
+                    key=lambda item: item.relative_to(site_packages_path).as_posix(),
                 )
                 if stat.S_ISDIR(metadata.st_mode)
                 else []
@@ -958,8 +928,7 @@ def _python_bootstrap_binding(
         )
         or len(set(sys_path)) != len(sys_path)
         or not isinstance(origins, dict)
-        or set(origins)
-        != {"encodings", "hashlib", "hmac", "json", "pathlib", "runpy"}
+        or set(origins) != {"encodings", "hashlib", "hmac", "json", "pathlib", "runpy"}
     ):
         raise ValueError("Python isolated-bootstrap contract is invalid")
 
@@ -976,10 +945,7 @@ def _python_bootstrap_binding(
         if raw_origin in {"built-in", "frozen"}:
             module_origins[name] = str(raw_origin)
             continue
-        if (
-            not isinstance(raw_origin, str)
-            or not Path(raw_origin).is_absolute()
-        ):
+        if not isinstance(raw_origin, str) or not Path(raw_origin).is_absolute():
             raise ValueError("Python bootstrap module origin is invalid")
         module_origins[name] = _bounded_file_binding(
             Path(raw_origin),
@@ -1001,10 +967,7 @@ def _python_bootstrap_binding(
             allowed_owners=allowed_owners,
         )
         site_packages_path = (
-            venv_root
-            / "lib"
-            / f"python{version[0]}.{version[1]}"
-            / "site-packages"
+            venv_root / "lib" / f"python{version[0]}.{version[1]}" / "site-packages"
         )
         site_packages_binding = _directory_binding(
             site_packages_path,
@@ -1098,7 +1061,14 @@ def _python_entrypoint_binding(path: Path) -> dict[str, Any]:
             allowed_owners=allowed_owners,
         )
         after = candidate.lstat()
-        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_mode", "st_nlink")
+        stable_fields = (
+            "st_dev",
+            "st_ino",
+            "st_size",
+            "st_mtime_ns",
+            "st_mode",
+            "st_nlink",
+        )
         if any(getattr(before, name) != getattr(after, name) for name in stable_fields):
             raise ValueError("Python executable changed while binding")
         for hop in hops:
@@ -1172,8 +1142,7 @@ def _validate_python_entrypoint_binding(config: Mapping[str, Any]) -> None:
             "target",
             "bootstrap",
         }
-        or binding.get("schema_version")
-        != _PYTHON_ENTRYPOINT_BINDING_SCHEMA
+        or binding.get("schema_version") != _PYTHON_ENTRYPOINT_BINDING_SCHEMA
         or binding.get("launch_path") != config.get("python_executable")
         or not isinstance(binding.get("symlink_hops"), list)
         or not isinstance(binding.get("target"), dict)
@@ -1188,10 +1157,8 @@ def _validate_python_entrypoint_binding(config: Mapping[str, Any]) -> None:
             "mtime_ns",
             "sha256",
         }
-        or binding["target"].get("sha256")
-        != config.get("python_executable_sha256")
-        or _component_sha256(binding)
-        != config.get("python_executable_binding_sha256")
+        or binding["target"].get("sha256") != config.get("python_executable_sha256")
+        or _component_sha256(binding) != config.get("python_executable_binding_sha256")
     ):
         raise ValueError("Invalid Python executable binding")
     observed = _python_entrypoint_binding(Path(str(config["python_executable"])))
@@ -1202,9 +1169,7 @@ def _validate_python_entrypoint_binding(config: Mapping[str, Any]) -> None:
 def _bound_isolated_sys_path(binding: Mapping[str, Any]) -> list[str]:
     bootstrap = binding.get("bootstrap")
     raw_paths = (
-        bootstrap.get("isolated_sys_path")
-        if isinstance(bootstrap, dict)
-        else None
+        bootstrap.get("isolated_sys_path") if isinstance(bootstrap, dict) else None
     )
     if not isinstance(raw_paths, list):
         raise ValueError("Python isolated-bootstrap path is invalid")
@@ -1222,14 +1187,8 @@ def _bound_site_packages(binding: Mapping[str, Any]) -> str | None:
     venv = bootstrap.get("venv") if isinstance(bootstrap, dict) else None
     if venv is None:
         return None
-    site_packages = (
-        venv.get("site_packages") if isinstance(venv, dict) else None
-    )
-    path = (
-        site_packages.get("path")
-        if isinstance(site_packages, dict)
-        else None
-    )
+    site_packages = venv.get("site_packages") if isinstance(venv, dict) else None
+    path = site_packages.get("path") if isinstance(site_packages, dict) else None
     if not isinstance(path, str) or not Path(path).is_absolute():
         raise ValueError("Python site-packages binding is invalid")
     return path
@@ -1336,8 +1295,8 @@ def _verify_frozen_runtime_sources(
     """
 
     repository_root = Path(str(config["repository_root"]))
-    launchd_source, supervisor_source, benchmark_source = (
-        _runtime_module_sources(repository_root)
+    launchd_source, supervisor_source, benchmark_source = _runtime_module_sources(
+        repository_root
     )
     _require_loaded_module_source(__file__, launchd_source)
     if (
@@ -1404,10 +1363,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
         for name, path in expected_paths.items()
     }
     root_device = int(directories["root"]["device"])
-    if any(
-        identity["device"] != root_device
-        for identity in directories.values()
-    ):
+    if any(identity["device"] != root_device for identity in directories.values()):
         raise ValueError("Runtime caches must share one dedicated filesystem")
     try:
         root_entries_before = sorted(entry.name for entry in root.iterdir())
@@ -1442,19 +1398,13 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
             try:
                 metadata = candidate.lstat()
             except OSError:
-                raise ValueError(
-                    "Runtime cache changed while inventorying"
-                ) from None
+                raise ValueError("Runtime cache changed while inventorying") from None
             if stat.S_ISLNK(metadata.st_mode):
                 raise ValueError("Runtime cache must not contain symlinks")
             if metadata.st_dev != root_device:
                 raise ValueError("Runtime cache must not cross filesystems")
-            if metadata.st_uid != os.getuid() or stat.S_IMODE(
-                metadata.st_mode
-            ) & 0o077:
-                raise ValueError(
-                    "Runtime cache descendants must be owner-only"
-                )
+            if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) & 0o077:
+                raise ValueError("Runtime cache descendants must be owner-only")
             if len(inventory) >= _MAX_RUNTIME_CACHE_FILES:
                 raise ValueError("Runtime cache exceeds its attestation limit")
             if stat.S_ISDIR(metadata.st_mode):
@@ -1470,9 +1420,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
                 )
                 continue
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
-                raise ValueError(
-                    "Runtime cache contains an unsafe descendant"
-                )
+                raise ValueError("Runtime cache contains an unsafe descendant")
             total_files += 1
             total_bytes += metadata.st_size
             if (
@@ -1514,12 +1462,8 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
                 )
             )
         except OSError:
-            raise ValueError(
-                "Runtime cache changed while inventorying"
-            ) from None
-    if second_relative_paths != [
-        item["relative_path"] for item in inventory
-    ]:
+            raise ValueError("Runtime cache changed while inventorying") from None
+    if second_relative_paths != [item["relative_path"] for item in inventory]:
         raise ValueError("Runtime cache changed while inventorying")
     for item in inventory:
         candidate = root / str(item["relative_path"])
@@ -1561,11 +1505,7 @@ def _runtime_cache_contract(runtime_cache_dir: Path) -> dict[str, Any]:
 def _paths_overlap(left: Path, right: Path) -> bool:
     left = Path(os.path.normpath(str(left)))
     right = Path(os.path.normpath(str(right)))
-    return (
-        left == right
-        or left in right.parents
-        or right in left.parents
-    )
+    return left == right or left in right.parents or right in left.parents
 
 
 def _require_dedicated_runtime_cache(
@@ -1668,9 +1608,7 @@ def _manifest_binding(
     panel_id = manifest.get("panel_id")
     schema_version = manifest.get("schema_version")
     precommitment = manifest.get("precommitment_sha256")
-    persistent_supervisor_contract = manifest.get(
-        "persistent_supervisor_contract"
-    )
+    persistent_supervisor_contract = manifest.get("persistent_supervisor_contract")
     cli_contract = manifest.get("cli_contract")
     contract_hashes = manifest.get("contract_hashes")
     runtime_contract = manifest.get("runtime_contract")
@@ -1689,9 +1627,7 @@ def _manifest_binding(
         if isinstance(runtime_contract, dict)
         else None
     )
-    preparation_runtime_contract = manifest.get(
-        "preparation_runtime_contract"
-    )
+    preparation_runtime_contract = manifest.get("preparation_runtime_contract")
     runtime_cache_contract_sha256 = (
         preparation_runtime_contract.get("runtime_cache_contract_sha256")
         if isinstance(preparation_runtime_contract, dict)
@@ -1707,13 +1643,11 @@ def _manifest_binding(
         or persistent_supervisor_contract.get("schema_version")
         != _FROZEN_PERSISTENT_SUPERVISOR_CONTRACT_SCHEMA
         or not isinstance(cli_contract, dict)
-        or cli_contract.get("schema_version")
-        != _FROZEN_PROVIDER_CLI_CONTRACT_SCHEMA
+        or cli_contract.get("schema_version") != _FROZEN_PROVIDER_CLI_CONTRACT_SCHEMA
         or not isinstance(contract_hashes, dict)
         or contract_hashes.get("supervisor_sha256")
         != _component_sha256(persistent_supervisor_contract)
-        or contract_hashes.get("cli_sha256")
-        != _component_sha256(cli_contract)
+        or contract_hashes.get("cli_sha256") != _component_sha256(cli_contract)
         or not isinstance(python_executable_sha256, str)
         or not _SHA256.fullmatch(python_executable_sha256)
         or python_entrypoint_kind not in {"regular_file", "symlink_chain"}
@@ -1734,7 +1668,7 @@ def _manifest_binding(
             or "runtime_cache_contract" in preparation_runtime_contract
         )
     ):
-        raise ValueError("Public manifest lacks the frozen V35 panel binding")
+        raise ValueError("Public manifest lacks the frozen V48 panel binding")
     return (
         panel_id,
         precommitment,
@@ -1775,9 +1709,7 @@ def _safe_environment(
 ) -> dict[str, str]:
     identity = pwd.getpwuid(os.getuid())
     if path_environment not in (None, SYSTEM_PROCESS_PATH):
-        raise GenerationValidationError(
-            GenerationFailureCode.ENVIRONMENT_INVALID
-        )
+        raise GenerationValidationError(GenerationFailureCode.ENVIRONMENT_INVALID)
     path_value = SYSTEM_PROCESS_PATH
     try:
         temporary_root = Path(tempfile.gettempdir()).resolve(strict=True)
@@ -1791,12 +1723,9 @@ def _safe_environment(
         or stat.S_ISLNK(temporary_metadata.st_mode)
         or temporary_metadata.st_uid != os.getuid()
         or stat.S_IMODE(temporary_metadata.st_mode) != 0o700
-        or len(os.fsencode(str(temporary_root)))
-        > _MAX_EPISODE_TMPDIR_BYTES
+        or len(os.fsencode(str(temporary_root))) > _MAX_EPISODE_TMPDIR_BYTES
     ):
-        raise GenerationValidationError(
-            GenerationFailureCode.ENVIRONMENT_INVALID
-        )
+        raise GenerationValidationError(GenerationFailureCode.ENVIRONMENT_INVALID)
     environment = {
         "HOME": identity.pw_dir,
         "LOGNAME": identity.pw_name,
@@ -1810,16 +1739,11 @@ def _safe_environment(
         if value and "\x00" not in value:
             environment[key] = value
     if runtime_environment is not None:
-        if (
-            set(runtime_environment) != _RUNTIME_CACHE_ENVIRONMENT_KEYS
-            or any(
-                not isinstance(value, str) or not value or "\x00" in value
-                for value in runtime_environment.values()
-            )
+        if set(runtime_environment) != _RUNTIME_CACHE_ENVIRONMENT_KEYS or any(
+            not isinstance(value, str) or not value or "\x00" in value
+            for value in runtime_environment.values()
         ):
-            raise GenerationValidationError(
-                GenerationFailureCode.ENVIRONMENT_INVALID
-            )
+            raise GenerationValidationError(GenerationFailureCode.ENVIRONMENT_INVALID)
         environment.update(runtime_environment)
     return environment
 
@@ -1831,7 +1755,9 @@ def _write_exclusive(path: Path, payload: bytes) -> None:
     try:
         descriptor = os.open(path, flags, 0o600)
     except OSError:
-        raise RuntimeError(f"Refusing to replace launch-agent file: {path.name}") from None
+        raise RuntimeError(
+            f"Refusing to replace launch-agent file: {path.name}"
+        ) from None
     try:
         os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "wb", closefd=False) as stream:
@@ -1906,22 +1832,12 @@ def _runtime_cache_environment_values(
         raise ValueError("Invalid runtime-cache contract")
     configured_environment = runtime_cache_contract.get("environment")
     directories = runtime_cache_contract.get("directories")
-    root_binding = (
-        directories.get("root")
-        if isinstance(directories, Mapping)
-        else None
-    )
-    root_value = (
-        root_binding.get("path")
-        if isinstance(root_binding, Mapping)
-        else None
-    )
+    root_binding = directories.get("root") if isinstance(directories, Mapping) else None
+    root_value = root_binding.get("path") if isinstance(root_binding, Mapping) else None
     if (
-        runtime_cache_contract.get("schema_version")
-        != _RUNTIME_CACHE_CONTRACT_SCHEMA
+        runtime_cache_contract.get("schema_version") != _RUNTIME_CACHE_CONTRACT_SCHEMA
         or not isinstance(configured_environment, Mapping)
-        or set(configured_environment)
-        != _RUNTIME_CACHE_ENVIRONMENT_KEYS
+        or set(configured_environment) != _RUNTIME_CACHE_ENVIRONMENT_KEYS
         or not isinstance(base_environment, Mapping)
         or not isinstance(root_value, str)
         or not Path(root_value).is_absolute()
@@ -1940,8 +1856,7 @@ def _runtime_cache_environment_values(
     if (
         dict(configured_environment) != expected
         or {
-            name: base_environment.get(name)
-            for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
+            name: base_environment.get(name) for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
         }
         != expected
         or any(
@@ -2013,13 +1928,13 @@ def generate_launch_agent(
     if not _SAFE_NAME.fullmatch(cursor_keychain_account):
         raise ValueError("Invalid Cursor Keychain account name")
     if cursor_keychain_account != _required_cursor_keychain_account():
-        raise ValueError(
-            "Cursor Keychain account does not match the effective user"
-        )
+        raise ValueError("Cursor Keychain account does not match the effective user")
     if instance_token is None:
         token = token_hex(12)
     else:
-        if not isinstance(instance_token, str) or not _SAFE_NAME.fullmatch(instance_token):
+        if not isinstance(instance_token, str) or not _SAFE_NAME.fullmatch(
+            instance_token
+        ):
             raise ValueError("instance_token must be a safe non-empty instance name")
         token = hashlib.sha256(instance_token.encode("ascii")).hexdigest()[:24]
 
@@ -2045,9 +1960,13 @@ def generate_launch_agent(
         if public_results_path is None
         else _absolute(public_results_path, label="public results")
     )
-    if operation == "preflight" and (public_preflight is None or public_results is not None):
+    if operation == "preflight" and (
+        public_preflight is None or public_results is not None
+    ):
         raise ValueError("preflight requires only public_preflight_path")
-    if operation == "production" and (public_results is None or public_preflight is not None):
+    if operation == "production" and (
+        public_results is None or public_preflight is not None
+    ):
         raise ValueError("production requires only public_results_path")
 
     # Validate the ambient launch environment before reading the repository,
@@ -2058,19 +1977,19 @@ def generate_launch_agent(
 
     _require_directory(root, label="repository root")
     python_executable_binding = _python_entrypoint_binding(python)
-    python_executable_sha256 = str(
-        python_executable_binding["target"]["sha256"]
-    )
-    python_executable_binding_sha256 = _component_sha256(
-        python_executable_binding
-    )
+    python_executable_sha256 = str(python_executable_binding["target"]["sha256"])
+    python_executable_binding_sha256 = _component_sha256(python_executable_binding)
     worker_script = root / "examples" / "run_persistent_panel_supervisor.py"
     runner_script = root / "examples" / "run_development_matched_panel.py"
     _require_regular(worker_script, label="persistent worker script")
     _require_regular(runner_script, label="frozen panel runner")
     _require_regular(auth_key, label="authentication key", exact_mode=0o600)
-    _require_directory(claude_storage, label="Claude secure-storage directory", exact_mode=0o700)
-    _require_directory(codex_storage, label="Codex secure-storage directory", exact_mode=0o700)
+    _require_directory(
+        claude_storage, label="Claude secure-storage directory", exact_mode=0o700
+    )
+    _require_directory(
+        codex_storage, label="Codex secure-storage directory", exact_mode=0o700
+    )
     _require_regular(private_state, label="private state", exact_mode=0o600)
     _require_regular(public_manifest, label="public manifest")
     (
@@ -2081,12 +2000,8 @@ def generate_launch_agent(
         manifest_python_executable_binding_sha256,
         manifest_runtime_cache_contract_sha256,
     ) = _manifest_binding(public_manifest)
-    if cursor_keychain_service != _required_cursor_keychain_service(
-        panel_id
-    ):
-        raise ValueError(
-            "Cursor Keychain service does not match the panel identity"
-        )
+    if cursor_keychain_service != _required_cursor_keychain_service(panel_id):
+        raise ValueError("Cursor Keychain service does not match the panel identity")
     authentication_key = _read_authentication_key(auth_key)
     expected_output = public_manifest.with_name(
         (
@@ -2095,15 +2010,11 @@ def generate_launch_agent(
             else f"{panel_id}.json"
         )
     )
-    supplied_output = (
-        public_preflight if operation == "preflight" else public_results
-    )
+    supplied_output = public_preflight if operation == "preflight" else public_results
     if supplied_output != expected_output:
         raise ValueError("Public output path is not canonical for the panel")
     python_entrypoint_kind = (
-        "symlink_chain"
-        if python_executable_binding["symlink_hops"]
-        else "regular_file"
+        "symlink_chain" if python_executable_binding["symlink_hops"] else "regular_file"
     )
     if (
         manifest_python_executable_sha256 != python_executable_sha256
@@ -2123,30 +2034,21 @@ def generate_launch_agent(
     if manifest_runtime_cache_contract_sha256 is not None:
         if runtime_cache_dir is None:
             raise ValueError(
-                "This LaunchAgent requires the manifest-bound runtime cache "
-                "directory"
+                "This LaunchAgent requires the manifest-bound runtime cache directory"
             )
         supplied_runtime_cache = _absolute(
             runtime_cache_dir, label="runtime cache directory"
         )
-        runtime_cache_contract = _runtime_cache_contract(
-            supplied_runtime_cache
-        )
-        observed_runtime_cache_sha256 = _component_sha256(
-            runtime_cache_contract
-        )
+        runtime_cache_contract = _runtime_cache_contract(supplied_runtime_cache)
+        observed_runtime_cache_sha256 = _component_sha256(runtime_cache_contract)
         if not hmac.compare_digest(
             observed_runtime_cache_sha256,
             manifest_runtime_cache_contract_sha256,
         ):
             raise ValueError("Runtime cache differs from the public manifest")
-        manifest_runtime_environment = dict(
-            runtime_cache_contract["environment"]
-        )
+        manifest_runtime_environment = dict(runtime_cache_contract["environment"])
     elif runtime_cache_dir is not None:
-        raise ValueError(
-            "Runtime cache directory is not bound by the public manifest"
-        )
+        raise ValueError("Runtime cache directory is not bound by the public manifest")
     base_environment = _safe_environment(
         root,
         path_environment,
@@ -2215,7 +2117,7 @@ def generate_launch_agent(
         )
         # Generation is deliberately credential-blind.  Authentication state,
         # receipt, repository, and credential readiness are re-attested by the
-        # supervised runner in the same child that durably records the V35
+        # supervised runner in the same child that durably records the V48
         # provider-free preclaim.  Calling the foreground readiness helper here
         # would inspect credential metadata (including macOS Keychain state)
         # before that claim existed.
@@ -2300,13 +2202,9 @@ def generate_launch_agent(
         "precommitment_sha256": precommitment_sha256,
         "protocol_version": _PROTOCOL_VERSION,
         "public_manifest_file_sha256": public_manifest_file_sha256,
-        "public_authentication_file_sha256": (
-            public_authentication_file_sha256
-        ),
+        "public_authentication_file_sha256": (public_authentication_file_sha256),
         "python_executable_sha256": python_executable_sha256,
-        "python_executable_binding_sha256": (
-            python_executable_binding_sha256
-        ),
+        "python_executable_binding_sha256": (python_executable_binding_sha256),
         "runtime_cache_contract_sha256": (
             _component_sha256(runtime_cache_contract)
             if runtime_cache_contract is not None
@@ -2315,9 +2213,7 @@ def generate_launch_agent(
         "runner_source_sha256": runner_source_sha256,
         "worker_source_sha256": worker_source_sha256,
         "launchd_agent_source_sha256": launchd_agent_source_sha256,
-        "persistent_supervisor_source_sha256": (
-            persistent_supervisor_source_sha256
-        ),
+        "persistent_supervisor_source_sha256": (persistent_supervisor_source_sha256),
         "development_matched_panel_source_sha256": (
             development_matched_panel_source_sha256
         ),
@@ -2354,7 +2250,9 @@ def generate_launch_agent(
         )
         _write_exclusive(
             plist_path,
-            plistlib.dumps(_plist_payload(config), fmt=plistlib.FMT_XML, sort_keys=True),
+            plistlib.dumps(
+                _plist_payload(config), fmt=plistlib.FMT_XML, sort_keys=True
+            ),
         )
     except BaseException:
         # Files are intentionally left in place for forensic inspection.  A
@@ -2432,7 +2330,10 @@ def _read_authenticated_config(
     if set(raw_config) != expected_keys:
         raise ValueError("Invalid launch-agent config fields")
     configured_key_value = raw_config.get("authentication_key_file")
-    if not isinstance(configured_key_value, str) or not Path(configured_key_value).is_absolute():
+    if (
+        not isinstance(configured_key_value, str)
+        or not Path(configured_key_value).is_absolute()
+    ):
         raise ValueError("Invalid launch-agent authentication-key path")
     configured_key_path = Path(configured_key_value)
     if authentication_key_file is not None:
@@ -2538,10 +2439,14 @@ def _validate_authenticated_config(
         )
     ):
         raise ValueError("Invalid launch-agent panel binding")
-    if config["runtime_dir"] != str(runtime) or config["config_path"] != str(config_path):
+    if config["runtime_dir"] != str(runtime) or config["config_path"] != str(
+        config_path
+    ):
         raise ValueError("Launch-agent config path mismatch")
     expected_label_prefix = f"{_LABEL_PREFIX}.{os.getuid()}."
-    if not isinstance(config["label"], str) or not config["label"].startswith(expected_label_prefix):
+    if not isinstance(config["label"], str) or not config["label"].startswith(
+        expected_label_prefix
+    ):
         raise ValueError("Invalid launch-agent label")
     if not _TOKEN.fullmatch(config["label"][len(expected_label_prefix) :]):
         raise ValueError("Invalid launch-agent label token")
@@ -2549,25 +2454,27 @@ def _validate_authenticated_config(
     if (
         not isinstance(keychain, dict)
         or set(keychain) != {"service", "account"}
-        or not all(isinstance(keychain[key], str) and _SAFE_NAME.fullmatch(keychain[key]) for key in keychain)
+        or not all(
+            isinstance(keychain[key], str) and _SAFE_NAME.fullmatch(keychain[key])
+            for key in keychain
+        )
     ):
         raise ValueError("Invalid Cursor Keychain locator")
-    if keychain["service"] != _required_cursor_keychain_service(
-        config["panel_id"]
-    ):
-        raise ValueError(
-            "Cursor Keychain service does not match the panel identity"
-        )
+    if keychain["service"] != _required_cursor_keychain_service(config["panel_id"]):
+        raise ValueError("Cursor Keychain service does not match the panel identity")
     if keychain["account"] != _required_cursor_keychain_account():
-        raise ValueError(
-            "Cursor Keychain account does not match the effective user"
-        )
+        raise ValueError("Cursor Keychain account does not match the effective user")
     environment = config["base_environment"]
     if (
         not isinstance(environment, dict)
         or not set(environment).issubset(_SAFE_ENVIRONMENT_KEYS)
-        or not {"HOME", "LOGNAME", "PATH", "SHELL", "TMPDIR", "USER"}.issubset(environment)
-        or any(not isinstance(value, str) or not value or "\x00" in value for value in environment.values())
+        or not {"HOME", "LOGNAME", "PATH", "SHELL", "TMPDIR", "USER"}.issubset(
+            environment
+        )
+        or any(
+            not isinstance(value, str) or not value or "\x00" in value
+            for value in environment.values()
+        )
     ):
         raise ValueError("Invalid worker environment")
 
@@ -2584,14 +2491,15 @@ def _validate_authenticated_config(
         "public_authentication_path",
         "public_output_path",
     )
-    if any(not isinstance(config[name], str) or not Path(config[name]).is_absolute() for name in path_fields):
+    if any(
+        not isinstance(config[name], str) or not Path(config[name]).is_absolute()
+        for name in path_fields
+    ):
         raise ValueError("Launch-agent config contains a non-absolute path")
     _require_directory(Path(config["repository_root"]), label="repository root")
     _validate_python_entrypoint_binding(config)
     configured_cache = config.get("runtime_cache_contract")
-    configured_cache_sha256 = config.get(
-        "runtime_cache_contract_sha256"
-    )
+    configured_cache_sha256 = config.get("runtime_cache_contract_sha256")
     if configured_cache is None:
         if configured_cache_sha256 is not None or bool(
             set(environment) & _RUNTIME_CACHE_ENVIRONMENT_KEYS
@@ -2601,22 +2509,18 @@ def _validate_authenticated_config(
         not isinstance(configured_cache, dict)
         or not isinstance(configured_cache_sha256, str)
         or not _SHA256.fullmatch(configured_cache_sha256)
-        or _component_sha256(configured_cache)
-        != configured_cache_sha256
+        or _component_sha256(configured_cache) != configured_cache_sha256
     ):
         raise ValueError("Invalid launch-agent runtime-cache binding")
     else:
         if any(
-            environment.get(name)
-            != configured_cache["environment"].get(name)
+            environment.get(name) != configured_cache["environment"].get(name)
             for name in _RUNTIME_CACHE_ENVIRONMENT_KEYS
         ):
             raise ValueError("Launch-agent runtime cache changed")
         _validate_runtime_cache_binding(
             config,
-            allow_inventory_mutation=(
-                allow_runtime_cache_inventory_mutation
-            ),
+            allow_inventory_mutation=(allow_runtime_cache_inventory_mutation),
         )
     _require_regular(Path(config["worker_script"]), label="persistent worker script")
     _require_regular(Path(config["runner_script"]), label="frozen panel runner")
@@ -2628,10 +2532,24 @@ def _validate_authenticated_config(
         != repository_root / "examples" / "run_development_matched_panel.py"
     ):
         raise ValueError("Launch-agent source binding mismatch")
-    _require_regular(Path(config["authentication_key_file"]), label="authentication key", exact_mode=0o600)
-    _require_directory(Path(config["claude_secure_storage_dir"]), label="Claude secure-storage directory", exact_mode=0o700)
-    _require_directory(Path(config["codex_secure_storage_dir"]), label="Codex secure-storage directory", exact_mode=0o700)
-    _require_regular(Path(config["private_state_path"]), label="private state", exact_mode=0o600)
+    _require_regular(
+        Path(config["authentication_key_file"]),
+        label="authentication key",
+        exact_mode=0o600,
+    )
+    _require_directory(
+        Path(config["claude_secure_storage_dir"]),
+        label="Claude secure-storage directory",
+        exact_mode=0o700,
+    )
+    _require_directory(
+        Path(config["codex_secure_storage_dir"]),
+        label="Codex secure-storage directory",
+        exact_mode=0o700,
+    )
+    _require_regular(
+        Path(config["private_state_path"]), label="private state", exact_mode=0o600
+    )
     _require_regular(Path(config["public_manifest_path"]), label="public manifest")
     _require_regular(
         Path(config["public_authentication_path"]),
@@ -2669,8 +2587,7 @@ def _validate_authenticated_config(
     if (
         observed_panel_id != config["panel_id"]
         or observed_precommitment != config["precommitment_sha256"]
-        or observed_python_executable_sha256
-        != config["python_executable_sha256"]
+        or observed_python_executable_sha256 != config["python_executable_sha256"]
         or observed_python_entrypoint_kind
         != (
             "symlink_chain"
@@ -2695,12 +2612,9 @@ def _validate_authenticated_config(
         )
     ):
         raise ValueError("Launch-agent manifest binding mismatch")
-    if (
-        Path(config["public_authentication_path"])
-        != _public_authentication_path(
-            Path(config["public_manifest_path"]),
-            config["panel_id"],
-        )
+    if Path(config["public_authentication_path"]) != _public_authentication_path(
+        Path(config["public_manifest_path"]),
+        config["panel_id"],
     ):
         raise ValueError("Launch-agent authentication-receipt path mismatch")
     if (
@@ -2776,11 +2690,9 @@ def _load_and_validate(
 ) -> tuple[dict[str, Any], Path, bytes]:
     """Validate a config without extending its environment beyond this call."""
 
-    runtime, config_path, config, authentication_key = (
-        _read_authenticated_config(
-            runtime_dir,
-            authentication_key_file=authentication_key_file,
-        )
+    runtime, config_path, config, authentication_key = _read_authenticated_config(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
     )
     return _validate_authenticated_config(
         runtime=runtime,
@@ -2799,16 +2711,11 @@ def _load_in_authenticated_runtime_environment(
 ) -> Iterator[tuple[dict[str, Any], Path, bytes]]:
     """Open one HMAC config and hold its exact cache environment while used."""
 
-    runtime, config_path, config, authentication_key = (
-        _read_authenticated_config(
-            runtime_dir,
-            authentication_key_file=authentication_key_file,
-        )
+    runtime, config_path, config, authentication_key = _read_authenticated_config(
+        runtime_dir,
+        authentication_key_file=authentication_key_file,
     )
-    if (
-        config.get("schema_version") != _SCHEMA
-        or config.get("uid") != os.getuid()
-    ):
+    if config.get("schema_version") != _SCHEMA or config.get("uid") != os.getuid():
         raise ValueError("Launch-agent config identity mismatch")
     with _temporary_runtime_cache_environment(
         config.get("runtime_cache_contract"),
@@ -2952,9 +2859,7 @@ def _atomic_worker_status(
     ) or (
         release_failure_code is not None
         and (
-            not isinstance(
-                release_failure_code, ReleaseValidationFailureCode
-            )
+            not isinstance(release_failure_code, ReleaseValidationFailureCode)
             or state != "terminal_incident"
             or reason != "release_validation_failed"
         )
@@ -2967,9 +2872,7 @@ def _atomic_worker_status(
     ) or (
         supervisor_failure_code is not None
         and (
-            not isinstance(
-                supervisor_failure_code, SupervisorFailureCode
-            )
+            not isinstance(supervisor_failure_code, SupervisorFailureCode)
             or state != "terminal_incident"
             or reason != "supervisor_failed"
         )
@@ -2989,9 +2892,7 @@ def _atomic_worker_status(
     if release_failure_code is not None:
         payload["release_failure_code"] = release_failure_code.value
     if supervisor_failure_code is not None:
-        payload["supervisor_failure_code"] = (
-            supervisor_failure_code.value
-        )
+        payload["supervisor_failure_code"] = supervisor_failure_code.value
     record = _seal_payload(
         _WORKER_STATUS_AUTH_DOMAIN,
         payload,
@@ -3079,9 +2980,7 @@ def _attest_handled_terminal_receipt(
     attestation = matched_panel.assert_terminal_receipt_ready_for_exit(
         root=Path(str(config["repository_root"])),
         operation=str(config["operation"]),
-        authentication_key_file=Path(
-            str(config["authentication_key_file"])
-        ),
+        authentication_key_file=Path(str(config["authentication_key_file"])),
         private_state_path=Path(str(config["private_state_path"])),
         public_manifest_path=Path(str(config["public_manifest_path"])),
         public_output_path=Path(str(config["public_output_path"])),
@@ -3097,9 +2996,7 @@ def _attest_handled_terminal_receipt(
         "model_calls_started",
     }
     expected_keys.add(
-        "file_sha256"
-        if operation == "preflight"
-        else "terminal_assignments"
+        "file_sha256" if operation == "preflight" else "terminal_assignments"
     )
     if (
         not isinstance(attestation, Mapping)
@@ -3119,20 +3016,14 @@ def _attest_handled_terminal_receipt(
             operation == "preflight"
             and (
                 not isinstance(attestation.get("file_sha256"), str)
-                or not _SHA256.fullmatch(
-                    str(attestation["file_sha256"])
-                )
+                or not _SHA256.fullmatch(str(attestation["file_sha256"]))
             )
         )
         or (
             operation == "production"
             and (
                 type(attestation.get("terminal_assignments")) is not int
-                or not (
-                    0
-                    <= int(attestation["terminal_assignments"])
-                    <= 300
-                )
+                or not (0 <= int(attestation["terminal_assignments"]) <= 300)
             )
         )
         or attestation.get("provider_processes_started") != 0
@@ -3154,9 +3045,7 @@ def _attest_terminal_audit_required_core(
     core = _core_status(
         Path(config["runtime_dir"]),
         authentication_key=authentication_key,
-        expected_execution_context_sha256=str(
-            config["execution_context_sha256"]
-        ),
+        expected_execution_context_sha256=str(config["execution_context_sha256"]),
     )
     if (
         core.get("state") != "authenticated"
@@ -3165,12 +3054,9 @@ def _attest_terminal_audit_required_core(
         or core.get("health") != "terminal"
         or core.get("runner_commands_completed") != 0
         or core.get("runner_commands_total") != 1
-        or core.get("failure_code")
-        != "runner_reserved_terminal_audit_exit"
+        or core.get("failure_code") != "runner_reserved_terminal_audit_exit"
     ):
-        raise RuntimeError(
-            "Supervisor terminal-audit exit attestation failed"
-        )
+        raise RuntimeError("Supervisor terminal-audit exit attestation failed")
 
 
 def _attest_terminal_audit_required_exit(
@@ -3190,9 +3076,7 @@ def _attest_terminal_audit_required_exit(
     audit = matched_panel.audit_terminal_incident(
         root=Path(str(config["repository_root"])),
         operation=str(config["operation"]),
-        authentication_key_file=Path(
-            str(config["authentication_key_file"])
-        ),
+        authentication_key_file=Path(str(config["authentication_key_file"])),
         private_state_path=Path(str(config["private_state_path"])),
         public_manifest_path=Path(str(config["public_manifest_path"])),
         public_output_path=Path(str(config["public_output_path"])),
@@ -3224,9 +3108,7 @@ def _attest_terminal_audit_required_exit(
     attempted_operation = audit.get("attempted_operation")
     completed_operation = audit.get("completed_operation")
     contract_failure_code = audit.get("contract_failure_code")
-    typed_control_incident = (
-        incident_code in _TERMINAL_AUDIT_CONTROL_INCIDENT_CODES
-    )
+    typed_control_incident = incident_code in _TERMINAL_AUDIT_CONTROL_INCIDENT_CODES
     typed_diagnostics_valid = (
         attempted_operation in _TERMINAL_AUDIT_CONTROL_OPERATIONS
         and (
@@ -3236,10 +3118,8 @@ def _attest_terminal_audit_required_exit(
         and (
             (
                 incident_code == "contract_attestation_failed"
-                and attempted_operation
-                in _TERMINAL_AUDIT_CONTRACT_OPERATIONS
-                and contract_failure_code
-                == f"{attempted_operation}_failed"
+                and attempted_operation in _TERMINAL_AUDIT_CONTRACT_OPERATIONS
+                and contract_failure_code == f"{attempted_operation}_failed"
             )
             or (
                 incident_code != "contract_attestation_failed"
@@ -3249,8 +3129,7 @@ def _attest_terminal_audit_required_exit(
         and (
             incident_code != "control_phase_checkpoint_persist_failed"
             or (
-                attempted_operation
-                == "one_shot_state_validation_checkpoint"
+                attempted_operation == "one_shot_state_validation_checkpoint"
                 and completed_operation == "contract_attestation"
             )
         )
@@ -3258,19 +3137,14 @@ def _attest_terminal_audit_required_exit(
     if (
         not isinstance(audit, Mapping)
         or set(audit) != expected_keys
-        or audit.get("schema_version")
-        != "epiagentbench.terminal_audit.v3"
+        or audit.get("schema_version") != "epiagentbench.terminal_audit.v3"
         or audit.get("panel_id") != config["panel_id"]
         or audit.get("operation") != config["operation"]
         or audit.get("status") != "reconciled_and_attested"
-        or audit.get("terminal_status")
-        not in {"failed", "stopped_supervisor_incident"}
+        or audit.get("terminal_status") not in {"failed", "stopped_supervisor_incident"}
         or incident_code not in _TERMINAL_AUDIT_INCIDENT_CODES
         or incident_phase not in _TERMINAL_AUDIT_INCIDENT_PHASES
-        or (
-            typed_control_incident
-            and not typed_diagnostics_valid
-        )
+        or (typed_control_incident and not typed_diagnostics_valid)
         or (
             not typed_control_incident
             and any(
@@ -3287,8 +3161,7 @@ def _attest_terminal_audit_required_exit(
         or not isinstance(audit.get("file_sha256"), str)
         or not _SHA256.fullmatch(str(audit["file_sha256"]))
         or any(
-            type(audit.get(field)) is not int
-            or audit.get(field) != 0
+            type(audit.get(field)) is not int or audit.get(field) != 0
             for field in (
                 "provider_processes_started",
                 "authentication_processes_started",
@@ -3376,9 +3249,7 @@ def _run_launch_agent_worker_validated(
                 authentication_key=authentication_key,
             )
         except Exception as error:
-            supervisor_failure_code = _classify_supervisor_failure(
-                error
-            )
+            supervisor_failure_code = _classify_supervisor_failure(error)
             _atomic_worker_status(
                 runtime,
                 config=config,
@@ -3401,9 +3272,7 @@ def _run_launch_agent_worker_validated(
                     authentication_key=authentication_key,
                     state="terminal_incident",
                     reason="supervisor_failed",
-                    supervisor_failure_code=(
-                        SupervisorFailureCode.SUPERVISOR_INTERNAL
-                    ),
+                    supervisor_failure_code=(SupervisorFailureCode.SUPERVISOR_INTERNAL),
                 )
                 return 70
             try:
@@ -3416,8 +3285,7 @@ def _run_launch_agent_worker_validated(
                     state="terminal_incident",
                     reason="supervisor_failed",
                     supervisor_failure_code=(
-                        SupervisorFailureCode
-                        .RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
+                        SupervisorFailureCode.RUNNER_RESERVED_TERMINAL_AUDIT_EXIT
                     ),
                 )
                 return 70
@@ -3543,7 +3411,9 @@ class _LaunchControlLock:
         except BlockingIOError:
             if descriptor is not None:
                 os.close(descriptor)
-            raise RuntimeError("Launch-agent control operation is already active") from None
+            raise RuntimeError(
+                "Launch-agent control operation is already active"
+            ) from None
         except OSError:
             if descriptor is not None:
                 os.close(descriptor)
@@ -3575,6 +3445,7 @@ def _launchd_state(
     )
     if not matches:
         return "unknown"
+
     # ``launchctl print`` may include nested objects with their own ``state``
     # fields. Only the unique least-indented state belongs to the queried job;
     # duplicate peers remain ambiguous and fail closed.
@@ -3583,9 +3454,7 @@ def _launchd_state(
 
     minimum = min(indentation_width(indent) for indent, _ in matches)
     top_level = [
-        value
-        for indent, value in matches
-        if indentation_width(indent) == minimum
+        value for indent, value in matches if indentation_width(indent) == minimum
     ]
     if len(top_level) != 1:
         return "unknown"
@@ -3646,9 +3515,7 @@ def install_launch_agent(
                 _launchctl_outcome(result, allow_not_found=False)
                 is not _LaunchctlOutcome.SUCCESS
             ):
-                raise RuntimeError(
-                    "Unable to install the owner-scoped LaunchAgent"
-                )
+                raise RuntimeError("Unable to install the owner-scoped LaunchAgent")
             return {"label": config["label"], "state": "installed"}
 
 
@@ -3659,9 +3526,7 @@ def _attest_provider_free_prelaunch_identity(
 
     import epiagentbench.development_matched_panel as matched_panel
 
-    _, _, development_matched_panel_source = _verify_frozen_runtime_sources(
-        config
-    )
+    _, _, development_matched_panel_source = _verify_frozen_runtime_sources(config)
     _require_loaded_module_source(
         matched_panel.__file__,
         development_matched_panel_source,
@@ -3673,9 +3538,7 @@ def _attest_provider_free_prelaunch_identity(
     if config["operation"] == "production":
         matched_panel.assert_environment_preflight_ready(
             root=Path(config["repository_root"]),
-            authentication_key_file=Path(
-                config["authentication_key_file"]
-            ),
+            authentication_key_file=Path(config["authentication_key_file"]),
             private_state_path=Path(config["private_state_path"]),
             public_manifest_path=Path(config["public_manifest_path"]),
         )
@@ -3708,15 +3571,12 @@ def _attest_provider_free_prelaunch_identity(
         maximum_bytes=_MAX_PUBLIC_AUTHENTICATION_BYTES,
         label="public authentication receipt",
     )
-    if (
-        not hmac.compare_digest(
-            authentication_sha256_after,
-            authentication_sha256_before,
-        )
-        or not hmac.compare_digest(
-            authentication_sha256_after,
-            str(config["public_authentication_file_sha256"]),
-        )
+    if not hmac.compare_digest(
+        authentication_sha256_after,
+        authentication_sha256_before,
+    ) or not hmac.compare_digest(
+        authentication_sha256_after,
+        str(config["public_authentication_file_sha256"]),
     ):
         raise ValueError(
             "Public authentication receipt changed during prelaunch attestation"
@@ -3752,9 +3612,7 @@ def _require_unstarted_one_shot_boundary(
     core = _core_status(
         runtime,
         authentication_key=authentication_key,
-        expected_execution_context_sha256=config[
-            "execution_context_sha256"
-        ],
+        expected_execution_context_sha256=config["execution_context_sha256"],
     )
     if core["state"] != "not_started":
         raise RuntimeError("Supervised command already started")
@@ -3816,7 +3674,10 @@ def _start_launch_agent_validated(
     # Deliberately omit kickstart -k: an already-running worker must never be
     # killed and relaunched across an ambiguous provider boundary.
     result = _launchctl(["kickstart", target], command_runner=command_runner)
-    if _launchctl_outcome(result, allow_not_found=False) is not _LaunchctlOutcome.SUCCESS:
+    if (
+        _launchctl_outcome(result, allow_not_found=False)
+        is not _LaunchctlOutcome.SUCCESS
+    ):
         raise RuntimeError("Unable to start the one-shot LaunchAgent")
     return {"label": config["label"], "state": "start_requested"}
 
@@ -3886,18 +3747,12 @@ def _worker_status(
     state = payload.get("state")
     reason = payload.get("reason")
     release_failure_code = payload.get("release_failure_code")
-    supervisor_failure_code = payload.get(
-        "supervisor_failure_code"
-    )
+    supervisor_failure_code = payload.get("supervisor_failure_code")
     allowed_key_sets = {
         frozenset(base_keys),
         frozenset(base_keys | {"reason"}),
-        frozenset(
-            base_keys | {"reason", "release_failure_code"}
-        ),
-        frozenset(
-            base_keys | {"reason", "supervisor_failure_code"}
-        ),
+        frozenset(base_keys | {"reason", "release_failure_code"}),
+        frozenset(base_keys | {"reason", "supervisor_failure_code"}),
     }
     if (
         payload.get("schema_version") != _WORKER_STATUS_SCHEMA
@@ -3911,17 +3766,21 @@ def _worker_status(
             "terminal_incident",
         }
         or frozenset(payload) not in allowed_key_sets
-        or ("reason" in payload and reason not in {
-            "benchmark_terminal_receipt",
-            "cursor_keychain_unavailable",
-            "supervisor_failed",
-            "release_validation_failed",
-            "terminal_receipt_attestation_failed",
-            "success",
-            "failure",
-            "preflight_passed",
-            "production_complete",
-        })
+        or (
+            "reason" in payload
+            and reason
+            not in {
+                "benchmark_terminal_receipt",
+                "cursor_keychain_unavailable",
+                "supervisor_failed",
+                "release_validation_failed",
+                "terminal_receipt_attestation_failed",
+                "success",
+                "failure",
+                "preflight_passed",
+                "production_complete",
+            }
+        )
         or (
             state in {"starting", "supervisor_running", "release_pending"}
             and "reason" in payload
@@ -3932,8 +3791,7 @@ def _worker_status(
         )
         or (
             state == "supervisor_exited"
-            and reason
-            not in {"success", "failure", "benchmark_terminal_receipt"}
+            and reason not in {"success", "failure", "benchmark_terminal_receipt"}
         )
         or (
             state == "terminal_incident"
@@ -3949,41 +3807,34 @@ def _worker_status(
             state == "terminal_incident"
             and reason == "release_validation_failed"
             and release_failure_code
-            not in {
-                code.value for code in ReleaseValidationFailureCode
-            }
+            not in {code.value for code in ReleaseValidationFailureCode}
         )
         or (
             release_failure_code is not None
             and not (
-                state == "terminal_incident"
-                and reason == "release_validation_failed"
+                state == "terminal_incident" and reason == "release_validation_failed"
             )
         )
         or (
             state == "terminal_incident"
             and reason == "supervisor_failed"
             and supervisor_failure_code
-            not in {
-                code.value for code in SupervisorFailureCode
-            }
+            not in {code.value for code in SupervisorFailureCode}
         )
         or (
             supervisor_failure_code is not None
-            and not (
-                state == "terminal_incident"
-                and reason == "supervisor_failed"
-            )
+            and not (state == "terminal_incident" and reason == "supervisor_failed")
         )
         or payload.get("label") != config["label"]
         or payload.get("operation") != config["operation"]
         or payload.get("panel_id") != config["panel_id"]
         or payload.get("precommitment_sha256") != config["precommitment_sha256"]
-        or payload.get("execution_context_sha256")
-        != config["execution_context_sha256"]
+        or payload.get("execution_context_sha256") != config["execution_context_sha256"]
     ):
         raise ValueError("Invalid worker status")
-    return {key: str(value) for key, value in payload.items() if key != "schema_version"}
+    return {
+        key: str(value) for key, value in payload.items() if key != "schema_version"
+    }
 
 
 def _heartbeat_age_bucket(
@@ -4143,13 +3994,9 @@ def _status_snapshot(
         if "reason" in worker:
             status["worker_reason"] = worker["reason"]
         if "release_failure_code" in worker:
-            status["release_failure_code"] = worker[
-                "release_failure_code"
-            ]
+            status["release_failure_code"] = worker["release_failure_code"]
         if "supervisor_failure_code" in worker:
-            status["supervisor_failure_code"] = worker[
-                "supervisor_failure_code"
-            ]
+            status["supervisor_failure_code"] = worker["supervisor_failure_code"]
     return status
 
 
@@ -4203,9 +4050,7 @@ def audit_launch_agent(
             command_runner=command_runner,
         )
         if launchd_state not in {"waiting", "not_running"}:
-            raise RuntimeError(
-                "LaunchAgent is not installed at an unstarted boundary"
-            )
+            raise RuntimeError("LaunchAgent is not installed at an unstarted boundary")
 
         _assert_authenticated_config_snapshot(
             config,
@@ -4270,8 +4115,7 @@ def launch_agent_status(
             isinstance(supervisor, Mapping)
             and supervisor.get("state") == "authenticated"
             and supervisor.get("health") == "terminal"
-            and supervisor.get("lifecycle")
-            in {"completed", "failed_closed", "paused"}
+            and supervisor.get("lifecycle") in {"completed", "failed_closed", "paused"}
             and status.get("worker_state")
             in {
                 "release_pending",
@@ -4309,17 +4153,13 @@ def _attest_live_launch_agent_validated(
         or not isinstance(expected_precommitment_sha256, str)
         or not _SHA256.fullmatch(expected_precommitment_sha256)
     ):
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.INVALID_EXPECTATION
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.INVALID_EXPECTATION)
     if (
         config["operation"] != expected_operation
         or config["panel_id"] != expected_panel_id
         or config["precommitment_sha256"] != expected_precommitment_sha256
     ):
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.BINDING_MISMATCH
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.BINDING_MISMATCH)
     runtime = Path(config["runtime_dir"])
     try:
         start_marker = _read_start_marker(
@@ -4332,9 +4172,7 @@ def _attest_live_launch_agent_validated(
             LiveAttestationFailureCode.START_COMMITMENT_INVALID
         ) from None
     if start_marker is None:
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.START_COMMITMENT_MISSING
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.START_COMMITMENT_MISSING)
     try:
         worker = _worker_status(
             runtime,
@@ -4350,9 +4188,7 @@ def _attest_live_launch_agent_validated(
             LiveAttestationFailureCode.WORKER_STATUS_INVALID
         ) from None
     if worker is None or worker.get("state") != "supervisor_running":
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.WORKER_NOT_RUNNING
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.WORKER_NOT_RUNNING)
     try:
         core = _core_status(
             runtime,
@@ -4364,36 +4200,19 @@ def _attest_live_launch_agent_validated(
             LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
         ) from None
     except Exception:
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CORE_INTEGRITY
-        ) from None
+        raise LiveAttestationError(LiveAttestationFailureCode.CORE_INTEGRITY) from None
     if core.get("state") == "not_started":
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CORE_NOT_STARTED
-        )
-    if (
-        core.get("state") != "authenticated"
-        or core.get("lifecycle") != "running"
-    ):
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CORE_NOT_RUNNING
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.CORE_NOT_STARTED)
+    if core.get("state") != "authenticated" or core.get("lifecycle") != "running":
+        raise LiveAttestationError(LiveAttestationFailureCode.CORE_NOT_RUNNING)
     if core.get("assignment_phase") not in {"launch_committed", "running"}:
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CORE_PHASE_INVALID
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.CORE_PHASE_INVALID)
     if core.get("process_diagnostic") != "match":
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.PROCESS_IDENTITY_MISMATCH
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.PROCESS_IDENTITY_MISMATCH)
     if core.get("heartbeat_age_bucket") != "fresh":
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.HEARTBEAT_STALE
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.HEARTBEAT_STALE)
     if core.get("health") != "healthy":
-        raise LiveAttestationError(
-            LiveAttestationFailureCode.CORE_UNHEALTHY
-        )
+        raise LiveAttestationError(LiveAttestationFailureCode.CORE_UNHEALTHY)
     try:
         config_file_sha256 = _assert_authenticated_config_snapshot(
             config,
@@ -4438,9 +4257,7 @@ def attest_live_launch_agent(
                 authentication_key=authentication_key,
                 expected_operation=expected_operation,
                 expected_panel_id=expected_panel_id,
-                expected_precommitment_sha256=(
-                    expected_precommitment_sha256
-                ),
+                expected_precommitment_sha256=(expected_precommitment_sha256),
             )
     except LiveAttestationError:
         raise
@@ -4501,10 +4318,7 @@ def _attest_completed_launch_agent_validated(
         "supervisor_exited",
     }:
         raise ValueError("Completed launch-agent worker state is invalid")
-    if (
-        worker.get("state") == "supervisor_exited"
-        and worker.get("reason") != "success"
-    ):
+    if worker.get("state") == "supervisor_exited" and worker.get("reason") != "success":
         raise ValueError("Completed launch-agent worker did not exit successfully")
     core = _core_status(
         runtime,
@@ -4581,9 +4395,7 @@ def attest_completed_launch_agent(
             authentication_key=authentication_key,
             expected_operation=expected_operation,
             expected_panel_id=expected_panel_id,
-            expected_precommitment_sha256=(
-                expected_precommitment_sha256
-            ),
+            expected_precommitment_sha256=(expected_precommitment_sha256),
         )
 
 
@@ -4623,9 +4435,7 @@ def _finalize_launch_agent_validated(
     """
 
     runtime = Path(config["runtime_dir"])
-    failure_code = (
-        ReleaseValidationFailureCode.COMPLETION_ATTESTATION_INVALID
-    )
+    failure_code = ReleaseValidationFailureCode.COMPLETION_ATTESTATION_INVALID
     try:
         with _LaunchControlLock(runtime):
             release_attempt_started = False
@@ -4638,13 +4448,9 @@ def _finalize_launch_agent_validated(
                     authentication_key=authentication_key,
                     expected_operation=str(config["operation"]),
                     expected_panel_id=str(config["panel_id"]),
-                    expected_precommitment_sha256=str(
-                        config["precommitment_sha256"]
-                    ),
+                    expected_precommitment_sha256=str(config["precommitment_sha256"]),
                 )
-                failure_code = (
-                    ReleaseValidationFailureCode.RUNTIME_BINDING_INVALID
-                )
+                failure_code = ReleaseValidationFailureCode.RUNTIME_BINDING_INVALID
                 _assert_authenticated_config_snapshot(
                     config,
                     authentication_key=authentication_key,
@@ -4660,33 +4466,24 @@ def _finalize_launch_agent_validated(
                     "released",
                     "supervisor_exited",
                 }:
-                    raise ValueError(
-                        "Launch-agent release state is not recoverable"
-                    )
-                if worker.get("state") == "supervisor_exited" and worker.get(
-                    "reason"
-                ) != "success":
-                    raise ValueError(
-                        "Failed supervisor execution cannot be released"
-                    )
+                    raise ValueError("Launch-agent release state is not recoverable")
+                if (
+                    worker.get("state") == "supervisor_exited"
+                    and worker.get("reason") != "success"
+                ):
+                    raise ValueError("Failed supervisor execution cannot be released")
                 failure_code = (
-                    ReleaseValidationFailureCode
-                    .COMPLETION_ATTESTATION_INVALID
+                    ReleaseValidationFailureCode.COMPLETION_ATTESTATION_INVALID
                 )
                 _attest_completed_launch_agent_validated(
                     config,
                     authentication_key=authentication_key,
                     expected_operation=str(config["operation"]),
                     expected_panel_id=str(config["panel_id"]),
-                    expected_precommitment_sha256=str(
-                        config["precommitment_sha256"]
-                    ),
+                    expected_precommitment_sha256=str(config["precommitment_sha256"]),
                 )
                 if worker.get("state") != "released":
-                    failure_code = (
-                        ReleaseValidationFailureCode
-                        .RUNTIME_BINDING_INVALID
-                    )
+                    failure_code = ReleaseValidationFailureCode.RUNTIME_BINDING_INVALID
                     _assert_authenticated_config_snapshot(
                         config,
                         authentication_key=authentication_key,
@@ -4701,8 +4498,7 @@ def _finalize_launch_agent_validated(
                 failure_code = ReleaseValidationFailureCode.INTERNAL
                 _finalize_supervised_release(config)
                 failure_code = (
-                    ReleaseValidationFailureCode
-                    .POSTCOMMIT_ATTESTATION_FAILED
+                    ReleaseValidationFailureCode.POSTCOMMIT_ATTESTATION_FAILED
                 )
                 _assert_authenticated_config_snapshot(
                     config,
@@ -4736,13 +4532,9 @@ def _finalize_launch_agent_validated(
                         already_classified = (
                             worker is not None
                             and worker.get("state") == "terminal_incident"
-                            and worker.get("reason")
-                            == "release_validation_failed"
+                            and worker.get("reason") == "release_validation_failed"
                             and worker.get("release_failure_code")
-                            in {
-                                code.value
-                                for code in ReleaseValidationFailureCode
-                            }
+                            in {code.value for code in ReleaseValidationFailureCode}
                         )
                         if not already_classified:
                             _atomic_worker_status(
@@ -4794,9 +4586,8 @@ def _authenticated_terminal(status: Mapping[str, Any]) -> bool:
     worker_state = status.get("worker_state")
     worker_reason = status.get("worker_reason")
     supervisor = status.get("supervisor")
-    if (
-        status.get("start_request_state") != "authenticated"
-        or not isinstance(supervisor, Mapping)
+    if status.get("start_request_state") != "authenticated" or not isinstance(
+        supervisor, Mapping
     ):
         return False
     if (
@@ -4832,7 +4623,9 @@ def _uninstall_launch_agent_validated(
         if status["launchd_state"] not in {"waiting", "exited", "not_running"}:
             raise RuntimeError("Refusing to uninstall an active or unknown LaunchAgent")
         if not _authenticated_terminal(status):
-            raise RuntimeError("Refusing to uninstall without authenticated terminal state")
+            raise RuntimeError(
+                "Refusing to uninstall without authenticated terminal state"
+            )
         result = _launchctl(["bootout", target], command_runner=command_runner)
         outcome = _launchctl_outcome(result, allow_not_found=True)
         if outcome is _LaunchctlOutcome.FAILED:

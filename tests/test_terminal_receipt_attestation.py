@@ -26,12 +26,8 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         self.results.mkdir()
         self.authentication_key = self.root / "authentication.key"
         self.private_state = self.root / "private.json"
-        self.public_manifest = (
-            self.results / f"{matched.PANEL_ID}.manifest.json"
-        )
-        self.public_preflight = (
-            self.results / f"{matched.PANEL_ID}.preflight.json"
-        )
+        self.public_manifest = self.results / f"{matched.PANEL_ID}.manifest.json"
+        self.public_preflight = self.results / f"{matched.PANEL_ID}.preflight.json"
         self.public_results = self.results / f"{matched.PANEL_ID}.json"
         for path in (
             self.authentication_key,
@@ -83,9 +79,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         private = {
             "schema_version": matched.SCHEMA_VERSION,
             "panel_id": matched.PANEL_ID,
-            "public_precommitment_sha256": public[
-                "precommitment_sha256"
-            ],
+            "public_precommitment_sha256": public["precommitment_sha256"],
             "environment_preflight": preflight,
         }
         return private, public, candidate
@@ -132,9 +126,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 "_validate_repository_receipt_binding",
                 return_value={
                     "file_sha256": matched._public_json_file_sha256(
-                        private["environment_preflight"][
-                            "terminal_public_receipt"
-                        ]
+                        private["environment_preflight"]["terminal_public_receipt"]
                     )
                 },
             ),
@@ -200,12 +192,8 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                         "profile_id": profile["profile_id"],
                         "model_invocation_state": "not_started",
                         "pre_model_phase": "provider_cli_readiness",
-                        "failed_pre_model_phase": (
-                            "provider_cli_readiness"
-                        ),
-                        "outcome": (
-                            "failed_provider_cli_readiness_timeout"
-                        ),
+                        "failed_pre_model_phase": ("provider_cli_readiness"),
+                        "outcome": ("failed_provider_cli_readiness_timeout"),
                         "timed_out": True,
                         "timeout_stage": "provider_cli_readiness",
                         "conservative_chargeable": False,
@@ -238,9 +226,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 "profiles": profiles,
             }
         )
-        private["environment_preflight"]["terminal_public_receipt"] = (
-            candidate
-        )
+        private["environment_preflight"]["terminal_public_receipt"] = candidate
         private["environment_preflight"]["public_receipt_sha256"] = (
             matched._component_hash(candidate)
         )
@@ -250,11 +236,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 "status": (
                     "passed"
                     if index == 0
-                    else (
-                        "failed"
-                        if index == 1
-                        else "not_started_terminal_abort"
-                    )
+                    else ("failed" if index == 1 else "not_started_terminal_abort")
                 )
             }
             if index == 0:
@@ -266,9 +248,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             attempts.append(attempt)
         preflight = private["environment_preflight"]
         preflight["attempts"] = attempts
-        preflight["incident_envelope"] = (
-            matched._new_preflight_incident_envelope()
-        )
+        preflight["incident_envelope"] = matched._new_preflight_incident_envelope()
         matched._advance_preflight_incident_envelope(
             preflight,
             phase="before_model_spawn",
@@ -289,17 +269,15 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         )
 
         self.assertEqual(attestation["status"], "attested")
-        self.assertEqual(
-            candidate["model_invocations_conservatively_chargeable"], 1
-        )
+        self.assertEqual(candidate["model_invocations_conservatively_chargeable"], 1)
 
     def test_spoofed_incident_code_cannot_cross_terminal_boundary(self) -> None:
         private, public, candidate = self._preflight_fixture()
         candidate["incident_code"] = "provider_said_everything_is_fine"
         private["environment_preflight"]["terminal_public_receipt"] = candidate
-        private["environment_preflight"][
-            "public_receipt_sha256"
-        ] = matched._component_hash(candidate)
+        private["environment_preflight"]["public_receipt_sha256"] = (
+            matched._component_hash(candidate)
+        )
         with self.assertRaisesRegex(RuntimeError, "incident code"):
             self._attest_preflight(
                 private=private,
@@ -311,9 +289,9 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         private, public, candidate = self._preflight_fixture()
         candidate["failure_stage"] = "provider_supplied_success_stage"
         private["environment_preflight"]["terminal_public_receipt"] = candidate
-        private["environment_preflight"][
-            "public_receipt_sha256"
-        ] = matched._component_hash(candidate)
+        private["environment_preflight"]["public_receipt_sha256"] = (
+            matched._component_hash(candidate)
+        )
         with self.assertRaisesRegex(RuntimeError, "failure stage"):
             self._attest_preflight(
                 private=private,
@@ -390,9 +368,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 patch.object(
                     matched, "assert_durable_live_execution_paths"
                 ) as durable_paths,
-                patch.object(
-                    matched, "_read_authentication_key"
-                ) as read_key,
+                patch.object(matched, "_read_authentication_key") as read_key,
                 patch.object(matched, "_write_private_state") as write_private,
                 patch.object(matched, "_atomic_json") as write_public,
                 self.assertRaises(ReleaseValidationError) as refused,
@@ -462,9 +438,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         private: dict[str, object] = {
             "schema_version": matched.SCHEMA_VERSION,
             "panel_id": matched.PANEL_ID,
-            "public_precommitment_sha256": public[
-                "precommitment_sha256"
-            ],
+            "public_precommitment_sha256": public["precommitment_sha256"],
             "panel_started_at_utc": "2026-01-01T00:00:00+00:00",
             "assignments": [{"status": "transport_void"}],
         }
@@ -479,9 +453,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         )
 
         def load_json(path: Path, **_: object) -> dict[str, object]:
-            return copy.deepcopy(
-                public if path == self.public_manifest else observed
-            )
+            return copy.deepcopy(public if path == self.public_manifest else observed)
 
         patches = (
             patch.object(matched, "_read_authentication_key", return_value=b"k"),
@@ -569,9 +541,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             )
         private["panel_id"] = matched.PANEL_ID
 
-        private["execution_incident"]["incident_code"] = (
-            "provider_supplied_success"
-        )
+        private["execution_incident"]["incident_code"] = "provider_supplied_success"
         with (
             patch.object(matched, "_read_authentication_key", return_value=b"k"),
             patch.object(matched, "_load_private_state", return_value=private),
@@ -614,9 +584,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 matched,
                 "_validate_repository_receipt_binding",
                 return_value={
-                    "file_sha256": matched._public_json_file_sha256(
-                        candidate
-                    )
+                    "file_sha256": matched._public_json_file_sha256(candidate)
                 },
             ),
         ):
@@ -635,9 +603,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         )
 
         original_load_json(self.public_preflight)["failure_reason"] = "unused"
-        self.public_preflight.write_text(
-            '{"conflict": true}\n', encoding="utf-8"
-        )
+        self.public_preflight.write_text('{"conflict": true}\n', encoding="utf-8")
         with (
             patch.object(matched, "assert_durable_live_execution_paths"),
             patch.object(matched, "_read_authentication_key", return_value=b"k"),
@@ -652,9 +618,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 matched,
                 "_validate_repository_receipt_binding",
                 return_value={
-                    "file_sha256": matched._public_json_file_sha256(
-                        candidate
-                    )
+                    "file_sha256": matched._public_json_file_sha256(candidate)
                 },
             ),
             self.assertRaisesRegex(RuntimeError, "conflicting"),
@@ -678,9 +642,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         private = {
             "schema_version": matched.SCHEMA_VERSION,
             "panel_id": matched.PANEL_ID,
-            "public_precommitment_sha256": public[
-                "precommitment_sha256"
-            ],
+            "public_precommitment_sha256": public["precommitment_sha256"],
             "panel_started_at_utc": "2026-01-01T00:00:00+00:00",
             "assignments": [],
         }
@@ -729,9 +691,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
                 self.public_results,
                 label="offline production receipt",
             ),
-            matched._public_json_file_sha256(
-                matched._load_json(self.public_results)
-            ),
+            matched._public_json_file_sha256(matched._load_json(self.public_results)),
         )
 
     def test_cli_emits_64_only_after_terminal_attestation(self) -> None:
@@ -753,7 +713,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
             "--supervisor-runtime",
             str(self.root / "supervisor"),
             "--cursor-keychain-service",
-            "epiagentbench-cursor-v35",
+            "epiagentbench-cursor-v48",
             "--cursor-keychain-account",
             "test-account",
             "--acknowledge-unbounded-provider-spend",
@@ -765,9 +725,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
         }
         with (
             patch.object(matched_cli.sys, "argv", arguments),
-            patch.object(
-                matched_cli, "assert_durable_live_execution_paths"
-            ),
+            patch.object(matched_cli, "assert_durable_live_execution_paths"),
             patch.object(
                 matched_cli,
                 "run_environment_preflight",
@@ -786,9 +744,7 @@ class TerminalReceiptAttestationTests(unittest.TestCase):
 
         with (
             patch.object(matched_cli.sys, "argv", arguments),
-            patch.object(
-                matched_cli, "assert_durable_live_execution_paths"
-            ),
+            patch.object(matched_cli, "assert_durable_live_execution_paths"),
             patch.object(
                 matched_cli,
                 "run_environment_preflight",

@@ -1,5 +1,23 @@
 # EpiAgentBench V35 execution runbook
 
+> [!IMPORTANT]
+> **V35 IS TERMINAL AND NON-RESUMABLE.** Its control plane was published and
+> independently pinned at `818b0313eb14e3b31431b267626d8d4a61fa5559`.
+> Its provider-free runtime-receipt candidates matched, but publisher setup
+> stopped before any receipt copy, commit, push, authentication, provider, or
+> model start. The successor-owned exact two-file closeout is
+> `6471dcd74393852740e64a6c7181d5c44d3d9a30` on
+> `refs/heads/codex/v40-v35-runtime-publication-terminal-closeout`, under
+> `epiagentbench.panel_supersession.v28`. Never resume, retry, repair, or use
+> the V35 control commit as a runtime base. The successor chain continues only
+> through the published V40, V46, and V47 terminal closeouts. V48 begins only
+> from the independently pinned V47 closeout
+> `31928645baff6182852c9c88a393b6fcaa6be557`, with fresh V48 panel, cohort,
+> supervisor-contract, cache, state, credential, socket, and output namespaces.
+> This historical body and its acknowledgement authorize nothing. Continue
+> only through the separately reviewed [V48 design](V48_DESIGN.md) and
+> [V48 runbook](V48_RUNBOOK.md).
+
 > [!CAUTION]
 > **CONTROL-PLANE DESIGN ONLY — NO V35 AUTHENTICATION, PROVIDER, SPEND,
 > PREFLIGHT, PRODUCTION, OR MODEL CALL IS AUTHORIZED.**

@@ -380,9 +380,15 @@ fresh control-plane publication; that one attempt also failed before remote
 mutation, with zero runtime, authentication, provider, or model starts. It
 closed at `47ebbfc799310fc73e60e7cbf90cd37c5f9d6d8d`. V34 published its
 control plane, then failed its provider-free pre-runtime host-contract gate and
-closed at `038794aa1bf82440259c62afdabab44c01415978`. V35 is the forward
-control-plane design under fresh namespaces; see the
-[V35 design](docs/V35_DESIGN.md) and [V35 runbook](docs/V35_RUNBOOK.md). None
+closed at `038794aa1bf82440259c62afdabab44c01415978`. V35 later published its
+control plane and stopped during provider-free runtime-receipt publisher setup.
+V40 stopped during control-plane authoring, V46 stopped during provider-free
+scientific-runtime cache-isolation validation, and V47 stopped at its
+control-publication precreation scope gate after sealing but never publishing
+two non-reusable local candidates. Their exact successor closeouts culminate at
+`31928645baff6182852c9c88a393b6fcaa6be557`. V48 is the forward control-plane
+design under fresh namespaces; see the
+[V48 design](docs/V48_DESIGN.md) and [V48 runbook](docs/V48_RUNBOOK.md). None
 of those documents alone authorizes runtime generation, authentication,
 supervisor start, provider calls, or spend.
 
@@ -942,10 +948,12 @@ only in their terminal [V20](docs/V20_RUNBOOK.md),
 [V23](docs/V23_RUNBOOK.md) runbooks and the superseded
 [V24 runbook](docs/V24_RUNBOOK.md) and
 [V25 runbook](docs/V25_RUNBOOK.md); they must not be executed or reused.
-V26, V27, V28, V29, V30, V31, V32, V33, and V34 are terminal and must not be resumed or reused.
+V26 through V35, V40, V46, and V47 are terminal and must not be resumed or
+reused. V36 through V39 and V41 through V45 were publication namespaces, not
+panels or control planes, and do not supply reusable lifecycle values.
 Any replacement must use fresh namespaces, the provider-free preclaim
 boundary, and the placeholder discipline in the
-[V35 runbook](docs/V35_RUNBOOK.md).
+[V48 runbook](docs/V48_RUNBOOK.md).
 
 V27 retained the `$510` current-run Claude ceiling and used a conservative
 `$100` allowance for prior panels. V20, V21, and V22 each add `$0`; V23 adds `$10`
@@ -1130,9 +1138,13 @@ the exact two-file closeout
 `epiagentbench.panel_supersession.v27`. Its historical text and `$0` incident
 cannot authorize or resume V34.
 
-V35 is the fresh direct child of that independently pinned closeout. It uses
-`development-matched-50x6-v35`, `development_matched_panel_v35`, persistent
-supervisor contract `epiagentbench.persistent_supervisor_contract.v20`, and
+V35, V40, V46, and V47 are also terminal. Their exact published supersession
+JSON/test pairs remain byte-identical, and none of their panel, cohort,
+credential, cache, state, supervisor, socket, output, or unpublished candidate
+values is reusable. V48 is the fresh direct child of V47's independently
+pinned two-file closeout `31928645baff6182852c9c88a393b6fcaa6be557`. It uses
+`development-matched-50x6-v48`, `development_matched_panel_v48`, persistent
+supervisor contract `epiagentbench.persistent_supervisor_contract.v24`, and
 provider CLI contract `epiagentbench.provider_cli_contract.v3`, while retaining
 supervisor state v4, identity v3, protocol v9, LaunchAgent config/auth v16,
 worker status v6, and the other unchanged provider-free and terminal schemas.
@@ -1144,21 +1156,23 @@ exact 17-key managed environment, pinned helpers, and one exact managed
 managed host, OAuth client identifiers, and model value. The managed default
 does not select a benchmark profile: source-owned explicit `--model` arguments
 and provider-reported observed-model/fallback checks remain authoritative. The
-independently reproduced duplicate-safe V35 Starsim smoke projection is frozen
-at `sha256:864f1d51cc4da6a0545445537cca5badc5bb624ed4d8e386786a274e85b78086`.
+V48 Starsim smoke projection identity is frozen at
+`sha256:e91a8e76e32048c3bbc63c02ee2a1279fc53a6af078130a7d3baaa91ac8a3d5f`
+after four independent cache-isolated discoveries and two ordinary final
+smokes reproduced the same exact value and safe aggregates.
 
-V34 contributes `$0`, so the conservative prior-through-V34 Claude allowance
-remains `$160`; the V35 current-run ceiling remains `$510`, for `$670`
-cumulative. Codex and Cursor remain explicitly unbounded. The exact V35
+V35, V40, V46, and V47 each contribute `$0`, so the conservative prior Claude
+allowance remains `$160`; the V48 current-run ceiling remains `$510`, for `$670`
+cumulative. Codex and Cursor remain explicitly unbounded. The exact V48
 acknowledgement is:
 
-> I acknowledge the replacement six-call v35 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, the failed zero-model-call v30 preflight supervisor-generation environment validation, the failed zero-model-call v31 provider-free runtime-receipt publication before remote mutation, the failed zero-model-call v32 provider-free runtime-receipt publication before remote mutation, the failed zero-model-call v33 control-plane publication before remote mutation, the failed zero-model-call v34 provider-free pre-runtime host-contract validation, and the v35 preflight and production run.
+> I acknowledge the replacement six-call v48 preflight and 300-assignment production run, including unbounded Codex/Cursor provider spend and up to $670 total Claude spend across the failed v2 preflight, failed v5 preflight, failed v6 authentication bootstrap, failed v7 preflight, failed v8 production run, v9 preflight and failed production run, the abandoned zero-model-call v10 precommitment, the failed zero-model-call v11 authentication bootstrap, the abandoned zero-model-call v12 precommitment, the abandoned zero-model-call v13 precommitment, the failed v14 preflight, the failed zero-model-call v15 pre-claim preparation, the failed v16 preflight, the failed zero-model-call v17 pre-start runtime-cache-environment refusal, the failed v18 preflight, the failed zero-model-call v19 authentication setup, the failed zero-model-call v20 preflight, the failed zero-model-call v21 preflight, the failed zero-model-call v22 interrupted authentication ceremony, the failed v23 six-call preflight release validation, the abandoned zero-model-call v24 control-plane precommitment, the failed zero-model-call v25 provider-free preparation-runtime CLI discovery, the failed v26 preflight with indeterminate provider-call count and a conservative $10 Claude allowance, the failed zero-model-call v27 preflight, the failed zero-model-call v28 preflight, the v29 passing preflight and terminal production run with a conservative $60 Claude allowance, the failed zero-model-call v30 preflight supervisor-generation environment validation, the failed zero-model-call v31 provider-free runtime-receipt publication before remote mutation, the failed zero-model-call v32 provider-free runtime-receipt publication before remote mutation, the failed zero-model-call v33 control-plane publication before remote mutation, the failed zero-model-call v34 provider-free pre-runtime host-contract validation, the failed zero-model-call v35 provider-free runtime-receipt publisher setup, the failed zero-model-call v40 control-plane authoring, the failed zero-model-call v46 control-plane precreation scientific-runtime cache-isolation validation, the failed zero-model-call v47 control-plane publication precreation scope-inventory validation, and the v48 preflight and production run.
 
 Its SHA-256 is
-`d4afd8238eeb000c25a124936400102d97e327d0624b1b5059c26b0de1fd8bc0`.
+`2521ee29ff8baaef2bdab86477e13ed7a384784aba62a76e27b9edac30bdea0f`.
 The text and ceilings authorize nothing until a separately approved, published,
-independently pinned V35 manifest is bound by the create-once spend ceremony.
-The [V35 design](docs/V35_DESIGN.md) and [V35 runbook](docs/V35_RUNBOOK.md)
+independently pinned V48 manifest is bound by the create-once spend ceremony.
+The [V48 design](docs/V48_DESIGN.md) and [V48 runbook](docs/V48_RUNBOOK.md)
 freeze the new namespaces and closed publication topology.
 
 The V29 design required the runner, runtime, hidden cohort, credential

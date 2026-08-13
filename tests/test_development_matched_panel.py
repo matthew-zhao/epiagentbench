@@ -138,21 +138,14 @@ CLI_CONTRACT = {
         "entrypoint_target_binding": (
             "role_relative_path_symlink_metadata_and_content"
         ),
-        "installation_tree_binding": (
-            "bounded_adjacent_tree_content_and_metadata"
-        ),
-        "pre_spawn_revalidation": (
-            "full_resolution_and_installation_identity"
-        ),
-        "external_runtime_boundary": (
-            "declared_per_executable_not_content_bound"
-        ),
+        "installation_tree_binding": ("bounded_adjacent_tree_content_and_metadata"),
+        "pre_spawn_revalidation": ("full_resolution_and_installation_identity"),
+        "external_runtime_boundary": ("declared_per_executable_not_content_bound"),
         "same_user_or_admin_aba_race": (
             "documented_residual_outside_benchmark_threat_model"
         ),
         "ancestry_mutability_policy": (
-            "world_writable_forbidden_group_writable_only_"
-            "homebrew_admin_role"
+            "world_writable_forbidden_group_writable_only_homebrew_admin_role"
         ),
     },
 }
@@ -161,9 +154,7 @@ AUTHENTICATION_DEPENDENCY_IDENTITY = {
     "glean_helper": {
         "path": "/usr/local/bin/glean-helper",
         "sha256": "sha256:" + "4" * 64,
-        "policy": (
-            "root_owned_root_group_single_link_regular_nonwritable_executable"
-        ),
+        "policy": ("root_owned_root_group_single_link_regular_nonwritable_executable"),
     },
     "glean_llm_gateway_token_wrapper": {
         "path": "/usr/local/bin/glean-llm-gateway-token",
@@ -171,9 +162,7 @@ AUTHENTICATION_DEPENDENCY_IDENTITY = {
         "link_text": None,
         "resolved_path": "/usr/local/bin/glean-llm-gateway-token",
         "target_sha256": "sha256:" + "5" * 64,
-        "policy": (
-            "root_owned_root_group_single_link_regular_nonwritable_executable"
-        ),
+        "policy": ("root_owned_root_group_single_link_regular_nonwritable_executable"),
         "dispatch_contract": {
             "argv0_basename": "glean-llm-gateway-token",
             "arguments": [],
@@ -228,9 +217,7 @@ RUNTIME_CACHE_CONTRACT = {
     "inventory_file_bytes": 0,
 }
 PROVIDER_FREE_ENVIRONMENT_CONTRACT = {
-    "schema_version": (
-        "epiagentbench.provider_free_preparation_environment.v2"
-    ),
+    "schema_version": ("epiagentbench.provider_free_preparation_environment.v2"),
     "status": "passed",
     "process_environment_keys": sorted(
         {
@@ -282,16 +269,12 @@ PROVIDER_FREE_ENVIRONMENT_CONTRACT = {
 }
 RUNTIME_SMOKE_CONTRACT = {
     "schema_version": "epiagentbench.preparation_runtime_smoke.v2",
-    "fixed_public_scenario": (
-        "v35_contact_transmission_with_matched_contact_stop"
-    ),
+    "fixed_public_scenario": ("v48_contact_transmission_with_matched_contact_stop"),
     "result_sha256": "sha256:" + "e" * 64,
     "result": {"test": "fixed-public-smoke"},
 }
 EPISODE_STARTUP_SMOKE_CONTRACT = {
-    "schema_version": (
-        "epiagentbench.preparation_episode_startup_smoke.v1"
-    ),
+    "schema_version": ("epiagentbench.preparation_episode_startup_smoke.v1"),
     "backend": "starsim-ltc-v3",
     "public_families": list(FAMILIES),
     "public_seeds": [0, 7, 2**31 - 2],
@@ -359,7 +342,7 @@ def prepare_panel(**kwargs):
     root = Path(kwargs["root"])
     kwargs.setdefault(
         "preparation_runtime_receipt_path",
-        root / "results" / "development-matched-50x6-v35.runtime.json",
+        root / "results" / "development-matched-50x6-v48.runtime.json",
     )
     kwargs.setdefault("expected_benchmark_base_commit", "d" * 40)
     kwargs.setdefault(
@@ -391,8 +374,7 @@ def _adapt_model_bearing_test_evaluator(evaluator):
                 or phase != PRE_MODEL_PHASES[expected_index]
             ):
                 raise AssertionError(
-                    "test evaluator emitted an invalid pre-model phase "
-                    "transition"
+                    "test evaluator emitted an invalid pre-model phase transition"
                 )
             observed_phases.append(phase)
             phase_callback(phase)
@@ -415,6 +397,7 @@ def _adapt_model_bearing_test_evaluator(evaluator):
         kwargs["pre_model_phase_callback"] = tracked_phase
         progress_callback = kwargs.get("progress_callback")
         if callable(progress_callback):
+
             def tracked_progress(snapshot) -> None:
                 if callback_count == 0:
                     tracked_callback()
@@ -527,9 +510,7 @@ class MatchedPanelTests(unittest.TestCase):
         os.chmod(self.key_path, 0o600)
         self.private_path = self.root / "run_artifacts" / "private.json"
         self.public_path = self.root / "results" / "manifest.json"
-        self.results_path = (
-            self.root / "results" / f"{matched.PANEL_ID}.json"
-        )
+        self.results_path = self.root / "results" / f"{matched.PANEL_ID}.json"
         self.keychain_present = False
 
     def tearDown(self) -> None:
@@ -541,9 +522,7 @@ class MatchedPanelTests(unittest.TestCase):
         self, count: int = EPISODE_COUNT, *, cohort_id: str = COHORT_ID
     ) -> Path:
         cohort = self.root / f"cohort-{count}-{cohort_id}"
-        return self._cohort_at(
-            cohort, count=count, cohort_id=cohort_id
-        )
+        return self._cohort_at(cohort, count=count, cohort_id=cohort_id)
 
     def _cohort_at(
         self,
@@ -565,16 +544,16 @@ class MatchedPanelTests(unittest.TestCase):
                     seed=index + 100,
                     generator_fingerprint=GENERATOR,
                     episode_secret=hashlib.sha256(f"secret-{index}".encode()).digest(),
-                    commitment_nonce=hashlib.sha256(
-                        f"nonce-{index}".encode()
-                    ).digest(),
+                    commitment_nonce=hashlib.sha256(f"nonce-{index}".encode()).digest(),
                 )
             )
         manifest = PrivateEpisodeCohortManifest.create(
             packs, manifest_nonce=hashlib.sha256(b"manifest").digest()
         )
         for pack in packs:
-            pack.write(cohort / f"episode-{pack.episode_index:06d}.pack", AUTHENTICATION_KEY)
+            pack.write(
+                cohort / f"episode-{pack.episode_index:06d}.pack", AUTHENTICATION_KEY
+            )
         manifest_path = cohort / "cohort.manifest"
         manifest.write(manifest_path, AUTHENTICATION_KEY)
         return manifest_path
@@ -592,9 +571,9 @@ class MatchedPanelTests(unittest.TestCase):
         if arguments == (
             "ls-files",
             "--error-unmatch",
-            "results/development-matched-50x6-v35.authentication.json",
+            "results/development-matched-50x6-v48.authentication.json",
         ):
-            return "results/development-matched-50x6-v35.authentication.json"
+            return "results/development-matched-50x6-v48.authentication.json"
         return ""
 
     @staticmethod
@@ -614,9 +593,7 @@ class MatchedPanelTests(unittest.TestCase):
         return {
             "apiKeyHelper": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
             "env": {
-                "ANTHROPIC_BASE_URL": (
-                    "https://gateway.test/rest/api/v1/anthropic"
-                ),
+                "ANTHROPIC_BASE_URL": ("https://gateway.test/rest/api/v1/anthropic"),
                 "CLAUDE_CODE_API_KEY_HELPER_TTL_MS": "1800000",
                 "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
                 "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
@@ -681,37 +658,25 @@ class MatchedPanelTests(unittest.TestCase):
             if source_contract is None
             else source_contract
         )
-        cli_contract = (
-            matched._cli_contract()
-            if cli_contract is None
-            else cli_contract
-        )
+        cli_contract = matched._cli_contract() if cli_contract is None else cli_contract
         return {
-            "schema_version": (
-                "epiagentbench.preparation_runtime_verification.v3"
-            ),
-            "panel_id": "development-matched-50x6-v35",
+            "schema_version": ("epiagentbench.preparation_runtime_verification.v3"),
+            "panel_id": "development-matched-50x6-v48",
             "status": "passed",
             "published_receipt_path": (
-                "results/development-matched-50x6-v35.runtime.json"
+                "results/development-matched-50x6-v48.runtime.json"
             ),
             "published_receipt_file_sha256": "sha256:" + "f" * 64,
             "published_benchmark_base_commit": "c" * 40,
             "verified_benchmark_base_commit": "d" * 40,
             "runtime_identity_sha256": "sha256:" + "a" * 64,
             "required_starsim_version": "3.5.1",
-            "source_contract_sha256": matched._component_hash(
-                source_contract
-            ),
+            "source_contract_sha256": matched._component_hash(source_contract),
             "cli_contract_sha256": matched._component_hash(cli_contract),
             "provider_free_environment_contract_sha256": (
-                matched._component_hash(
-                    PROVIDER_FREE_ENVIRONMENT_CONTRACT
-                )
+                matched._component_hash(PROVIDER_FREE_ENVIRONMENT_CONTRACT)
             ),
-            "runtime_contract_sha256": matched._component_hash(
-                RUNTIME_CONTRACT
-            ),
+            "runtime_contract_sha256": matched._component_hash(RUNTIME_CONTRACT),
             "runtime_cache_contract_sha256": matched._component_hash(
                 RUNTIME_CACHE_CONTRACT
             ),
@@ -719,9 +684,7 @@ class MatchedPanelTests(unittest.TestCase):
                 RUNTIME_SMOKE_CONTRACT
             ),
             "episode_startup_smoke_contract_sha256": (
-                matched._component_hash(
-                    EPISODE_STARTUP_SMOKE_CONTRACT
-                )
+                matched._component_hash(EPISODE_STARTUP_SMOKE_CONTRACT)
             ),
             "runtime_contract": RUNTIME_CONTRACT,
             "provider_free_environment_contract": copy.deepcopy(
@@ -729,9 +692,7 @@ class MatchedPanelTests(unittest.TestCase):
             ),
             "runtime_cache_contract": RUNTIME_CACHE_CONTRACT,
             "starsim_smoke_contract": RUNTIME_SMOKE_CONTRACT,
-            "episode_startup_smoke_contract": (
-                EPISODE_STARTUP_SMOKE_CONTRACT
-            ),
+            "episode_startup_smoke_contract": (EPISODE_STARTUP_SMOKE_CONTRACT),
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
             "model_calls_started": 0,
@@ -742,16 +703,12 @@ class MatchedPanelTests(unittest.TestCase):
     def _freeze_claim_fixture() -> tuple[dict, dict]:
         return (
             {
-                "schema_version": (
-                    "epiagentbench.v35_cohort_freeze_claim.v1"
-                ),
+                "schema_version": ("epiagentbench.v48_cohort_freeze_claim.v1"),
                 "status": "pending_create_once_freeze",
                 "fixture": True,
             },
             {
-                "schema_version": (
-                    "epiagentbench.v35_cohort_freeze_completion.v1"
-                ),
+                "schema_version": ("epiagentbench.v48_cohort_freeze_completion.v1"),
                 "status": "completed_create_once_freeze",
                 "fixture": True,
             },
@@ -764,25 +721,17 @@ class MatchedPanelTests(unittest.TestCase):
         runtime_contract: Mapping[str, object] = RUNTIME_CONTRACT,
     ) -> dict:
         receipt = {
-            "schema_version": (
-                "epiagentbench.preparation_runtime_preflight.v4"
-            ),
-            "panel_id": "development-matched-50x6-v35",
+            "schema_version": ("epiagentbench.preparation_runtime_preflight.v4"),
+            "panel_id": "development-matched-50x6-v48",
             "status": "passed",
             "benchmark_base_commit": benchmark_base_commit,
             "required_starsim_version": "3.5.1",
-            "source_contract_sha256": matched._component_hash(
-                SOURCE_CONTRACT
-            ),
+            "source_contract_sha256": matched._component_hash(SOURCE_CONTRACT),
             "cli_contract_sha256": matched._component_hash(CLI_CONTRACT),
             "provider_free_environment_contract_sha256": (
-                matched._component_hash(
-                    PROVIDER_FREE_ENVIRONMENT_CONTRACT
-                )
+                matched._component_hash(PROVIDER_FREE_ENVIRONMENT_CONTRACT)
             ),
-            "runtime_contract_sha256": matched._component_hash(
-                runtime_contract
-            ),
+            "runtime_contract_sha256": matched._component_hash(runtime_contract),
             "runtime_cache_contract_sha256": matched._component_hash(
                 RUNTIME_CACHE_CONTRACT
             ),
@@ -790,17 +739,13 @@ class MatchedPanelTests(unittest.TestCase):
                 RUNTIME_SMOKE_CONTRACT
             ),
             "episode_startup_smoke_contract_sha256": (
-                matched._component_hash(
-                    EPISODE_STARTUP_SMOKE_CONTRACT
-                )
+                matched._component_hash(EPISODE_STARTUP_SMOKE_CONTRACT)
             ),
             "runtime_contract": dict(runtime_contract),
             "provider_free_environment_contract": copy.deepcopy(
                 PROVIDER_FREE_ENVIRONMENT_CONTRACT
             ),
-            "starsim_smoke_contract": copy.deepcopy(
-                RUNTIME_SMOKE_CONTRACT
-            ),
+            "starsim_smoke_contract": copy.deepcopy(RUNTIME_SMOKE_CONTRACT),
             "episode_startup_smoke_contract": copy.deepcopy(
                 EPISODE_STARTUP_SMOKE_CONTRACT
             ),
@@ -809,8 +754,8 @@ class MatchedPanelTests(unittest.TestCase):
             "model_calls_started": 0,
             "private_artifacts_required": False,
         }
-        receipt["runtime_identity_sha256"] = (
-            matched._preparation_runtime_identity(receipt)
+        receipt["runtime_identity_sha256"] = matched._preparation_runtime_identity(
+            receipt
         )
         return receipt
 
@@ -833,18 +778,25 @@ class MatchedPanelTests(unittest.TestCase):
             "XDG_CACHE_HOME": str(root / "xdg"),
         }
 
+    def _import_exact_starsim(self):
+        try:
+            metadata_version = matched.importlib_metadata.version("starsim")
+        except matched.importlib_metadata.PackageNotFoundError:
+            self.fail("exact Starsim 3.5.1 distribution is unavailable")
+        self.assertEqual(metadata_version, "3.5.1")
+        try:
+            starsim = matched.importlib.import_module("starsim")
+        except ImportError:
+            self.fail("exact Starsim 3.5.1 module is unavailable")
+        self.assertEqual(str(getattr(starsim, "__version__", "")), metadata_version)
+        return starsim
+
     @contextmanager
-    def _provider_free_environment(
-        self, runtime_cache_environment: Mapping[str, str]
-    ):
+    def _provider_free_environment(self, runtime_cache_environment: Mapping[str, str]):
         account_name, _account_home, account_shell = matched.current_account()
         with (
-            TemporaryDirectory(
-                prefix="e35h-", dir=Path.home()
-            ) as clean_home_text,
-            TemporaryDirectory(
-                prefix="e35t-", dir=Path.home()
-            ) as clean_tmp_text,
+            TemporaryDirectory(prefix="e48h-", dir=Path.home()) as clean_home_text,
+            TemporaryDirectory(prefix="e48t-", dir=Path.home()) as clean_tmp_text,
         ):
             clean_home = Path(clean_home_text)
             clean_tmp = Path(clean_tmp_text)
@@ -856,18 +808,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "SHELL": account_shell,
                 "TMPDIR": str(clean_tmp),
                 "USER": account_name,
-                "__CF_USER_TEXT_ENCODING": (
-                    f"0x{os.getuid():X}:0x0:0x0"
-                ),
+                "__CF_USER_TEXT_ENCODING": (f"0x{os.getuid():X}:0x0:0x0"),
                 **dict(runtime_cache_environment),
             }
             with patch.dict(os.environ, environment, clear=True):
                 yield
 
     @staticmethod
-    def _synthetic_repository_receipt_binding(
-        binding: object, **_kwargs
-    ) -> object:
+    def _synthetic_repository_receipt_binding(binding: object, **_kwargs) -> object:
         if not isinstance(binding, dict):
             return binding
         validated = copy.deepcopy(binding)
@@ -935,9 +883,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "_validate_bound_preparation_runtime",
                     return_value={
                         "runtime_cache_contract_sha256": (
-                            matched._component_hash(
-                                RUNTIME_CACHE_CONTRACT
-                            )
+                            matched._component_hash(RUNTIME_CACHE_CONTRACT)
                         )
                     },
                 )
@@ -956,9 +902,7 @@ class MatchedPanelTests(unittest.TestCase):
                 patch(
                     "epiagentbench.development_matched_panel."
                     "_validate_repository_receipt_binding",
-                    side_effect=(
-                        self._synthetic_repository_receipt_binding
-                    ),
+                    side_effect=(self._synthetic_repository_receipt_binding),
                 )
             )
             stack.enter_context(
@@ -1023,9 +967,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         with (
             patch.object(matched, "_git_output", side_effect=git_output),
-            patch.object(
-                matched, "_source_contract", return_value=SOURCE_CONTRACT
-            ),
+            patch.object(matched, "_source_contract", return_value=SOURCE_CONTRACT),
             patch.object(
                 matched,
                 "_provider_free_preparation_environment_contract",
@@ -1037,9 +979,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value=nullcontext(lambda: None),
             ),
             patch.object(matched, "_cli_contract", return_value=CLI_CONTRACT),
-            patch.object(
-                matched, "_runtime_contract", return_value=RUNTIME_CONTRACT
-            ),
+            patch.object(matched, "_runtime_contract", return_value=RUNTIME_CONTRACT),
             patch.object(
                 matched,
                 "_runtime_cache_contract",
@@ -1059,31 +999,21 @@ class MatchedPanelTests(unittest.TestCase):
             receipt = matched.preflight_preparation_runtime(
                 root=self.root,
                 expected_benchmark_base_commit=commit,
-                runtime_cache_dir=(
-                    self.claude_secure_storage_dir / "runtime-cache"
-                ),
+                runtime_cache_dir=(self.claude_secure_storage_dir / "runtime-cache"),
             )
 
         expected = {
-            "schema_version": (
-                "epiagentbench.preparation_runtime_preflight.v4"
-            ),
-            "panel_id": "development-matched-50x6-v35",
+            "schema_version": ("epiagentbench.preparation_runtime_preflight.v4"),
+            "panel_id": "development-matched-50x6-v48",
             "status": "passed",
             "benchmark_base_commit": commit,
             "required_starsim_version": "3.5.1",
-            "source_contract_sha256": matched._component_hash(
-                SOURCE_CONTRACT
-            ),
+            "source_contract_sha256": matched._component_hash(SOURCE_CONTRACT),
             "cli_contract_sha256": matched._component_hash(CLI_CONTRACT),
             "provider_free_environment_contract_sha256": (
-                matched._component_hash(
-                    PROVIDER_FREE_ENVIRONMENT_CONTRACT
-                )
+                matched._component_hash(PROVIDER_FREE_ENVIRONMENT_CONTRACT)
             ),
-            "runtime_contract_sha256": matched._component_hash(
-                RUNTIME_CONTRACT
-            ),
+            "runtime_contract_sha256": matched._component_hash(RUNTIME_CONTRACT),
             "runtime_cache_contract_sha256": matched._component_hash(
                 RUNTIME_CACHE_CONTRACT
             ),
@@ -1091,25 +1021,19 @@ class MatchedPanelTests(unittest.TestCase):
                 RUNTIME_SMOKE_CONTRACT
             ),
             "episode_startup_smoke_contract_sha256": (
-                matched._component_hash(
-                    EPISODE_STARTUP_SMOKE_CONTRACT
-                )
+                matched._component_hash(EPISODE_STARTUP_SMOKE_CONTRACT)
             ),
             "runtime_contract": RUNTIME_CONTRACT,
-            "provider_free_environment_contract": (
-                PROVIDER_FREE_ENVIRONMENT_CONTRACT
-            ),
+            "provider_free_environment_contract": (PROVIDER_FREE_ENVIRONMENT_CONTRACT),
             "starsim_smoke_contract": RUNTIME_SMOKE_CONTRACT,
-            "episode_startup_smoke_contract": (
-                EPISODE_STARTUP_SMOKE_CONTRACT
-            ),
+            "episode_startup_smoke_contract": (EPISODE_STARTUP_SMOKE_CONTRACT),
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
             "model_calls_started": 0,
             "private_artifacts_required": False,
         }
-        expected["runtime_identity_sha256"] = (
-            matched._preparation_runtime_identity(expected)
+        expected["runtime_identity_sha256"] = matched._preparation_runtime_identity(
+            expected
         )
         self.assertEqual(receipt, expected)
         serialized = json.dumps(receipt, sort_keys=True)
@@ -1117,20 +1041,11 @@ class MatchedPanelTests(unittest.TestCase):
 
         def nested_keys(value: object) -> set[str]:
             if isinstance(value, Mapping):
-                return {
-                    str(key)
-                    for key in value
-                } | {
-                    child
-                    for item in value.values()
-                    for child in nested_keys(item)
+                return {str(key) for key in value} | {
+                    child for item in value.values() for child in nested_keys(item)
                 }
             if isinstance(value, list):
-                return {
-                    child
-                    for item in value
-                    for child in nested_keys(item)
-                }
+                return {child for item in value for child in nested_keys(item)}
             return set()
 
         self.assertTrue(
@@ -1159,11 +1074,9 @@ class MatchedPanelTests(unittest.TestCase):
         )
         repository_root = Path(matched.__file__).resolve().parents[2]
         with self._provider_free_environment(environment):
-            contract = (
-                matched._provider_free_preparation_environment_contract(
-                    repository_root=repository_root,
-                    runtime_cache_root=runtime_cache,
-                )
+            contract = matched._provider_free_preparation_environment_contract(
+                repository_root=repository_root,
+                runtime_cache_root=runtime_cache,
             )
         self.assertEqual(contract, PROVIDER_FREE_ENVIRONMENT_CONTRACT)
         serialized = json.dumps(contract, sort_keys=True)
@@ -1208,9 +1121,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return ""
             if arguments == ("rev-parse", "HEAD"):
                 return commit
-            raise AssertionError(
-                f"unexpected git invocation: {arguments!r}"
-            )
+            raise AssertionError(f"unexpected git invocation: {arguments!r}")
 
         def fail_runtime_contract():
             observed = os.umask(0o077)
@@ -1221,9 +1132,7 @@ class MatchedPanelTests(unittest.TestCase):
         previous_umask = os.umask(0o027)
         try:
             with (
-                patch.object(
-                    matched, "_git_output", side_effect=git_output
-                ),
+                patch.object(matched, "_git_output", side_effect=git_output),
                 patch.object(
                     matched,
                     "_source_contract",
@@ -1282,9 +1191,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return ""
             if arguments == ("rev-parse", "HEAD"):
                 return commit
-            raise AssertionError(
-                f"unexpected git invocation: {arguments!r}"
-            )
+            raise AssertionError(f"unexpected git invocation: {arguments!r}")
 
         with (
             patch.object(matched, "_git_output", side_effect=git_output),
@@ -1313,15 +1220,12 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_real_runtime_receipt_redacts_home_cache_and_python_topology(self):
         pinned_python = Path(
-            "/Users/matthew.zhao/.codex/"
-            "epiagentbench-50x6-v5-venv/bin/python"
+            "/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python"
         )
         if Path(sys.executable) != pinned_python:
             self.skipTest("requires the pinned V5 scientific Python")
 
-        cache_root = (
-            self.claude_secure_storage_dir / "v35-runtime-receipt-cache"
-        )
+        cache_root = self.claude_secure_storage_dir / "v48-runtime-receipt-cache"
         cache_root.mkdir(mode=0o700)
         for name in ("matplotlib", "numba", "xdg"):
             (cache_root / name).mkdir(mode=0o700)
@@ -1347,12 +1251,8 @@ class MatchedPanelTests(unittest.TestCase):
             with (
                 self._provider_free_environment(environment),
                 patch.object(matched, "_git_output", side_effect=git_output),
-                patch.object(
-                    matched, "_source_contract", return_value=SOURCE_CONTRACT
-                ),
-                patch.object(
-                    matched, "_cli_contract", return_value=CLI_CONTRACT
-                ),
+                patch.object(matched, "_source_contract", return_value=SOURCE_CONTRACT),
+                patch.object(matched, "_cli_contract", return_value=CLI_CONTRACT),
                 patch.object(
                     matched,
                     "_preparation_runtime_smoke",
@@ -1374,20 +1274,11 @@ class MatchedPanelTests(unittest.TestCase):
 
         def nested_keys(value: object) -> set[str]:
             if isinstance(value, Mapping):
-                return {
-                    str(key)
-                    for key in value
-                } | {
-                    child
-                    for item in value.values()
-                    for child in nested_keys(item)
+                return {str(key) for key in value} | {
+                    child for item in value.values() for child in nested_keys(item)
                 }
             if isinstance(value, list):
-                return {
-                    child
-                    for item in value
-                    for child in nested_keys(item)
-                }
+                return {child for item in value for child in nested_keys(item)}
             return set()
 
         serialized = json.dumps(receipt, sort_keys=True)
@@ -1415,7 +1306,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_prepared_manifest_redacts_private_runtime_cache_binding(self):
         cache_root, environment = self._runtime_cache_environment(
-            "private-v35-runtime-cache"
+            "private-v48-runtime-cache"
         )
         with patch.dict(os.environ, environment, clear=False):
             cache_contract = matched._runtime_cache_contract(cache_root)
@@ -1424,8 +1315,8 @@ class MatchedPanelTests(unittest.TestCase):
             cli_contract=CLI_CONTRACT,
         )
         verification["runtime_cache_contract"] = cache_contract
-        verification["runtime_cache_contract_sha256"] = (
-            matched._component_hash(cache_contract)
+        verification["runtime_cache_contract_sha256"] = matched._component_hash(
+            cache_contract
         )
         manifest_path = self._cohort()
         with (
@@ -1441,9 +1332,7 @@ class MatchedPanelTests(unittest.TestCase):
                 root=self.root,
                 cohort_manifest_path=manifest_path,
                 preparation_runtime_receipt_path=(
-                    self.root
-                    / "results"
-                    / "development-matched-50x6-v35.runtime.json"
+                    self.root / "results" / "development-matched-50x6-v48.runtime.json"
                 ),
                 expected_benchmark_base_commit="d" * 40,
                 runtime_cache_dir=cache_root,
@@ -1456,20 +1345,11 @@ class MatchedPanelTests(unittest.TestCase):
 
         def nested_keys(value: object) -> set[str]:
             if isinstance(value, Mapping):
-                return {
-                    str(key)
-                    for key in value
-                } | {
-                    child
-                    for item in value.values()
-                    for child in nested_keys(item)
+                return {str(key) for key in value} | {
+                    child for item in value.values() for child in nested_keys(item)
                 }
             if isinstance(value, list):
-                return {
-                    child
-                    for item in value
-                    for child in nested_keys(item)
-                }
+                return {child for item in value for child in nested_keys(item)}
             return set()
 
         serialized_public = json.dumps(public, sort_keys=True)
@@ -1494,17 +1374,13 @@ class MatchedPanelTests(unittest.TestCase):
                 nested_keys(
                     {
                         "runtime": public["runtime_contract"],
-                        "preparation": public[
-                            "preparation_runtime_contract"
-                        ],
+                        "preparation": public["preparation_runtime_contract"],
                     }
                 )
             )
         )
 
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["preparation_runtime_private_contract"],
             {"runtime_cache_contract": cache_contract},
@@ -1522,18 +1398,14 @@ class MatchedPanelTests(unittest.TestCase):
         def assert_rejected(receipt_path: Path) -> None:
             relative = matched._relative_to_root(receipt_path, self.root)
 
-            def tracked_git_output(
-                _root: Path, *arguments: str
-            ) -> str:
+            def tracked_git_output(_root: Path, *arguments: str) -> str:
                 if arguments == (
                     "ls-files",
                     "--error-unmatch",
                     relative,
                 ):
                     return relative
-                raise AssertionError(
-                    f"unexpected git invocation: {arguments!r}"
-                )
+                raise AssertionError(f"unexpected git invocation: {arguments!r}")
 
             with (
                 patch.object(
@@ -1581,9 +1453,7 @@ class MatchedPanelTests(unittest.TestCase):
         receipt_path = self.root / "descriptor-drift" / "receipt.json"
         receipt_path.parent.mkdir()
         receipt_path.write_text(
-            json.dumps(
-                self._preparation_runtime_receipt(), sort_keys=True
-            ),
+            json.dumps(self._preparation_runtime_receipt(), sort_keys=True),
             encoding="utf-8",
         )
         receipt_path.chmod(0o600)
@@ -1624,9 +1494,7 @@ class MatchedPanelTests(unittest.TestCase):
             return SimpleNamespace(**fields)
 
         with (
-            patch.object(
-                matched, "_git_output", side_effect=tracked_git_output
-            ),
+            patch.object(matched, "_git_output", side_effect=tracked_git_output),
             patch.object(matched.os, "fstat", side_effect=drifting_fstat),
             self.assertRaisesRegex(RuntimeError, "unavailable"),
         ):
@@ -1671,39 +1539,31 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_runtime_contract_rejects_non_exact_starsim_version(self):
         with (
-            patch.dict(
-                sys.modules,
-                {"starsim": SimpleNamespace(__version__="3.5.0")},
+            patch.object(
+                matched.importlib_metadata,
+                "version",
+                return_value="3.5.0",
             ),
-            self.assertRaisesRegex(
-                RuntimeError, "requires exact Starsim 3\\.5\\.1"
-            ),
+            patch.object(matched.importlib, "import_module") as import_module,
+            self.assertRaisesRegex(RuntimeError, "requires exact Starsim 3\\.5\\.1"),
         ):
             matched._runtime_contract()
+        import_module.assert_not_called()
 
     def test_real_preparation_runtime_smoke_is_deterministic_twice(self):
-        try:
-            import starsim  # type: ignore
-        except ImportError:
-            self.skipTest("exact Starsim scientific runtime is unavailable")
-        if str(getattr(starsim, "__version__", "")) != "3.5.1":
-            self.skipTest("test requires the exact Starsim 3.5.1 runtime")
-
-        _, environment = self._runtime_cache_environment(
-            "deterministic-smoke-cache"
-        )
-        from epiagentbench.trusted import starsim_ltc_v3
-
-        with (
-            patch.dict(os.environ, environment, clear=False),
-            patch.object(
+        _, environment = self._runtime_cache_environment("deterministic-smoke-cache")
+        with self._provider_free_environment(environment):
+            self._import_exact_starsim()
+            starsim_ltc_v3 = matched.importlib.import_module(
+                "epiagentbench.trusted.starsim_ltc_v3"
+            )
+            with patch.object(
                 starsim_ltc_v3,
                 "LtcNorovirusStarsimEngine",
                 wraps=starsim_ltc_v3.LtcNorovirusStarsimEngine,
-            ) as engine_constructor,
-        ):
-            first = matched._preparation_runtime_smoke()
-            second = matched._preparation_runtime_smoke()
+            ) as engine_constructor:
+                first = matched._preparation_runtime_smoke()
+                second = matched._preparation_runtime_smoke()
 
         self.assertEqual(first, second)
         self.assertEqual(engine_constructor.call_count, 8)
@@ -1713,12 +1573,11 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             first["fixed_public_scenario"],
-            "v35_contact_transmission_with_matched_contact_stop",
+            "v48_contact_transmission_with_matched_contact_stop",
         )
         self.assertEqual(
             first["result_sha256"],
-            "sha256:"
-            "864f1d51cc4da6a0545445537cca5badc5bb624ed4d8e386786a274e85b78086",
+            "sha256:e91a8e76e32048c3bbc63c02ee2a1279fc53a6af078130a7d3baaa91ac8a3d5f",
         )
         self.assertEqual(
             first["result_sha256"],
@@ -1772,32 +1631,24 @@ class MatchedPanelTests(unittest.TestCase):
             first["result"]["contact_stop_action"]["boundaries"][2][
                 "applied_control_ids"
             ],
-            ["v35-stop-direct-care"],
+            ["v48-stop-direct-care"],
         )
 
     def test_real_preparation_runtime_smoke_rejects_golden_digest_drift(self):
-        try:
-            import starsim  # type: ignore
-        except ImportError:
-            self.skipTest("exact Starsim scientific runtime is unavailable")
-        if str(getattr(starsim, "__version__", "")) != "3.5.1":
-            self.skipTest("test requires the exact Starsim 3.5.1 runtime")
-
-        _, environment = self._runtime_cache_environment(
-            "golden-smoke-drift-cache"
-        )
-        with (
-            patch.dict(os.environ, environment, clear=False),
-            patch.object(
-                matched,
-                "_PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256",
-                "sha256:" + "0" * 64,
-            ),
-            self.assertRaisesRegex(
-                RuntimeError, "drifted from its reviewed digest"
-            ),
-        ):
-            matched._preparation_runtime_smoke()
+        _, environment = self._runtime_cache_environment("golden-smoke-drift-cache")
+        with self._provider_free_environment(environment):
+            self._import_exact_starsim()
+            with (
+                patch.object(
+                    matched,
+                    "_PREPARATION_RUNTIME_SMOKE_GOLDEN_SHA256",
+                    "sha256:" + "0" * 64,
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError, "drifted from its reviewed digest"
+                ),
+            ):
+                matched._preparation_runtime_smoke()
 
     def test_episode_startup_smoke_contract_is_closed_and_content_free(self):
         self.assertTrue(
@@ -1827,26 +1678,20 @@ class MatchedPanelTests(unittest.TestCase):
             {"raw_observations": []},
         ):
             with self.subTest(mutation=mutation):
-                candidate = copy.deepcopy(
-                    EPISODE_STARTUP_SMOKE_CONTRACT
-                )
+                candidate = copy.deepcopy(EPISODE_STARTUP_SMOKE_CONTRACT)
                 candidate.update(mutation)
                 self.assertFalse(
-                    matched._valid_preparation_episode_startup_smoke(
-                        candidate
-                    )
+                    matched._valid_preparation_episode_startup_smoke(candidate)
                 )
 
     def test_episode_startup_smoke_is_bound_into_runtime_identity(self):
         receipt = self._preparation_runtime_receipt()
         drifted = copy.deepcopy(receipt)
-        drifted["episode_startup_smoke_contract"][
-            "public_transcript_sha256"
-        ] = "sha256:" + "0" * 64
-        drifted["episode_startup_smoke_contract_sha256"] = (
-            matched._component_hash(
-                drifted["episode_startup_smoke_contract"]
-            )
+        drifted["episode_startup_smoke_contract"]["public_transcript_sha256"] = (
+            "sha256:" + "0" * 64
+        )
+        drifted["episode_startup_smoke_contract_sha256"] = matched._component_hash(
+            drifted["episode_startup_smoke_contract"]
         )
         self.assertNotEqual(
             matched._preparation_runtime_identity(receipt),
@@ -1899,15 +1744,11 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_tracked_preparation_runtime_receipt_rejects_identity_drift(self):
         receipt_path = (
-            self.root
-            / "results"
-            / "development-matched-50x6-v35.runtime.json"
+            self.root / "results" / "development-matched-50x6-v48.runtime.json"
         )
         receipt_path.parent.mkdir()
         published = self._preparation_runtime_receipt()
-        receipt_path.write_text(
-            json.dumps(published, sort_keys=True), encoding="utf-8"
-        )
+        receipt_path.write_text(json.dumps(published, sort_keys=True), encoding="utf-8")
         relative = receipt_path.relative_to(self.root).as_posix()
 
         def tracked_git_output(_root: Path, *arguments: str) -> str:
@@ -1917,16 +1758,12 @@ class MatchedPanelTests(unittest.TestCase):
                 relative,
             ):
                 return relative
-            raise AssertionError(
-                f"unexpected git invocation: {arguments!r}"
-            )
+            raise AssertionError(f"unexpected git invocation: {arguments!r}")
 
         current = copy.deepcopy(published)
         current["benchmark_base_commit"] = "d" * 40
         with (
-            patch.object(
-                matched, "_git_output", side_effect=tracked_git_output
-            ),
+            patch.object(matched, "_git_output", side_effect=tracked_git_output),
             patch.object(
                 matched,
                 "_preflight_preparation_runtime_with_cache_contract",
@@ -1953,13 +1790,11 @@ class MatchedPanelTests(unittest.TestCase):
         drifted["runtime_contract_sha256"] = matched._component_hash(
             drifted["runtime_contract"]
         )
-        drifted["runtime_identity_sha256"] = (
-            matched._preparation_runtime_identity(drifted)
+        drifted["runtime_identity_sha256"] = matched._preparation_runtime_identity(
+            drifted
         )
         with (
-            patch.object(
-                matched, "_git_output", side_effect=tracked_git_output
-            ),
+            patch.object(matched, "_git_output", side_effect=tracked_git_output),
             patch.object(
                 matched,
                 "_preflight_preparation_runtime_with_cache_contract",
@@ -1979,9 +1814,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         with (
             patch.object(matched, "_git_output", return_value=""),
-            self.assertRaisesRegex(
-                RuntimeError, "receipt must already be committed"
-            ),
+            self.assertRaisesRegex(RuntimeError, "receipt must already be committed"),
         ):
             matched.verify_preparation_runtime(
                 root=self.root,
@@ -1991,16 +1824,14 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
     def test_freeze_verifies_runtime_before_key_cohort_or_randomness(self):
-        output_directory = self.root / "fresh-v35-cohort"
+        output_directory = self.root / "fresh-v48-cohort"
         with (
             patch.object(
                 matched,
                 "verify_preparation_runtime",
                 side_effect=RuntimeError("runtime receipt drift"),
             ) as verification,
-            patch.object(
-                matched, "freeze_private_starsim_cohort"
-            ) as freeze,
+            patch.object(matched, "freeze_private_starsim_cohort") as freeze,
             patch.object(matched, "_read_authentication_key") as read_key,
             patch.object(matched.secrets, "token_bytes") as token_bytes,
             self.assertRaisesRegex(RuntimeError, "runtime receipt drift"),
@@ -2047,7 +1878,7 @@ class MatchedPanelTests(unittest.TestCase):
             matched._cohort_freeze_claim_path(shared_key)
 
     def test_freeze_claim_is_pending_before_freezer_and_completed_once(self):
-        output_directory = self.root / "fresh-v35-cohort"
+        output_directory = self.root / "fresh-v48-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -2056,19 +1887,11 @@ class MatchedPanelTests(unittest.TestCase):
 
         def freeze_fixture(**kwargs):
             canonical_output = Path(kwargs["output_directory"])
-            self.assertEqual(
-                canonical_output, output_directory.resolve()
-            )
-            pending = matched._load_cohort_freeze_claim(
-                claim_path, AUTHENTICATION_KEY
-            )
-            self.assertEqual(
-                pending["status"], "pending_create_once_freeze"
-            )
+            self.assertEqual(canonical_output, output_directory.resolve())
+            pending = matched._load_cohort_freeze_claim(claim_path, AUTHENTICATION_KEY)
+            self.assertEqual(pending["status"], "pending_create_once_freeze")
             self.assertFalse(
-                matched._cohort_freeze_completion_path(
-                    claim_path
-                ).exists()
+                matched._cohort_freeze_completion_path(claim_path).exists()
             )
             manifest_path = self._cohort_at(canonical_output)
             manifest = PrivateEpisodeCohortManifest.read(
@@ -2079,9 +1902,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "cohort_id": COHORT_ID,
                     "episode_count": EPISODE_COUNT,
                     "backend": "starsim-ltc-v3",
-                    "pack_set_commitment": (
-                        manifest.pack_set_commitment
-                    ),
+                    "pack_set_commitment": (manifest.pack_set_commitment),
                 },
                 cohort_directory=canonical_output,
                 manifest_path=manifest_path,
@@ -2111,9 +1932,7 @@ class MatchedPanelTests(unittest.TestCase):
                 output_directory=output_directory,
                 freeze_claim_path=claim_path,
             )
-            with self.assertRaisesRegex(
-                FileExistsError, "never rerun freeze"
-            ):
+            with self.assertRaisesRegex(FileExistsError, "never rerun freeze"):
                 matched.freeze_panel_cohort(
                     root=self.root,
                     preparation_runtime_receipt_path=(
@@ -2122,14 +1941,12 @@ class MatchedPanelTests(unittest.TestCase):
                     expected_benchmark_base_commit="d" * 40,
                     runtime_cache_dir=self.root / "runtime-cache",
                     authentication_key_file=self.key_path,
-                    output_directory=self.root / "reroll-v35-cohort",
+                    output_directory=self.root / "reroll-v48-cohort",
                     freeze_claim_path=claim_path,
                 )
 
         self.assertEqual(freezer.call_count, 1)
-        pending = matched._load_cohort_freeze_claim(
-            claim_path, AUTHENTICATION_KEY
-        )
+        pending = matched._load_cohort_freeze_claim(claim_path, AUTHENTICATION_KEY)
         completion = matched._load_cohort_freeze_completion(
             matched._cohort_freeze_completion_path(claim_path),
             AUTHENTICATION_KEY,
@@ -2142,12 +1959,10 @@ class MatchedPanelTests(unittest.TestCase):
         serialized = json.dumps(public, sort_keys=True)
         self.assertNotIn(str(self.key_path), serialized)
         self.assertNotIn(str(claim_path), serialized)
-        self.assertNotIn(
-            pending["authentication_key_identity_commitment"], serialized
-        )
+        self.assertNotIn(pending["authentication_key_identity_commitment"], serialized)
 
     def test_interrupted_freeze_claim_is_terminal_and_nonretryable(self):
-        output_directory = self.root / "interrupted-v35-cohort"
+        output_directory = self.root / "interrupted-v48-cohort"
         claim_path = matched._cohort_freeze_claim_path(self.key_path)
         verification = self._runtime_verification(
             source_contract=SOURCE_CONTRACT,
@@ -2164,9 +1979,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "freeze_private_starsim_cohort",
                 side_effect=RuntimeError("simulated freezer interruption"),
             ) as freezer,
-            self.assertRaisesRegex(
-                RuntimeError, "simulated freezer interruption"
-            ),
+            self.assertRaisesRegex(RuntimeError, "simulated freezer interruption"),
         ):
             matched.freeze_panel_cohort(
                 root=self.root,
@@ -2181,21 +1994,15 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self.assertTrue(claim_path.is_file())
-        self.assertFalse(
-            matched._cohort_freeze_completion_path(claim_path).exists()
-        )
+        self.assertFalse(matched._cohort_freeze_completion_path(claim_path).exists())
         with (
             patch.object(
                 matched,
                 "verify_preparation_runtime",
                 return_value=verification,
             ),
-            patch.object(
-                matched, "freeze_private_starsim_cohort"
-            ) as second_freezer,
-            self.assertRaisesRegex(
-                FileExistsError, "interrupted freezes are terminal"
-            ),
+            patch.object(matched, "freeze_private_starsim_cohort") as second_freezer,
+            self.assertRaisesRegex(FileExistsError, "interrupted freezes are terminal"),
         ):
             matched.freeze_panel_cohort(
                 root=self.root,
@@ -2211,7 +2018,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(freezer.call_count, 1)
         second_freezer.assert_not_called()
 
-    def test_prepare_rejects_generic_and_cherry_picked_v35_cohorts(self):
+    def test_prepare_rejects_generic_and_cherry_picked_v48_cohorts(self):
         generic_manifest = self._cohort()
         real_require = matched._require_completed_cohort_freeze_claim
         with (
@@ -2261,21 +2068,15 @@ class MatchedPanelTests(unittest.TestCase):
             manifest=manifest,
             authentication_key=AUTHENTICATION_KEY,
         )
-        cherry_picked_manifest = self._cohort_at(
-            self.root / "cherry-picked-v35-cohort"
-        )
-        with self.assertRaisesRegex(
-            ValueError, "belongs to another freeze"
-        ):
+        cherry_picked_manifest = self._cohort_at(self.root / "cherry-picked-v48-cohort")
+        with self.assertRaisesRegex(ValueError, "belongs to another freeze"):
             matched._require_completed_cohort_freeze_claim(
                 claim_path=claim_path,
                 manifest_path=cherry_picked_manifest,
                 runtime_receipt_file_sha256=verification[
                     "published_receipt_file_sha256"
                 ],
-                runtime_identity_sha256=verification[
-                    "runtime_identity_sha256"
-                ],
+                runtime_identity_sha256=verification["runtime_identity_sha256"],
                 expected_benchmark_base_commit="d" * 40,
                 authentication_key=AUTHENTICATION_KEY,
             )
@@ -2302,12 +2103,8 @@ class MatchedPanelTests(unittest.TestCase):
                 wraps=real_require,
             ),
             patch.object(matched.secrets, "token_bytes") as token_bytes,
-            patch.object(
-                matched, "_create_private_state_once"
-            ) as create_private,
-            self.assertRaisesRegex(
-                RuntimeError, "remains pending"
-            ),
+            patch.object(matched, "_create_private_state_once") as create_private,
+            self.assertRaisesRegex(RuntimeError, "remains pending"),
         ):
             prepare_panel(
                 root=self.root,
@@ -2335,9 +2132,7 @@ class MatchedPanelTests(unittest.TestCase):
             canonical_cohort_destination=manifest_path.parent.resolve(),
             authentication_key=AUTHENTICATION_KEY,
         )
-        manifest = PrivateEpisodeCohortManifest.read(
-            manifest_path, AUTHENTICATION_KEY
-        )
+        manifest = PrivateEpisodeCohortManifest.read(manifest_path, AUTHENTICATION_KEY)
         completion = matched._complete_cohort_freeze_claim(
             claim_path=claim_path,
             claim=claim,
@@ -2353,9 +2148,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_completed_cohort_freeze_claim",
                 wraps=real_require,
             ),
-            patch.object(
-                matched.secrets, "token_bytes", return_value=b"s" * 32
-            ),
+            patch.object(matched.secrets, "token_bytes", return_value=b"s" * 32),
         ):
             public = prepare_panel(
                 root=self.root,
@@ -2367,9 +2160,7 @@ class MatchedPanelTests(unittest.TestCase):
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
             )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["cohort_freeze_claim"], claim)
         self.assertEqual(private["cohort_freeze_completion"], completion)
         serialized_public = json.dumps(public, sort_keys=True)
@@ -2389,9 +2180,7 @@ class MatchedPanelTests(unittest.TestCase):
         public_manifest = self.root / "results" / "manifest.json"
         cohort_manifest = self.root / "cohort" / "cohort.manifest"
         with (
-            patch.object(
-                matched, "_exclusive_run_lock", side_effect=host_lock
-            ) as lock,
+            patch.object(matched, "_exclusive_run_lock", side_effect=host_lock) as lock,
             patch.object(matched, "_validate_schedule_design"),
             patch.object(matched, "_git_output", return_value=""),
             patch.object(
@@ -2401,13 +2190,9 @@ class MatchedPanelTests(unittest.TestCase):
             ) as verification,
             patch.object(matched, "_read_authentication_key") as read_key,
             patch.object(matched, "_load_frozen_cohort") as load_cohort,
-            patch.object(
-                matched, "_create_private_state_once"
-            ) as create_private,
+            patch.object(matched, "_create_private_state_once") as create_private,
             patch.object(matched.secrets, "token_bytes") as token_bytes,
-            self.assertRaisesRegex(
-                RuntimeError, "scientific runtime unavailable"
-            ),
+            self.assertRaisesRegex(RuntimeError, "scientific runtime unavailable"),
         ):
             matched.prepare_panel(
                 root=self.root,
@@ -2438,22 +2223,18 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_real_runtime_preflight_never_starts_provider_or_auth_helpers(self):
         pinned_python = Path(
-            "/Users/matthew.zhao/.codex/"
-            "epiagentbench-50x6-v5-venv/bin/python"
+            "/Users/matthew.zhao/.codex/epiagentbench-50x6-v5-venv/bin/python"
         )
         if Path(sys.executable) != pinned_python:
             self.skipTest("requires the pinned V5 scientific Python")
-        try:
-            import starsim  # type: ignore
-        except ImportError:
-            self.skipTest("exact Starsim scientific runtime is unavailable")
-        self.assertEqual(str(getattr(starsim, "__version__", "")), "3.5.1")
 
         repository_root = Path(matched.__file__).resolve().parents[2]
-        real_git_output = matched._git_output
-        expected_commit = real_git_output(
-            repository_root, "rev-parse", "HEAD"
-        )
+        expected_commit = "d" * 40
+        synthetic_source_contract = {
+            "tracked_runtime_file_count": 6,
+            "tracked_runtime_surface_sha256": "sha256:" + "e" * 64,
+            "task_prompt_sha256": "sha256:" + "f" * 64,
+        }
 
         def stable_git_output(root: Path, *arguments: str) -> str:
             if arguments == ("rev-parse", "HEAD"):
@@ -2464,20 +2245,19 @@ class MatchedPanelTests(unittest.TestCase):
                 "--untracked-files=all",
             ):
                 return ""
-            return real_git_output(root, *arguments)
+            raise AssertionError(f"unexpected synthetic Git read: {arguments!r}")
 
         runtime_cache, environment = self._runtime_cache_environment(
             "real-runtime-preflight-cache"
         )
         with self._provider_free_environment(environment):
+            self._import_exact_starsim()
             with (
-                patch.object(
-                    matched, "_git_output", side_effect=stable_git_output
-                ),
+                patch.object(matched, "_git_output", side_effect=stable_git_output),
                 patch.object(
                     matched,
                     "_source_contract",
-                    wraps=matched._source_contract,
+                    return_value=synthetic_source_contract,
                 ) as source_contract,
                 patch.object(
                     matched,
@@ -2571,9 +2351,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch.object(matched, "_load_frozen_cohort") as load_cohort,
             patch.object(matched, "_create_private_state_once") as create_private,
             patch.object(matched.secrets, "token_bytes") as token_bytes,
-            self.assertRaisesRegex(
-                RuntimeError, "scientific runtime unavailable"
-            ),
+            self.assertRaisesRegex(RuntimeError, "scientific runtime unavailable"),
         ):
             matched._prepare_panel_locked(
                 root=self.root,
@@ -2609,9 +2387,12 @@ class MatchedPanelTests(unittest.TestCase):
         authenticate: bool = True,
     ) -> dict:
         manifest_path = manifest_path or self._cohort()
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel.secrets.token_bytes",
-            return_value=b"s" * 32,
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
         ):
             public = prepare_panel(
                 root=self.root,
@@ -2639,7 +2420,9 @@ class MatchedPanelTests(unittest.TestCase):
             return public
 
     @staticmethod
-    def _result(system: str, model: str, executable: str, total: float) -> PilotRunResult:
+    def _result(
+        system: str, model: str, executable: str, total: float
+    ) -> PilotRunResult:
         replay_trace = {
             "schema_version": "epiagentbench.aggregate-replay-trace.v1",
             "frame_interval_minutes": 360,
@@ -2720,9 +2503,7 @@ class MatchedPanelTests(unittest.TestCase):
             "panel_id": matched.PANEL_ID,
             "precommitment_sha256": precommitment_sha256,
             "label": label,
-            "execution_context_sha256": (
-                "sha256:" + context_character * 64
-            ),
+            "execution_context_sha256": ("sha256:" + context_character * 64),
             "config_file_sha256": "sha256:" + config_character * 64,
         }
 
@@ -2758,24 +2539,16 @@ class MatchedPanelTests(unittest.TestCase):
     ) -> tuple[dict, dict]:
         if not (self.codex_secure_storage_dir / "auth.json").exists():
             self._bootstrap_codex_fixture(self.codex_secure_storage_dir)
-        if not (
-            self.claude_secure_storage_dir / "credentials.json"
-        ).exists():
-            self._bootstrap_glean_fixture(
-                self.claude_secure_storage_dir
-            )
+        if not (self.claude_secure_storage_dir / "credentials.json").exists():
+            self._bootstrap_glean_fixture(self.claude_secure_storage_dir)
         self.keychain_present = True
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         public = matched._load_json(self.public_path)
         private["codex_auth_file_identity"] = matched._codex_auth_file_identity(
             self.codex_secure_storage_dir
         )
         private["managed_glean_auth_file_identity"] = (
-            matched._managed_glean_auth_file_identity(
-                self.claude_secure_storage_dir
-            )
+            matched._managed_glean_auth_file_identity(self.claude_secure_storage_dir)
         )
         setup = private["authentication_setup"]
         for provider in ("codex", "managed_glean"):
@@ -2803,9 +2576,7 @@ class MatchedPanelTests(unittest.TestCase):
             ],
         }
         setup["status"] = "pending_publication"
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         return private, public
 
     def _prime_authentication(self) -> None:
@@ -2823,9 +2594,7 @@ class MatchedPanelTests(unittest.TestCase):
         self._prime_authentication()
 
     def _persist_passed_provider_free_preclaim(self) -> dict:
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         public = matched._load_json(self.public_path)
         authentication_receipt = matched._load_json(
             matched._authentication_receipt_path(self.public_path)
@@ -2835,19 +2604,13 @@ class MatchedPanelTests(unittest.TestCase):
         )
         repository_binding["published_commit"] = "d" * 40
         prerequisite_bundle = {
-            "schema_version": (
-                matched._PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA
-            ),
+            "schema_version": (matched._PROVIDER_FREE_PRECLAIM_PREREQUISITE_SCHEMA),
             "panel_id": matched.PANEL_ID,
-            "public_precommitment_sha256": public[
-                "precommitment_sha256"
-            ],
-            "spend_authorization_receipt_sha256": private[
-                "spend_authorization"
-            ]["receipt_sha256"],
-            "authentication_receipt_sha256": authentication_receipt[
+            "public_precommitment_sha256": public["precommitment_sha256"],
+            "spend_authorization_receipt_sha256": private["spend_authorization"][
                 "receipt_sha256"
             ],
+            "authentication_receipt_sha256": authentication_receipt["receipt_sha256"],
             "authentication_repository_binding": repository_binding,
             "supervisor_execution_binding": {
                 "operation": "preflight",
@@ -2855,9 +2618,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "execution_context_sha256": "sha256:" + "7" * 64,
                 "config_file_sha256": "sha256:" + "8" * 64,
                 "panel_id": matched.PANEL_ID,
-                "precommitment_sha256": public[
-                    "precommitment_sha256"
-                ],
+                "precommitment_sha256": public["precommitment_sha256"],
             },
             "provider_processes_started": 0,
             "authentication_processes_started": 0,
@@ -2884,26 +2645,26 @@ class MatchedPanelTests(unittest.TestCase):
             ],
             required_status="passed",
         )
-        private["environment_preflight"][
-            "provider_free_preclaim"
-        ] = trace
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        private["environment_preflight"]["provider_free_preclaim"] = trace
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         return trace
 
     def _run_with(self, side_effect):
         self._prime_codex_auth()
         self._persist_passed_provider_free_preclaim()
         self.keychain_present = True
-        with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), self._contracts(), patch(
-            "epiagentbench.development_matched_panel._preflight_execution"
-        ), patch(
-            "epiagentbench.development_matched_panel._assert_environment_preflight"
-        ), patch(
-            "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
-            side_effect=side_effect,
-        ) as evaluate:
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=side_effect,
+            ) as evaluate,
+        ):
             payload = run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
@@ -2949,13 +2710,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=fail_before_model,
             ) as invoked,
         ):
@@ -2972,14 +2729,10 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(receipt["status"], "failed")
-        self.assertEqual(
-            receipt["failed_model_invocation_state"], "not_started"
-        )
+        self.assertEqual(receipt["failed_model_invocation_state"], "not_started")
         self.assertEqual(receipt["failed_pre_model_phase"], expected_phase)
         self.assertEqual(receipt["failure_stage"], expected_stage)
-        self.assertEqual(
-            receipt["incident_code"], expected_incident_code
-        )
+        self.assertEqual(receipt["incident_code"], expected_incident_code)
         expected_startup_stage = (
             error.episode_startup_stage
             if isinstance(error, ProviderEpisodeStartupError)
@@ -2989,9 +2742,7 @@ class MatchedPanelTests(unittest.TestCase):
             receipt.get("episode_startup_stage"),
             expected_startup_stage,
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 0
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 0)
         first = receipt["profiles"][0]
         self.assertEqual(first["model_invocation_state"], "not_started")
         self.assertEqual(first["pre_model_phase"], expected_phase)
@@ -3005,20 +2756,12 @@ class MatchedPanelTests(unittest.TestCase):
             [item["outcome"] for item in receipt["profiles"][1:]],
             ["not_started_terminal_abort"] * (len(PROFILES) - 1),
         )
-        self.assertNotIn(
-            "must-not-leak", json.dumps(receipt, sort_keys=True)
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertNotIn("must-not-leak", json.dumps(receipt, sort_keys=True))
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         durable = private["environment_preflight"]["attempts"][0]
         self.assertNotIn("model_invocation", durable)
         expected_checkpoints = (
-            list(
-                PRE_MODEL_PHASES[
-                    : PRE_MODEL_PHASES.index(expected_phase) + 1
-                ]
-            )
+            list(PRE_MODEL_PHASES[: PRE_MODEL_PHASES.index(expected_phase) + 1])
             if expected_phase is not None
             else None
         )
@@ -3060,8 +2803,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -3069,9 +2811,7 @@ class MatchedPanelTests(unittest.TestCase):
                     attested,
                     attested,
                     attested,
-                    LiveAttestationError(
-                        LiveAttestationFailureCode.HEARTBEAT_STALE
-                    ),
+                    LiveAttestationError(LiveAttestationFailureCode.HEARTBEAT_STALE),
                 ),
             ) as attestation,
             patch(
@@ -3095,14 +2835,10 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertEqual(payload["status"], "stopped_supervisor_incident")
         self.assertEqual(invoked.call_count, 1)
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(attestation.call_count, 4)
         sleep.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["execution_incident"]["status"], "terminal")
         self.assertEqual(
             private["execution_incident"]["failure_class"],
@@ -3132,9 +2868,11 @@ class MatchedPanelTests(unittest.TestCase):
         live = self._supervisor_attestation(
             "production", public["precommitment_sha256"]
         )
-        transient = lambda: LiveAttestationError(
-            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
-        )
+
+        def transient():
+            return LiveAttestationError(
+                LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
+            )
 
         def evaluate(system, **kwargs):
             return self._result(
@@ -3150,8 +2888,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -3185,14 +2922,10 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertEqual(payload["status"], matched._PENDING_PRODUCTION_STATUS)
         self.assertEqual(invoked.call_count, 1)
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(attestation.call_count, 6)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.05, 0.10])
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT)
         self.assertIsNone(private.get("execution_incident"))
 
@@ -3202,9 +2935,7 @@ class MatchedPanelTests(unittest.TestCase):
         def attest():
             nonlocal attestation_calls
             attestation_calls += 1
-            raise matched._persistent_attestation_error(
-                "status_snapshot_unstable"
-            )
+            raise matched._persistent_attestation_error("status_snapshot_unstable")
 
         with (
             patch(
@@ -3230,9 +2961,7 @@ class MatchedPanelTests(unittest.TestCase):
         def attest():
             nonlocal attestation_calls
             attestation_calls += 1
-            raise matched._persistent_attestation_error(
-                "status_snapshot_unstable"
-            )
+            raise matched._persistent_attestation_error("status_snapshot_unstable")
 
         def invariant():
             nonlocal invariant_checks
@@ -3288,8 +3017,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -3317,9 +3045,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(pending["status"], matched._PENDING_PRODUCTION_STATUS)
         self.assertEqual(invoked.call_count, 1)
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(attestation.call_count, 5)
         self.assertEqual(
             [call.args[0] for call in sleep.call_args_list],
@@ -3340,20 +3066,19 @@ class MatchedPanelTests(unittest.TestCase):
         live = self._supervisor_attestation(
             "production", public["precommitment_sha256"]
         )
-        transient = lambda: LiveAttestationError(
-            LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
-        )
 
-        cursor_credential_loader = (
-            self._forbidden_test_cursor_credential_loader()
-        )
+        def transient():
+            return LiveAttestationError(
+                LiveAttestationFailureCode.STATUS_SNAPSHOT_UNSTABLE
+            )
+
+        cursor_credential_loader = self._forbidden_test_cursor_credential_loader()
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -3382,9 +3107,7 @@ class MatchedPanelTests(unittest.TestCase):
         cursor_credential_loader.assert_not_called()
         self.assertEqual(attestation.call_count, 4)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.05, 0.10])
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT - 1)
         self.assertEqual(
             private["execution_incident"]["attestation_failure_code"],
@@ -3435,8 +3158,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -3470,9 +3192,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(stopped["status"], "stopped_supervisor_incident")
         self.assertEqual(invoked.call_count, 1)
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(attestation.call_count, 5)
         self.assertEqual(
             [call.args[0] for call in sleep.call_args_list],
@@ -3487,22 +3207,16 @@ class MatchedPanelTests(unittest.TestCase):
             "status_snapshot_unstable",
         )
         self.assertEqual(stopped["results"], [])
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT)
         self.assertEqual(
             private["assignments"][-1]["status"],
             "transport_void",
         )
 
-    def _set_terminal_assignment_prefix(
-        self, count: int
-    ) -> list[tuple[str, str]]:
+    def _set_terminal_assignment_prefix(self, count: int) -> list[tuple[str, str]]:
         self._persist_passed_provider_free_preclaim()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         private["status"] = "running"
         private["panel_started_at_utc"] = "test-panel-start"
@@ -3517,9 +3231,7 @@ class MatchedPanelTests(unittest.TestCase):
             }
             for episode_ref, profile_id in keys[:count]
         ]
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         return keys
 
     def _stage_signed_isolation_incident(
@@ -3528,9 +3240,7 @@ class MatchedPanelTests(unittest.TestCase):
     ) -> dict:
         public = self._prepare()
         self._set_terminal_assignment_prefix(1)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         incident_code = str(incident["incident_code"])
         private["assignments"][0]["void_reason"] = (
             incident_code
@@ -3538,20 +3248,14 @@ class MatchedPanelTests(unittest.TestCase):
             else "provider_adapter_execution_failed"
         )
         private["execution_incident"] = dict(incident)
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         running = matched._public_running(public, private)
         matched._atomic_json(self.results_path, running)
         return running
 
-    def _stage_transport_void_for_system(
-        self, system: str
-    ) -> tuple[dict, dict, int]:
+    def _stage_transport_void_for_system(self, system: str) -> tuple[dict, dict, int]:
         public = self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         assignment_index = next(
             index
@@ -3559,9 +3263,7 @@ class MatchedPanelTests(unittest.TestCase):
             if matched._PROFILE_BY_ID[profile_id]["system"] == system
         )
         self._set_terminal_assignment_prefix(assignment_index + 1)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         return public, private, assignment_index
 
     def _assert_signed_isolation_incident_refused(
@@ -3574,8 +3276,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluator,
             self.assertRaisesRegex(ValueError, message),
         ):
@@ -3605,21 +3306,16 @@ class MatchedPanelTests(unittest.TestCase):
     ) -> None:
         public = self._prepare()
         self._set_terminal_assignment_prefix(1)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         private[incident_name] = incident
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         running = matched._public_running(public, private)
         matched._atomic_json(self.results_path, running)
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluator,
             self.assertRaisesRegex(ValueError, message),
         ):
@@ -3676,8 +3372,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -3703,13 +3398,13 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(final_profile["system"], invoked.call_args.args[0])
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         return public, runtime, payload, live
 
     def test_execution_is_supervised_by_default_and_offline_fake_is_explicit(self):
-        fake = lambda *_args, **_kwargs: self.fail("fake must not run")
+        def fake(*_args, **_kwargs):
+            self.fail("fake must not run")
+
         self.assertIs(
             matched._execution_evaluator(
                 require_persistent_supervisor=False,
@@ -3737,9 +3432,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.public_path.with_name(
             f"{matched.PANEL_ID}.preflight.json"
         )
-        cursor_credential_loader = (
-            self._forbidden_test_cursor_credential_loader()
-        )
+        cursor_credential_loader = self._forbidden_test_cursor_credential_loader()
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
@@ -3747,9 +3440,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluator,
         ):
-            with self.assertRaisesRegex(
-                RuntimeError, "live persistent supervisor"
-            ):
+            with self.assertRaisesRegex(RuntimeError, "live persistent supervisor"):
                 matched.run_panel(
                     root=self.root,
                     authentication_key_file=self.key_path,
@@ -3761,18 +3452,12 @@ class MatchedPanelTests(unittest.TestCase):
                     cursor_credential_loader=cursor_credential_loader,
                     acknowledge_unbounded_provider_spend=True,
                 )
-            with self.assertRaisesRegex(
-                RuntimeError, "live persistent supervisor"
-            ):
+            with self.assertRaisesRegex(RuntimeError, "live persistent supervisor"):
                 matched.run_environment_preflight(
                     root=self.root,
                     authentication_key_file=self.key_path,
-                    claude_secure_storage_dir=(
-                        self.claude_secure_storage_dir
-                    ),
-                    codex_secure_storage_dir=(
-                        self.codex_secure_storage_dir
-                    ),
+                    claude_secure_storage_dir=(self.claude_secure_storage_dir),
+                    codex_secure_storage_dir=(self.codex_secure_storage_dir),
                     private_state_path=self.private_path,
                     public_manifest_path=self.public_path,
                     public_preflight_path=preflight_path,
@@ -3814,6 +3499,7 @@ class MatchedPanelTests(unittest.TestCase):
         with patch(
             "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
         ) as direct_evaluator:
+
             def wrapped_evaluator(*args, **kwargs):
                 return direct_evaluator(*args, **kwargs)
 
@@ -3879,18 +3565,12 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_supervised_production_stages_trace_free_pending_then_finalizes(self):
         public, runtime, pending, live = self._stage_pending_production()
-        self.assertEqual(
-            pending["status"], matched._PENDING_PRODUCTION_STATUS
-        )
+        self.assertEqual(pending["status"], matched._PENDING_PRODUCTION_STATUS)
         self.assertEqual(pending["results"], [])
         self.assertEqual(pending["summary"], {"primary_estimand": "pending"})
         self.assertNotIn("replay_trace", json.dumps(pending))
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        self.assertEqual(
-            private["status"], matched._PENDING_PRODUCTION_STATUS
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        self.assertEqual(private["status"], matched._PENDING_PRODUCTION_STATUS)
         retirement = matched._cohort_retirement_path(
             Path(private["cohort_manifest_path"])
         )
@@ -3898,9 +3578,12 @@ class MatchedPanelTests(unittest.TestCase):
 
         completed = {**live, "lifecycle": "completed"}
 
-        with self._contracts(), patch(
-            "epiagentbench.launchd_agent.attest_completed_launch_agent",
-            return_value=completed,
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.launchd_agent.attest_completed_launch_agent",
+                return_value=completed,
+            ),
         ):
             artifact = matched.finalize_supervised_release(
                 root=self.root,
@@ -3916,9 +3599,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(artifact["status"], "complete_with_transport_voids")
         self.assertEqual(json.loads(self.results_path.read_text()), artifact)
         self.assertTrue(retirement.exists())
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["status"], "complete")
         self.assertEqual(private["public_release"]["status"], "released")
         self.assertEqual(
@@ -3979,18 +3660,15 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=forbidden,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "compute_generator_fingerprint",
+                "epiagentbench.development_matched_panel.compute_generator_fingerprint",
                 side_effect=forbidden,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_provider_process_group",
+                "epiagentbench.development_matched_panel._run_provider_process_group",
                 side_effect=forbidden,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=forbidden,
             ),
             patch(
@@ -3999,8 +3677,7 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=forbidden,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=forbidden,
             ),
             patch(
@@ -4074,9 +3751,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         public, runtime, pending, live = self._stage_pending_production()
-        self.assertEqual(
-            pending["status"], matched._PENDING_PRODUCTION_STATUS
-        )
+        self.assertEqual(pending["status"], matched._PENDING_PRODUCTION_STATUS)
         runtime.mkdir(mode=0o700, exist_ok=True)
         os.chmod(runtime, 0o700)
         completed = {**live, "lifecycle": "completed"}
@@ -4089,12 +3764,8 @@ class MatchedPanelTests(unittest.TestCase):
         config = {
             "repository_root": str(repository),
             "authentication_key_file": str(self.key_path),
-            "claude_secure_storage_dir": str(
-                self.claude_secure_storage_dir
-            ),
-            "codex_secure_storage_dir": str(
-                self.codex_secure_storage_dir
-            ),
+            "claude_secure_storage_dir": str(self.claude_secure_storage_dir),
+            "codex_secure_storage_dir": str(self.codex_secure_storage_dir),
             "private_state_path": str(self.private_path),
             "public_manifest_path": str(self.public_path),
             "public_output_path": str(self.results_path),
@@ -4125,16 +3796,10 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             ),
         }
-        binding = launchd_agent._python_entrypoint_binding(
-            Path(sys.executable)
-        )
-        worker_sys_path = launchd_agent._bound_isolated_sys_path(
-            binding
-        )
+        binding = launchd_agent._python_entrypoint_binding(Path(sys.executable))
+        worker_sys_path = launchd_agent._bound_isolated_sys_path(binding)
         worker_sys_path.append(str(repository / "src"))
-        self.assertFalse(
-            any("site-packages" in path for path in worker_sys_path)
-        )
+        self.assertFalse(any("site-packages" in path for path in worker_sys_path))
 
         worker = {"state": "supervisor_running"}
         transitions: list[dict[str, object]] = []
@@ -4219,9 +3884,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_validate_codex_secure_storage_dir",
                 return_value=self.codex_secure_storage_dir,
             ),
-            patch.object(
-                matched, "_cli_contract", side_effect=forbidden
-            ),
+            patch.object(matched, "_cli_contract", side_effect=forbidden),
             patch.object(
                 matched,
                 "compute_generator_fingerprint",
@@ -4247,12 +3910,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "_load_once",
                 side_effect=forbidden,
             ) as keychain,
-            patch.object(
-                matched.subprocess, "run", side_effect=forbidden
-            ),
-            patch.object(
-                matched.subprocess, "Popen", side_effect=forbidden
-            ),
+            patch.object(matched.subprocess, "run", side_effect=forbidden),
+            patch.object(matched.subprocess, "Popen", side_effect=forbidden),
             patch.dict(sys.modules, {"starsim": None}, clear=False),
             patch.object(sys, "path", worker_sys_path),
         ):
@@ -4278,14 +3937,12 @@ class MatchedPanelTests(unittest.TestCase):
         codex_bootstrap.assert_not_called()
         keychain.assert_not_called()
         self.assertTrue(
-            matched._load_json(self.results_path)["status"].startswith(
-                "complete"
-            )
+            matched._load_json(self.results_path)["status"].startswith("complete")
         )
         self.assertEqual(
-            matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["status"],
+            matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+                "status"
+            ],
             "complete",
         )
 
@@ -4320,8 +3977,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
@@ -4346,18 +4002,12 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self.assertEqual(invoked.call_count, 2)
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(calls, 2)
-        self.assertEqual(
-            pending["status"], matched._PENDING_PRODUCTION_STATUS
-        )
+        self.assertEqual(pending["status"], matched._PENDING_PRODUCTION_STATUS)
         self.assertEqual(pending["terminal_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(pending["transport_voids"], ASSIGNMENT_COUNT - 1)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             [item["status"] for item in private["assignments"][-2:]],
             ["transport_void", "complete"],
@@ -4378,9 +4028,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.public_path.with_name(
             f"{matched.PANEL_ID}.preflight.json"
         )
-        live = self._supervisor_attestation(
-            "preflight", public["precommitment_sha256"]
-        )
+        live = self._supervisor_attestation("preflight", public["precommitment_sha256"])
 
         def evaluate(system: str, **kwargs):
             return self._result(
@@ -4418,9 +4066,7 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_unbounded_provider_spend=True,
             )
         self.assertEqual(invoked.call_count, len(PROFILES))
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(pending["status"], matched._PENDING_PREFLIGHT_STATUS)
         self.assertNotIn("profiles", pending)
         serialized_pending = json.dumps(pending)
@@ -4431,9 +4077,7 @@ class MatchedPanelTests(unittest.TestCase):
             "progress_telemetry",
         ):
             self.assertNotIn(forbidden, serialized_pending)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["environment_preflight"]["status"],
             matched._PENDING_PREFLIGHT_STATUS,
@@ -4495,9 +4139,9 @@ class MatchedPanelTests(unittest.TestCase):
             private_after_crash["environment_preflight"]["status"], "passed"
         )
         self.assertIsNone(
-            private_after_crash["environment_preflight"][
-                "public_receipt_binding"
-            ]["published_commit"]
+            private_after_crash["environment_preflight"]["public_receipt_binding"][
+                "published_commit"
+            ]
         )
         crash_private_bytes = self.private_path.read_bytes()
 
@@ -4529,9 +4173,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(receipt, staged_receipt)
         self.assertEqual(json.loads(preflight_path.read_text()), receipt)
         self.assertEqual(self.private_path.read_bytes(), crash_private_bytes)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["environment_preflight"]["status"], "passed")
         self.assertEqual(
             private["environment_preflight"]["public_release"]["status"],
@@ -4568,9 +4210,9 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(repeated, receipt)
         self.assertEqual(self.private_path.read_bytes(), unbound_private_bytes)
         self.assertEqual(
-            matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]["public_receipt_binding"],
+            matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+                "environment_preflight"
+            ]["public_receipt_binding"],
             unbound_binding,
         )
 
@@ -4578,9 +4220,7 @@ class MatchedPanelTests(unittest.TestCase):
             **unbound_binding,
             "published_commit": "a" * 40,
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         published_binding = copy.deepcopy(
             private["environment_preflight"]["public_receipt_binding"]
         )
@@ -4624,9 +4264,9 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(repeated_after_binding, receipt)
         self.assertEqual(self.private_path.read_bytes(), published_private_bytes)
         self.assertEqual(
-            matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["environment_preflight"]["public_receipt_binding"],
+            matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+                "environment_preflight"
+            ]["public_receipt_binding"],
             published_binding,
         )
         tampered_private = copy.deepcopy(private)
@@ -4665,9 +4305,7 @@ class MatchedPanelTests(unittest.TestCase):
             refused_digest.exception.failure_code,
             ReleaseValidationFailureCode.PUBLIC_WATERMARK_INVALID,
         )
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         self.assertEqual(self.private_path.read_bytes(), published_private_bytes)
 
         matched._atomic_json(preflight_path, pending)
@@ -4720,9 +4358,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.public_path.with_name(
             f"{matched.PANEL_ID}.preflight.json"
         )
-        live = self._supervisor_attestation(
-            "preflight", public["precommitment_sha256"]
-        )
+        live = self._supervisor_attestation("preflight", public["precommitment_sha256"])
         attestation_calls = 0
 
         def attest(*_args, **_kwargs):
@@ -4775,17 +4411,13 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(pending["status"], matched._PENDING_PREFLIGHT_STATUS)
         self.assertEqual(invoked.call_count, len(PROFILES))
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(attestation.call_count, 20)
         self.assertEqual(
             [call.args[0] for call in sleep.call_args_list],
             [0.05, 0.05, 0.05, 0.05],
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             len(private["environment_preflight"]["attempts"]),
             len(PROFILES),
@@ -4804,9 +4436,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.public_path.with_name(
             f"{matched.PANEL_ID}.preflight.json"
         )
-        live = self._supervisor_attestation(
-            "preflight", public["precommitment_sha256"]
-        )
+        live = self._supervisor_attestation("preflight", public["precommitment_sha256"])
         attestation_calls = 0
 
         def attest(*_args, **_kwargs):
@@ -4827,9 +4457,7 @@ class MatchedPanelTests(unittest.TestCase):
                 0.0,
             )
 
-        cursor_credential_loader = (
-            self._forbidden_test_cursor_credential_loader()
-        )
+        cursor_credential_loader = self._forbidden_test_cursor_credential_loader()
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
@@ -4903,18 +4531,14 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.public_path.with_name(
             f"{matched.PANEL_ID}.preflight.json"
         )
-        live = self._supervisor_attestation(
-            "preflight", public["precommitment_sha256"]
-        )
+        live = self._supervisor_attestation("preflight", public["precommitment_sha256"])
         attestation_calls = 0
 
         def attest(*_args, **_kwargs):
             nonlocal attestation_calls
             attestation_calls += 1
             if attestation_calls == 5:
-                raise LiveAttestationError(
-                    LiveAttestationFailureCode.HEARTBEAT_STALE
-                )
+                raise LiveAttestationError(LiveAttestationFailureCode.HEARTBEAT_STALE)
             return live
 
         def evaluate(system: str, **kwargs):
@@ -4925,9 +4549,7 @@ class MatchedPanelTests(unittest.TestCase):
                 0.0,
             )
 
-        cursor_credential_loader = (
-            self._forbidden_test_cursor_credential_loader()
-        )
+        cursor_credential_loader = self._forbidden_test_cursor_credential_loader()
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
@@ -4983,9 +4605,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.public_path.with_name(
             f"{matched.PANEL_ID}.preflight.json"
         )
-        live = self._supervisor_attestation(
-            "preflight", public["precommitment_sha256"]
-        )
+        live = self._supervisor_attestation("preflight", public["precommitment_sha256"])
         attestation_calls = 0
 
         def attest(*_args, **_kwargs):
@@ -5036,9 +4656,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(stopped["status"], "stopped_supervisor_incident")
         self.assertEqual(invoked.call_count, len(PROFILES))
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
         self.assertEqual(attestation.call_count, 18)
         self.assertEqual(
             [call.args[0] for call in sleep.call_args_list],
@@ -5059,9 +4677,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertNotIn("profiles", stopped)
         self.assertNotIn("raw_result", json.dumps(stopped))
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         _, terminal_candidate = matched._terminal_preflight_candidate(
             private,
             public,
@@ -5091,16 +4707,15 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertEqual(
             refused.exception.failure_code,
-            ReleaseValidationFailureCode
-            .COMPLETION_ATTESTATION_INVALID,
+            ReleaseValidationFailureCode.COMPLETION_ATTESTATION_INVALID,
         )
         self.assertEqual(json.loads(self.results_path.read_text()), pending)
         self.assertFalse(
             matched._cohort_retirement_path(
                 Path(
-                    matched._load_private_state(
-                        self.private_path, AUTHENTICATION_KEY
-                    )["cohort_manifest_path"]
+                    matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+                        "cohort_manifest_path"
+                    ]
                 )
             ).exists()
         )
@@ -5157,18 +4772,22 @@ class MatchedPanelTests(unittest.TestCase):
             self.private_path, AUTHENTICATION_KEY
         )
         self.assertEqual(private_after_crash["status"], "complete")
-        self.assertEqual(
-            private_after_crash["public_release"]["status"], "released"
-        )
-        with self._contracts(), patch(
-            "epiagentbench.launchd_agent.attest_completed_launch_agent",
-            return_value=completed,
+        self.assertEqual(private_after_crash["public_release"]["status"], "released")
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.launchd_agent.attest_completed_launch_agent",
+                return_value=completed,
+            ),
         ):
             artifact = matched.finalize_supervised_release(**arguments)
         self.assertEqual(json.loads(self.results_path.read_text()), artifact)
-        with self._contracts(), patch(
-            "epiagentbench.launchd_agent.attest_completed_launch_agent",
-            return_value=completed,
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.launchd_agent.attest_completed_launch_agent",
+                return_value=completed,
+            ),
         ):
             repeated = matched.finalize_supervised_release(**arguments)
         self.assertEqual(repeated, artifact)
@@ -5187,12 +4806,8 @@ class MatchedPanelTests(unittest.TestCase):
             stopped["attestation_failure_code"],
             "attestation_internal",
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        self.assertEqual(
-            private["execution_incident"]["boundary"], "final_completion"
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        self.assertEqual(private["execution_incident"]["boundary"], "final_completion")
         self.assertNotEqual(private["status"], "complete")
         self.assertFalse(
             matched._cohort_retirement_path(
@@ -5201,9 +4816,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         running = matched._public_running(public, private)
         matched._atomic_json(self.results_path, running)
-        cursor_credential_loader = (
-            self._forbidden_test_cursor_credential_loader()
-        )
+        cursor_credential_loader = self._forbidden_test_cursor_credential_loader()
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
@@ -5223,26 +4836,18 @@ class MatchedPanelTests(unittest.TestCase):
                         private_state_path=self.private_path,
                         public_manifest_path=self.public_path,
                         public_results_path=self.results_path,
-                        cursor_credential_loader=(
-                            cursor_credential_loader
-                        ),
+                        cursor_credential_loader=(cursor_credential_loader),
                         acknowledge_unbounded_provider_spend=True,
                     )
                 reconciled = json.loads(self.results_path.read_text())
-                self.assertEqual(
-                    reconciled["status"], "stopped_supervisor_incident"
-                )
+                self.assertEqual(reconciled["status"], "stopped_supervisor_incident")
                 self.assertEqual(reconciled["results"], [])
-                self.assertEqual(
-                    reconciled["summary"], {"primary_estimand": "pending"}
-                )
+                self.assertEqual(reconciled["summary"], {"primary_estimand": "pending"})
         evaluator.assert_not_called()
         cursor_credential_loader.assert_not_called()
 
     @staticmethod
-    def _timeout_result(
-        system: str, model: str, executable: str
-    ) -> PilotRunResult:
+    def _timeout_result(system: str, model: str, executable: str) -> PilotRunResult:
         return replace(
             MatchedPanelTests._result(system, model, executable, 0.0),
             returncode=124,
@@ -5250,9 +4855,7 @@ class MatchedPanelTests(unittest.TestCase):
             scorecard={
                 "valid": False,
                 "total": 0.0,
-                "dimensions": {
-                    name: 0.0 for name in matched.DIMENSION_MAXIMA
-                },
+                "dimensions": {name: 0.0 for name in matched.DIMENSION_MAXIMA},
                 "metrics": {"tool_calls": 2},
                 "violations": ["timeout"],
             },
@@ -5295,12 +4898,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -5326,8 +4926,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             [item["outcome"] for item in receipt["profiles"]],
-            ["terminal_abort"]
-            + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
+            ["terminal_abort"] + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
         )
         self.assertEqual(
             [item["model_invocation_state"] for item in receipt["profiles"]],
@@ -5337,16 +4936,12 @@ class MatchedPanelTests(unittest.TestCase):
             [item["conservative_chargeable"] for item in receipt["profiles"]],
             [True] + [False] * (len(PROFILES) - 1),
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 1)
         self.assertFalse(receipt["scores_reported"])
 
     def _assert_non_codex_timeout_is_fixed_zero(self, system: str) -> None:
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         target_index = next(
             index
@@ -5371,9 +4966,7 @@ class MatchedPanelTests(unittest.TestCase):
         result, invoked = self._run_with(evaluate)
         self.assertEqual(invoked.call_count, 2)
         self.assertEqual(result["status"], "stopped_transport_void")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         assignment = private["assignments"][target_index]
         self.assertEqual(assignment["status"], "complete")
         self.assertEqual(assignment["public_result"]["returncode"], 124)
@@ -5389,7 +4982,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_budget_contract_precommits_cumulative_authorization_ceilings(self):
         contract = matched._budget_contract(5.0)
         self.assertEqual(
-            contract["claude_current_v35_authorization_breakdown"],
+            contract["claude_current_v48_authorization_breakdown"],
             {
                 "preflight_calls": 2,
                 "production_calls": 100,
@@ -5399,7 +4992,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            contract["claude_current_v35_authorization_ceiling_usd"], 510.0
+            contract["claude_current_v48_authorization_ceiling_usd"], 510.0
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_breakdown"],
@@ -5437,15 +5030,17 @@ class MatchedPanelTests(unittest.TestCase):
                 "v32_usd": 0.0,
                 "v33_usd": 0.0,
                 "v34_usd": 0.0,
+                "v35_usd": 0.0,
+                "v40_usd": 0.0,
+                "v46_usd": 0.0,
+                "v47_usd": 0.0,
             },
         )
         self.assertEqual(
             contract["claude_prior_failed_panel_conservative_ceiling_usd"],
             160.0,
         )
-        self.assertEqual(
-            contract["claude_cumulative_authorization_ceiling_usd"], 670.0
-        )
+        self.assertEqual(contract["claude_cumulative_authorization_ceiling_usd"], 670.0)
         self.assertEqual(
             set(contract["prior_public_audit_references"]),
             {
@@ -5536,6 +5131,10 @@ class MatchedPanelTests(unittest.TestCase):
                 "v32_supersession",
                 "v33_supersession",
                 "v34_supersession",
+                "v35_supersession",
+                "v40_supersession",
+                "v46_supersession",
+                "v47_supersession",
             },
         )
         for reference in contract["prior_public_audit_references"].values():
@@ -5543,7 +5142,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn("not measured", contract["ceiling_interpretation"])
         self.assertEqual(contract["other_provider_spend"], "unbounded")
 
-    def test_v35_acknowledgement_is_exact_and_accounts_through_v34(self):
+    def test_v48_acknowledgement_is_exact_and_accounts_through_v47(self):
         self.assertEqual(
             matched._PREFLIGHT_INCIDENT_ENVELOPE_SCHEMA,
             "epiagentbench.preflight_incident_envelope.v3",
@@ -5553,12 +5152,10 @@ class MatchedPanelTests(unittest.TestCase):
             "epiagentbench.terminal_audit.v3",
         )
         self.assertEqual(
-            hashlib.sha256(
-                REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")
-            ).hexdigest(),
-            "d4afd8238eeb000c25a124936400102d97e327d0624b1b5059c26b0de1fd8bc0",
+            hashlib.sha256(REQUIRED_SPEND_ACKNOWLEDGEMENT.encode("utf-8")).hexdigest(),
+            "2521ee29ff8baaef2bdab86477e13ed7a384784aba62a76e27b9edac30bdea0f",
         )
-        self.assertIn("six-call v35 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
+        self.assertIn("six-call v48 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("$670 total Claude spend", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn("failed v14 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn(
@@ -5567,8 +5164,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertIn("failed v16 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
         self.assertIn(
-            "failed zero-model-call v17 pre-start "
-            "runtime-cache-environment refusal",
+            "failed zero-model-call v17 pre-start runtime-cache-environment refusal",
             REQUIRED_SPEND_ACKNOWLEDGEMENT,
         )
         self.assertIn("failed v18 preflight", REQUIRED_SPEND_ACKNOWLEDGEMENT)
@@ -5644,17 +5240,35 @@ class MatchedPanelTests(unittest.TestCase):
             "host-contract validation",
             REQUIRED_SPEND_ACKNOWLEDGEMENT,
         )
+        self.assertIn(
+            "failed zero-model-call v35 provider-free runtime-receipt publisher setup",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
+        self.assertIn(
+            "failed zero-model-call v40 control-plane authoring",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
+        self.assertIn(
+            "failed zero-model-call v46 control-plane precreation "
+            "scientific-runtime cache-isolation validation",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
+        self.assertIn(
+            "failed zero-model-call v47 control-plane publication "
+            "precreation scope-inventory validation",
+            REQUIRED_SPEND_ACKNOWLEDGEMENT,
+        )
         runbook = (
-            Path(__file__).resolve().parents[1] / "docs" / "V35_RUNBOOK.md"
+            Path(__file__).resolve().parents[1] / "docs" / "V48_RUNBOOK.md"
         ).read_text(encoding="utf-8")
-        readme = (
-            Path(__file__).resolve().parents[1] / "README.md"
-        ).read_text(encoding="utf-8")
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+            encoding="utf-8"
+        )
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, runbook)
         self.assertIn(REQUIRED_SPEND_ACKNOWLEDGEMENT, readme)
-        self.assertIn("development-matched-50x6-v35", runbook)
-        self.assertIn("development_matched_panel_v35", runbook)
-        self.assertIn("epiagentbench-cursor-v35", runbook)
+        self.assertIn("development-matched-50x6-v48", runbook)
+        self.assertIn("development_matched_panel_v48", runbook)
+        self.assertIn("epiagentbench-cursor-v48", runbook)
         self.assertIn("CONTROL-PLANE DESIGN ONLY", runbook)
         self.assertIn("provider-free preclaim phase", runbook)
         self.assertIn("before the irreversible preflight claim", runbook)
@@ -5663,35 +5277,31 @@ class MatchedPanelTests(unittest.TestCase):
         for operation in matched._PREPARATION_RUNTIME_OPERATIONS:
             self.assertIn(operation, runbook)
             self.assertIn(
-                matched._CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[
-                    operation
-                ],
+                matched._CONTRACT_ATTESTATION_FAILURE_BY_OPERATION[operation],
                 runbook,
             )
         self.assertNotIn("git worktree add", runbook)
         self.assertIn("Direct `git push` is forbidden", runbook)
         self.assertIn(
-            "038794aa1bf82440259c62afdabab44c01415978",
+            "31928645baff6182852c9c88a393b6fcaa6be557",
             runbook,
         )
         self.assertNotIn(
-            "epiagentbench-50x6-v35-runtime-worktree-r2",
+            "epiagentbench-50x6-v48-runtime-worktree-r2",
             runbook,
         )
         self.assertIn(
             "epiagentbench-50x6-v5-venv/bin/python -I -S -B",
             runbook,
         )
-        self.assertIn("epiagentbench-cursor-v35", runbook)
+        self.assertIn("epiagentbench-cursor-v48", runbook)
         self.assertIn("Cursor Keychain account | `matthew.zhao`", runbook)
         self.assertIn(
-            ".development-matched-50x6-v35."
-            "cohort-freeze-claim.v1.json",
+            ".development-matched-50x6-v48.cohort-freeze-claim.v1.json",
             runbook,
         )
         self.assertIn(
-            ".development-matched-50x6-v35."
-            "cohort-freeze-completion.v1.json",
+            ".development-matched-50x6-v48.cohort-freeze-completion.v1.json",
             runbook,
         )
         for schema in (
@@ -5730,14 +5340,12 @@ class MatchedPanelTests(unittest.TestCase):
             "epiagentbench.cohort_preparation.v1",
             "epiagentbench.cohort_retirement.v1",
             "epiagentbench.terminal_receipt_reconciliation.v1",
-            "epiagentbench.v35_cohort_freeze_claim.v1",
-            "epiagentbench.v35_cohort_freeze_completion.v1",
-            "epiagentbench.v35_cohort_freeze.v2",
+            "epiagentbench.v48_cohort_freeze_claim.v1",
+            "epiagentbench.v48_cohort_freeze_completion.v1",
+            "epiagentbench.v48_cohort_freeze.v2",
         ):
             self.assertIn(schema, runbook)
-        self.assertGreaterEqual(
-            runbook.count("preflight-preparation-runtime"), 2
-        )
+        self.assertGreaterEqual(runbook.count("preflight-preparation-runtime"), 2)
         for name in (
             "preflight-1.json",
             "preflight-2.json",
@@ -5767,49 +5375,45 @@ class MatchedPanelTests(unittest.TestCase):
             runbook.count("/usr/bin/git ls-remote --refs --exit-code"),
             1,
         )
+        self.assertIn("V48_PIN_RECORD_BEFORE=$(v48_read_pin)", runbook)
+        self.assertIn("V48_PIN_RECORD_AFTER=$(v48_read_pin)", runbook)
+        self.assertIn("refs/heads/codex/v48-control-plane", runbook)
+        self.assertIn("refs/heads/codex/v48-runtime-preflight", runbook)
         self.assertIn(
-            "V35_PIN_RECORD_BEFORE=$(v35_read_pin)", runbook
-        )
-        self.assertIn(
-            "V35_PIN_RECORD_AFTER=$(v35_read_pin)", runbook
-        )
-        self.assertIn("refs/heads/codex/v35-control-plane", runbook)
-        self.assertIn("refs/heads/codex/v35-runtime-preflight", runbook)
-        self.assertIn(
-            "refs/heads/codex/v35-control-plane-publication-terminal-closeout",
+            "refs/heads/codex/v48-control-plane-publication-terminal-closeout",
             runbook,
         )
         self.assertIn(
-            "refs/heads/codex/v35-runtime-publication-terminal-closeout",
+            "refs/heads/codex/v48-runtime-publication-terminal-closeout",
             runbook,
         )
         self.assertIn(
-            "refs/heads/codex/v35-preflight-terminal-closeout",
+            "refs/heads/codex/v48-preflight-terminal-closeout",
             runbook,
         )
         self.assertIn(
-            "refs/heads/codex/v33-control-plane-publication-terminal-closeout",
+            "refs/heads/codex/v48-v47-control-plane-publication-terminal-closeout",
             runbook,
         )
         self.assertIn(
-            "results/development-matched-50x6-v32.superseded.json",
+            "results/development-matched-50x6-v35.superseded.json",
             runbook,
         )
         self.assertIn(
-            "results/development-matched-50x6-v33.superseded.json",
+            "results/development-matched-50x6-v47.superseded.json",
             runbook,
         )
-        self.assertIn("tests/test_v32_supersession.py", runbook)
-        self.assertIn("tests/test_v34_supersession.py", runbook)
+        self.assertIn("tests/test_v35_supersession.py", runbook)
+        self.assertIn("tests/test_v47_supersession.py", runbook)
         self.assertIn("independently pinned authentication-receipt commit", runbook)
         self.assertIn("two-file closeout", runbook)
         self.assertIn("three-file closeout", runbook)
         self.assertIn("These five terminal or outcome paths", runbook)
         self.assertIn("are mutually exclusive", runbook)
-        self.assertIn("refs/heads/codex/v35-production-results", runbook)
-        self.assertIn("refs/heads/codex/v35-terminal-closeout", runbook)
+        self.assertIn("refs/heads/codex/v48-production-results", runbook)
+        self.assertIn("refs/heads/codex/v48-terminal-closeout", runbook)
         self.assertIn(
-            "epiagentbench-50x6-v35-prepare-worktree",
+            "epiagentbench-50x6-v48-prepare-worktree",
             runbook,
         )
         self.assertIn("exactly one", runbook)
@@ -5817,42 +5421,37 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertIn(
             "--preparation-runtime-receipt "
             "/Users/matthew.zhao/.codex/"
-            "epiagentbench-50x6-v35-prepare-worktree/results/"
-            "development-matched-50x6-v35.runtime.json",
+            "epiagentbench-50x6-v48-prepare-worktree/results/"
+            "development-matched-50x6-v48.runtime.json",
             runbook,
         )
         self.assertIn(
-            '--expected-benchmark-base-commit '
-            '"$V35_RUNTIME_RECEIPT_COMMIT"',
+            '--expected-benchmark-base-commit "$V48_RUNTIME_RECEIPT_COMMIT"',
             runbook,
         )
         self.assertIn(
             "--public-verification-receipt "
             "/Users/matthew.zhao/.codex/"
-            "epiagentbench-v35-runtime-receipt-staging/"
+            "epiagentbench-v48-runtime-receipt-staging/"
             "verification.json",
             runbook,
         )
         self.assertIn(
-            "`audit` and `status` are repeatable, provider-free, "
-            "authenticated,",
+            "`audit` and `status` are repeatable, provider-free, authenticated,",
             runbook,
         )
         self.assertIn("not create-once ceremony steps", runbook)
-        frozen_tmp = (
-            "/Users/matthew.zhao/.codex/"
-            "epiagentbench-v35-provider-free-tmp"
-        )
+        frozen_tmp = "/Users/matthew.zhao/.codex/epiagentbench-v48-provider-free-tmp"
         self.assertIn(frozen_tmp, runbook)
         self.assertLessEqual(len(os.fsencode(frozen_tmp)), 72)
         exact_supervisor_environment = (
             "/usr/bin/env -i "
             "HOME=/Users/matthew.zhao/.codex/"
-            "epiagentbench-v35-provider-free-home "
+            "epiagentbench-v48-provider-free-home "
             "LC_ALL=C.UTF-8 LOGNAME=matthew.zhao "
             "PATH=/usr/bin:/bin:/usr/sbin:/sbin SHELL=/bin/zsh "
             "TMPDIR=/Users/matthew.zhao/.codex/"
-            "epiagentbench-v35-provider-free-tmp "
+            "epiagentbench-v48-provider-free-tmp "
             "USER=matthew.zhao "
             "__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0"
         )
@@ -5860,31 +5459,21 @@ class MatchedPanelTests(unittest.TestCase):
         for checkout in ("execution", "production"):
             supervisor_script = (
                 "/Users/matthew.zhao/.codex/"
-                f"epiagentbench-50x6-v35-{checkout}-worktree/examples/"
+                f"epiagentbench-50x6-v48-{checkout}-worktree/examples/"
                 "run_persistent_panel_supervisor.py"
             )
-            self.assertEqual(
-                runbook.count(f"{supervisor_script} generate"), 1
-            )
-            self.assertEqual(
-                runbook.count(f"{supervisor_script} install"), 1
-            )
-            self.assertEqual(
-                runbook.count(f"{supervisor_script} audit"), 1
-            )
-            self.assertEqual(
-                runbook.count(f"{supervisor_script} status"), 1
-            )
-            self.assertEqual(
-                runbook.count(f"{supervisor_script} start"), 1
-            )
+            self.assertEqual(runbook.count(f"{supervisor_script} generate"), 1)
+            self.assertEqual(runbook.count(f"{supervisor_script} install"), 1)
+            self.assertEqual(runbook.count(f"{supervisor_script} audit"), 1)
+            self.assertEqual(runbook.count(f"{supervisor_script} status"), 1)
+            self.assertEqual(runbook.count(f"{supervisor_script} start"), 1)
         self.assertNotIn("TMPDIR=/private/tmp", runbook)
         self.assertIn("generation_environment_invalid", runbook)
 
         supervisor = matched._persistent_supervisor_contract()
         self.assertEqual(
             supervisor["schema_version"],
-            "epiagentbench.persistent_supervisor_contract.v20",
+            "epiagentbench.persistent_supervisor_contract.v24",
         )
         self.assertNotEqual(
             supervisor["schema_version"],
@@ -5898,6 +5487,13 @@ class MatchedPanelTests(unittest.TestCase):
             supervisor["schema_version"],
             "epiagentbench.persistent_supervisor_contract.v19",
         )
+        for burned_schema in (
+            "epiagentbench.persistent_supervisor_contract.v20",
+            "epiagentbench.persistent_supervisor_contract.v21",
+            "epiagentbench.persistent_supervisor_contract.v22",
+            "epiagentbench.persistent_supervisor_contract.v23",
+        ):
+            self.assertNotEqual(supervisor["schema_version"], burned_schema)
         self.assertEqual(
             supervisor["provider_free_preclaim_before_claim"],
             {
@@ -5926,12 +5522,8 @@ class MatchedPanelTests(unittest.TestCase):
                 "authentication_domain": (
                     "epiagentbench:persistent-supervisor:identity:v3"
                 ),
-                "darwin_boot_source": (
-                    "in_process_sysctlbyname_kern.bootsessionuuid"
-                ),
-                "darwin_boot_normalization": (
-                    "canonical_lowercase_nonzero_uuid"
-                ),
+                "darwin_boot_source": ("in_process_sysctlbyname_kern.bootsessionuuid"),
+                "darwin_boot_normalization": ("canonical_lowercase_nonzero_uuid"),
                 "darwin_process_birth_source": (
                     "in_process_proc_pidinfo_PROC_PIDTBSDINFO"
                 ),
@@ -5941,8 +5533,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "pbi_start_tvusec",
                 ],
                 "darwin_process_birth_normalization": (
-                    "reported_pid_match_positive_seconds_and_bounded_"
-                    "microseconds"
+                    "reported_pid_match_positive_seconds_and_bounded_microseconds"
                 ),
                 "forbidden_sources_and_fallbacks": [
                     "formatted_kern.boottime",
@@ -5965,24 +5556,16 @@ class MatchedPanelTests(unittest.TestCase):
                 "cache": (
                     "same_supervised_child_memory_only_reused_across_cursor_calls"
                 ),
-                "environment_scope": (
-                    "CURSOR_API_KEY_around_cursor_subprocess_only"
-                ),
-                "non_cursor_scope": (
-                    "absent_during_starsim_broker_claude_and_codex"
-                ),
+                "environment_scope": ("CURSOR_API_KEY_around_cursor_subprocess_only"),
+                "non_cursor_scope": ("absent_during_starsim_broker_claude_and_codex"),
                 "final_wipe": (
-                    "cached_value_and_CURSOR_API_KEY_in_outer_finally_on_"
-                    "every_exit"
+                    "cached_value_and_CURSOR_API_KEY_in_outer_finally_on_every_exit"
                 ),
             },
         )
         self.assertEqual(
             supervisor["release_failure_codes"],
-            sorted(
-                code.value
-                for code in ReleaseValidationFailureCode
-            ),
+            sorted(code.value for code in ReleaseValidationFailureCode),
         )
         bootstrap = supervisor["runtime_cache_environment_bootstrap"]
         self.assertEqual(
@@ -6021,9 +5604,9 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             set(
-                supervisor["live_attestation"][
-                    "public_incident_projection"
-                ]["failure_stages"]
+                supervisor["live_attestation"]["public_incident_projection"][
+                    "failure_stages"
+                ]
             ),
             matched._PREFLIGHT_FAILURE_STAGES
             | matched._PRODUCTION_PUBLIC_FAILURE_STAGES,
@@ -6036,9 +5619,7 @@ class MatchedPanelTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            supervisor["live_attestation"][
-                "future_heartbeat_classification"
-            ],
+            supervisor["live_attestation"]["future_heartbeat_classification"],
             "future_bucket_then_heartbeat_stale_failure_code",
         )
 
@@ -6128,7 +5709,7 @@ class MatchedPanelTests(unittest.TestCase):
             "heartbeat_stale",
         )
 
-    def test_v35_preserves_profile_order_with_sol_medium_and_luna_max(self):
+    def test_v48_preserves_profile_order_with_sol_medium_and_luna_max(self):
         self.assertEqual(
             [profile["profile_id"] for profile in PROFILES],
             [
@@ -6149,9 +5730,12 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_prepare_defaults_to_and_freezes_1800_second_timeout(self):
         manifest_path = self._cohort()
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel.secrets.token_bytes",
-            return_value=b"s" * 32,
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
         ):
             public = prepare_panel(
                 root=self.root,
@@ -6164,9 +5748,7 @@ class MatchedPanelTests(unittest.TestCase):
                 claude_max_budget_usd=5.0,
             )
 
-        self.assertEqual(
-            public["timeout_contract"]["seconds_per_assignment"], 1800
-        )
+        self.assertEqual(public["timeout_contract"]["seconds_per_assignment"], 1800)
         serialized_public = json.dumps(public, sort_keys=True)
         self.assertNotIn(str(Path.home()), serialized_public)
         self.assertNotIn(
@@ -6207,14 +5789,11 @@ class MatchedPanelTests(unittest.TestCase):
                 "_deferred_root_owned_executable_contract",
                 side_effect=lambda path, **_kwargs: {
                     "path": str(path),
-                    "entrypoint_kind": (
-                        "root_owned_single_link_regular_executable"
-                    ),
+                    "entrypoint_kind": ("root_owned_single_link_regular_executable"),
                     "group_or_world_writable": False,
                     "trusted_root_owned_nonwritable_ancestry": True,
                     "exact_content_freeze_stage": (
-                        "manifest_bound_spend_authorization_before_"
-                        "authentication"
+                        "manifest_bound_spend_authorization_before_authentication"
                     ),
                     "freeze_once": True,
                     "required_live_attestation_boundaries": [
@@ -6235,23 +5814,19 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_managed_settings_identity",
+                "epiagentbench.development_matched_panel._managed_settings_identity",
                 return_value=(
                     {"sha256": "sha256:" + "5" * 64},
                     False,
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_safe_entrypoint_identity",
+                "epiagentbench.development_matched_panel._safe_entrypoint_identity",
                 return_value={
                     "path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
                     "entrypoint_kind": "regular_file",
                     "link_text": None,
-                    "resolved_path": str(
-                        matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH
-                    ),
+                    "resolved_path": str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH),
                     "target_sha256": "sha256:" + "6" * 64,
                 },
             ),
@@ -6264,13 +5839,11 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=forbidden,
             ) as atomic_json,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_provider_process_group",
+                "epiagentbench.development_matched_panel._run_provider_process_group",
                 side_effect=forbidden,
             ) as provider_process,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=forbidden,
             ) as evaluator,
         ):
@@ -6289,9 +5862,7 @@ class MatchedPanelTests(unittest.TestCase):
             "provider-controlled-version-sentinel",
             json.dumps(public, sort_keys=True),
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["public_precommitment_sha256"],
             public["precommitment_sha256"],
@@ -6307,9 +5878,12 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_successful_prepare_cannot_be_repeated(self):
         manifest_path = self._cohort()
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel.secrets.token_bytes",
-            return_value=b"s" * 32,
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                return_value=b"s" * 32,
+            ),
         ):
             prepare_panel(
                 root=self.root,
@@ -6322,17 +5896,22 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         forbidden = AssertionError("repeat crossed the create-once boundary")
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel."
-            "verify_preparation_runtime",
-            side_effect=forbidden,
-        ) as verification, patch(
-            "epiagentbench.development_matched_panel.secrets.token_bytes",
-            side_effect=forbidden,
-        ) as randomness, patch(
-            "epiagentbench.development_matched_panel._create_public_json_once",
-            side_effect=forbidden,
-        ) as public_write, self.assertRaises(FileExistsError):
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.verify_preparation_runtime",
+                side_effect=forbidden,
+            ) as verification,
+            patch(
+                "epiagentbench.development_matched_panel.secrets.token_bytes",
+                side_effect=forbidden,
+            ) as randomness,
+            patch(
+                "epiagentbench.development_matched_panel._create_public_json_once",
+                side_effect=forbidden,
+            ) as public_write,
+            self.assertRaises(FileExistsError),
+        ):
             prepare_panel(
                 root=self.root,
                 cohort_manifest_path=manifest_path,
@@ -6364,9 +5943,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertFalse(self.private_path.exists())
         self.assertFalse(self.public_path.exists())
-        self.assertFalse(
-            matched._cohort_preparation_path(manifest_path).exists()
-        )
+        self.assertFalse(matched._cohort_preparation_path(manifest_path).exists())
 
     def test_prepare_private_publication_race_never_creates_public_manifest(self):
         manifest_path = self._cohort()
@@ -6387,8 +5964,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value=b"s" * 32,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_create_private_json_once",
+                "epiagentbench.development_matched_panel._create_private_json_once",
                 side_effect=lose_private_race,
             ),
             self.assertRaisesRegex(FileExistsError, "private state"),
@@ -6405,9 +5981,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(self.private_path.read_bytes(), competitor)
         self.assertFalse(self.public_path.exists())
-        self.assertTrue(
-            matched._cohort_preparation_path(manifest_path).is_file()
-        )
+        self.assertTrue(matched._cohort_preparation_path(manifest_path).is_file())
 
     def test_prepare_cohort_claim_race_never_clobbers_competitor(self):
         manifest_path = self._cohort()
@@ -6428,8 +6002,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value=b"s" * 32,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_create_private_json_once",
+                "epiagentbench.development_matched_panel._create_private_json_once",
                 side_effect=lose_claim_race,
             ),
             self.assertRaisesRegex(FileExistsError, "preparation claim"),
@@ -6465,8 +6038,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value=b"s" * 32,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_create_public_json_once",
+                "epiagentbench.development_matched_panel._create_public_json_once",
                 side_effect=lose_public_race,
             ),
             self.assertRaises(FileExistsError),
@@ -6482,32 +6054,22 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self.assertEqual(self.public_path.read_bytes(), competitor)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["status"], "prepared")
-        self.assertTrue(
-            matched._cohort_preparation_path(manifest_path).is_file()
-        )
+        self.assertTrue(matched._cohort_preparation_path(manifest_path).is_file())
 
     def test_prepare_rejects_dangling_artifact_symlinks_without_replacement(self):
         manifest_path = self._cohort()
         for destination_name in ("private", "public"):
             with self.subTest(destination=destination_name):
                 private_path = (
-                    self.root
-                    / "run_artifacts"
-                    / f"{destination_name}-private.json"
+                    self.root / "run_artifacts" / f"{destination_name}-private.json"
                 )
                 public_path = (
-                    self.root
-                    / "results"
-                    / f"{destination_name}-manifest.json"
+                    self.root / "results" / f"{destination_name}-manifest.json"
                 )
                 destination = (
-                    private_path
-                    if destination_name == "private"
-                    else public_path
+                    private_path if destination_name == "private" else public_path
                 )
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.symlink_to(
@@ -6518,12 +6080,8 @@ class MatchedPanelTests(unittest.TestCase):
                         root=self.root,
                         cohort_manifest_path=manifest_path,
                         authentication_key_file=self.key_path,
-                        claude_secure_storage_dir=(
-                            self.claude_secure_storage_dir
-                        ),
-                        codex_secure_storage_dir=(
-                            self.codex_secure_storage_dir
-                        ),
+                        claude_secure_storage_dir=(self.claude_secure_storage_dir),
+                        codex_secure_storage_dir=(self.codex_secure_storage_dir),
                         private_state_path=private_path,
                         public_manifest_path=public_path,
                     )
@@ -6569,11 +6127,7 @@ class MatchedPanelTests(unittest.TestCase):
             "--authentication-key",
             "/private/authentication.key",
             "--freeze-claim",
-            (
-                "/private/"
-                ".development-matched-50x6-v35."
-                "cohort-freeze-claim.v1.json"
-            ),
+            ("/private/.development-matched-50x6-v48.cohort-freeze-claim.v1.json"),
             "--claude-secure-storage-dir",
             "/private/claude-auth",
             "--codex-secure-storage-dir",
@@ -6590,9 +6144,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "prepare_panel",
                 return_value={"panel_id": "test", "status": "precommitted"},
             ) as prepare,
-            patch.object(
-                matched_cli, "assert_durable_live_execution_paths"
-            ),
+            patch.object(matched_cli, "assert_durable_live_execution_paths"),
             patch("builtins.print"),
         ):
             matched_cli.main()
@@ -6612,11 +6164,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             prepare.call_args.kwargs["freeze_claim_path"],
-            Path(
-                "/private/"
-                ".development-matched-50x6-v35."
-                "cohort-freeze-claim.v1.json"
-            ),
+            Path("/private/.development-matched-50x6-v48.cohort-freeze-claim.v1.json"),
         )
 
     def test_reconcile_authentication_cli_prints_only_sanitized_status(self):
@@ -6656,9 +6204,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "reconcile_authentication_ceremony",
                 return_value=raw_payload,
             ) as reconcile,
-            patch.object(
-                matched_cli, "assert_durable_live_execution_paths"
-            ),
+            patch.object(matched_cli, "assert_durable_live_execution_paths"),
             patch("builtins.print") as output,
         ):
             exit_code = matched_cli.main()
@@ -6687,8 +6233,10 @@ class MatchedPanelTests(unittest.TestCase):
     def test_prepare_rejects_any_non_five_dollar_claude_ceiling(self):
         manifest_path = self._cohort()
         for ceiling in (4.99, 5.01):
-            with self.subTest(ceiling=ceiling), self._contracts(), self.assertRaisesRegex(
-                ValueError, "exact \\$5"
+            with (
+                self.subTest(ceiling=ceiling),
+                self._contracts(),
+                self.assertRaisesRegex(ValueError, "exact \\$5"),
             ):
                 prepare_panel(
                     root=self.root,
@@ -6709,8 +6257,8 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(public["planned_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(len(public["episodes"]), EPISODE_COUNT)
         self.assertEqual(len(public["profiles"]), 6)
-        self.assertEqual(public["panel_id"], "development-matched-50x6-v35")
-        self.assertEqual(public["schema_version"], "development_matched_panel_v35")
+        self.assertEqual(public["panel_id"], "development-matched-50x6-v48")
+        self.assertEqual(public["schema_version"], "development_matched_panel_v48")
         self.assertEqual(public["cohort"]["cohort_id"], COHORT_ID)
         self.assertEqual(
             public["run_contract"]["spend_authorization"],
@@ -6726,9 +6274,7 @@ class MatchedPanelTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            private["spend_authorization"][
-                "final_public_precommitment_sha256"
-            ],
+            private["spend_authorization"]["final_public_precommitment_sha256"],
             public["precommitment_sha256"],
         )
         self.assertEqual(
@@ -6761,15 +6307,11 @@ class MatchedPanelTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            public["run_contract"]["transport_void_public_schema"][
-                "timeout_stage"
-            ],
+            public["run_contract"]["transport_void_public_schema"]["timeout_stage"],
             [None, "provider_cli_readiness", "model_invocation"],
         )
         self.assertEqual(
-            public["run_contract"]["transport_void_public_schema"][
-                "failure_stage"
-            ],
+            public["run_contract"]["transport_void_public_schema"]["failure_stage"],
             [
                 None,
                 *PRE_MODEL_PHASES,
@@ -6866,9 +6408,7 @@ class MatchedPanelTests(unittest.TestCase):
             public["run_contract"]["authentication_setup"],
             matched._authentication_setup_contract(self.public_path),
         )
-        authentication_setup = public["run_contract"][
-            "authentication_setup"
-        ]
+        authentication_setup = public["run_contract"]["authentication_setup"]
         self.assertEqual(
             authentication_setup["schema_version"],
             "epiagentbench.authentication_setup.v4",
@@ -6885,9 +6425,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "model_calls": 0,
                 "running_outcome": "terminal_nonretryable",
                 "credential_files_never_imply_success": True,
-                "terminal_reentry": (
-                    "idempotent_without_private_state_write"
-                ),
+                "terminal_reentry": ("idempotent_without_private_state_write"),
             },
         )
         self.assertEqual(
@@ -6922,9 +6460,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertIn("replay_sha256", public["contract_hashes"])
-        self.assertIn(
-            "preparation_runtime_sha256", public["contract_hashes"]
-        )
+        self.assertIn("preparation_runtime_sha256", public["contract_hashes"])
         self.assertIn("supervisor_sha256", public["contract_hashes"])
         self.assertIn("claude_auth_sha256", public["contract_hashes"])
         self.assertIn("codex_auth_sha256", public["contract_hashes"])
@@ -7028,9 +6564,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(os.stat(self.private_path).st_mode & 0o777, 0o600)
         cohort_manifest_path = Path(private["cohort_manifest_path"])
-        self.assertFalse(
-            matched._cohort_retirement_path(cohort_manifest_path).exists()
-        )
+        self.assertFalse(matched._cohort_retirement_path(cohort_manifest_path).exists())
         encoded = json.dumps(public)
         hidden_assignment_surface = json.dumps(
             {
@@ -7097,14 +6631,10 @@ class MatchedPanelTests(unittest.TestCase):
             family_carryovers = Counter(
                 pair
                 for item in family_schedule
-                for pair in zip(
-                    item["profile_order"], item["profile_order"][1:]
-                )
+                for pair in zip(item["profile_order"], item["profile_order"][1:])
             )
             self.assertEqual(set(family_carryovers), expected_carryovers)
-            self.assertTrue(
-                set(family_carryovers.values()).issubset({1, 2})
-            )
+            self.assertTrue(set(family_carryovers.values()).issubset({1, 2}))
             overall_carryovers.update(family_carryovers)
         self.assertEqual(set(overall_carryovers), expected_carryovers)
         self.assertTrue(set(overall_carryovers.values()).issubset({8, 9}))
@@ -7154,9 +6684,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
             for path in unsafe:
                 with self.subTest(path=path), self.assertRaises(ValueError):
-                    matched._validate_claude_secure_storage_dir(
-                        path, root=self.root
-                    )
+                    matched._validate_claude_secure_storage_dir(path, root=self.root)
 
         os.chmod(self.claude_secure_storage_dir, 0o755)
         try:
@@ -7255,9 +6783,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
                 "status": "test",
             }
-            matched._write_private_state(
-                state_path, private, AUTHENTICATION_KEY
-            )
+            matched._write_private_state(state_path, private, AUTHENTICATION_KEY)
             self.assertEqual(
                 matched._load_private_state(state_path, AUTHENTICATION_KEY),
                 private,
@@ -7273,29 +6799,28 @@ class MatchedPanelTests(unittest.TestCase):
             os.link(state_path, hard_link)
             try:
                 with self.assertRaisesRegex(ValueError, "Unsafe matched-panel"):
-                    matched._load_private_state(
-                        state_path, AUTHENTICATION_KEY
-                    )
+                    matched._load_private_state(state_path, AUTHENTICATION_KEY)
             finally:
                 hard_link.unlink()
 
     def test_managed_glean_credential_attestation_is_metadata_only(self):
         self.assertFalse(
-            matched._attest_managed_glean_credentials(
-                self.claude_secure_storage_dir
-            )
+            matched._attest_managed_glean_credentials(self.claude_secure_storage_dir)
         )
         credential = self.claude_secure_storage_dir / "credentials.json"
         credential.write_bytes(b"opaque-test-credential")
         credential.chmod(0o600)
-        with patch.object(
-            Path,
-            "read_bytes",
-            side_effect=AssertionError("credential contents must not be read"),
-        ), patch.object(
-            Path,
-            "open",
-            side_effect=AssertionError("credential contents must not be opened"),
+        with (
+            patch.object(
+                Path,
+                "read_bytes",
+                side_effect=AssertionError("credential contents must not be read"),
+            ),
+            patch.object(
+                Path,
+                "open",
+                side_effect=AssertionError("credential contents must not be opened"),
+            ),
         ):
             self.assertTrue(
                 matched._attest_managed_glean_credentials(
@@ -7308,9 +6833,7 @@ class MatchedPanelTests(unittest.TestCase):
         replacement.chmod(0o600)
         os.replace(replacement, credential)
         self.assertTrue(
-            matched._attest_managed_glean_credentials(
-                self.claude_secure_storage_dir
-            )
+            matched._attest_managed_glean_credentials(self.claude_secure_storage_dir)
         )
 
     def test_managed_glean_credential_attestation_rejects_unsafe_tree(self):
@@ -7336,10 +6859,7 @@ class MatchedPanelTests(unittest.TestCase):
         def oversized(root: Path) -> None:
             credential = root / "credentials.json"
             credential.touch(mode=0o600)
-            os.truncate(
-                credential,
-                matched._MAX_MANAGED_GLEAN_CREDENTIAL_BYTES + 1
-            )
+            os.truncate(credential, matched._MAX_MANAGED_GLEAN_CREDENTIAL_BYTES + 1)
 
         def symlink(root: Path) -> None:
             target = root.parent / (root.name + "-target")
@@ -7382,9 +6902,7 @@ class MatchedPanelTests(unittest.TestCase):
         command = ["/trusted/login", "--authenticate"]
         events: list[str] = []
         with (
-            patch(
-                "epiagentbench.development_matched_panel.subprocess.Popen"
-            ) as start,
+            patch("epiagentbench.development_matched_panel.subprocess.Popen") as start,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_quiesce_provider_process_group"
@@ -7392,9 +6910,7 @@ class MatchedPanelTests(unittest.TestCase):
         ):
             process = start.return_value
             process.wait.return_value = 0
-            quiesce.side_effect = lambda *_args, **_kwargs: events.append(
-                "quiesced"
-            )
+            quiesce.side_effect = lambda *_args, **_kwargs: events.append("quiesced")
             result = matched._run_no_capture_process_group(
                 command,
                 cwd=self.root,
@@ -7403,13 +6919,9 @@ class MatchedPanelTests(unittest.TestCase):
                 stdout_target=subprocess.DEVNULL,
                 stderr_target=None,
                 umask=0o077,
-                invocation_launch_pending=lambda: events.append(
-                    "launch_pending"
-                ),
+                invocation_launch_pending=lambda: events.append("launch_pending"),
                 invocation_started=lambda: events.append("started"),
-                invocation_start_failed=lambda: events.append(
-                    "start_failed"
-                ),
+                invocation_start_failed=lambda: events.append("start_failed"),
                 invocation_returned=lambda returncode: events.append(
                     f"returned:{returncode}"
                 ),
@@ -7434,9 +6946,7 @@ class MatchedPanelTests(unittest.TestCase):
         timeout = subprocess.TimeoutExpired(command, 2)
         events: list[str] = []
         with (
-            patch(
-                "epiagentbench.development_matched_panel.subprocess.Popen"
-            ) as start,
+            patch("epiagentbench.development_matched_panel.subprocess.Popen") as start,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_quiesce_provider_process_group"
@@ -7453,13 +6963,9 @@ class MatchedPanelTests(unittest.TestCase):
                     stdout_target=subprocess.DEVNULL,
                     stderr_target=subprocess.DEVNULL,
                     umask=0o077,
-                    invocation_launch_pending=lambda: events.append(
-                        "launch_pending"
-                    ),
+                    invocation_launch_pending=lambda: events.append("launch_pending"),
                     invocation_started=lambda: events.append("started"),
-                    invocation_start_failed=lambda: events.append(
-                        "start_failed"
-                    ),
+                    invocation_start_failed=lambda: events.append("start_failed"),
                     invocation_returned=lambda returncode: events.append(
                         f"returned:{returncode}"
                     ),
@@ -7478,13 +6984,9 @@ class MatchedPanelTests(unittest.TestCase):
             "stdout_target": subprocess.DEVNULL,
             "stderr_target": subprocess.DEVNULL,
             "umask": 0o077,
-            "invocation_launch_pending": lambda: events.append(
-                "launch_pending"
-            ),
+            "invocation_launch_pending": lambda: events.append("launch_pending"),
             "invocation_started": lambda: events.append("started"),
-            "invocation_start_failed": lambda: events.append(
-                "start_failed"
-            ),
+            "invocation_start_failed": lambda: events.append("start_failed"),
             "invocation_returned": lambda returncode: events.append(
                 f"returned:{returncode}"
             ),
@@ -7501,9 +7003,7 @@ class MatchedPanelTests(unittest.TestCase):
         events.clear()
 
         with (
-            patch(
-                "epiagentbench.development_matched_panel.subprocess.Popen"
-            ) as start,
+            patch("epiagentbench.development_matched_panel.subprocess.Popen") as start,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_quiesce_provider_process_group"
@@ -7525,9 +7025,7 @@ class MatchedPanelTests(unittest.TestCase):
             raise active
 
         with (
-            patch(
-                "epiagentbench.development_matched_panel.subprocess.Popen"
-            ) as start,
+            patch("epiagentbench.development_matched_panel.subprocess.Popen") as start,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_quiesce_provider_process_group",
@@ -7543,9 +7041,7 @@ class MatchedPanelTests(unittest.TestCase):
                 stdout_target=subprocess.DEVNULL,
                 stderr_target=subprocess.DEVNULL,
                 umask=0o077,
-                invocation_launch_pending=lambda: events.append(
-                    "launch_pending"
-                ),
+                invocation_launch_pending=lambda: events.append("launch_pending"),
                 invocation_started=fail_started_marker,
             )
         self.assertIs(raised.exception, cleanup)
@@ -7557,9 +7053,7 @@ class MatchedPanelTests(unittest.TestCase):
         executable = self.root / "identity-cli"
         executable.write_bytes(b"fixed executable bytes")
         executable.chmod(0o755)
-        expected = "sha256:" + hashlib.sha256(
-            b"fixed executable bytes"
-        ).hexdigest()
+        expected = "sha256:" + hashlib.sha256(b"fixed executable bytes").hexdigest()
         expected_identity = {
             "name": "identity-cli",
             "discovery_role": "test_role",
@@ -7573,8 +7067,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         with (
             patch(
-                "epiagentbench.development_matched_panel."
-                "resolve_provider_cli",
+                "epiagentbench.development_matched_panel.resolve_provider_cli",
                 return_value=SimpleNamespace(
                     target_path=executable,
                     discovery_role="test_role",
@@ -7582,8 +7075,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "provider_cli_public_identity",
+                "epiagentbench.development_matched_panel.provider_cli_public_identity",
                 return_value=expected_identity,
             ),
             patch(
@@ -7600,8 +7092,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value=expected,
             ) as root_owned_hash,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_provider_process_group",
+                "epiagentbench.development_matched_panel._run_provider_process_group",
                 side_effect=AssertionError("identity hashing must not execute"),
             ) as run_group,
         ):
@@ -7618,8 +7109,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "path": str(executable),
                 "sha256": expected,
                 "policy": (
-                    "root_owned_root_group_single_link_regular_"
-                    "nonwritable_executable"
+                    "root_owned_root_group_single_link_regular_nonwritable_executable"
                 ),
             },
         )
@@ -7628,14 +7118,11 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_glean_dependency_bundle_freeze_rejects_mixed_snapshot(self):
         wrapper = copy.deepcopy(
-            AUTHENTICATION_DEPENDENCY_IDENTITY[
-                "glean_llm_gateway_token_wrapper"
-            ]
+            AUTHENTICATION_DEPENDENCY_IDENTITY["glean_llm_gateway_token_wrapper"]
         )
         with (
             patch(
-                "epiagentbench.development_matched_panel."
-                "_glean_helper_identity",
+                "epiagentbench.development_matched_panel._glean_helper_identity",
                 side_effect=[
                     {
                         "path": str(matched._GLEAN_HELPER_PATH),
@@ -7692,9 +7179,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
                 self.assertRaisesRegex(RuntimeError, "ownership policy drifted"),
             ):
-                matched._root_owned_regular_executable_identity(
-                    path, label="gateway"
-                )
+                matched._root_owned_regular_executable_identity(path, label="gateway")
 
     def test_root_managed_executable_policy_rejects_every_metadata_downgrade(self):
         def metadata(
@@ -7704,9 +7189,7 @@ class MatchedPanelTests(unittest.TestCase):
             uid: int = 0,
             gid: int = 0,
         ) -> os.stat_result:
-            return os.stat_result(
-                (mode, 1, 1, links, uid, gid, 10, 0, 0, 0)
-            )
+            return os.stat_result((mode, 1, 1, links, uid, gid, 10, 0, 0, 0))
 
         matched._require_root_owned_regular_executable_metadata(
             metadata(), label="gateway"
@@ -7720,8 +7203,9 @@ class MatchedPanelTests(unittest.TestCase):
             metadata(gid=max(os.getgid(), 1)),
         )
         for observed in downgraded:
-            with self.subTest(observed=observed), self.assertRaisesRegex(
-                RuntimeError, "ownership policy drifted"
+            with (
+                self.subTest(observed=observed),
+                self.assertRaisesRegex(RuntimeError, "ownership policy drifted"),
             ):
                 matched._require_root_owned_regular_executable_metadata(
                     observed, label="gateway"
@@ -7729,12 +7213,8 @@ class MatchedPanelTests(unittest.TestCase):
 
         untrusted = self.root / "gateway-token"
         untrusted.write_bytes(b"gateway-token\n")
-        with self.assertRaisesRegex(
-            RuntimeError, "ancestor ownership policy drifted"
-        ):
-            matched._require_root_owned_nonwritable_ancestry(
-                untrusted, label="gateway"
-            )
+        with self.assertRaisesRegex(RuntimeError, "ancestor ownership policy drifted"):
+            matched._require_root_owned_nonwritable_ancestry(untrusted, label="gateway")
 
     def test_cli_contract_is_provider_process_free(self):
         forbidden = AssertionError("CLI contract attempted to execute a process")
@@ -7752,8 +7232,7 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=identity,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_glean_helper_identity",
+                "epiagentbench.development_matched_panel._glean_helper_identity",
                 side_effect=forbidden,
             ) as glean_identity,
             patch(
@@ -7767,16 +7246,14 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_managed_settings_identity",
+                "epiagentbench.development_matched_panel._managed_settings_identity",
                 return_value=(
                     {"sha256": "sha256:" + "4" * 64},
                     False,
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_safe_entrypoint_identity",
+                "epiagentbench.development_matched_panel._safe_entrypoint_identity",
                 side_effect=forbidden,
             ) as entrypoint_identity,
             patch(
@@ -7784,27 +7261,22 @@ class MatchedPanelTests(unittest.TestCase):
                 "_deferred_root_owned_executable_contract",
                 side_effect=lambda path, **_kwargs: {
                     "path": str(path),
-                    "entrypoint_kind": (
-                        "root_owned_single_link_regular_executable"
-                    ),
+                    "entrypoint_kind": ("root_owned_single_link_regular_executable"),
                     "group_or_world_writable": False,
                     "trusted_root_owned_nonwritable_ancestry": True,
                     "exact_content_freeze_stage": (
-                        "manifest_bound_spend_authorization_before_"
-                        "authentication"
+                        "manifest_bound_spend_authorization_before_authentication"
                     ),
                     "freeze_once": True,
                     "required_live_attestation_boundaries": [],
                 },
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_fixed_file_sha256",
+                "epiagentbench.development_matched_panel._fixed_file_sha256",
                 return_value="sha256:" + "6" * 64,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_provider_process_group",
+                "epiagentbench.development_matched_panel._run_provider_process_group",
                 side_effect=forbidden,
             ) as provider_process,
             patch(
@@ -7833,9 +7305,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         def bootstrap(command, **kwargs):
             nonlocal captured_home
-            self.assertEqual(
-                command, [str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH)]
-            )
+            self.assertEqual(command, [str(matched._GLEAN_GATEWAY_TOKEN_WRAPPER_PATH)])
             self.assertIsNone(kwargs["stdin_target"])
             self.assertIs(kwargs["stdout_target"], subprocess.DEVNULL)
             self.assertIsNone(kwargs["stderr_target"])
@@ -7852,17 +7322,14 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertNotEqual(
                 link.resolve(), self.claude_secure_storage_dir.resolve()
             )
-            self.assertEqual(
-                link.resolve().parent, captured_home.parent.parent
-            )
+            self.assertEqual(link.resolve().parent, captured_home.parent.parent)
             credential = link / "credentials.json"
             credential.write_bytes(b"opaque-bootstrap-credential")
             credential.chmod(0o600)
             return subprocess.CompletedProcess(command, 0)
 
         with patch(
-            "epiagentbench.development_matched_panel."
-            "_run_no_capture_process_group",
+            "epiagentbench.development_matched_panel._run_no_capture_process_group",
             side_effect=bootstrap,
         ):
             matched._bootstrap_managed_glean_credentials(
@@ -7873,9 +7340,7 @@ class MatchedPanelTests(unittest.TestCase):
         assert captured_home is not None
         self.assertFalse(captured_home.exists())
         self.assertTrue(
-            matched._attest_managed_glean_credentials(
-                self.claude_secure_storage_dir
-            )
+            matched._attest_managed_glean_credentials(self.claude_secure_storage_dir)
         )
 
     def test_glean_bootstrap_preserves_process_incident_over_final_guard(self):
@@ -7884,8 +7349,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         with (
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_no_capture_process_group",
+                "epiagentbench.development_matched_panel._run_no_capture_process_group",
                 side_effect=incident,
             ),
             patch(
@@ -7923,7 +7387,9 @@ class MatchedPanelTests(unittest.TestCase):
             self.assertEqual(kwargs["umask"], 0o077)
             self.assertEqual(kwargs["timeout_seconds"], 30)
             environment = kwargs["environment"]
-            self.assertEqual(set(environment) & {"OPENAI_API_KEY", "CURSOR_API_KEY"}, set())
+            self.assertEqual(
+                set(environment) & {"OPENAI_API_KEY", "CURSOR_API_KEY"}, set()
+            )
             captured_codex_home = Path(environment["CODEX_HOME"])
             staged_auth = captured_codex_home / "auth.json"
             self.assertFalse(staged_auth.exists())
@@ -7955,15 +7421,11 @@ class MatchedPanelTests(unittest.TestCase):
                 clear=True,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "resolve_provider_cli",
-                return_value=_test_provider_resolution(
-                    "codex", "/trusted/codex"
-                ),
+                "epiagentbench.development_matched_panel.resolve_provider_cli",
+                return_value=_test_provider_resolution("codex", "/trusted/codex"),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_no_capture_process_group",
+                "epiagentbench.development_matched_panel._run_no_capture_process_group",
                 side_effect=login,
             ) as invoked,
         ):
@@ -7982,9 +7444,7 @@ class MatchedPanelTests(unittest.TestCase):
         assert captured_codex_home is not None
         self.assertFalse(captured_codex_home.exists())
         self.assertTrue(
-            matched._attest_codex_auth_storage(
-                self.codex_secure_storage_dir
-            )
+            matched._attest_codex_auth_storage(self.codex_secure_storage_dir)
         )
         self.assertEqual(
             {entry.name for entry in os.scandir(self.codex_secure_storage_dir)},
@@ -8027,6 +7487,7 @@ class MatchedPanelTests(unittest.TestCase):
         captured_homes: list[Path] = []
 
         for returncode in (1, 0):
+
             def login(command, **kwargs):
                 home = Path(kwargs["environment"]["CODEX_HOME"])
                 captured_homes.append(home)
@@ -8054,9 +7515,7 @@ class MatchedPanelTests(unittest.TestCase):
                     ),
                     timeout_seconds=30,
                 )
-            self.assertEqual(
-                list(os.scandir(self.codex_secure_storage_dir)), []
-            )
+            self.assertEqual(list(os.scandir(self.codex_secure_storage_dir)), [])
 
         self.assertTrue(all(not path.exists() for path in captured_homes))
 
@@ -8090,9 +7549,7 @@ class MatchedPanelTests(unittest.TestCase):
             path.touch(mode=0o600)
             path.chmod(0o600)
             with path.open("r+b") as stream:
-                stream.truncate(
-                    matched._CODEX_BOOTSTRAP_AUTH_BYTES_MAX + 1
-                )
+                stream.truncate(matched._CODEX_BOOTSTRAP_AUTH_BYTES_MAX + 1)
 
         for label, create in (
             ("symlink", symlink),
@@ -8134,9 +7591,7 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             assert captured_home is not None
             self.assertFalse(captured_home.exists())
-            self.assertEqual(
-                list(os.scandir(self.codex_secure_storage_dir)), []
-            )
+            self.assertEqual(list(os.scandir(self.codex_secure_storage_dir)), [])
 
     def test_codex_bootstrap_target_race_is_no_clobber(self):
         stable_auth = self.codex_secure_storage_dir / "auth.json"
@@ -8156,8 +7611,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         with (
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_no_capture_process_group",
+                "epiagentbench.development_matched_panel._run_no_capture_process_group",
                 side_effect=login,
             ),
             patch(
@@ -8188,17 +7642,14 @@ class MatchedPanelTests(unittest.TestCase):
 
         with (
             patch(
-                "epiagentbench.development_matched_panel."
-                "_run_no_capture_process_group",
+                "epiagentbench.development_matched_panel._run_no_capture_process_group",
                 side_effect=login,
             ),
             patch(
                 "epiagentbench.development_matched_panel.os.link",
                 side_effect=OSError("test relocation failure"),
             ),
-            self.assertRaisesRegex(
-                ProviderStateIsolationError, "promotion failed"
-            ),
+            self.assertRaisesRegex(ProviderStateIsolationError, "promotion failed"),
         ):
             matched._bootstrap_codex_credentials(
                 self.codex_secure_storage_dir,
@@ -8279,13 +7730,9 @@ class MatchedPanelTests(unittest.TestCase):
                 )
 
         self.assertLess(events.index("link"), events.index("target_fsync"))
-        self.assertLess(
-            events.index("target_fsync"), events.index("source_unlink")
-        )
+        self.assertLess(events.index("target_fsync"), events.index("source_unlink"))
         self.assertTrue(
-            matched._attest_codex_auth_storage(
-                self.codex_secure_storage_dir
-            )
+            matched._attest_codex_auth_storage(self.codex_secure_storage_dir)
         )
 
     def test_codex_bootstrap_cleanup_failure_remains_terminal(self):
@@ -8293,9 +7740,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         class FailingCleanupTemporaryDirectory:
             def __init__(self, *, directory: Path):
-                self.temporary = TemporaryDirectory(
-                    prefix="eabp-test-", dir=directory
-                )
+                self.temporary = TemporaryDirectory(prefix="eabp-test-", dir=directory)
                 temporaries.append(self.temporary)
 
             def __enter__(self) -> str:
@@ -8341,9 +7786,7 @@ class MatchedPanelTests(unittest.TestCase):
                     timeout_seconds=30,
                 )
             self.assertTrue(
-                matched._attest_codex_auth_storage(
-                    self.codex_secure_storage_dir
-                )
+                matched._attest_codex_auth_storage(self.codex_secure_storage_dir)
             )
         finally:
             for temporary in temporaries:
@@ -8359,9 +7802,7 @@ class MatchedPanelTests(unittest.TestCase):
         def deferred(path: Path, **_kwargs) -> dict[str, object]:
             return {
                 "path": str(path),
-                "entrypoint_kind": (
-                    "root_owned_single_link_regular_executable"
-                ),
+                "entrypoint_kind": ("root_owned_single_link_regular_executable"),
                 "group_or_world_writable": False,
                 "trusted_root_owned_nonwritable_ancestry": True,
                 "exact_content_freeze_stage": (
@@ -8420,8 +7861,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_managed_settings_identity",
+                "epiagentbench.development_matched_panel._managed_settings_identity",
                 return_value=(
                     {
                         "path": str(matched._CLAUDE_MANAGED_SETTINGS_PATH),
@@ -8451,9 +7891,7 @@ class MatchedPanelTests(unittest.TestCase):
             dependencies["glean_llm_gateway_token_wrapper"],
             {
                 "path": "/usr/local/bin/glean-llm-gateway-token",
-                "entrypoint_kind": (
-                    "root_owned_single_link_regular_executable"
-                ),
+                "entrypoint_kind": ("root_owned_single_link_regular_executable"),
                 "group_or_world_writable": False,
                 "trusted_root_owned_nonwritable_ancestry": True,
                 "exact_content_freeze_stage": (
@@ -8469,12 +7907,8 @@ class MatchedPanelTests(unittest.TestCase):
                     "argv0_basename": "glean-llm-gateway-token",
                     "arguments": [],
                     "option_source": "glean.DefaultOptions",
-                    "oauth_client_id_source": (
-                        "explicit_GLEAN_HELPER_OAUTH_CLIENT_ID"
-                    ),
-                    "credential_path": (
-                        "$HOME/.glean-llm-gateway/credentials.json"
-                    ),
+                    "oauth_client_id_source": ("explicit_GLEAN_HELPER_OAUTH_CLIENT_ID"),
+                    "credential_path": ("$HOME/.glean-llm-gateway/credentials.json"),
                 },
             },
         )
@@ -8482,9 +7916,7 @@ class MatchedPanelTests(unittest.TestCase):
             dependencies["glean_helper"],
             {
                 "path": "/usr/local/bin/glean-helper",
-                "entrypoint_kind": (
-                    "root_owned_single_link_regular_executable"
-                ),
+                "entrypoint_kind": ("root_owned_single_link_regular_executable"),
                 "group_or_world_writable": False,
                 "trusted_root_owned_nonwritable_ancestry": True,
                 "exact_content_freeze_stage": (
@@ -8534,14 +7966,10 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertTrue(config_identity["sha256"].startswith("sha256:"))
         self.assertTrue(
-            settings_identity["redacted_projection_sha256"].startswith(
-                "sha256:"
-            )
+            settings_identity["redacted_projection_sha256"].startswith("sha256:")
         )
         self.assertEqual(
-            config_identity["semantic_projection"][
-                "contains_secret_bearing_fields"
-            ],
+            config_identity["semantic_projection"]["contains_secret_bearing_fields"],
             False,
         )
         self.assertTrue(
@@ -8559,33 +7987,23 @@ class MatchedPanelTests(unittest.TestCase):
             ]
         )
         self.assertEqual(
-            settings_identity["semantic_projection"][
-                "managed_model_allowlist_tag"
-            ],
+            settings_identity["semantic_projection"]["managed_model_allowlist_tag"],
             matched._CLAUDE_MANAGED_MODEL_ALLOWLIST_TAG,
         )
         self.assertFalse(
-            settings_identity["semantic_projection"][
-                "managed_model_value_disclosed"
-            ]
+            settings_identity["semantic_projection"]["managed_model_value_disclosed"]
         )
         self.assertTrue(telemetry_enabled)
         encoded_identity = json.dumps(
             {"config": config_identity, "settings": settings_identity}
         )
-        self.assertNotIn(
-            config["oauth"]["claude"]["client_id"], encoded_identity
-        )
-        self.assertNotIn(
-            config["oauth"]["codex"]["client_id"], encoded_identity
-        )
+        self.assertNotIn(config["oauth"]["claude"]["client_id"], encoded_identity)
+        self.assertNotIn(config["oauth"]["codex"]["client_id"], encoded_identity)
         raw_settings = matched._CLAUDE_MANAGED_SETTINGS_PATH.read_bytes()
         decoded_settings = matched._decode_unique_json(
             raw_settings, label="Claude managed settings"
         )
-        personal_attribute = decoded_settings["env"][
-            "OTEL_RESOURCE_ATTRIBUTES"
-        ]
+        personal_attribute = decoded_settings["env"]["OTEL_RESOURCE_ATTRIBUTES"]
         self.assertNotIn(decoded_settings["model"], encoded_identity)
         self.assertNotIn(personal_attribute, encoded_identity)
         self.assertNotIn(matched._sha256(raw_settings), encoded_identity)
@@ -8597,14 +8015,11 @@ class MatchedPanelTests(unittest.TestCase):
     def test_glean_and_managed_settings_fixture_semantics_are_safe(self):
         config = self._glean_config_fixture()
         settings = self._managed_settings_fixture()
-        gateway_digest = matched._sha256(
-            config["gateway_url"].encode("utf-8")
-        )
+        gateway_digest = matched._sha256(config["gateway_url"].encode("utf-8"))
         otel_endpoint = settings["env"]["OTEL_EXPORTER_OTLP_ENDPOINT"]
         with (
             patch(
-                "epiagentbench.development_matched_panel."
-                "_read_root_owned_json",
+                "epiagentbench.development_matched_panel._read_root_owned_json",
                 side_effect=(
                     (b"config-fixture", config),
                     (b"settings-fixture", settings),
@@ -8622,8 +8037,8 @@ class MatchedPanelTests(unittest.TestCase):
             ),
         ):
             parsed_config, config_identity = matched._safe_glean_config()
-            settings_identity, telemetry_enabled = (
-                matched._managed_settings_identity(parsed_config)
+            settings_identity, telemetry_enabled = matched._managed_settings_identity(
+                parsed_config
             )
 
         self.assertTrue(telemetry_enabled)
@@ -8639,9 +8054,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertTrue(semantics["managed_environment_key_allowlist_exact"])
         self.assertEqual(semantics["managed_environment_key_count"], 17)
         self.assertTrue(
-            semantics[
-                "managed_environment_value_types_and_policies_validated"
-            ]
+            semantics["managed_environment_value_types_and_policies_validated"]
         )
         encoded_identity = json.dumps(
             {"config": config_identity, "settings": settings_identity}
@@ -8676,15 +8089,19 @@ class MatchedPanelTests(unittest.TestCase):
                 if name == "host"
                 else matched._sha256(gateway_url.encode("utf-8"))
             )
-            with self.subTest(name=name), patch(
-                "epiagentbench.development_matched_panel."
-                "_read_root_owned_json",
-                return_value=(b"config-fixture", config),
-            ), patch.object(
-                matched,
-                "_APPROVED_GLEAN_GATEWAY_SHA256",
-                approved_digest,
-            ), self.assertRaisesRegex(RuntimeError, "gateway URL"):
+            with (
+                self.subTest(name=name),
+                patch(
+                    "epiagentbench.development_matched_panel._read_root_owned_json",
+                    return_value=(b"config-fixture", config),
+                ),
+                patch.object(
+                    matched,
+                    "_APPROVED_GLEAN_GATEWAY_SHA256",
+                    approved_digest,
+                ),
+                self.assertRaisesRegex(RuntimeError, "gateway URL"),
+            ):
                 matched._safe_glean_config()
 
     def test_managed_settings_fixture_rejects_schema_and_sensitive_fields(self):
@@ -8724,14 +8141,15 @@ class MatchedPanelTests(unittest.TestCase):
         ):
             settings = copy.deepcopy(self._managed_settings_fixture())
             mutate(settings)
-            with self.subTest(name=name), patch(
-                "epiagentbench.development_matched_panel."
-                "_read_root_owned_json",
-                return_value=(b"settings-fixture", settings),
-            ), self.assertRaisesRegex(RuntimeError, message):
-                matched._managed_settings_identity(
-                    self._glean_config_fixture()
-                )
+            with (
+                self.subTest(name=name),
+                patch(
+                    "epiagentbench.development_matched_panel._read_root_owned_json",
+                    return_value=(b"settings-fixture", settings),
+                ),
+                self.assertRaisesRegex(RuntimeError, message),
+            ):
+                matched._managed_settings_identity(self._glean_config_fixture())
 
     def test_managed_settings_fixture_rejects_every_env_policy_drift(self):
         invalid_values = {
@@ -8764,8 +8182,7 @@ class MatchedPanelTests(unittest.TestCase):
             with (
                 self.subTest(key=key),
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "_read_root_owned_json",
+                    "epiagentbench.development_matched_panel._read_root_owned_json",
                     return_value=(b"settings-fixture", settings),
                 ),
                 patch.object(
@@ -8775,9 +8192,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ),
                 self.assertRaises(RuntimeError),
             ):
-                matched._managed_settings_identity(
-                    self._glean_config_fixture()
-                )
+                matched._managed_settings_identity(self._glean_config_fixture())
 
     def test_glean_config_rejects_unknown_or_secret_fields(self):
         unsafe = {
@@ -8788,10 +8203,13 @@ class MatchedPanelTests(unittest.TestCase):
             },
             "api_key": "must-not-be-accepted",
         }
-        with patch(
-            "epiagentbench.development_matched_panel._read_root_owned_json",
-            return_value=(b"opaque", unsafe),
-        ), self.assertRaisesRegex(RuntimeError, "forbidden field"):
+        with (
+            patch(
+                "epiagentbench.development_matched_panel._read_root_owned_json",
+                return_value=(b"opaque", unsafe),
+            ),
+            self.assertRaisesRegex(RuntimeError, "forbidden field"),
+        ):
             matched._safe_glean_config()
 
     def test_glean_config_json_rejects_duplicate_keys(self):
@@ -8826,9 +8244,7 @@ class MatchedPanelTests(unittest.TestCase):
         link_text = "gateway-target"
         entrypoint.symlink_to(link_text)
 
-        identity = matched._safe_entrypoint_identity(
-            entrypoint, label="gateway"
-        )
+        identity = matched._safe_entrypoint_identity(entrypoint, label="gateway")
 
         self.assertEqual(
             identity,
@@ -8867,9 +8283,7 @@ class MatchedPanelTests(unittest.TestCase):
             (Path("relative-entrypoint"), "path must be absolute"),
         )
         for path, message in unsafe:
-            with self.subTest(path=path), self.assertRaisesRegex(
-                RuntimeError, message
-            ):
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, message):
                 matched._safe_entrypoint_identity(path, label="gateway")
 
     def test_safe_entrypoint_identity_rejects_target_replacement(self):
@@ -8890,10 +8304,13 @@ class MatchedPanelTests(unittest.TestCase):
                 os.replace(replacement, target)
             return chunk
 
-        with patch(
-            "epiagentbench.development_matched_panel.os.read",
-            side_effect=replace_after_read,
-        ), self.assertRaisesRegex(RuntimeError, "changed while hashing"):
+        with (
+            patch(
+                "epiagentbench.development_matched_panel.os.read",
+                side_effect=replace_after_read,
+            ),
+            self.assertRaisesRegex(RuntimeError, "changed while hashing"),
+        ):
             matched._safe_entrypoint_identity(entrypoint, label="gateway")
 
     def test_execution_contract_attestation_checks_public_surfaces_only(self):
@@ -8937,29 +8354,31 @@ class MatchedPanelTests(unittest.TestCase):
             ),
         )
         for surface, target in drift_cases:
-            with self.subTest(surface=surface), self._contracts(), patch(
-                target, return_value={"drifted": surface}
-            ), self.assertRaisesRegex(RuntimeError, surface):
-                matched._attest_execution_contracts(
-                    root=self.root, public=public
-                )
+            with (
+                self.subTest(surface=surface),
+                self._contracts(),
+                patch(target, return_value={"drifted": surface}),
+                self.assertRaisesRegex(RuntimeError, surface),
+            ):
+                matched._attest_execution_contracts(root=self.root, public=public)
 
     def test_frozen_glean_dependency_attestation_checks_full_topology(self):
         public = self._prepare(authenticate=False)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         drifted = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
         wrapper = drifted["glean_llm_gateway_token_wrapper"]
         wrapper["entrypoint_kind"] = "symlink"
         wrapper["link_text"] = "glean-helper"
-        with patch(
-            "epiagentbench.development_matched_panel."
-            "_current_glean_auth_dependency_identity",
-            return_value=drifted,
-        ), self.assertRaisesRegex(
-            ProviderStateIsolationError,
-            "Frozen Glean authentication dependencies drifted",
+        with (
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_current_glean_auth_dependency_identity",
+                return_value=drifted,
+            ),
+            self.assertRaisesRegex(
+                ProviderStateIsolationError,
+                "Frozen Glean authentication dependencies drifted",
+            ),
         ):
             matched._attest_frozen_glean_auth_dependencies(private, public)
 
@@ -8976,8 +8395,9 @@ class MatchedPanelTests(unittest.TestCase):
             os.chmod(manifest_path, 0o600)
             nested_storage = cohort / "claude-auth"
             nested_storage.mkdir(mode=0o700)
-            with self._contracts(), self.assertRaisesRegex(
-                ValueError, "must not overlap"
+            with (
+                self._contracts(),
+                self.assertRaisesRegex(ValueError, "must not overlap"),
             ):
                 prepare_panel(
                     root=self.root,
@@ -9000,8 +8420,9 @@ class MatchedPanelTests(unittest.TestCase):
             manifest_path = cohort / "cohort.manifest"
             manifest_path.write_bytes(b"placeholder")
             os.chmod(manifest_path, 0o600)
-            with self._contracts(), self.assertRaisesRegex(
-                ValueError, "must not overlap"
+            with (
+                self._contracts(),
+                self.assertRaisesRegex(ValueError, "must not overlap"),
             ):
                 prepare_panel(
                     root=self.root,
@@ -9016,8 +8437,11 @@ class MatchedPanelTests(unittest.TestCase):
     def test_prepare_requires_fresh_managed_glean_directory_before_writing(self):
         manifest_path = self._cohort()
         self.keychain_present = True
-        with self._contracts(), self.assertRaisesRegex(
-            RuntimeError, "Managed Glean credential file must be absent"
+        with (
+            self._contracts(),
+            self.assertRaisesRegex(
+                RuntimeError, "Managed Glean credential file must be absent"
+            ),
         ):
             prepare_panel(
                 root=self.root,
@@ -9033,11 +8457,15 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_prepare_requires_claude_keychain_record_absent(self):
         manifest_path = self._cohort()
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel."
-            "_attest_claude_secure_storage_keychain",
-            return_value=True,
-        ), self.assertRaisesRegex(RuntimeError, "Keychain record must remain absent"):
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_attest_claude_secure_storage_keychain",
+                return_value=True,
+            ),
+            self.assertRaisesRegex(RuntimeError, "Keychain record must remain absent"),
+        ):
             prepare_panel(
                 root=self.root,
                 cohort_manifest_path=manifest_path,
@@ -9054,8 +8482,9 @@ class MatchedPanelTests(unittest.TestCase):
         manifest_path = self._cohort()
         fallback = self.claude_secure_storage_dir / ".credentials.json"
         fallback.write_text('{"token":"test-only"}', encoding="utf-8")
-        with self._contracts(), self.assertRaisesRegex(
-            RuntimeError, "plaintext credential fallback"
+        with (
+            self._contracts(),
+            self.assertRaisesRegex(RuntimeError, "plaintext credential fallback"),
         ):
             prepare_panel(
                 root=self.root,
@@ -9078,9 +8507,12 @@ class MatchedPanelTests(unittest.TestCase):
         ) as other:
             other_path = Path(other)
             os.chmod(other_path, 0o700)
-            with patch(
-                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-            ) as evaluate, self.assertRaisesRegex(ValueError, "does not match"):
+            with (
+                patch(
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+                ) as evaluate,
+                self.assertRaisesRegex(ValueError, "does not match"),
+            ):
                 run_panel(
                     root=self.root,
                     authentication_key_file=self.key_path,
@@ -9093,18 +8525,15 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             evaluate.assert_not_called()
 
-            private = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )
-            private["environment_preflight"].pop(
-                "provider_free_preclaim"
-            )
-            matched._write_private_state(
-                self.private_path, private, AUTHENTICATION_KEY
-            )
-            with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), patch(
-                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-            ) as evaluate:
+            private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+            private["environment_preflight"].pop("provider_free_preclaim")
+            matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
+            with (
+                patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+                patch(
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+                ) as evaluate,
+            ):
                 receipt = run_environment_preflight(
                     root=self.root,
                     authentication_key_file=self.key_path,
@@ -9116,9 +8545,7 @@ class MatchedPanelTests(unittest.TestCase):
                     acknowledge_unbounded_provider_spend=True,
                 )
             self.assertEqual(receipt["status"], "failed")
-            self.assertEqual(
-                receipt["incident_phase"], "authentication_prerequisite"
-            )
+            self.assertEqual(receipt["incident_phase"], "authentication_prerequisite")
             evaluate.assert_not_called()
 
     def test_replaced_secure_storage_directory_stops_before_provider(self):
@@ -9132,8 +8559,7 @@ class MatchedPanelTests(unittest.TestCase):
                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
                 self._contracts(),
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "evaluate_local_cli_agent"
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
                 ) as evaluate,
             ):
                 receipt = run_environment_preflight(
@@ -9146,12 +8572,8 @@ class MatchedPanelTests(unittest.TestCase):
                     public_preflight_path=self.root / "results" / "preflight.json",
                     acknowledge_unbounded_provider_spend=True,
                 )
-            self.assertEqual(
-                receipt["status"], "failed"
-            )
-            self.assertEqual(
-                receipt["incident_phase"], "authentication_prerequisite"
-            )
+            self.assertEqual(receipt["status"], "failed")
+            self.assertEqual(receipt["incident_phase"], "authentication_prerequisite")
             evaluate.assert_not_called()
         finally:
             original.rmdir()
@@ -9163,9 +8585,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(rows[0], (0, 1, 5, 2, 4, 3))
         self.assertTrue(all(set(row) == set(range(6)) for row in rows))
         predecessor_counts = Counter(
-            (first, second)
-            for row in rows
-            for first, second in zip(row, row[1:])
+            (first, second) for row in rows for first, second in zip(row, row[1:])
         )
         self.assertEqual(
             predecessor_counts,
@@ -9180,9 +8600,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
 
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         nonce = bytes.fromhex(private["schedule_nonce_hex"])
         profile_permutation = tuple(
             sorted(
@@ -9191,8 +8609,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         )
         treatment_by_profile = {
-            profile_id: index
-            for index, profile_id in enumerate(profile_permutation)
+            profile_id: index for index, profile_id in enumerate(profile_permutation)
         }
         row_id_by_order = {row: row_id for row_id, row in enumerate(rows)}
         family_by_ref = {
@@ -9201,8 +8618,7 @@ class MatchedPanelTests(unittest.TestCase):
         rows_by_family = {family: Counter() for family in FAMILIES}
         for item in private["schedule"]:
             treatment_order = tuple(
-                treatment_by_profile[profile_id]
-                for profile_id in item["profile_order"]
+                treatment_by_profile[profile_id] for profile_id in item["profile_order"]
             )
             rows_by_family[family_by_ref[item["episode_ref"]]][
                 row_id_by_order[treatment_order]
@@ -9231,9 +8647,12 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_spend_gate_prevents_every_provider_call(self):
         self._prepare()
-        with patch(
-            "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-        ) as evaluate, self.assertRaisesRegex(RuntimeError, "unbounded provider spend"):
+        with (
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "unbounded provider spend"),
+        ):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
@@ -9254,12 +8673,10 @@ class MatchedPanelTests(unittest.TestCase):
                 "_bootstrap_managed_glean_credentials"
             ) as bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             self.assertRaisesRegex(RuntimeError, "unbounded preflight provider spend"),
         ):
@@ -9275,17 +8692,15 @@ class MatchedPanelTests(unittest.TestCase):
         bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
         evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["environment_preflight"]["status"], "required")
         self.assertFalse(preflight_path.exists())
 
-    def test_authorize_spend_requires_the_exact_v35_acknowledgement(self):
+    def test_authorize_spend_requires_the_exact_v48_acknowledgement(self):
         public = self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         stale_v10_text = REQUIRED_SPEND_ACKNOWLEDGEMENT.replace(
-            "six-call v35", "six-call v10"
+            "six-call v48", "six-call v10"
         )
         with (
             patch(
@@ -9293,33 +8708,29 @@ class MatchedPanelTests(unittest.TestCase):
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_current_glean_auth_dependency_identity"
             ) as dependency_identity,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_read_authentication_key"
+                "epiagentbench.development_matched_panel._read_authentication_key"
             ) as read_authentication_key,
             patch(
                 "epiagentbench.development_matched_panel._cli_contract"
             ) as cli_contract,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_glean_helper_identity"
+                "epiagentbench.development_matched_panel._glean_helper_identity"
             ) as glean_helper_identity,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_root_owned_regular_executable_identity"
             ) as wrapper_identity,
-            self.assertRaisesRegex(RuntimeError, "exact v35 \\$670"),
+            self.assertRaisesRegex(RuntimeError, "exact v48 \\$670"),
         ):
             authorize_panel_spend(
                 root=self.root,
@@ -9338,9 +8749,7 @@ class MatchedPanelTests(unittest.TestCase):
         cli_contract.assert_not_called()
         glean_helper_identity.assert_not_called()
         wrapper_identity.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertNotIn("spend_authorization", private)
         self.assertEqual(self.public_path.read_bytes(), public_before)
 
@@ -9354,9 +8763,7 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             receipt,
             matched._expected_spend_authorization(
@@ -9370,7 +8777,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(self.public_path.read_bytes(), public_before)
 
     def test_authorization_freezes_post_prepare_glean_identity_once(self):
-        public = self._prepare(authorize=False)
+        self._prepare(authorize=False)
         public_before = self.public_path.read_bytes()
         drifted = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
         drifted["glean_helper"]["sha256"] = "sha256:" + "6" * 64
@@ -9394,15 +8801,11 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         freeze = private["authentication_dependency_freeze"]
         self.assertEqual(identity.call_count, 2)
         self.assertEqual(freeze["identity"], drifted)
-        self.assertEqual(
-            freeze["identity_sha256"], matched._component_hash(drifted)
-        )
+        self.assertEqual(freeze["identity_sha256"], matched._component_hash(drifted))
         self.assertEqual(
             receipt["frozen_glean_auth_dependency_identity_sha256"],
             freeze["identity_sha256"],
@@ -9432,12 +8835,8 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        unchanged = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        self.assertEqual(
-            unchanged["authentication_dependency_freeze"], freeze
-        )
+        unchanged = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        self.assertEqual(unchanged["authentication_dependency_freeze"], freeze)
 
     def test_repeated_authorization_returns_without_refreeze_or_rewrite(self):
         self._prepare(authorize=False)
@@ -9451,14 +8850,11 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        before = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        before = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state"
+                "epiagentbench.development_matched_panel._write_private_state"
             ) as write_private,
             patch(
                 "epiagentbench.development_matched_panel._utc_now",
@@ -9474,9 +8870,7 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        after = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        after = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(second, first)
         self.assertEqual(after, before)
         write_private.assert_not_called()
@@ -9507,15 +8901,11 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["authentication_dependency_freeze"],
             {
-                "schema_version": (
-                    "epiagentbench.authentication_dependency_freeze.v1"
-                ),
+                "schema_version": ("epiagentbench.authentication_dependency_freeze.v1"),
                 "status": "required",
             },
         )
@@ -9540,9 +8930,7 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        unchanged = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        unchanged = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             unchanged["authentication_dependency_freeze"]["status"],
             "required",
@@ -9566,17 +8954,12 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        durable = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        frozen_at = durable["authentication_dependency_freeze"][
-            "frozen_at_utc"
-        ]
+        durable = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        frozen_at = durable["authentication_dependency_freeze"]["frozen_at_utc"]
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state"
+                "epiagentbench.development_matched_panel._write_private_state"
             ) as write_private,
         ):
             recovered = authorize_panel_spend(
@@ -9588,9 +8971,7 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledgement_text=REQUIRED_SPEND_ACKNOWLEDGEMENT,
             )
-        final = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        final = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(recovered, durable["spend_authorization"])
         self.assertEqual(
             final["authentication_dependency_freeze"]["frozen_at_utc"],
@@ -9604,8 +8985,7 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             matched._exclusive_run_lock(self.private_path),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_read_authentication_key"
+                "epiagentbench.development_matched_panel._read_authentication_key"
             ) as read_key,
             patch(
                 "epiagentbench.development_matched_panel."
@@ -9631,20 +9011,14 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_authorization_half_states_block_authentication_zero_call(self):
         public = self._prepare(authorize=False)
-        baseline = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        baseline = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         frozen = copy.deepcopy(AUTHENTICATION_DEPENDENCY_IDENTITY)
         frozen_record = {
-            "schema_version": (
-                "epiagentbench.authentication_dependency_freeze.v1"
-            ),
+            "schema_version": ("epiagentbench.authentication_dependency_freeze.v1"),
             "status": "frozen",
-            "panel_id": "development-matched-50x6-v35",
+            "panel_id": "development-matched-50x6-v48",
             "public_precommitment_sha256": public["precommitment_sha256"],
-            "static_cli_contract_sha256": public["contract_hashes"][
-                "cli_sha256"
-            ],
+            "static_cli_contract_sha256": public["contract_hashes"]["cli_sha256"],
             "identity": frozen,
             "identity_sha256": matched._component_hash(frozen),
             "frozen_at_utc": "2026-07-25T00:00:00Z",
@@ -9667,9 +9041,7 @@ class MatchedPanelTests(unittest.TestCase):
         }
         for name, (freeze, receipt) in cases.items():
             candidate = copy.deepcopy(baseline)
-            candidate["authentication_dependency_freeze"] = copy.deepcopy(
-                freeze
-            )
+            candidate["authentication_dependency_freeze"] = copy.deepcopy(freeze)
             if receipt is None:
                 candidate.pop("spend_authorization", None)
             else:
@@ -9706,9 +9078,7 @@ class MatchedPanelTests(unittest.TestCase):
             tty.assert_not_called()
             codex_bootstrap.assert_not_called()
             glean_bootstrap.assert_not_called()
-        matched._write_private_state(
-            self.private_path, baseline, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, baseline, AUTHENTICATION_KEY)
 
     def test_authorize_requires_committed_clean_manifest_zero_call(self):
         self._prepare(authorize=False)
@@ -9716,6 +9086,7 @@ class MatchedPanelTests(unittest.TestCase):
         private_relative = matched._relative_to_root(self.private_path, self.root)
 
         for scenario in ("uncommitted", "dirty"):
+
             def git_output(_: Path, *arguments: str) -> str:
                 if arguments == ("rev-parse", "HEAD"):
                     return "d" * 40
@@ -9751,8 +9122,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "_bootstrap_codex_credentials"
                 ) as codex_bootstrap,
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "evaluate_local_cli_agent"
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
                 ) as evaluate,
                 patch(
                     "epiagentbench.development_matched_panel."
@@ -9772,9 +9142,7 @@ class MatchedPanelTests(unittest.TestCase):
             glean_bootstrap.assert_not_called()
             codex_bootstrap.assert_not_called()
             evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertNotIn("spend_authorization", private)
 
     def test_authorize_rechecks_head_and_manifest_before_receipt_write(self):
@@ -9815,12 +9183,10 @@ class MatchedPanelTests(unittest.TestCase):
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             self.assertRaisesRegex(RuntimeError, "HEAD changed"),
         ):
@@ -9836,9 +9202,7 @@ class MatchedPanelTests(unittest.TestCase):
         glean_bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
         evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertNotIn("spend_authorization", private)
 
     def test_authorize_reloads_manifest_before_receipt_write(self):
@@ -9883,12 +9247,10 @@ class MatchedPanelTests(unittest.TestCase):
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             self.assertRaisesRegex(RuntimeError, "precommitment changed"),
         ):
@@ -9904,16 +9266,12 @@ class MatchedPanelTests(unittest.TestCase):
         glean_bootstrap.assert_not_called()
         codex_bootstrap.assert_not_called()
         evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertNotIn("spend_authorization", private)
 
     def test_stale_or_wrong_private_spend_receipt_blocks_preflight_zero_call(self):
         self._prepare()
-        baseline = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        baseline = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         mutations = {
             "missing": lambda receipt: None,
             "stale_precommitment": lambda receipt: receipt.__setitem__(
@@ -9945,9 +9303,7 @@ class MatchedPanelTests(unittest.TestCase):
                 mutate(receipt)
                 unsigned_receipt = dict(receipt)
                 unsigned_receipt.pop("receipt_sha256")
-                receipt["receipt_sha256"] = matched._component_hash(
-                    unsigned_receipt
-                )
+                receipt["receipt_sha256"] = matched._component_hash(unsigned_receipt)
             matched._write_private_state(
                 self.private_path, candidate, AUTHENTICATION_KEY
             )
@@ -9956,10 +9312,7 @@ class MatchedPanelTests(unittest.TestCase):
                 self.subTest(name=name),
                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
                 self._contracts(),
-                patch(
-                    "epiagentbench.development_matched_panel."
-                    "_preflight_execution"
-                ),
+                patch("epiagentbench.development_matched_panel._preflight_execution"),
                 patch(
                     "epiagentbench.development_matched_panel._cli_contract"
                 ) as cli_contract,
@@ -9972,8 +9325,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "_bootstrap_codex_credentials"
                 ) as codex_bootstrap,
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "evaluate_local_cli_agent"
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
                 ) as evaluate,
             ):
                 receipt = run_environment_preflight(
@@ -9986,13 +9338,9 @@ class MatchedPanelTests(unittest.TestCase):
                     public_preflight_path=preflight_path,
                     acknowledge_unbounded_provider_spend=True,
                 )
-            self.assertEqual(
-                receipt["status"], "failed"
-            )
+            self.assertEqual(receipt["status"], "failed")
             self.assertEqual(receipt["incident_phase"], "spend_authorization")
-            self.assertEqual(
-                receipt["model_invocations_conservatively_chargeable"], 0
-            )
+            self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 0)
             glean_bootstrap.assert_not_called()
             codex_bootstrap.assert_not_called()
             cli_contract.assert_not_called()
@@ -10001,26 +9349,18 @@ class MatchedPanelTests(unittest.TestCase):
             public_terminal = matched._load_json(preflight_path)
             self.assertEqual(public_terminal["status"], "failed")
             self.assertIs(public_terminal["scores_reported"], False)
-        matched._write_private_state(
-            self.private_path, baseline, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, baseline, AUTHENTICATION_KEY)
 
     def test_wrong_private_spend_receipt_blocks_production_zero_call(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        private["spend_authorization"]["budget_contract_sha256"] = (
-            "sha256:" + "7" * 64
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        private["spend_authorization"]["budget_contract_sha256"] = "sha256:" + "7" * 64
         unsigned_receipt = dict(private["spend_authorization"])
         unsigned_receipt.pop("receipt_sha256")
-        private["spend_authorization"]["receipt_sha256"] = (
-            matched._component_hash(unsigned_receipt)
+        private["spend_authorization"]["receipt_sha256"] = matched._component_hash(
+            unsigned_receipt
         )
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
@@ -10028,10 +9368,9 @@ class MatchedPanelTests(unittest.TestCase):
                 "epiagentbench.development_matched_panel._cli_contract"
             ) as cli_contract,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v35"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v48"),
         ):
             run_panel(
                 root=self.root,
@@ -10049,9 +9388,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_clean_worktree_gate_allows_only_the_private_retirement_marker(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         retirement_path = matched._cohort_retirement_path(
             Path(private["cohort_manifest_path"])
         )
@@ -10109,10 +9446,13 @@ class MatchedPanelTests(unittest.TestCase):
                 return observed + "\n?? unexpected-private-file"
             return observed
 
-        with patch(
-            "epiagentbench.development_matched_panel._git_output",
-            side_effect=dirty_git_output,
-        ), self.assertRaisesRegex(RuntimeError, "worktree is not clean"):
+        with (
+            patch(
+                "epiagentbench.development_matched_panel._git_output",
+                side_effect=dirty_git_output,
+            ),
+            self.assertRaisesRegex(RuntimeError, "worktree is not clean"),
+        ):
             matched._preflight_execution(
                 root=self.root,
                 private_state_path=self.private_path,
@@ -10129,9 +9469,7 @@ class MatchedPanelTests(unittest.TestCase):
         cohort_manifest_path = Path(private_before_run["cohort_manifest_path"])
         retirement_path = matched._cohort_retirement_path(cohort_manifest_path)
         calls: list[tuple[str, str, str | None, str | None]] = []
-        auth_kwargs_seen: list[
-            tuple[str, bool, Path | None, bool, Path | None]
-        ] = []
+        auth_kwargs_seen: list[tuple[str, bool, Path | None, bool, Path | None]] = []
         terminal_write_saw_retirement = False
         captured_progress_artifacts = 0
 
@@ -10177,8 +9515,7 @@ class MatchedPanelTests(unittest.TestCase):
             if (
                 Path(path) == self.results_path
                 and isinstance(value, dict)
-                and value.get("status")
-                in {"running", "stopped_transport_void"}
+                and value.get("status") in {"running", "stopped_transport_void"}
             ):
                 captured_progress_artifacts += 1
                 self.assertEqual(value.get("results"), [])
@@ -10288,13 +9625,9 @@ class MatchedPanelTests(unittest.TestCase):
                     "tampered retirement must fail before a provider call"
                 )
             )
-        cursor_models = {
-            model for system, model, _, _ in calls if system == "cursor"
-        }
+        cursor_models = {model for system, model, _, _ in calls if system == "cursor"}
         self.assertEqual(cursor_models, {"cursor-grok-4.5-high", "kimi-k2.7-code"})
-        self.assertEqual(
-            sum(system == "cursor" for system, _, _, _ in calls), 100
-        )
+        self.assertEqual(sum(system == "cursor" for system, _, _, _ in calls), 100)
         self.assertTrue(
             all(
                 (
@@ -10319,9 +9652,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                effort == "high"
-                for system, _, effort, _ in calls
-                if system == "claude"
+                effort == "high" for system, _, effort, _ in calls if system == "claude"
             )
         )
         self.assertEqual(
@@ -10349,15 +9680,9 @@ class MatchedPanelTests(unittest.TestCase):
         )
 
     def test_terminalization_rejects_cross_profile_no_action_mismatch(self):
-        first = asdict(
-            self._result("codex", "gpt-5.6-sol", "codex", 50.0)
-        )
-        second = asdict(
-            self._result("codex", "gpt-5.6-luna", "codex", 50.0)
-        )
-        second["replay_trace"]["frames"][1][
-            "no_action_currently_infected"
-        ] = 1
+        first = asdict(self._result("codex", "gpt-5.6-sol", "codex", 50.0))
+        second = asdict(self._result("codex", "gpt-5.6-luna", "codex", 50.0))
+        second["replay_trace"]["frames"][1]["no_action_currently_infected"] = 1
         # Both traces remain individually valid; only their shared no-action
         # counterfactual has been made inconsistent.
         matched.validate_replay_trace(first["replay_trace"])
@@ -10401,9 +9726,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_crash_interrupted_codex_assignment_is_non_resumable(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         orphan_index = next(
             index
@@ -10411,9 +9734,7 @@ class MatchedPanelTests(unittest.TestCase):
             if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
         )
         self._set_terminal_assignment_prefix(orphan_index)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         orphan_ref, orphan_profile = keys[orphan_index]
         private["assignments"].append(
             {
@@ -10423,9 +9744,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "started_at_utc": "before-crash",
             }
         )
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         stopped, first_run = self._run_with(
             lambda *_args, **_kwargs: self.fail("orphan must not be retried")
@@ -10450,9 +9769,7 @@ class MatchedPanelTests(unittest.TestCase):
             private_after["assignments"][-1]["model_invocation_state"],
             "not_started",
         )
-        self.assertFalse(
-            private_after["assignments"][-1]["conservative_chargeable"]
-        )
+        self.assertFalse(private_after["assignments"][-1]["conservative_chargeable"])
         with self.assertRaisesRegex(RuntimeError, "non-resumable"):
             self._run_with(
                 lambda *_args, **_kwargs: self.fail(
@@ -10462,9 +9779,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_crash_interrupted_codex_model_invocation_is_chargeable(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         orphan_index = next(
             index
@@ -10472,9 +9787,7 @@ class MatchedPanelTests(unittest.TestCase):
             if matched._PROFILE_BY_ID[profile_id]["system"] == "codex"
         )
         self._set_terminal_assignment_prefix(orphan_index)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         orphan_ref, orphan_profile = keys[orphan_index]
         private["assignments"].append(
             {
@@ -10488,9 +9801,7 @@ class MatchedPanelTests(unittest.TestCase):
                 },
             }
         )
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         stopped, invoked = self._run_with(
             lambda *_args, **_kwargs: self.fail("orphan must not be retried")
@@ -10498,9 +9809,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         invoked.assert_not_called()
         self.assertEqual(stopped["status"], "stopped_transport_void")
-        self.assertEqual(
-            stopped["model_invocations_conservatively_chargeable"], 1
-        )
+        self.assertEqual(stopped["model_invocations_conservatively_chargeable"], 1)
         private_after = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )
@@ -10520,106 +9829,88 @@ class MatchedPanelTests(unittest.TestCase):
             {
                 "status": "terminal",
                 "assignment_index": orphan_index,
-                "failure_class": (
-                    "interrupted_after_model_invocation_start"
-                ),
+                "failure_class": ("interrupted_after_model_invocation_start"),
             },
         )
 
     def test_codex_auth_incident_rejects_non_codex_assignment(self):
-        public, private, assignment_index = (
-            self._stage_transport_void_for_system("claude")
+        public, private, assignment_index = self._stage_transport_void_for_system(
+            "claude"
         )
         private["codex_auth_incident"] = {
             "status": "terminal",
             "assignment_index": assignment_index,
             "failure_class": "CodexAuthenticationIncidentError",
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
 
-        with self._contracts(), self.assertRaisesRegex(
-            ValueError, "Codex authentication incident is invalid"
+        with (
+            self._contracts(),
+            self.assertRaisesRegex(
+                ValueError, "Codex authentication incident is invalid"
+            ),
         ):
             matched._reconcile_terminal_incident_public_progress(
                 root=self.root,
                 public_manifest=public,
                 private=private,
-                public_results_path=(
-                    self.root / "results" / "non-codex-incident.json"
-                ),
+                public_results_path=(self.root / "results" / "non-codex-incident.json"),
             )
 
     def test_codex_auth_incident_rejects_generic_pre_marker_failure(self):
-        public, private, assignment_index = (
-            self._stage_transport_void_for_system("codex")
+        public, private, assignment_index = self._stage_transport_void_for_system(
+            "codex"
         )
         private["codex_auth_incident"] = {
             "status": "terminal",
             "assignment_index": assignment_index,
             "failure_class": "ProviderStateIsolationError",
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
 
-        with self._contracts(), self.assertRaisesRegex(
-            ValueError, "Codex authentication incident is invalid"
+        with (
+            self._contracts(),
+            self.assertRaisesRegex(
+                ValueError, "Codex authentication incident is invalid"
+            ),
         ):
             matched._reconcile_terminal_incident_public_progress(
                 root=self.root,
                 public_manifest=public,
                 private=private,
-                public_results_path=(
-                    self.root / "results" / "premarker-incident.json"
-                ),
+                public_results_path=(self.root / "results" / "premarker-incident.json"),
             )
 
     def test_explicit_codex_auth_incident_is_valid_before_model_marker(self):
-        public, private, assignment_index = (
-            self._stage_transport_void_for_system("codex")
+        public, private, assignment_index = self._stage_transport_void_for_system(
+            "codex"
         )
         private["codex_auth_incident"] = {
             "status": "terminal",
             "assignment_index": assignment_index,
             "failure_class": "CodexAuthenticationIncidentError",
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
 
         with self._contracts():
-            reconciled = (
-                matched._reconcile_terminal_incident_public_progress(
-                    root=self.root,
-                    public_manifest=public,
-                    private=private,
-                    public_results_path=(
-                        self.root
-                        / "results"
-                        / "explicit-codex-incident.json"
-                    ),
-                )
+            reconciled = matched._reconcile_terminal_incident_public_progress(
+                root=self.root,
+                public_manifest=public,
+                private=private,
+                public_results_path=(
+                    self.root / "results" / "explicit-codex-incident.json"
+                ),
             )
 
         self.assertEqual(reconciled["status"], "stopped_transport_void")
-        self.assertEqual(
-            reconciled["model_invocations_conservatively_chargeable"], 0
-        )
+        self.assertEqual(reconciled["model_invocations_conservatively_chargeable"], 0)
 
     def test_generic_codex_auth_incident_is_valid_after_model_marker(self):
-        public, private, assignment_index = (
-            self._stage_transport_void_for_system("codex")
+        public, private, assignment_index = self._stage_transport_void_for_system(
+            "codex"
         )
         assignment = private["assignments"][assignment_index]
         assignment["model_invocation"] = {
@@ -10633,37 +9924,25 @@ class MatchedPanelTests(unittest.TestCase):
             "assignment_index": assignment_index,
             "failure_class": "ProviderStateIsolationError",
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
 
         with self._contracts():
-            reconciled = (
-                matched._reconcile_terminal_incident_public_progress(
-                    root=self.root,
-                    public_manifest=public,
-                    private=private,
-                    public_results_path=(
-                        self.root
-                        / "results"
-                        / "postmarker-codex-incident.json"
-                    ),
-                )
+            reconciled = matched._reconcile_terminal_incident_public_progress(
+                root=self.root,
+                public_manifest=public,
+                private=private,
+                public_results_path=(
+                    self.root / "results" / "postmarker-codex-incident.json"
+                ),
             )
 
         self.assertEqual(reconciled["status"], "stopped_transport_void")
-        self.assertEqual(
-            reconciled["model_invocations_conservatively_chargeable"], 1
-        )
+        self.assertEqual(reconciled["model_invocations_conservatively_chargeable"], 1)
 
     def test_crash_interrupted_non_codex_assignment_is_non_resumable(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         orphan_index = next(
             index
@@ -10690,9 +9969,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "started_at_utc": "before-crash",
             }
         )
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         stopped, first_run = self._run_with(
             lambda *_args, **_kwargs: self.fail("orphan must not be retried")
@@ -10720,9 +9997,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_last_assignment_crash_blocks_completion_and_trace_release(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         private["assignments"] = [
             {
@@ -10744,9 +10019,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "started_at_utc": "before-crash",
             }
         )
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         stopped, invoked = self._run_with(
             lambda *_args, **_kwargs: self.fail("orphan must not be retried")
@@ -10768,9 +10041,7 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             )
         cohort_manifest = Path(str(private_after["cohort_manifest_path"]))
-        self.assertFalse(
-            matched._cohort_retirement_path(cohort_manifest).exists()
-        )
+        self.assertFalse(matched._cohort_retirement_path(cohort_manifest).exists())
 
     def test_aggregate_arithmetic_and_bootstrap_are_deterministic(self):
         totals = {
@@ -10801,7 +10072,9 @@ class MatchedPanelTests(unittest.TestCase):
             profile = first["profiles"][profile_id]
             self.assertEqual(profile["mean_total"], total)
             self.assertEqual(profile["valid_rate"], 1.0)
-            self.assertEqual(profile["family_stratified_bootstrap_95_ci"], [total, total])
+            self.assertEqual(
+                profile["family_stratified_bootstrap_95_ci"], [total, total]
+            )
             self.assertEqual(set(profile["by_family"]), set(FAMILIES))
             self.assertTrue(
                 all(
@@ -10813,14 +10086,12 @@ class MatchedPanelTests(unittest.TestCase):
             )
         self.assertEqual(len(first["exploratory_pairwise_deltas"]), 15)
         self.assertEqual(
-            first["exploratory_pairwise_deltas"][
-                "claude-opus-high_minus_codex-sol"
-            ]["mean_delta"],
+            first["exploratory_pairwise_deltas"]["claude-opus-high_minus_codex-sol"][
+                "mean_delta"
+            ],
             -10.0,
         )
-        pair = first["exploratory_pairwise_deltas"][
-            "claude-opus-high_minus_codex-sol"
-        ]
+        pair = first["exploratory_pairwise_deltas"]["claude-opus-high_minus_codex-sol"]
         self.assertEqual(pair["simultaneous_familywise_confidence_target"], 0.95)
         self.assertEqual(set(pair["by_family_mean_delta"].values()), {-10.0})
 
@@ -10907,24 +10178,23 @@ class MatchedPanelTests(unittest.TestCase):
             if profile["profile_id"] == "claude-sonnet-high"
         )
         self.assertTrue(
-            matched._exact_model_receipt_satisfied(
-                profile, ("Claude Sonnet 5",)
-            )
+            matched._exact_model_receipt_satisfied(profile, ("Claude Sonnet 5",))
         )
         self.assertFalse(
-            matched._exact_model_receipt_satisfied(
-                profile, ("Claude Sonnet 5 High",)
-            )
+            matched._exact_model_receipt_satisfied(profile, ("Claude Sonnet 5 High",))
         )
 
     def test_environment_preflight_gate_prevents_production_call(self):
         self._prepare()
         self._persist_passed_provider_free_preclaim()
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel._preflight_execution"
-        ), patch(
-            "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-        ) as evaluate, self.assertRaisesRegex(RuntimeError, "environment preflight"):
+        with (
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(RuntimeError, "environment preflight"),
+        ):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
@@ -10944,12 +10214,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
@@ -10967,9 +10234,7 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["status"], "prepared")
         self.assertEqual(private["assignments"], [])
         self.assertFalse(self.results_path.exists())
@@ -10982,21 +10247,16 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_attest_execution_contracts",
+                "epiagentbench.development_matched_panel._attest_execution_contracts",
                 side_effect=RuntimeError("preexisting execution drift"),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
         ):
             result = run_panel(
@@ -11010,9 +10270,7 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_unbounded_provider_spend=True,
             )
         evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["assignments"], [])
         self.assertEqual(result["status"], "stopped_supervisor_incident")
         self.assertEqual(
@@ -11040,9 +10298,7 @@ class MatchedPanelTests(unittest.TestCase):
                 else None
             )
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -11076,12 +10332,8 @@ class MatchedPanelTests(unittest.TestCase):
             result["incident_code"],
             "model_invocation_marker_persist_failed",
         )
-        self.assertEqual(
-            result["model_invocations_conservatively_chargeable"], 0
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(result["model_invocations_conservatively_chargeable"], 0)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         assignment = private["assignments"][0]
         self.assertEqual(assignment["status"], "transport_void")
         self.assertNotIn("model_invocation", assignment)
@@ -11104,9 +10356,7 @@ class MatchedPanelTests(unittest.TestCase):
                 else None
             )
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -11120,9 +10370,7 @@ class MatchedPanelTests(unittest.TestCase):
             return original_write(path, value, key)
 
         def evaluate(system: str, **kwargs):
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 1.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 1.0)
 
         with patch(
             "epiagentbench.development_matched_panel._write_private_state",
@@ -11141,12 +10389,8 @@ class MatchedPanelTests(unittest.TestCase):
             result["incident_code"],
             "provider_completion_marker_persist_failed",
         )
-        self.assertEqual(
-            result["model_invocations_conservatively_chargeable"], 1
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(result["model_invocations_conservatively_chargeable"], 1)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         assignment = private["assignments"][0]
         self.assertEqual(assignment["status"], "transport_void")
         self.assertEqual(
@@ -11164,9 +10408,7 @@ class MatchedPanelTests(unittest.TestCase):
     ):
         self._prepare()
         self.keychain_present = True
-        prepared = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        prepared = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(prepared["schedule"])
         codex_index = next(
             index
@@ -11196,23 +10438,17 @@ class MatchedPanelTests(unittest.TestCase):
             return original_write(path, value, key)
 
         def evaluate(system: str, **kwargs):
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 1.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 1.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
@@ -11221,8 +10457,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value={"file_sha256": "sha256:" + "7" * 64},
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_completed_assignment,
             ),
         ):
@@ -11247,9 +10482,7 @@ class MatchedPanelTests(unittest.TestCase):
             result["incident_code"],
             "provider_completion_marker_persist_failed",
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["assignments"][codex_index]["status"], "transport_void"
         )
@@ -11259,12 +10492,8 @@ class MatchedPanelTests(unittest.TestCase):
             ),
             "finished",
         )
-        self.assertEqual(
-            result["model_invocations_conservatively_chargeable"], 1
-        )
-        self.assertNotIn(
-            "public_result", private["assignments"][codex_index]
-        )
+        self.assertEqual(result["model_invocations_conservatively_chargeable"], 1)
+        self.assertNotIn("public_result", private["assignments"][codex_index])
         self.assertEqual(
             private["execution_incident"]["failure_class"],
             "ProviderCompletionPersistenceError",
@@ -11279,24 +10508,17 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
                 "_attest_frozen_glean_auth_dependencies",
-                side_effect=ProviderStateIsolationError(
-                    "frozen helper drift"
-                ),
+                side_effect=ProviderStateIsolationError("frozen helper drift"),
             ) as helper_attestation,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
         ):
             result = run_panel(
@@ -11312,9 +10534,7 @@ class MatchedPanelTests(unittest.TestCase):
         evaluate.assert_not_called()
         self.assertEqual(helper_attestation.call_count, 1)
         self.assertEqual(result["status"], "stopped_supervisor_incident")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["assignments"], [])
         self.assertEqual(
             private["execution_incident"]["boundary"],
@@ -11335,28 +10555,21 @@ class MatchedPanelTests(unittest.TestCase):
 
         def evaluate(system: str, **kwargs):
             events.append("provider")
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_attest_execution_contracts",
+                "epiagentbench.development_matched_panel._attest_execution_contracts",
                 side_effect=attest,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -11379,9 +10592,7 @@ class MatchedPanelTests(unittest.TestCase):
             "provider_isolation_after_model_invocation_start",
         )
         self.assertNotIn("attestation_failure_code", result)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), 1)
         self.assertEqual(private["assignments"][0]["status"], "transport_void")
         self.assertEqual(
@@ -11400,20 +10611,14 @@ class MatchedPanelTests(unittest.TestCase):
         self.keychain_present = True
 
         def evaluate(system: str, **kwargs):
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
@@ -11424,8 +10629,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ],
             ) as helper_attestation,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -11438,7 +10642,7 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
                 acknowledge_unbounded_provider_spend=True,
-        )
+            )
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(helper_attestation.call_count, 2)
         self.assertEqual(result["status"], "stopped_supervisor_incident")
@@ -11447,9 +10651,7 @@ class MatchedPanelTests(unittest.TestCase):
             "provider_isolation_after_model_invocation_start",
         )
         self.assertNotIn("attestation_failure_code", result)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), 1)
         self.assertEqual(
             private["assignments"][0]["void_reason"],
@@ -11467,20 +10669,14 @@ class MatchedPanelTests(unittest.TestCase):
         self._set_terminal_assignment_prefix(ASSIGNMENT_COUNT - 1)
 
         def evaluate(system: str, **kwargs):
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.development_matched_panel."
@@ -11492,8 +10688,7 @@ class MatchedPanelTests(unittest.TestCase):
                 ],
             ) as helper_attestation,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -11513,13 +10708,9 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(helper_attestation.call_count, 3)
         self.assertEqual(result["status"], "stopped_supervisor_incident")
         self.assertEqual(result["results"], [])
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT)
-        self.assertEqual(
-            private["execution_incident"]["boundary"], "final_completion"
-        )
+        self.assertEqual(private["execution_incident"]["boundary"], "final_completion")
         self.assertNotEqual(private["status"], "complete")
         self.assertFalse(
             matched._cohort_retirement_path(
@@ -11532,9 +10723,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         def evaluate(system: str, **kwargs):
             return replace(
-                self._result(
-                    system, kwargs["model"], kwargs["executable"], 0.0
-                ),
+                self._result(system, kwargs["model"], kwargs["executable"], 0.0),
                 returncode=7,
                 submission=None,
                 diagnostic="redacted provider transport failure",
@@ -11543,9 +10732,7 @@ class MatchedPanelTests(unittest.TestCase):
         result, invoked = self._run_with(evaluate)
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["assignments"][0]["status"], "transport_void")
         self.assertNotIn("public_result", private["assignments"][0])
         self.assertNotIn("codex_auth_incident", private)
@@ -11556,16 +10743,12 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(resumed_call.call_count, 1)
         self.assertEqual(resumed["status"], "stopped_transport_void")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), 2)
 
     def test_codex_auth_attestation_error_is_terminal_but_not_generic_error(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         codex_index = next(
             index
@@ -11581,9 +10764,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["codex_auth_incident"]["failure_class"],
             "CodexAuthenticationIncidentError",
@@ -11606,9 +10787,7 @@ class MatchedPanelTests(unittest.TestCase):
             result["failure_stage"],
             "provider_isolation_after_model_invocation_start",
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
             private["execution_incident"]["failure_class"],
             "ProviderProcessIsolationError",
@@ -11622,9 +10801,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_post_return_claude_credential_drift_is_terminal(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         claude_index = next(
             index
@@ -11642,13 +10819,10 @@ class MatchedPanelTests(unittest.TestCase):
 
         def evaluate(system: str, **kwargs):
             self.assertEqual(system, "claude")
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with patch(
-            "epiagentbench.development_matched_panel."
-            "_require_claude_credential_state",
+            "epiagentbench.development_matched_panel._require_claude_credential_state",
             side_effect=require_credential_state,
         ):
             stopped, invoked = self._run_with(evaluate)
@@ -11666,15 +10840,11 @@ class MatchedPanelTests(unittest.TestCase):
             "sensitive post-return credential detail",
             json.dumps(stopped, sort_keys=True),
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         assignment = private["assignments"][claude_index]
         self.assertEqual(assignment["status"], "transport_void")
         self.assertNotIn("raw_result", assignment)
-        self.assertEqual(
-            assignment["void_reason"], "provider_state_isolation_failed"
-        )
+        self.assertEqual(assignment["void_reason"], "provider_state_isolation_failed")
         self.assertEqual(
             private["execution_incident"],
             {
@@ -11693,8 +10863,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
             self.assertRaisesRegex(RuntimeError, "execution incident"),
         ):
@@ -11721,15 +10890,11 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         expected_key = matched._assignment_keys(private["schedule"])[0]
 
         def evaluate(_system: str, **_kwargs):
-            durable = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )
+            durable = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
             self.assertEqual(len(durable["assignments"]), 1)
             marker = durable["assignments"][0]
             self.assertEqual(
@@ -11770,12 +10935,8 @@ class MatchedPanelTests(unittest.TestCase):
         public = self._prepare()
 
         def unavailable(_system: str, **kwargs):
-            kwargs["pre_model_phase_callback"](
-                "provider_environment_setup"
-            )
-            durable = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )
+            kwargs["pre_model_phase_callback"]("provider_environment_setup")
+            durable = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
             live_assignment = durable["assignments"][0]
             self.assertEqual(
                 live_assignment["pre_model_phase"],
@@ -11786,9 +10947,7 @@ class MatchedPanelTests(unittest.TestCase):
                 private=durable,
                 public=public,
                 authentication_key=AUTHENTICATION_KEY,
-                claude_secure_storage_dir=(
-                    self.claude_secure_storage_dir
-                ),
+                claude_secure_storage_dir=(self.claude_secure_storage_dir),
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
             )
             raise ProviderCLIUnavailableError(
@@ -11799,17 +10958,11 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
-        self.assertEqual(
-            result["model_invocations_conservatively_chargeable"], 0
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(result["model_invocations_conservatively_chargeable"], 0)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         assignment = private["assignments"][0]
         self.assertEqual(assignment["status"], "transport_void")
-        self.assertEqual(
-            assignment["void_reason"], "provider_cli_unavailable"
-        )
+        self.assertEqual(assignment["void_reason"], "provider_cli_unavailable")
         self.assertEqual(
             assignment["failure_stage"],
             "provider_environment_setup",
@@ -11822,14 +10975,10 @@ class MatchedPanelTests(unittest.TestCase):
             assignment["failed_pre_model_phase"],
             "provider_environment_setup",
         )
-        self.assertEqual(
-            assignment["model_invocation_state"], "not_started"
-        )
+        self.assertEqual(assignment["model_invocation_state"], "not_started")
         self.assertFalse(assignment["conservative_chargeable"])
         self.assertNotIn("model_invocation", assignment)
-        self.assertNotIn(
-            "must-not-leak", json.dumps(result, sort_keys=True)
-        )
+        self.assertNotIn("must-not-leak", json.dumps(result, sort_keys=True))
 
     def test_production_readiness_timeout_is_nonchargeable_and_continues(
         self,
@@ -11847,15 +10996,9 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal evaluator_calls
             evaluator_calls += 1
             if evaluator_calls == 1:
-                kwargs["pre_model_phase_callback"](
-                    "provider_environment_setup"
-                )
-                kwargs["pre_model_phase_callback"](
-                    "provider_cli_readiness"
-                )
-                raise ProviderCLIReadinessTimeoutError(
-                    "offline readiness timeout"
-                )
+                kwargs["pre_model_phase_callback"]("provider_environment_setup")
+                kwargs["pre_model_phase_callback"]("provider_cli_readiness")
+                raise ProviderCLIReadinessTimeoutError("offline readiness timeout")
             return self._result(
                 system,
                 kwargs["model"],
@@ -11867,21 +11010,16 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.launchd_agent.attest_live_launch_agent",
                 return_value=live,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -11900,51 +11038,29 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self.assertEqual(invoked.call_count, 2)
-        self._assert_cursor_loader_matches_evaluator(
-            cursor_credential_loader, invoked
-        )
-        self.assertEqual(
-            pending["status"], matched._PENDING_PRODUCTION_STATUS
-        )
+        self._assert_cursor_loader_matches_evaluator(cursor_credential_loader, invoked)
+        self.assertEqual(pending["status"], matched._PENDING_PRODUCTION_STATUS)
         self.assertEqual(pending["terminal_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(pending["transport_voids"], ASSIGNMENT_COUNT - 1)
-        self.assertEqual(
-            pending["model_invocations_conservatively_chargeable"], 1
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(pending["model_invocations_conservatively_chargeable"], 1)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         first, second = private["assignments"][-2:]
-        self.assertEqual(
-            (first["episode_ref"], first["profile_id"]), first_key
-        )
+        self.assertEqual((first["episode_ref"], first["profile_id"]), first_key)
         self.assertEqual(first["status"], "transport_void")
-        self.assertEqual(
-            first["void_reason"], "provider_cli_readiness_timeout"
-        )
+        self.assertEqual(first["void_reason"], "provider_cli_readiness_timeout")
         self.assertTrue(first["timed_out"])
-        self.assertEqual(
-            first["timeout_stage"], "provider_cli_readiness"
-        )
-        self.assertEqual(
-            first["failure_stage"], "provider_cli_readiness"
-        )
+        self.assertEqual(first["timeout_stage"], "provider_cli_readiness")
+        self.assertEqual(first["failure_stage"], "provider_cli_readiness")
         self.assertEqual(first["model_invocation_state"], "not_started")
-        self.assertEqual(
-            first["pre_model_phase"], "provider_cli_readiness"
-        )
+        self.assertEqual(first["pre_model_phase"], "provider_cli_readiness")
         self.assertEqual(
             first["failed_pre_model_phase"],
             "provider_cli_readiness",
         )
         self.assertFalse(first["conservative_chargeable"])
-        self.assertEqual(
-            (second["episode_ref"], second["profile_id"]), second_key
-        )
+        self.assertEqual((second["episode_ref"], second["profile_id"]), second_key)
         self.assertEqual(second["status"], "complete")
-        self.assertEqual(
-            matched._durable_model_invocation_state(second), "finished"
-        )
+        self.assertEqual(matched._durable_model_invocation_state(second), "finished")
         self.assertNotIn("execution_incident", private)
         self.assertNotIn("codex_auth_incident", private)
 
@@ -11967,9 +11083,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(result["terminal_assignments"], ASSIGNMENT_COUNT)
         self.assertEqual(result["results"], [])
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), ASSIGNMENT_COUNT)
         self.assertEqual(
             private["execution_incident"]["assignment_index"],
@@ -11989,8 +11103,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
             self.assertRaisesRegex(RuntimeError, "execution incident"),
         ):
@@ -12041,25 +11154,20 @@ class MatchedPanelTests(unittest.TestCase):
                 )
             )
 
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["assignments"][0]["status"], "transport_void")
         self.assertEqual(private["execution_incident"]["status"], "terminal")
         stale_public = matched._load_json(self.results_path)
         self.assertEqual(stale_public["status"], "running")
         self.assertEqual(stale_public["terminal_assignments"], 0)
         self.assertEqual(stale_public["results"], [])
-        self.assertNotIn(
-            "replay_trace", json.dumps(stale_public, sort_keys=True)
-        )
+        self.assertNotIn("replay_trace", json.dumps(stale_public, sort_keys=True))
 
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
             self.assertRaisesRegex(RuntimeError, "execution incident"),
         ):
@@ -12072,7 +11180,7 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 public_results_path=self.results_path,
                 acknowledge_unbounded_provider_spend=True,
-        )
+            )
         evaluate_again.assert_not_called()
         repaired = matched._load_json(self.results_path)
         self.assertEqual(repaired["status"], "stopped_supervisor_incident")
@@ -12190,12 +11298,8 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_terminal_incident_restart_refuses_unsafe_public_payload(self):
         public_manifest = self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        episode_ref, profile_id = matched._assignment_keys(
-            private["schedule"]
-        )[0]
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        episode_ref, profile_id = matched._assignment_keys(private["schedule"])[0]
         private["status"] = "running"
         private["panel_started_at_utc"] = "test-panel-start"
         private["assignments"] = [
@@ -12214,9 +11318,7 @@ class MatchedPanelTests(unittest.TestCase):
             "failure_class": "ProviderProcessIsolationError",
             "incident_code": "provider_process_isolation_failed",
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         unsafe = matched._public_running(public_manifest, private)
         unsafe["raw_result"] = {"must_not_be_overwritten": True}
         matched._atomic_json(self.results_path, unsafe)
@@ -12225,8 +11327,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             self.assertRaisesRegex(ValueError, "unsafe schema"),
         ):
@@ -12247,9 +11348,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         codex_index = max(
             index
@@ -12267,9 +11366,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
         self.assertEqual(result["terminal_assignments"], codex_index + 1)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(len(private["assignments"]), codex_index + 1)
         self.assertEqual(
             private["codex_auth_incident"]["assignment_index"], codex_index
@@ -12283,8 +11380,7 @@ class MatchedPanelTests(unittest.TestCase):
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
             self.assertRaisesRegex(RuntimeError, "authentication incident"),
         ):
@@ -12301,9 +11397,9 @@ class MatchedPanelTests(unittest.TestCase):
         evaluate_again.assert_not_called()
         self.assertEqual(
             len(
-                matched._load_private_state(
-                    self.private_path, AUTHENTICATION_KEY
-                )["assignments"]
+                matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+                    "assignments"
+                ]
             ),
             codex_index + 1,
         )
@@ -12323,16 +11419,12 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
         ):
             completed = run_panel(
@@ -12353,9 +11445,7 @@ class MatchedPanelTests(unittest.TestCase):
             all(item["status"] == "transport_void" for item in completed["results"])
         )
         self.assertNotIn("replay_trace", json.dumps(completed, sort_keys=True))
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertTrue(
             matched._cohort_retirement_path(
                 Path(private["cohort_manifest_path"])
@@ -12377,21 +11467,13 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(stopped["status"], "stopped_transport_void")
         self.assertEqual(stopped["terminal_assignments"], ASSIGNMENT_COUNT)
-        self.assertEqual(
-            stopped["model_invocations_conservatively_chargeable"], 0
-        )
+        self.assertEqual(stopped["model_invocations_conservatively_chargeable"], 0)
 
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         final_private = private["assignments"][-1]
         self.assertEqual(final_private["failure_stage"], "episode_startup")
-        self.assertEqual(
-            final_private["failed_pre_model_phase"], "episode_startup"
-        )
-        self.assertEqual(
-            final_private["model_invocation_state"], "not_started"
-        )
+        self.assertEqual(final_private["failed_pre_model_phase"], "episode_startup")
+        self.assertEqual(final_private["model_invocation_state"], "not_started")
         self.assertEqual(
             final_private["episode_startup_stage"],
             "unclassified",
@@ -12401,17 +11483,12 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
         ):
             completed = run_panel(
@@ -12426,19 +11503,13 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         evaluate_again.assert_not_called()
-        self.assertEqual(
-            completed["status"], "complete_with_transport_voids"
-        )
-        self.assertEqual(
-            completed["results"][-1]["failure_stage"], "episode_startup"
-        )
+        self.assertEqual(completed["status"], "complete_with_transport_voids")
+        self.assertEqual(completed["results"][-1]["failure_stage"], "episode_startup")
         self.assertEqual(
             completed["results"][-1]["model_invocation_state"],
             "not_started",
         )
-        self.assertNotIn(
-            "must-not-leak", json.dumps(completed, sort_keys=True)
-        )
+        self.assertNotIn("must-not-leak", json.dumps(completed, sort_keys=True))
 
     def test_final_non_timeout_readiness_void_validates_and_builds_result(
         self,
@@ -12449,18 +11520,14 @@ class MatchedPanelTests(unittest.TestCase):
         def version_failure(_system: str, **kwargs):
             for phase in PRE_MODEL_PHASES[:2]:
                 kwargs["pre_model_phase_callback"](phase)
-            raise ProviderCLIVersionNonzeroError(
-                "must-not-leak version process detail"
-            )
+            raise ProviderCLIVersionNonzeroError("must-not-leak version process detail")
 
         stopped, invoked = self._run_with(version_failure)
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(stopped["status"], "stopped_transport_void")
         self.assertEqual(stopped["terminal_assignments"], ASSIGNMENT_COUNT)
 
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         with self._contracts():
             matched._validate_contracts(
                 root=self.root,
@@ -12471,38 +11538,24 @@ class MatchedPanelTests(unittest.TestCase):
                 codex_secure_storage_dir=self.codex_secure_storage_dir,
             )
         final_private = private["assignments"][-1]
-        self.assertEqual(
-            final_private["void_reason"], "provider_cli_version_nonzero"
-        )
-        self.assertEqual(
-            final_private["failure_stage"], "provider_cli_readiness"
-        )
+        self.assertEqual(final_private["void_reason"], "provider_cli_version_nonzero")
+        self.assertEqual(final_private["failure_stage"], "provider_cli_readiness")
         self.assertNotIn("timeout_stage", final_private)
         self.assertNotIn("timed_out", final_private)
 
         private["panel_completed_at_utc"] = "test-panel-complete"
         artifact = matched._complete_artifact(public, private)
         final_public = artifact["results"][-1]
-        self.assertEqual(
-            artifact["status"], "complete_with_transport_voids"
-        )
-        self.assertEqual(
-            final_public["reason"], "provider_cli_version_nonzero"
-        )
-        self.assertEqual(
-            final_public["failure_stage"], "provider_cli_readiness"
-        )
+        self.assertEqual(artifact["status"], "complete_with_transport_voids")
+        self.assertEqual(final_public["reason"], "provider_cli_version_nonzero")
+        self.assertEqual(final_public["failure_stage"], "provider_cli_readiness")
         self.assertIsNone(final_public["timeout_stage"])
         self.assertFalse(final_public["conservative_chargeable"])
-        self.assertNotIn(
-            "must-not-leak", json.dumps(artifact, sort_keys=True)
-        )
+        self.assertNotIn("must-not-leak", json.dumps(artifact, sort_keys=True))
 
     def test_production_codex_timeout_is_terminal_auth_incident(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         keys = matched._assignment_keys(private["schedule"])
         codex_index = next(
             index
@@ -12518,17 +11571,13 @@ class MatchedPanelTests(unittest.TestCase):
             if calls > 1:
                 raise RuntimeError("stop after timeout classification")
             return replace(
-                self._result(
-                    system, kwargs["model"], kwargs["executable"], 0.0
-                ),
+                self._result(system, kwargs["model"], kwargs["executable"], 0.0),
                 returncode=124,
                 submission=None,
                 scorecard={
                     "valid": False,
                     "total": 0.0,
-                    "dimensions": {
-                        name: 0.0 for name in matched.DIMENSION_MAXIMA
-                    },
+                    "dimensions": {name: 0.0 for name in matched.DIMENSION_MAXIMA},
                     "metrics": {},
                     "violations": ["timeout"],
                 },
@@ -12539,21 +11588,23 @@ class MatchedPanelTests(unittest.TestCase):
         result, invoked = self._run_with(evaluate)
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(result["status"], "stopped_transport_void")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         timeout_assignment = private["assignments"][codex_index]
         self.assertEqual(timeout_assignment["status"], "transport_void")
         self.assertNotIn("public_result", timeout_assignment)
         self.assertEqual(private["codex_auth_incident"]["status"], "terminal")
 
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel._preflight_execution"
-        ), patch(
-            "epiagentbench.development_matched_panel._assert_environment_preflight"
-        ), patch(
-            "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-        ) as evaluate_again, self.assertRaisesRegex(RuntimeError, "non-resumable"):
+        with (
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
+            ),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate_again,
+            self.assertRaisesRegex(RuntimeError, "non-resumable"),
+        ):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
@@ -12576,16 +11627,12 @@ class MatchedPanelTests(unittest.TestCase):
             if calls > 1:
                 raise RuntimeError("stop after malformed classification")
             return replace(
-                self._result(
-                    system, kwargs["model"], kwargs["executable"], 0.0
-                ),
+                self._result(system, kwargs["model"], kwargs["executable"], 0.0),
                 submission=None,
                 scorecard={
                     "valid": False,
                     "total": 0.0,
-                    "dimensions": {
-                        name: 0.0 for name in matched.DIMENSION_MAXIMA
-                    },
+                    "dimensions": {name: 0.0 for name in matched.DIMENSION_MAXIMA},
                     "metrics": {"tool_calls": 2},
                     "violations": ["invalid_submission"],
                 },
@@ -12594,9 +11641,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         _result, invoked = self._run_with(evaluate)
         self.assertEqual(invoked.call_count, 2)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         malformed_assignment = private["assignments"][0]
         self.assertEqual(malformed_assignment["status"], "complete")
         self.assertFalse(malformed_assignment["public_result"]["valid"])
@@ -12605,9 +11650,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_terminal_crash_recovery_finalizes_without_provider_credentials(self):
         self._prepare()
         self._persist_passed_provider_free_preclaim()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         private["status"] = "running"
         private["panel_started_at_utc"] = "start"
         private["assignments"] = [
@@ -12619,24 +11662,17 @@ class MatchedPanelTests(unittest.TestCase):
                 "finished_at_utc": "finish",
                 "void_reason": "provider_adapter_execution_failed",
             }
-            for episode_ref, profile_id in matched._assignment_keys(
-                private["schedule"]
-            )
+            for episode_ref, profile_id in matched._assignment_keys(private["schedule"])
         ]
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         self.keychain_present = False
 
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_environment_preflight"
+                "epiagentbench.development_matched_panel._assert_environment_preflight"
             ),
             patch(
                 "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
@@ -12661,9 +11697,7 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.root / "results" / "preflight.json"
         claude_efforts: list[str | None] = []
         codex_reasoning_efforts: list[str | None] = []
-        auth_kwargs_seen: list[
-            tuple[str, bool, Path | None, bool, Path | None]
-        ] = []
+        auth_kwargs_seen: list[tuple[str, bool, Path | None, bool, Path | None]] = []
         episode_inputs: list[tuple[int, bytes, str]] = []
 
         def evaluate(system: str, **kwargs):
@@ -12690,17 +11724,18 @@ class MatchedPanelTests(unittest.TestCase):
                 claude_efforts.append(kwargs["claude_effort"])
                 self.keychain_present = True
             if system == "codex":
-                codex_reasoning_efforts.append(
-                    kwargs["codex_reasoning_effort"]
-                )
+                codex_reasoning_efforts.append(kwargs["codex_reasoning_effort"])
             return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
-        with patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}), self._contracts(), patch(
-            "epiagentbench.development_matched_panel._preflight_execution"
-        ), patch(
-            "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
-            side_effect=evaluate,
-        ) as invoked:
+        with (
+            patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
+            self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
+                side_effect=evaluate,
+            ) as invoked,
+        ):
             receipt = run_environment_preflight(
                 root=self.root,
                 authentication_key_file=self.key_path,
@@ -12763,22 +11798,16 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(receipt["production_episodes_consumed"], 0)
         authentication = receipt["authentication_prerequisite"]
         self.assertEqual(authentication["codex"], "passed_before_preflight")
-        self.assertEqual(
-            authentication["managed_glean"], "passed_before_preflight"
-        )
+        self.assertEqual(authentication["managed_glean"], "passed_before_preflight")
         self.assertEqual(authentication["model_calls"], 0)
         self.assertEqual(
             receipt["preflight_purpose"],
             "unscored_infrastructure_routing_handshake",
         )
         self.assertIsNone(receipt["failed_model_invocation_state"])
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 6
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 6)
         self.assertEqual(len(receipt["profiles"]), len(PROFILES))
-        self.assertTrue(
-            all("cli_version" not in item for item in receipt["profiles"])
-        )
+        self.assertTrue(all("cli_version" not in item for item in receipt["profiles"]))
         self.assertEqual(
             [
                 (
@@ -12805,10 +11834,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertTrue(all(not item["scored"] for item in receipt["profiles"]))
         self.assertTrue(
-            all(
-                item["infrastructure_handshake_passed"]
-                for item in receipt["profiles"]
-            )
+            all(item["infrastructure_handshake_passed"] for item in receipt["profiles"])
         )
         claude_receipts = [
             item for item in receipt["profiles"] if item["system"] == "claude"
@@ -12844,24 +11870,14 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertNotIn("agent_events", json.dumps(receipt))
         self.assertNotIn("total", json.dumps(receipt))
-        self.assertNotIn(
-            str(self.claude_secure_storage_dir), json.dumps(receipt)
-        )
-        self.assertNotIn(
-            str(self.codex_secure_storage_dir), json.dumps(receipt)
-        )
+        self.assertNotIn(str(self.claude_secure_storage_dir), json.dumps(receipt))
+        self.assertNotIn(str(self.codex_secure_storage_dir), json.dumps(receipt))
         self.assertNotIn("test-glean-client-id", json.dumps(receipt))
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["environment_preflight"]["status"], "passed")
-        prerequisite = private["environment_preflight"][
-            "authentication_prerequisite"
-        ]
+        prerequisite = private["environment_preflight"]["authentication_prerequisite"]
         self.assertEqual(prerequisite["codex"], "passed_before_preflight")
-        self.assertEqual(
-            prerequisite["managed_glean"], "passed_before_preflight"
-        )
+        self.assertEqual(prerequisite["managed_glean"], "passed_before_preflight")
         self.assertEqual(prerequisite["model_calls"], 0)
         self.assertEqual(
             private["codex_auth_file_identity"],
@@ -12893,16 +11909,12 @@ class MatchedPanelTests(unittest.TestCase):
             if system == "claude":
                 self.keychain_present = True
             return replace(
-                self._result(
-                    system, kwargs["model"], kwargs["executable"], 0.0
-                ),
+                self._result(system, kwargs["model"], kwargs["executable"], 0.0),
                 submission=None,
                 scorecard={
                     "valid": False,
                     "total": 0.0,
-                    "dimensions": {
-                        name: 0.0 for name in matched.DIMENSION_MAXIMA
-                    },
+                    "dimensions": {name: 0.0 for name in matched.DIMENSION_MAXIMA},
                     "metrics": {"tool_calls": 2},
                     "violations": ["invalid_submission"],
                 },
@@ -12912,12 +11924,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ),
         ):
@@ -12935,10 +11944,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "passed")
         self.assertEqual(len(receipt["profiles"]), len(PROFILES))
         self.assertTrue(
-            all(
-                item["infrastructure_handshake_passed"]
-                for item in receipt["profiles"]
-            )
+            all(item["infrastructure_handshake_passed"] for item in receipt["profiles"])
         )
 
     def test_contained_codex_timeout_quarantines_codex_and_continues_cursor(self):
@@ -12952,20 +11958,15 @@ class MatchedPanelTests(unittest.TestCase):
             if system == "claude":
                 self.keychain_present = True
             if model == "gpt-5.6-sol":
-                return self._timeout_result(
-                    system, model, kwargs["executable"]
-                )
+                return self._timeout_result(system, model, kwargs["executable"])
             return self._result(system, model, kwargs["executable"], 0.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -12996,16 +11997,12 @@ class MatchedPanelTests(unittest.TestCase):
             ],
         )
         self.assertEqual(receipt["status"], "failed")
-        self.assertTrue(
-            all("cli_version" not in item for item in receipt["profiles"])
-        )
+        self.assertTrue(all("cli_version" not in item for item in receipt["profiles"]))
         self.assertEqual(
             [item["profile_id"] for item in receipt["profiles"]],
             [profile["profile_id"] for profile in PROFILES],
         )
-        outcomes = {
-            item["profile_id"]: item for item in receipt["profiles"]
-        }
+        outcomes = {item["profile_id"]: item for item in receipt["profiles"]}
         self.assertEqual(
             {
                 key: outcomes["codex-sol"][key]
@@ -13042,27 +12039,18 @@ class MatchedPanelTests(unittest.TestCase):
                 "conservative_chargeable": False,
             },
         )
-        self.assertEqual(
-            outcomes["cursor-grok-high"]["outcome"], "passed"
-        )
-        self.assertEqual(
-            outcomes["cursor-kimi-k27-code"]["outcome"], "passed"
-        )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 5
-        )
+        self.assertEqual(outcomes["cursor-grok-high"]["outcome"], "passed")
+        self.assertEqual(outcomes["cursor-kimi-k27-code"]["outcome"], "passed")
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 5)
         self.assertFalse(receipt["scores_reported"])
         self._persist_passed_provider_free_preclaim()
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as production,
             self.assertRaisesRegex(RuntimeError, "must pass"),
         ):
@@ -13101,12 +12089,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -13189,20 +12174,15 @@ class MatchedPanelTests(unittest.TestCase):
                 self.keychain_present = True
             if model == "gpt-5.6-sol":
                 kwargs["model_invocation_start_callback"]()
-                raise ProviderStateIsolationError(
-                    "provider-secret-must-not-leak"
-                )
+                raise ProviderStateIsolationError("provider-secret-must-not-leak")
             return self._result(system, model, kwargs["executable"], 0.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -13254,38 +12234,29 @@ class MatchedPanelTests(unittest.TestCase):
             [item["conservative_chargeable"] for item in outcomes],
             [True, True, True, False, False, False],
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 3
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 3)
         self.assertNotIn(
             "provider-secret-must-not-leak",
             json.dumps(receipt, sort_keys=True),
         )
 
-    def test_environment_preflight_gate_validates_full_v35_receipt(self):
+    def test_environment_preflight_gate_validates_full_v48_receipt(self):
         self._prepare()
         preflight_path = (
-            self.root
-            / "results"
-            / "development-matched-50x6-v35.preflight.json"
+            self.root / "results" / "development-matched-50x6-v48.preflight.json"
         )
 
         def evaluate(system: str, **kwargs):
             if system == "claude":
                 self.keychain_present = True
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 0.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 0.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ),
         ):
@@ -13301,17 +12272,18 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self._persist_passed_provider_free_preclaim()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         public = matched._load_json(self.public_path)
         relative = matched._relative_to_root(preflight_path, self.root)
-        with patch(
-            "epiagentbench.development_matched_panel._git_output",
-            return_value=relative,
-        ), patch(
-            "epiagentbench.development_matched_panel."
-            "_validate_repository_receipt_binding",
+        with (
+            patch(
+                "epiagentbench.development_matched_panel._git_output",
+                return_value=relative,
+            ),
+            patch(
+                "epiagentbench.development_matched_panel."
+                "_validate_repository_receipt_binding",
+            ),
         ):
             matched._assert_environment_preflight(self.root, private, public)
 
@@ -13327,27 +12299,21 @@ class MatchedPanelTests(unittest.TestCase):
             candidate[key] = value
             candidates.append(candidate)
         wrong_authentication = copy.deepcopy(receipt)
-        wrong_authentication["authentication_prerequisite"][
-            "managed_glean"
-        ] = "failed"
+        wrong_authentication["authentication_prerequisite"]["managed_glean"] = "failed"
         candidates.append(wrong_authentication)
         missing_profile = copy.deepcopy(receipt)
         missing_profile["profiles"].pop()
         candidates.append(missing_profile)
         duplicate_profile = copy.deepcopy(receipt)
-        duplicate_profile["profiles"][1]["profile_id"] = duplicate_profile[
-            "profiles"
-        ][0]["profile_id"]
+        duplicate_profile["profiles"][1]["profile_id"] = duplicate_profile["profiles"][
+            0
+        ]["profile_id"]
         candidates.append(duplicate_profile)
         failed_handshake = copy.deepcopy(receipt)
-        failed_handshake["profiles"][0][
-            "infrastructure_handshake_passed"
-        ] = False
+        failed_handshake["profiles"][0]["infrastructure_handshake_passed"] = False
         candidates.append(failed_handshake)
         wrong_model_receipt = copy.deepcopy(receipt)
-        wrong_model_receipt["profiles"][0]["observed_models"] = [
-            "unexpected-model"
-        ]
+        wrong_model_receipt["profiles"][0]["observed_models"] = ["unexpected-model"]
         candidates.append(wrong_model_receipt)
         wrong_precommitment = copy.deepcopy(receipt)
         wrong_precommitment["precommitment_sha256"] = "sha256:" + "f" * 64
@@ -13364,16 +12330,21 @@ class MatchedPanelTests(unittest.TestCase):
         for index, candidate in enumerate(candidates):
             matched._atomic_json(preflight_path, candidate)
             candidate_private = copy.deepcopy(private)
-            candidate_private["environment_preflight"][
-                "public_receipt_sha256"
-            ] = matched._component_hash(candidate)
-            with self.subTest(index=index), patch(
-                "epiagentbench.development_matched_panel._git_output",
-                return_value=relative,
-            ), patch(
-                "epiagentbench.development_matched_panel."
-                "_validate_repository_receipt_binding",
-            ), self.assertRaisesRegex(RuntimeError, "receipt is invalid"):
+            candidate_private["environment_preflight"]["public_receipt_sha256"] = (
+                matched._component_hash(candidate)
+            )
+            with (
+                self.subTest(index=index),
+                patch(
+                    "epiagentbench.development_matched_panel._git_output",
+                    return_value=relative,
+                ),
+                patch(
+                    "epiagentbench.development_matched_panel."
+                    "_validate_repository_receipt_binding",
+                ),
+                self.assertRaisesRegex(RuntimeError, "receipt is invalid"),
+            ):
                 matched._assert_environment_preflight(
                     self.root, candidate_private, public
                 )
@@ -13401,19 +12372,14 @@ class MatchedPanelTests(unittest.TestCase):
             events.append(f"provider:{kwargs['model']}")
             if system == "claude":
                 self.keychain_present = True
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_attest_execution_contracts",
+                "epiagentbench.development_matched_panel._attest_execution_contracts",
                 side_effect=attest,
             ),
             patch(
@@ -13422,13 +12388,11 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=bootstrap,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=codex_bootstrap,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ),
         ):
@@ -13461,17 +12425,13 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_attest_execution_contracts",
+                "epiagentbench.development_matched_panel._attest_execution_contracts",
                 side_effect=RuntimeError("before-call drift"),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
         ):
             before_receipt = run_environment_preflight(
@@ -13518,15 +12478,10 @@ class MatchedPanelTests(unittest.TestCase):
             },
         ]
         self.assertEqual(
-            [
-                matched._durable_model_invocation_state(attempt)
-                for attempt in attempts
-            ],
+            [matched._durable_model_invocation_state(attempt) for attempt in attempts],
             ["not_started", "started_not_finished", "finished"],
         )
-        self.assertEqual(
-            matched._conservatively_chargeable_provider_calls(attempts), 2
-        )
+        self.assertEqual(matched._conservatively_chargeable_provider_calls(attempts), 2)
 
     def test_glean_authentication_clean_failure_is_retryable_zero_model_call(self):
         self._prepare(authenticate=False)
@@ -13548,8 +12503,7 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=fail_after_start,
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
         ):
             status = matched.authenticate_panel(
@@ -13563,9 +12517,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         evaluate.assert_not_called()
         self.assertEqual(status["status"], "retryable_failed")
-        self.assertEqual(
-            status["providers"]["codex"]["status"], "passed"
-        )
+        self.assertEqual(status["providers"]["codex"]["status"], "passed")
         self.assertEqual(
             status["providers"]["managed_glean"]["status"],
             "retryable_failed",
@@ -13573,9 +12525,7 @@ class MatchedPanelTests(unittest.TestCase):
         retryable_setup = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )["authentication_setup"]
-        self.assertEqual(
-            retryable_setup["ceremony"]["status"], "retryable_failed"
-        )
+        self.assertEqual(retryable_setup["ceremony"]["status"], "retryable_failed")
         self.assertEqual(
             [attempt["status"] for attempt in retryable_setup["ceremony"]["attempts"]],
             ["retryable_failed"],
@@ -13591,8 +12541,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
         ):
             resumed = matched.authenticate_panel(
@@ -13628,8 +12577,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=fail_codex,
             ),
             patch(
@@ -13648,18 +12596,12 @@ class MatchedPanelTests(unittest.TestCase):
             )
         glean_bootstrap.assert_not_called()
         self.assertEqual(status["status"], "retryable_failed")
-        self.assertEqual(
-            status["providers"]["codex"]["status"], "retryable_failed"
-        )
-        self.assertEqual(
-            status["providers"]["managed_glean"]["status"], "required"
-        )
+        self.assertEqual(status["providers"]["codex"]["status"], "retryable_failed")
+        self.assertEqual(status["providers"]["managed_glean"]["status"], "required")
         retryable_setup = matched._load_private_state(
             self.private_path, AUTHENTICATION_KEY
         )["authentication_setup"]
-        self.assertEqual(
-            retryable_setup["ceremony"]["status"], "retryable_failed"
-        )
+        self.assertEqual(retryable_setup["ceremony"]["status"], "retryable_failed")
         self.assertEqual(retryable_setup["model_calls_started"], 0)
         with (
             self._contracts(),
@@ -13676,7 +12618,7 @@ class MatchedPanelTests(unittest.TestCase):
                 private_state_path=self.private_path,
                 public_manifest_path=self.public_path,
                 acknowledge_interactive_authentication=True,
-        )
+            )
         self.assertEqual(resumed["status"], "passed")
 
     def _assert_postclaim_authentication_failure_is_terminal(
@@ -13693,30 +12635,22 @@ class MatchedPanelTests(unittest.TestCase):
 
         def fail_after_durable_claim(*_args, **_kwargs):
             nonlocal durable_claim_observed
-            claimed = matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )
+            claimed = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
             setup = claimed["authentication_setup"]
             matched._validate_authentication_setup_state(
                 claimed, matched._load_json(self.public_path)
             )
             self.assertEqual(setup["status"], "running")
             self.assertEqual(setup["ceremony"]["status"], "running")
-            self.assertEqual(
-                setup["ceremony"]["attempts"][-1]["status"], "running"
-            )
-            self.assertIn(
-                "claimed_at_utc", setup["ceremony"]["attempts"][-1]
-            )
+            self.assertEqual(setup["ceremony"]["attempts"][-1]["status"], "running")
+            self.assertIn("claimed_at_utc", setup["ceremony"]["attempts"][-1])
             for provider in ("codex", "managed_glean"):
                 self.assertEqual(setup[provider]["status"], "required")
                 self.assertEqual(setup[provider]["attempts"], [])
             durable_claim_observed = True
             raise error
 
-        target = (
-            "epiagentbench.development_matched_panel." + failing_function
-        )
+        target = "epiagentbench.development_matched_panel." + failing_function
         with (
             self._contracts(),
             patch(
@@ -13725,8 +12659,7 @@ class MatchedPanelTests(unittest.TestCase):
             ) as tty,
             patch(target, side_effect=fail_after_durable_claim) as failure,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
@@ -13749,9 +12682,7 @@ class MatchedPanelTests(unittest.TestCase):
         glean_bootstrap.assert_not_called()
         self.assertTrue(durable_claim_observed)
 
-        terminal = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        terminal = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         matched._validate_authentication_setup_state(
             terminal, matched._load_json(self.public_path)
         )
@@ -13766,9 +12697,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(
             ceremony_attempt["incident"],
             {
-                "schema_version": (
-                    "epiagentbench.authentication_terminal_incident.v1"
-                ),
+                "schema_version": ("epiagentbench.authentication_terminal_incident.v1"),
                 "stage": expected_stage,
                 "code": expected_code,
                 "provider_processes_started": 0,
@@ -13792,16 +12721,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ) as second_tty,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_attest_execution_contracts"
+                "epiagentbench.development_matched_panel._attest_execution_contracts"
             ) as execution_attestation,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_attest_frozen_glean_auth_dependencies"
             ) as dependency_attestation,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_assert_authorization_worktree"
+                "epiagentbench.development_matched_panel._assert_authorization_worktree"
             ) as repository_attestation,
             patch(
                 "epiagentbench.development_matched_panel."
@@ -13820,16 +12747,13 @@ class MatchedPanelTests(unittest.TestCase):
                 "assert_durable_live_execution_paths"
             ) as durable_path_attestation,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as second_codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as second_glean_bootstrap,
-            self.assertRaisesRegex(
-                RuntimeError, "terminal authentication incident"
-            ),
+            self.assertRaisesRegex(RuntimeError, "terminal authentication incident"),
         ):
             matched.authenticate_panel(
                 root=self.root,
@@ -13851,9 +12775,9 @@ class MatchedPanelTests(unittest.TestCase):
         second_codex_bootstrap.assert_not_called()
         second_glean_bootstrap.assert_not_called()
         self.assertEqual(
-            matched._load_private_state(
-                self.private_path, AUTHENTICATION_KEY
-            )["authentication_setup"],
+            matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+                "authentication_setup"
+            ],
             setup,
         )
 
@@ -13880,9 +12804,7 @@ class MatchedPanelTests(unittest.TestCase):
             failing_function="_attest_frozen_glean_auth_dependencies",
             error=ProviderStateIsolationError("dependency drift"),
             expected_message="terminal dependency-contract",
-            expected_code=(
-                "frozen_authentication_dependency_attestation_failed"
-            ),
+            expected_code=("frozen_authentication_dependency_attestation_failed"),
             expected_stage="authentication_dependency_before_provider",
         )
 
@@ -13909,9 +12831,7 @@ class MatchedPanelTests(unittest.TestCase):
 
         def fail_after_spawn(*_args, **kwargs):
             kwargs["invocation_launch_pending"]()
-            raise ProviderStateIsolationError(
-                "redacted pre-start marker failure"
-            )
+            raise ProviderStateIsolationError("redacted pre-start marker failure")
 
         with (
             self._contracts(),
@@ -13920,8 +12840,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=fail_after_spawn,
             ),
             self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
@@ -13935,9 +12854,9 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledge_interactive_authentication=True,
             )
-        setup = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]
+        setup = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]
         self.assertEqual(setup["status"], "terminal_failed")
         marker = setup["codex"]["attempts"][-1]
         self.assertEqual(marker["status"], "terminal_failed")
@@ -13957,8 +12876,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=fail_after_launch_pending,
             ),
             self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
@@ -13972,18 +12890,16 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledge_interactive_authentication=True,
             )
-        setup = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]
+        setup = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]
         self.assertEqual(setup["status"], "terminal_failed")
         marker = setup["codex"]["attempts"][-1]
         self.assertEqual(marker["status"], "terminal_failed")
         self.assertIn("launch_pending_at_utc", marker)
         incident = setup["ceremony"]["attempts"][-1]["incident"]
         self.assertEqual(incident["provider_processes_started"], 0)
-        self.assertEqual(
-            incident["provider_process_starts_ambiguous"], 1
-        )
+        self.assertEqual(incident["provider_process_starts_ambiguous"], 1)
 
     def test_codex_popen_failure_is_terminal_and_records_start_failure(self):
         self._prepare(authenticate=False)
@@ -13991,9 +12907,7 @@ class MatchedPanelTests(unittest.TestCase):
         def fail_to_start(*_args, **kwargs):
             kwargs["invocation_launch_pending"]()
             kwargs["invocation_start_failed"]()
-            raise ProviderProcessIsolationError(
-                "redacted process start failure"
-            )
+            raise ProviderProcessIsolationError("redacted process start failure")
 
         with (
             self._contracts(),
@@ -14002,8 +12916,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=fail_to_start,
             ),
             self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
@@ -14017,9 +12930,9 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledge_interactive_authentication=True,
             )
-        marker = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]["codex"]["attempts"][-1]
+        marker = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]["codex"]["attempts"][-1]
         self.assertEqual(marker["status"], "terminal_failed")
         self.assertIn("start_failed_at_utc", marker)
 
@@ -14034,15 +12947,11 @@ class MatchedPanelTests(unittest.TestCase):
         self._prepare(authenticate=False)
 
         def fail_only_after_provider_return(*_args, **_kwargs):
-            if (
-                self.codex_secure_storage_dir / "auth.json"
-            ).exists():
+            if (self.codex_secure_storage_dir / "auth.json").exists():
                 raise RuntimeError("post-return contract drift")
             return None
 
-        target = (
-            "epiagentbench.development_matched_panel." + failing_function
-        )
+        target = "epiagentbench.development_matched_panel." + failing_function
         with (
             self._contracts(),
             patch(
@@ -14069,9 +12978,7 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_interactive_authentication=True,
             )
         glean_bootstrap.assert_not_called()
-        terminal = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        terminal = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         matched._validate_authentication_setup_state(
             terminal, matched._load_json(self.public_path)
         )
@@ -14087,9 +12994,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(incident["code"], expected_code)
         self.assertEqual(incident["stage"], expected_stage)
         self.assertEqual(incident["provider_processes_started"], 1)
-        self.assertEqual(
-            incident["provider_process_starts_ambiguous"], 0
-        )
+        self.assertEqual(incident["provider_process_starts_ambiguous"], 0)
         self.assertEqual(incident["model_calls_started"], 0)
 
     def test_postreturn_execution_failure_keeps_exact_root_cause(self):
@@ -14110,18 +13015,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "frozen_authentication_dependency_attestation_failed_after_"
                 "provider_return"
             ),
-            expected_stage=(
-                "authentication_dependency_after_provider_return"
-            ),
+            expected_stage=("authentication_dependency_after_provider_return"),
         )
 
     def test_postreturn_credential_failure_keeps_exact_root_cause(self):
         self._assert_postreturn_authentication_failure_is_classified(
             failing_function="_require_codex_credential_state",
             expected_message="terminal credential-integrity",
-            expected_code=(
-                "credential_integrity_failed_after_provider_return"
-            ),
+            expected_code=("credential_integrity_failed_after_provider_return"),
             expected_stage="credential_integrity_after_provider_return",
         )
 
@@ -14132,9 +13033,7 @@ class MatchedPanelTests(unittest.TestCase):
             kwargs["invocation_launch_pending"]()
             kwargs["invocation_started"]()
             kwargs["invocation_returned"](0)
-            raise ProviderStateIsolationError(
-                "redacted post-return promotion failure"
-            )
+            raise ProviderStateIsolationError("redacted post-return promotion failure")
 
         with (
             self._contracts(),
@@ -14143,8 +13042,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=fail_after_return,
             ),
             self.assertRaisesRegex(RuntimeError, "terminal ambiguous"),
@@ -14158,9 +13056,9 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledge_interactive_authentication=True,
             )
-        marker = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]["codex"]["attempts"][-1]
+        marker = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]["codex"]["attempts"][-1]
         self.assertEqual(marker["status"], "terminal_failed")
         self.assertEqual(marker["returncode"], 0)
         self.assertIn("returned_at_utc", marker)
@@ -14184,9 +13082,7 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_interactive_authentication=True,
             )
         self.assertEqual(status["status"], "passed")
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         for name in ("codex", "managed_glean"):
             marker = private["authentication_setup"][name]["attempts"][-1]
             self.assertEqual(marker["status"], "passed")
@@ -14221,7 +13117,7 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             authentication_receipt["panel_id"],
-            "development-matched-50x6-v35",
+            "development-matched-50x6-v48",
         )
         self.assertEqual(authentication_receipt["status"], "passed")
         self.assertIs(authentication_receipt["development_only"], True)
@@ -14248,9 +13144,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertEqual(authentication_receipt["model_calls_started"], 0)
-        self.assertEqual(
-            authentication_receipt["production_episodes_consumed"], 0
-        )
+        self.assertEqual(authentication_receipt["production_episodes_consumed"], 0)
         self.assertIs(authentication_receipt["scores_reported"], False)
         unsigned_receipt = dict(authentication_receipt)
         unsigned_receipt.pop("receipt_sha256")
@@ -14258,9 +13152,7 @@ class MatchedPanelTests(unittest.TestCase):
             authentication_receipt["receipt_sha256"],
             matched._component_hash(unsigned_receipt),
         )
-        dependency = authentication_receipt[
-            "authentication_dependency_identity"
-        ]
+        dependency = authentication_receipt["authentication_dependency_identity"]
         self.assertEqual(
             dependency["identity_sha256"],
             matched._component_hash(AUTHENTICATION_DEPENDENCY_IDENTITY),
@@ -14277,9 +13169,7 @@ class MatchedPanelTests(unittest.TestCase):
             },
         )
         self.assertIs(
-            dependency[
-                "root_owned_single_link_regular_executable_policy_attested"
-            ],
+            dependency["root_owned_single_link_regular_executable_policy_attested"],
             True,
         )
         self.assertIs(dependency["exact_bundle_identity_withheld"], True)
@@ -14292,17 +13182,15 @@ class MatchedPanelTests(unittest.TestCase):
             encoded_dependency,
         )
         self.assertNotIn(
-            AUTHENTICATION_DEPENDENCY_IDENTITY[
-                "glean_llm_gateway_token_wrapper"
-            ]["target_sha256"],
+            AUTHENTICATION_DEPENDENCY_IDENTITY["glean_llm_gateway_token_wrapper"][
+                "target_sha256"
+            ],
             encoded_dependency,
         )
         self.assertNotIn("stdout", encoded_dependency)
         self.assertNotIn("stderr", encoded_dependency)
         self.assertNotIn("credential", encoded_dependency)
-        encoded_receipt = json.dumps(
-            authentication_receipt, sort_keys=True
-        ).lower()
+        encoded_receipt = json.dumps(authentication_receipt, sort_keys=True).lower()
         for forbidden in (
             "/usr/local/",
             "/users/",
@@ -14312,7 +13200,7 @@ class MatchedPanelTests(unittest.TestCase):
             "access_token",
             "refresh_token",
             "oauth_state",
-            "\"provider_output\":",
+            '"provider_output":',
             "episode_ref",
             "episode_id",
             "schedule_nonce",
@@ -14324,20 +13212,16 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=lambda system, **kwargs: self._result(
                     system,
                     kwargs["model"],
@@ -14362,9 +13246,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_tampered_public_dependency_commitment_blocks_preflight(self):
         self._prepare()
-        receipt_path = matched._authentication_receipt_path(
-            self.public_path
-        )
+        receipt_path = matched._authentication_receipt_path(self.public_path)
         baseline = matched._load_json(receipt_path)
         mutations = {
             "identity": lambda dependency: dependency.__setitem__(
@@ -14386,8 +13268,7 @@ class MatchedPanelTests(unittest.TestCase):
                 self.subTest(name=name),
                 self._contracts(),
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "evaluate_local_cli_agent"
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
                 ) as evaluate,
                 self.assertRaisesRegex(
                     ValueError, "Public authentication receipt is invalid"
@@ -14410,9 +13291,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        receipt_path = matched._authentication_receipt_path(
-            self.public_path
-        )
+        receipt_path = matched._authentication_receipt_path(self.public_path)
         baseline = matched._load_json(receipt_path)
 
         with (
@@ -14447,8 +13326,7 @@ class MatchedPanelTests(unittest.TestCase):
             attested,
             {
                 "schema_version": (
-                    "epiagentbench."
-                    "public_authentication_receipt_attestation.v1"
+                    "epiagentbench.public_authentication_receipt_attestation.v1"
                 ),
                 "panel_id": matched.PANEL_ID,
                 "status": "passed",
@@ -14460,9 +13338,7 @@ class MatchedPanelTests(unittest.TestCase):
         attest_credentials.assert_not_called()
 
         mutations = {
-            "status": lambda candidate: candidate.__setitem__(
-                "status", "failed"
-            ),
+            "status": lambda candidate: candidate.__setitem__("status", "failed"),
             "model_call": lambda candidate: candidate.__setitem__(
                 "model_calls_started", 1
             ),
@@ -14479,18 +13355,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "root_owned_single_link_regular_executable_policy_attested",
                 False,
             ),
-            "extra_field": lambda candidate: candidate.__setitem__(
-                "unexpected", True
-            ),
+            "extra_field": lambda candidate: candidate.__setitem__("unexpected", True),
         }
         for name, mutate in mutations.items():
             candidate = copy.deepcopy(baseline)
             mutate(candidate)
             unsigned = dict(candidate)
             unsigned.pop("receipt_sha256")
-            candidate["receipt_sha256"] = matched._component_hash(
-                unsigned
-            )
+            candidate["receipt_sha256"] = matched._component_hash(unsigned)
             matched._atomic_json(receipt_path, candidate)
             with (
                 self.subTest(name=name),
@@ -14517,9 +13389,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_invalid_authentication_cross_states_cannot_publish(self):
         self._prepare()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         public = matched._load_json(self.public_path)
         passed = copy.deepcopy(private["authentication_setup"]["codex"])
         required = {"status": "required", "attempts": []}
@@ -14539,26 +13409,18 @@ class MatchedPanelTests(unittest.TestCase):
             ):
                 candidate = copy.deepcopy(private)
                 candidate["authentication_setup"]["status"] = overall
-                candidate["authentication_setup"]["codex"] = copy.deepcopy(
-                    codex
-                )
-                candidate["authentication_setup"]["managed_glean"] = (
-                    copy.deepcopy(glean)
+                candidate["authentication_setup"]["codex"] = copy.deepcopy(codex)
+                candidate["authentication_setup"]["managed_glean"] = copy.deepcopy(
+                    glean
                 )
                 with self.assertRaises(ValueError):
-                    matched._validate_authentication_setup_state(
-                        candidate, public
-                    )
+                    matched._validate_authentication_setup_state(candidate, public)
 
-        receipt_path = matched._authentication_receipt_path(
-            self.public_path
-        )
+        receipt_path = matched._authentication_receipt_path(self.public_path)
         receipt_path.unlink()
         private["authentication_setup"]["status"] = "pending_publication"
         private["authentication_setup"]["codex"] = copy.deepcopy(required)
-        private["authentication_setup"]["managed_glean"] = copy.deepcopy(
-            required
-        )
+        private["authentication_setup"]["managed_glean"] = copy.deepcopy(required)
         with self.assertRaises(ValueError):
             matched._publish_authentication_receipt(
                 root=self.root,
@@ -14635,9 +13497,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_authentication_provider_pass_requires_durable_return(self):
         public = self._prepare(authenticate=False)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         matched._claim_authentication_ceremony(
             private=private,
             private_state_path=self.private_path,
@@ -14654,19 +13514,13 @@ class MatchedPanelTests(unittest.TestCase):
                 private_state_path=self.private_path,
                 authentication_key=AUTHENTICATION_KEY,
             )
-        unchanged = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        unchanged = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         matched._validate_authentication_setup_state(unchanged, public)
-        self.assertEqual(
-            unchanged["authentication_setup"]["codex"]["attempts"], []
-        )
+        self.assertEqual(unchanged["authentication_setup"]["codex"]["attempts"], [])
 
     def test_authentication_provider_and_ceremony_histories_are_closed(self):
         public = self._prepare(authenticate=False)
-        baseline = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        baseline = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         passed = {
             "status": "passed",
             "launch_pending_at_utc": "test",
@@ -14699,9 +13553,7 @@ class MatchedPanelTests(unittest.TestCase):
                 setup["status"] = "running"
                 setup["ceremony"] = {
                     "status": "running",
-                    "attempts": [
-                        {"status": "running", "claimed_at_utc": "test"}
-                    ],
+                    "attempts": [{"status": "running", "claimed_at_utc": "test"}],
                 }
             else:
                 setup["status"] = "retryable_failed"
@@ -14723,9 +13575,7 @@ class MatchedPanelTests(unittest.TestCase):
                 self.subTest(provider_history=index),
                 self.assertRaisesRegex(ValueError, "provider.*history"),
             ):
-                matched._validate_authentication_setup_state(
-                    candidate, public
-                )
+                matched._validate_authentication_setup_state(candidate, public)
 
         candidate = copy.deepcopy(baseline)
         setup = candidate["authentication_setup"]
@@ -14765,9 +13615,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_authentication_terminal_exposure_accounting_is_exact(self):
         public = self._prepare(authenticate=False)
-        baseline = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        baseline = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         scenarios = {
             "same_provider_two_starts": (
                 [
@@ -14818,9 +13666,7 @@ class MatchedPanelTests(unittest.TestCase):
                         "finished_at_utc": "prior",
                     }
                 )
-            ceremony_attempts.append(
-                {"status": "running", "claimed_at_utc": "current"}
-            )
+            ceremony_attempts.append({"status": "running", "claimed_at_utc": "current"})
             setup["status"] = "running"
             setup["ceremony"] = {
                 "status": "running",
@@ -14837,9 +13683,9 @@ class MatchedPanelTests(unittest.TestCase):
                 incident="interrupted_process_state",
             )
             matched._validate_authentication_setup_state(candidate, public)
-            incident = candidate["authentication_setup"]["ceremony"][
-                "attempts"
-            ][-1]["incident"]
+            incident = candidate["authentication_setup"]["ceremony"]["attempts"][-1][
+                "incident"
+            ]
             self.assertEqual(
                 (
                     incident["provider_processes_started"],
@@ -14856,22 +13702,18 @@ class MatchedPanelTests(unittest.TestCase):
             "provider_process_starts_ambiguous",
         ):
             candidate = copy.deepcopy(launch_pending_terminal)
-            candidate["authentication_setup"]["ceremony"]["attempts"][-1][
-                "incident"
-            ][field] += 1
+            candidate["authentication_setup"]["ceremony"]["attempts"][-1]["incident"][
+                field
+            ] += 1
             with (
                 self.subTest(tampered_field=field),
                 self.assertRaisesRegex(ValueError, "accounting"),
             ):
-                matched._validate_authentication_setup_state(
-                    candidate, public
-                )
+                matched._validate_authentication_setup_state(candidate, public)
 
     def test_interrupted_authentication_is_terminal_and_idempotent(self):
         public = self._prepare(authenticate=False)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         setup = private["authentication_setup"]
         setup["status"] = "running"
         setup["ceremony"] = {
@@ -14893,9 +13735,7 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         with (
             self._contracts(),
@@ -14904,8 +13744,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ) as tty,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             self.assertRaisesRegex(RuntimeError, "ambiguous"),
         ):
@@ -14920,9 +13759,7 @@ class MatchedPanelTests(unittest.TestCase):
             )
         tty.assert_not_called()
         codex_bootstrap.assert_not_called()
-        terminal = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        terminal = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         matched._validate_authentication_setup_state(terminal, public)
         self.assertEqual(
             terminal["authentication_setup"]["status"],
@@ -14940,17 +13777,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "terminal_failed",
             )
             self.assertEqual(
-                terminal["authentication_setup"][provider]["attempts"][-1][
-                    "status"
-                ],
+                terminal["authentication_setup"][provider]["attempts"][-1]["status"],
                 "terminal_failed",
             )
 
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             self.assertRaisesRegex(RuntimeError, "terminal"),
         ):
@@ -14967,9 +13801,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_reconcile_authentication_terminalizes_every_stale_launch_phase(self):
         public = self._prepare(authenticate=False)
-        baseline = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        baseline = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         phases = {
             "ceremony_only": (None, 0, 0),
             "launch_pending": (
@@ -15020,9 +13852,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "status": "running",
                     "attempts": [attempt],
                 }
-            matched._write_private_state(
-                self.private_path, private, AUTHENTICATION_KEY
-            )
+            matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
             with (
                 self.subTest(phase=name),
@@ -15036,19 +13866,14 @@ class MatchedPanelTests(unittest.TestCase):
                     "_bootstrap_managed_glean_credentials"
                 ) as glean_bootstrap,
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "evaluate_local_cli_agent"
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
                 ) as evaluate,
             ):
                 status = matched.reconcile_authentication_ceremony(
                     root=self.root,
                     authentication_key_file=self.key_path,
-                    claude_secure_storage_dir=(
-                        self.claude_secure_storage_dir
-                    ),
-                    codex_secure_storage_dir=(
-                        self.codex_secure_storage_dir
-                    ),
+                    claude_secure_storage_dir=(self.claude_secure_storage_dir),
+                    codex_secure_storage_dir=(self.codex_secure_storage_dir),
                     private_state_path=self.private_path,
                     public_manifest_path=self.public_path,
                 )
@@ -15062,26 +13887,18 @@ class MatchedPanelTests(unittest.TestCase):
                 self.private_path, AUTHENTICATION_KEY
             )
             matched._validate_authentication_setup_state(terminal, public)
-            incident = terminal["authentication_setup"]["ceremony"][
-                "attempts"
-            ][-1]["incident"]
-            self.assertEqual(
-                incident["code"], "interrupted_authentication_ceremony"
-            )
-            self.assertEqual(
-                incident["provider_processes_started"], started
-            )
-            self.assertEqual(
-                incident["provider_process_starts_ambiguous"], ambiguous
-            )
+            incident = terminal["authentication_setup"]["ceremony"]["attempts"][-1][
+                "incident"
+            ]
+            self.assertEqual(incident["code"], "interrupted_authentication_ceremony")
+            self.assertEqual(incident["provider_processes_started"], started)
+            self.assertEqual(incident["provider_process_starts_ambiguous"], ambiguous)
             self.assertEqual(incident["model_calls_started"], 0)
             self.assertFalse(incident["retry_permitted"])
 
     def test_reconcile_authentication_is_terminal_idempotent_and_locked(self):
         self._prepare(authenticate=False)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         setup = private["authentication_setup"]
         setup["status"] = "running"
         setup["ceremony"] = {
@@ -15103,15 +13920,12 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         with (
             matched._exclusive_run_lock(self.private_path),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_read_authentication_key"
+                "epiagentbench.development_matched_panel._read_authentication_key"
             ) as read_key,
             self.assertRaisesRegex(RuntimeError, "already holds the lock"),
         ):
@@ -15138,8 +13952,7 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state"
+                "epiagentbench.development_matched_panel._write_private_state"
             ) as write_private,
         ):
             second = matched.reconcile_authentication_ceremony(
@@ -15158,13 +13971,9 @@ class MatchedPanelTests(unittest.TestCase):
     def test_reconcile_authentication_terminalizes_partial_provider_pass(self):
         public = self._prepare(authenticate=False)
         self._bootstrap_codex_fixture(self.codex_secure_storage_dir)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        private["codex_auth_file_identity"] = (
-            matched._codex_auth_file_identity(
-                self.codex_secure_storage_dir
-            )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        private["codex_auth_file_identity"] = matched._codex_auth_file_identity(
+            self.codex_secure_storage_dir
         )
         setup = private["authentication_setup"]
         setup["status"] = "running"
@@ -15190,15 +13999,12 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
@@ -15217,17 +14023,13 @@ class MatchedPanelTests(unittest.TestCase):
         codex_bootstrap.assert_not_called()
         glean_bootstrap.assert_not_called()
         self.assertEqual(status["status"], "terminal_failed")
-        terminal = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        terminal = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         matched._validate_authentication_setup_state(terminal, public)
-        incident = terminal["authentication_setup"]["ceremony"][
-            "attempts"
-        ][-1]["incident"]
+        incident = terminal["authentication_setup"]["ceremony"]["attempts"][-1][
+            "incident"
+        ]
         self.assertEqual(incident["provider_processes_started"], 1)
-        self.assertEqual(
-            incident["provider_process_starts_ambiguous"], 0
-        )
+        self.assertEqual(incident["provider_process_starts_ambiguous"], 0)
         self.assertEqual(
             terminal["authentication_setup"]["codex"]["status"],
             "terminal_failed",
@@ -15239,9 +14041,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_reconcile_authentication_write_failure_never_invokes_provider(self):
         self._prepare(authenticate=False)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         setup = private["authentication_setup"]
         setup["status"] = "running"
         setup["ceremony"] = {
@@ -15253,29 +14053,24 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         checkpoint = self.private_path.read_bytes()
 
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=OSError("injected durable-write failure"),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             self.assertRaisesRegex(OSError, "durable-write failure"),
         ):
@@ -15301,8 +14096,7 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             self._contracts(),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
@@ -15340,8 +14134,7 @@ class MatchedPanelTests(unittest.TestCase):
                     "_bootstrap_managed_glean_credentials"
                 ) as glean_bootstrap,
                 patch(
-                    "epiagentbench.development_matched_panel."
-                    "evaluate_local_cli_agent"
+                    "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
                 ) as evaluate,
                 self.assertRaisesRegex(
                     RuntimeError,
@@ -15351,12 +14144,8 @@ class MatchedPanelTests(unittest.TestCase):
                 matched.reconcile_authentication_ceremony(
                     root=self.root,
                     authentication_key_file=self.key_path,
-                    claude_secure_storage_dir=(
-                        self.claude_secure_storage_dir
-                    ),
-                    codex_secure_storage_dir=(
-                        self.codex_secure_storage_dir
-                    ),
+                    claude_secure_storage_dir=(self.claude_secure_storage_dir),
+                    codex_secure_storage_dir=(self.codex_secure_storage_dir),
                     private_state_path=self.private_path,
                     public_manifest_path=self.public_path,
                 )
@@ -15365,9 +14154,7 @@ class MatchedPanelTests(unittest.TestCase):
             evaluate.assert_not_called()
             self.assertEqual(self.private_path.read_bytes(), checkpoint)
 
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         setup = private["authentication_setup"]
         setup["status"] = "retryable_failed"
         setup["ceremony"] = {
@@ -15390,14 +14177,10 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         assert_refused_unchanged()
 
-        pending_private, public = (
-            self._stage_authentication_pending_publication()
-        )
+        pending_private, public = self._stage_authentication_pending_publication()
         assert_refused_unchanged()
         matched._publish_authentication_receipt(
             root=self.root,
@@ -15424,8 +14207,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=replace_then_fail,
             ),
             patch(
@@ -15444,22 +14226,18 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_interactive_authentication=True,
             )
         glean_bootstrap.assert_not_called()
-        setup = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]
+        setup = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]
         self.assertEqual(setup["status"], "terminal_failed")
         self.assertEqual(setup["codex"]["status"], "terminal_failed")
 
     def test_partial_pass_credential_drift_reports_and_persists_terminal(self):
         self._prepare(authenticate=False)
         self._bootstrap_codex_fixture(self.codex_secure_storage_dir)
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        private["codex_auth_file_identity"] = (
-            matched._codex_auth_file_identity(
-                self.codex_secure_storage_dir
-            )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        private["codex_auth_file_identity"] = matched._codex_auth_file_identity(
+            self.codex_secure_storage_dir
         )
         private["authentication_setup"]["status"] = "running"
         private["authentication_setup"]["ceremony"] = {
@@ -15484,9 +14262,7 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         credential = self.codex_secure_storage_dir / "auth.json"
         credential.unlink()
         credential.write_text('{"test":"replacement"}', encoding="utf-8")
@@ -15502,15 +14278,9 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
             )
         self.assertEqual(status["status"], "terminal_failed")
-        self.assertEqual(
-            status["providers"]["codex"]["status"], "terminal_failed"
-        )
-        unchanged = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        self.assertEqual(
-            unchanged["authentication_setup"]["status"], "running"
-        )
+        self.assertEqual(status["providers"]["codex"]["status"], "terminal_failed")
+        unchanged = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        self.assertEqual(unchanged["authentication_setup"]["status"], "running")
 
         with (
             self._contracts(),
@@ -15530,16 +14300,12 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_interactive_authentication=True,
             )
         tty.assert_not_called()
-        terminal = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        terminal = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        self.assertEqual(terminal["authentication_setup"]["status"], "terminal_failed")
         self.assertEqual(
-            terminal["authentication_setup"]["status"], "terminal_failed"
-        )
-        self.assertEqual(
-            terminal["authentication_setup"]["ceremony"]["attempts"][-1][
-                "incident"
-            ]["code"],
+            terminal["authentication_setup"]["ceremony"]["attempts"][-1]["incident"][
+                "code"
+            ],
             "interrupted_authentication_ceremony",
         )
         self.assertEqual(
@@ -15560,8 +14326,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials",
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials",
                 side_effect=KeyboardInterrupt,
             ),
             self.assertRaises(KeyboardInterrupt),
@@ -15575,9 +14340,9 @@ class MatchedPanelTests(unittest.TestCase):
                 public_manifest_path=self.public_path,
                 acknowledge_interactive_authentication=True,
             )
-        setup = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]
+        setup = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]
         self.assertEqual(setup["status"], "terminal_failed")
         self.assertEqual(setup["codex"]["status"], "terminal_failed")
         self.assertEqual(setup["managed_glean"]["status"], "required")
@@ -15587,9 +14352,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertEqual(
             ceremony["attempts"][-1]["incident"],
             {
-                "schema_version": (
-                    "epiagentbench.authentication_terminal_incident.v1"
-                ),
+                "schema_version": ("epiagentbench.authentication_terminal_incident.v1"),
                 "stage": "provider_authentication",
                 "code": "provider_authentication_terminal_failure",
                 "provider_processes_started": 0,
@@ -15607,14 +14370,10 @@ class MatchedPanelTests(unittest.TestCase):
         setup = private["authentication_setup"]
         setup["pending_public_receipt"] = expected
         setup["public_receipt_path"] = str(
-            matched._authentication_receipt_path(
-                self.public_path
-            ).resolve()
+            matched._authentication_receipt_path(self.public_path).resolve()
         )
         setup["public_receipt_sha256"] = expected["receipt_sha256"]
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
 
         with (
             self._contracts(),
@@ -15623,8 +14382,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ) as tty,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
         ):
             status = matched.authenticate_panel(
@@ -15640,9 +14398,7 @@ class MatchedPanelTests(unittest.TestCase):
         codex_bootstrap.assert_not_called()
         self.assertEqual(status["status"], "passed")
         self.assertEqual(
-            matched._load_json(
-                matched._authentication_receipt_path(self.public_path)
-            ),
+            matched._load_json(matched._authentication_receipt_path(self.public_path)),
             expected,
         )
 
@@ -15653,14 +14409,10 @@ class MatchedPanelTests(unittest.TestCase):
         setup = private["authentication_setup"]
         setup["pending_public_receipt"] = expected
         setup["public_receipt_path"] = str(
-            matched._authentication_receipt_path(
-                self.public_path
-            ).resolve()
+            matched._authentication_receipt_path(self.public_path).resolve()
         )
         setup["public_receipt_sha256"] = expected["receipt_sha256"]
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         matched._create_public_json_once(
             matched._authentication_receipt_path(self.public_path),
             expected,
@@ -15673,8 +14425,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ) as tty,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
         ):
             status = matched.authenticate_panel(
@@ -15689,12 +14440,8 @@ class MatchedPanelTests(unittest.TestCase):
         tty.assert_not_called()
         codex_bootstrap.assert_not_called()
         self.assertEqual(status["status"], "passed")
-        final = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        self.assertEqual(
-            final["authentication_setup"]["status"], "passed"
-        )
+        final = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        self.assertEqual(final["authentication_setup"]["status"], "passed")
 
     def test_authentication_receipt_publication_never_clobbers(self):
         self._prepare(authenticate=False)
@@ -15740,16 +14487,14 @@ class MatchedPanelTests(unittest.TestCase):
                 side_effect=RuntimeError("foreground operator TTY"),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
             self.assertRaisesRegex(RuntimeError, "operator TTY"),
         ):
@@ -15779,14 +14524,13 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ) as tty,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
-            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v35"),
+            self.assertRaisesRegex(RuntimeError, "manifest-bound exact v48"),
         ):
             matched.authenticate_panel(
                 root=self.root,
@@ -15817,8 +14561,7 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ) as tty,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
                 "epiagentbench.development_matched_panel."
@@ -15841,9 +14584,9 @@ class MatchedPanelTests(unittest.TestCase):
         tty.assert_called_once_with()
         codex_bootstrap.assert_not_called()
         glean_bootstrap.assert_not_called()
-        setup = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )["authentication_setup"]
+        setup = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)[
+            "authentication_setup"
+        ]
         self.assertEqual(setup["status"], "terminal_failed")
         self.assertEqual(setup["ceremony"]["status"], "terminal_failed")
         self.assertEqual(
@@ -15866,15 +14609,11 @@ class MatchedPanelTests(unittest.TestCase):
                 "_require_operator_authentication_tty"
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "PrivateEpisodePack.read",
-                side_effect=AssertionError(
-                    "authentication must not open hidden packs"
-                ),
+                "epiagentbench.development_matched_panel.PrivateEpisodePack.read",
+                side_effect=AssertionError("authentication must not open hidden packs"),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
         ):
             status = matched.authenticate_panel(
@@ -15908,27 +14647,21 @@ class MatchedPanelTests(unittest.TestCase):
         def evaluate_once(system: str, **kwargs):
             if system == "claude":
                 self.keychain_present = True
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "_attest_execution_contracts",
+                "epiagentbench.development_matched_panel._attest_execution_contracts",
                 side_effect=(
                     None,
                     RuntimeError("mid-call drift"),
                 ),
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate_once,
             ) as evaluate,
         ):
@@ -15948,9 +14681,7 @@ class MatchedPanelTests(unittest.TestCase):
             after_receipt["failure_stage"],
             "execution_contract_after_harness",
         )
-        self.assertEqual(
-            after_receipt["failed_model_invocation_state"], "finished"
-        )
+        self.assertEqual(after_receipt["failed_model_invocation_state"], "finished")
         self.assertEqual(
             after_receipt["model_invocations_conservatively_chargeable"], 1
         )
@@ -15963,20 +14694,14 @@ class MatchedPanelTests(unittest.TestCase):
 
         def evaluate(system: str, **kwargs):
             cursor_keys_seen.append(os.environ.get("CURSOR_API_KEY"))
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 50.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 50.0)
 
         with (
             patch.dict(os.environ, {}, clear=True),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
         ):
@@ -16004,7 +14729,7 @@ class MatchedPanelTests(unittest.TestCase):
             self._contracts(),
             patch(
                 "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-                ) as evaluate,
+            ) as evaluate,
         ):
             receipt = run_environment_preflight(
                 root=self.root,
@@ -16017,13 +14742,9 @@ class MatchedPanelTests(unittest.TestCase):
                 acknowledge_unbounded_provider_spend=True,
             )
         self.assertEqual(receipt["status"], "failed")
-        self.assertEqual(
-            receipt["incident_phase"], "authentication_prerequisite"
-        )
+        self.assertEqual(receipt["incident_phase"], "authentication_prerequisite")
         evaluate.assert_not_called()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(private["environment_preflight"]["status"], "failed")
         self.assertTrue(preflight_path.is_file())
         public_terminal = matched._load_json(preflight_path)
@@ -16040,9 +14761,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_cli_unavailable_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderCLIUnavailableError(
-                "must-not-leak CLI path detail"
-            ),
+            error=ProviderCLIUnavailableError("must-not-leak CLI path detail"),
             expected_phase="provider_environment_setup",
             expected_stage="provider_environment_setup",
             expected_incident_code="provider_cli_unavailable",
@@ -16060,9 +14779,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_workspace_setup_failure_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderWorkspaceSetupError(
-                "must-not-leak workspace path"
-            ),
+            error=ProviderWorkspaceSetupError("must-not-leak workspace path"),
             expected_phase="provider_environment_setup",
             expected_stage="provider_environment_setup",
             expected_incident_code="provider_workspace_setup_failed",
@@ -16070,9 +14787,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_cli_version_nonzero_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderCLIVersionNonzeroError(
-                "must-not-leak version stderr"
-            ),
+            error=ProviderCLIVersionNonzeroError("must-not-leak version stderr"),
             expected_phase="provider_cli_readiness",
             expected_stage="provider_cli_readiness",
             expected_incident_code="provider_cli_version_nonzero",
@@ -16090,9 +14805,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_readiness_spawn_failure_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderSpawnIsolationError(
-                "must-not-leak readiness spawn detail"
-            ),
+            error=ProviderSpawnIsolationError("must-not-leak readiness spawn detail"),
             expected_phase="provider_cli_readiness",
             expected_stage="provider_cli_readiness",
             expected_incident_code="provider_spawn_failed",
@@ -16100,9 +14813,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_cli_version_empty_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderCLIVersionEmptyError(
-                "must-not-leak empty-version context"
-            ),
+            error=ProviderCLIVersionEmptyError("must-not-leak empty-version context"),
             expected_phase="provider_cli_readiness",
             expected_stage="provider_cli_readiness",
             expected_incident_code="provider_cli_version_empty",
@@ -16110,9 +14821,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_mcp_readiness_failure_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderMCPReadinessError(
-                "must-not-leak MCP readiness output"
-            ),
+            error=ProviderMCPReadinessError("must-not-leak MCP readiness output"),
             expected_phase="provider_cli_readiness",
             expected_stage="provider_cli_readiness",
             expected_incident_code="provider_mcp_readiness_failed",
@@ -16120,9 +14829,7 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_preflight_episode_startup_failure_is_zero_chargeable(self):
         self._assert_preflight_pre_model_failure(
-            error=ProviderEpisodeStartupError(
-                "must-not-leak episode startup detail"
-            ),
+            error=ProviderEpisodeStartupError("must-not-leak episode startup detail"),
             expected_phase="episode_startup",
             expected_stage="episode_startup",
             expected_incident_code="provider_episode_start_failed",
@@ -16133,29 +14840,17 @@ class MatchedPanelTests(unittest.TestCase):
         preflight_path = self.root / "results" / "preflight-readiness.json"
 
         def readiness_timeout(_system: str, **kwargs):
-            self.assertTrue(
-                callable(kwargs["model_invocation_start_callback"])
-            )
-            kwargs["pre_model_phase_callback"](
-                "provider_environment_setup"
-            )
-            kwargs["pre_model_phase_callback"](
-                "provider_cli_readiness"
-            )
-            raise ProviderCLIReadinessTimeoutError(
-                "offline readiness timeout"
-            )
+            self.assertTrue(callable(kwargs["model_invocation_start_callback"]))
+            kwargs["pre_model_phase_callback"]("provider_environment_setup")
+            kwargs["pre_model_phase_callback"]("provider_cli_readiness")
+            raise ProviderCLIReadinessTimeoutError("offline readiness timeout")
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=readiness_timeout,
             ) as invoked,
         ):
@@ -16172,29 +14867,17 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(receipt["status"], "failed")
-        self.assertEqual(
-            receipt["failure_reason"], "provider_cli_readiness_timeout"
-        )
-        self.assertEqual(
-            receipt["failure_stage"], "provider_cli_readiness"
-        )
-        self.assertEqual(
-            receipt["incident_code"], "provider_cli_readiness_timeout"
-        )
+        self.assertEqual(receipt["failure_reason"], "provider_cli_readiness_timeout")
+        self.assertEqual(receipt["failure_stage"], "provider_cli_readiness")
+        self.assertEqual(receipt["incident_code"], "provider_cli_readiness_timeout")
         self.assertTrue(receipt["timed_out"])
-        self.assertEqual(
-            receipt["timeout_stages"], ["provider_cli_readiness"]
-        )
-        self.assertEqual(
-            receipt["failed_model_invocation_state"], "not_started"
-        )
+        self.assertEqual(receipt["timeout_stages"], ["provider_cli_readiness"])
+        self.assertEqual(receipt["failed_model_invocation_state"], "not_started")
         self.assertEqual(
             receipt["failed_pre_model_phase"],
             "provider_cli_readiness",
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 0
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 0)
         self.assertEqual(
             [item["outcome"] for item in receipt["profiles"]],
             ["failed_provider_cli_readiness_timeout"]
@@ -16202,20 +14885,14 @@ class MatchedPanelTests(unittest.TestCase):
         )
         first = receipt["profiles"][0]
         self.assertEqual(first["model_invocation_state"], "not_started")
-        self.assertEqual(
-            first["pre_model_phase"], "provider_cli_readiness"
-        )
+        self.assertEqual(first["pre_model_phase"], "provider_cli_readiness")
         self.assertEqual(
             first["failed_pre_model_phase"],
             "provider_cli_readiness",
         )
         self.assertFalse(first["conservative_chargeable"])
-        self.assertEqual(
-            first["timeout_stage"], "provider_cli_readiness"
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(first["timeout_stage"], "provider_cli_readiness")
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         durable_first = private["environment_preflight"]["attempts"][0]
         self.assertNotIn("model_invocation", durable_first)
         self.assertEqual(
@@ -16229,13 +14906,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate_again,
             self.assertRaisesRegex(RuntimeError, "one-shot required state"),
         ):
@@ -16261,15 +14934,9 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal failed_once
             preflight = value.get("environment_preflight")
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
-            current = (
-                attempts[-1]
-                if isinstance(attempts, list) and attempts
-                else None
-            )
+            current = attempts[-1] if isinstance(attempts, list) and attempts else None
             if (
                 not failed_once
                 and isinstance(current, dict)
@@ -16282,26 +14949,19 @@ class MatchedPanelTests(unittest.TestCase):
             return original_write(path, value, key)
 
         def evaluate(_system: str, **kwargs):
-            kwargs["pre_model_phase_callback"](
-                "provider_environment_setup"
-            )
+            kwargs["pre_model_phase_callback"]("provider_environment_setup")
             self.fail("model work must not follow phase persistence failure")
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_first_phase,
             ),
         ):
@@ -16318,29 +14978,19 @@ class MatchedPanelTests(unittest.TestCase):
 
         self.assertTrue(failed_once)
         self.assertEqual(invoked.call_count, 1)
-        self.assertEqual(
-            receipt["failure_stage"], "pre_model_phase_checkpoint"
-        )
+        self.assertEqual(receipt["failure_stage"], "pre_model_phase_checkpoint")
         self.assertEqual(
             receipt["incident_code"],
             "provider_pre_model_phase_checkpoint_persist_failed",
         )
-        self.assertEqual(
-            receipt["failed_model_invocation_state"], "not_started"
-        )
+        self.assertEqual(receipt["failed_model_invocation_state"], "not_started")
         self.assertEqual(
             receipt["failed_pre_model_phase"],
             "provider_environment_setup",
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 0
-        )
-        self.assertNotIn(
-            "must-not-leak", json.dumps(receipt, sort_keys=True)
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 0)
+        self.assertNotIn("must-not-leak", json.dumps(receipt, sort_keys=True))
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         durable = private["environment_preflight"]["attempts"][0]
         self.assertNotIn("model_invocation", durable)
         self.assertNotIn("pre_model_phase_checkpoints", durable)
@@ -16355,19 +15005,11 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal failed_once
             preflight = value.get("environment_preflight")
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
-            current = (
-                attempts[-1]
-                if isinstance(attempts, list) and attempts
-                else None
-            )
+            current = attempts[-1] if isinstance(attempts, list) and attempts else None
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -16387,18 +15029,13 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_model_start,
             ),
         ):
@@ -16420,23 +15057,15 @@ class MatchedPanelTests(unittest.TestCase):
             receipt["incident_code"],
             "model_invocation_marker_persist_failed",
         )
-        self.assertEqual(
-            receipt["failed_model_invocation_state"], "not_started"
-        )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 0
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(receipt["failed_model_invocation_state"], "not_started")
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 0)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         durable_first = private["environment_preflight"]["attempts"][0]
         self.assertNotIn("model_invocation", durable_first)
 
     def test_preflight_model_start_postcommit_failure_is_chargeable(self):
         self._prepare()
-        preflight_path = (
-            self.root / "results" / "preflight-model-start-postcommit.json"
-        )
+        preflight_path = self.root / "results" / "preflight-model-start-postcommit.json"
         original_write = matched._write_private_state
         failed_once = False
 
@@ -16444,19 +15073,11 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal failed_once
             preflight = value.get("environment_preflight")
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
-            current = (
-                attempts[-1]
-                if isinstance(attempts, list) and attempts
-                else None
-            )
+            current = attempts[-1] if isinstance(attempts, list) and attempts else None
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -16477,18 +15098,13 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=persist_then_fail,
             ),
         ):
@@ -16514,15 +15130,9 @@ class MatchedPanelTests(unittest.TestCase):
             receipt["failed_model_invocation_state"],
             "started_not_finished",
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
-        )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 1)
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 1)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         durable_first = private["environment_preflight"]["attempts"][0]
         self.assertEqual(
             matched._durable_model_invocation_state(durable_first),
@@ -16540,13 +15150,9 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=spawn_failure,
             ) as invoked,
         ):
@@ -16562,24 +15168,18 @@ class MatchedPanelTests(unittest.TestCase):
             )
 
         self.assertEqual(invoked.call_count, 1)
-        self.assertEqual(
-            receipt["failure_stage"], "model_spawn_boundary"
-        )
+        self.assertEqual(receipt["failure_stage"], "model_spawn_boundary")
         self.assertEqual(receipt["incident_code"], "provider_spawn_failed")
         self.assertEqual(
             receipt["failed_model_invocation_state"],
             "started_not_finished",
         )
-        self.assertEqual(
-            receipt["failed_pre_model_phase"], "model_spawn_boundary"
-        )
+        self.assertEqual(receipt["failed_pre_model_phase"], "model_spawn_boundary")
         self.assertEqual(
             receipt["profiles"][0]["pre_model_phase"],
             "model_spawn_boundary",
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 1)
 
     def test_failed_disposable_preflight_is_one_shot(self):
         self._prepare()
@@ -16614,9 +15214,7 @@ class MatchedPanelTests(unittest.TestCase):
             "not_started",
         )
         self.assertIsNone(receipt["failed_pre_model_phase"])
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 0
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
@@ -16643,9 +15241,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        preflight_path = (
-            self.root / "results" / "preflight-completion-write.json"
-        )
+        preflight_path = self.root / "results" / "preflight-completion-write.json"
         original_write = matched._write_private_state
         failed_once = False
 
@@ -16653,15 +15249,11 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal failed_once
             preflight = value.get("environment_preflight")
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
             current = attempts[-1] if isinstance(attempts, list) and attempts else None
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -16676,19 +15268,14 @@ class MatchedPanelTests(unittest.TestCase):
         def evaluate(system: str, **kwargs):
             if system == "claude":
                 self.keychain_present = True
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 0.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 0.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
@@ -16697,8 +15284,7 @@ class MatchedPanelTests(unittest.TestCase):
                 return_value={"file_sha256": "sha256:" + "7" * 64},
             ),
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_finished_marker,
             ),
         ):
@@ -16716,9 +15302,7 @@ class MatchedPanelTests(unittest.TestCase):
         self.assertTrue(failed_once)
         self.assertEqual(invoked.call_count, 1)
         self.assertEqual(receipt["status"], "failed")
-        self.assertEqual(
-            receipt["failure_stage"], "provider_completion_marker"
-        )
+        self.assertEqual(receipt["failure_stage"], "provider_completion_marker")
         self.assertEqual(
             receipt["incident_code"],
             "provider_completion_marker_persist_failed",
@@ -16727,12 +15311,8 @@ class MatchedPanelTests(unittest.TestCase):
             receipt["failed_model_invocation_state"],
             "started_not_finished",
         )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 1)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         preflight = private["environment_preflight"]
         self.assertEqual(preflight["terminal_public_receipt"], receipt)
         self.assertEqual(
@@ -16744,9 +15324,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        preflight_path = (
-            self.root / "results" / "preflight-result-checkpoint.json"
-        )
+        preflight_path = self.root / "results" / "preflight-result-checkpoint.json"
         original_write = matched._write_private_state
         failed_once = False
 
@@ -16754,19 +15332,11 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal failed_once
             preflight = value.get("environment_preflight")
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
-            current = (
-                attempts[-1]
-                if isinstance(attempts, list) and attempts
-                else None
-            )
+            current = attempts[-1] if isinstance(attempts, list) and attempts else None
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -16775,32 +15345,24 @@ class MatchedPanelTests(unittest.TestCase):
                 and current.get("status") in {"passed", "failed"}
             ):
                 failed_once = True
-                raise OSError(
-                    "offline injected result checkpoint failure"
-                )
+                raise OSError("offline injected result checkpoint failure")
             return original_write(path, value, key)
 
         def evaluate(system: str, **kwargs):
             if system == "claude":
                 self.keychain_present = True
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 0.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 0.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_result_checkpoint,
             ),
         ):
@@ -16832,18 +15394,11 @@ class MatchedPanelTests(unittest.TestCase):
         )
         self.assertEqual(
             [item["outcome"] for item in receipt["profiles"]],
-            ["terminal_abort"]
-            + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
+            ["terminal_abort"] + ["not_started_terminal_abort"] * (len(PROFILES) - 1),
         )
-        self.assertEqual(
-            receipt["failed_model_invocation_state"], "finished"
-        )
-        self.assertEqual(
-            receipt["model_invocations_conservatively_chargeable"], 1
-        )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        self.assertEqual(receipt["failed_model_invocation_state"], "finished")
+        self.assertEqual(receipt["model_invocations_conservatively_chargeable"], 1)
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         first = private["environment_preflight"]["attempts"][0]
         self.assertEqual(first["status"], "terminal_abort")
         self.assertEqual(
@@ -16855,9 +15410,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        preflight_path = (
-            self.root / "results" / "preflight-progress-checkpoint.json"
-        )
+        preflight_path = self.root / "results" / "preflight-progress-checkpoint.json"
         original_write = matched._write_private_state
         failed_once = False
 
@@ -16865,15 +15418,9 @@ class MatchedPanelTests(unittest.TestCase):
             nonlocal failed_once
             preflight = value.get("environment_preflight")
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
-            current = (
-                attempts[-1]
-                if isinstance(attempts, list) and attempts
-                else None
-            )
+            current = attempts[-1] if isinstance(attempts, list) and attempts else None
             if (
                 not failed_once
                 and isinstance(current, dict)
@@ -16881,17 +15428,13 @@ class MatchedPanelTests(unittest.TestCase):
                 and "progress_telemetry" in current
             ):
                 failed_once = True
-                raise OSError(
-                    "offline injected progress checkpoint failure"
-                )
+                raise OSError("offline injected progress checkpoint failure")
             return original_write(path, value, key)
 
         def evaluate(_system: str, **kwargs):
             kwargs["progress_callback"](
                 {
-                    "schema_version": (
-                        "epiagentbench.provider_progress.v1"
-                    ),
+                    "schema_version": ("epiagentbench.provider_progress.v1"),
                     "observed_elapsed_bucket": "lt_30s",
                     "output_seen": False,
                     "first_output_elapsed_bucket": "none",
@@ -16904,17 +15447,13 @@ class MatchedPanelTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_progress_checkpoint,
             ),
         ):
@@ -16944,9 +15483,7 @@ class MatchedPanelTests(unittest.TestCase):
         self,
     ):
         self._prepare()
-        preflight_path = (
-            self.root / "results" / "preflight-quarantine-checkpoint.json"
-        )
+        preflight_path = self.root / "results" / "preflight-quarantine-checkpoint.json"
         original_write = matched._write_private_state
         failed_once = False
 
@@ -16959,19 +15496,11 @@ class MatchedPanelTests(unittest.TestCase):
                 else None
             )
             attempts = (
-                preflight.get("attempts")
-                if isinstance(preflight, dict)
-                else None
+                preflight.get("attempts") if isinstance(preflight, dict) else None
             )
-            current = (
-                attempts[-1]
-                if isinstance(attempts, list) and attempts
-                else None
-            )
+            current = attempts[-1] if isinstance(attempts, list) and attempts else None
             invocation = (
-                current.get("model_invocation")
-                if isinstance(current, dict)
-                else None
+                current.get("model_invocation") if isinstance(current, dict) else None
             )
             if (
                 not failed_once
@@ -16983,9 +15512,7 @@ class MatchedPanelTests(unittest.TestCase):
                 and current.get("status") == "started"
             ):
                 failed_once = True
-                raise OSError(
-                    "offline injected quarantine checkpoint failure"
-                )
+                raise OSError("offline injected quarantine checkpoint failure")
             return original_write(path, value, key)
 
         def evaluate(system: str, **kwargs):
@@ -16997,24 +15524,18 @@ class MatchedPanelTests(unittest.TestCase):
                     kwargs["model"],
                     kwargs["executable"],
                 )
-            return self._result(
-                system, kwargs["model"], kwargs["executable"], 0.0
-            )
+            return self._result(system, kwargs["model"], kwargs["executable"], 0.0)
 
         with (
             patch.dict(os.environ, {"CURSOR_API_KEY": "test-only"}),
             self._contracts(),
+            patch("epiagentbench.development_matched_panel._preflight_execution"),
             patch(
-                "epiagentbench.development_matched_panel._preflight_execution"
-            ),
-            patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent",
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent",
                 side_effect=evaluate,
             ) as invoked,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_write_private_state",
+                "epiagentbench.development_matched_panel._write_private_state",
                 side_effect=fail_quarantine_checkpoint,
             ),
         ):
@@ -17055,25 +15576,17 @@ class MatchedPanelTests(unittest.TestCase):
                 for item in receipt["profiles"][3:]
             )
         )
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         self.assertEqual(
-            private["environment_preflight"][
-                "codex_auth_quarantine"
-            ]["status"],
+            private["environment_preflight"]["codex_auth_quarantine"]["status"],
             "quarantined",
         )
 
     def test_running_preflight_with_started_model_invocation_is_one_shot(self):
         self._prepare()
         preflight_path = self.root / "results" / "preflight-running.json"
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
-        required_hashes = private["environment_preflight"][
-            "required_contract_hashes"
-        ]
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
+        required_hashes = private["environment_preflight"]["required_contract_hashes"]
         private["environment_preflight"] = {
             "status": "running",
             "started_at_utc": "test-preflight-start",
@@ -17092,9 +15605,7 @@ class MatchedPanelTests(unittest.TestCase):
                 }
             ],
         }
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
         checkpoint = self.private_path.read_bytes()
 
         with (
@@ -17108,18 +15619,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "_bootstrap_managed_glean_credentials"
             ) as glean_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "_bootstrap_codex_credentials"
+                "epiagentbench.development_matched_panel._bootstrap_codex_credentials"
             ) as codex_bootstrap,
             patch(
-                "epiagentbench.development_matched_panel."
-                "evaluate_local_cli_agent"
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
             ) as evaluate,
         ):
             for _attempt in range(2):
-                with self.assertRaisesRegex(
-                    RuntimeError, "one-shot required state"
-                ):
+                with self.assertRaisesRegex(RuntimeError, "one-shot required state"):
                     run_environment_preflight(
                         root=self.root,
                         authentication_key_file=self.key_path,
@@ -17139,8 +15646,9 @@ class MatchedPanelTests(unittest.TestCase):
 
     def test_exclusive_runner_lock_rejects_concurrent_invocation(self):
         copied_state_path = self.root / "run_artifacts" / "copied-private.json"
-        with matched._exclusive_run_lock(self.private_path), self.assertRaisesRegex(
-            RuntimeError, "already holds the lock"
+        with (
+            matched._exclusive_run_lock(self.private_path),
+            self.assertRaisesRegex(RuntimeError, "already holds the lock"),
         ):
             run_panel(
                 root=self.root,
@@ -17169,9 +15677,7 @@ class MatchedPanelTests(unittest.TestCase):
     def test_partial_state_cannot_claim_completion(self):
         self._prepare()
         self._persist_passed_provider_free_preclaim()
-        private = matched._load_private_state(
-            self.private_path, AUTHENTICATION_KEY
-        )
+        private = matched._load_private_state(self.private_path, AUTHENTICATION_KEY)
         private["status"] = "complete"
         private["assignments"] = [
             {
@@ -17183,12 +15689,14 @@ class MatchedPanelTests(unittest.TestCase):
                 "void_reason": "provider_adapter_execution_failed",
             }
         ]
-        matched._write_private_state(
-            self.private_path, private, AUTHENTICATION_KEY
-        )
-        with self._contracts(), patch(
-            "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
-        ) as evaluate, self.assertRaisesRegex(ValueError, "not fully terminal"):
+        matched._write_private_state(self.private_path, private, AUTHENTICATION_KEY)
+        with (
+            self._contracts(),
+            patch(
+                "epiagentbench.development_matched_panel.evaluate_local_cli_agent"
+            ) as evaluate,
+            self.assertRaisesRegex(ValueError, "not fully terminal"),
+        ):
             run_panel(
                 root=self.root,
                 authentication_key_file=self.key_path,
@@ -17216,13 +15724,11 @@ class MatchedPanelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "schedule"):
             matched.verify_revealed_commitments(public, payload)
 
-    def test_v35_real_contract_boundary_seals_pack_failure_before_provider(
+    def test_v48_real_contract_boundary_seals_pack_failure_before_provider(
         self,
     ) -> None:
         self._prepare()
-        preflight_path = (
-            self.root / "results" / f"{matched.PANEL_ID}.preflight.json"
-        )
+        preflight_path = self.root / "results" / f"{matched.PANEL_ID}.preflight.json"
         private_canary = "/hidden/cohort/private-episode-pack.json"
 
         with (
@@ -17323,7 +15829,7 @@ class ProviderFreePublicationTests(unittest.TestCase):
         self.source = self.root / "source.json"
         self.destination = self.root / "destination.json"
         self.payload = {
-            "panel_id": "development-matched-50x6-v35",
+            "panel_id": "development-matched-50x6-v48",
             "status": "provider_free",
         }
         self.source.write_text(
@@ -17336,11 +15842,10 @@ class ProviderFreePublicationTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_provider_free_publication_is_exact_create_once(self) -> None:
-        with patch.object(
-            matched, "evaluate_local_cli_agent"
-        ) as evaluate, patch.object(
-            matched, "authenticate_panel"
-        ) as authenticate:
+        with (
+            patch.object(matched, "evaluate_local_cli_agent") as evaluate,
+            patch.object(matched, "authenticate_panel") as authenticate,
+        ):
             result = matched.publish_provider_free_public_json_once(
                 source_path=self.source,
                 destination_path=self.destination,
@@ -17349,9 +15854,7 @@ class ProviderFreePublicationTests(unittest.TestCase):
         self.assertEqual(result["provider_processes_started"], 0)
         self.assertEqual(result["authentication_processes_started"], 0)
         self.assertEqual(result["model_calls_started"], 0)
-        self.assertEqual(
-            self.destination.read_bytes(), self.source.read_bytes()
-        )
+        self.assertEqual(self.destination.read_bytes(), self.source.read_bytes())
         evaluate.assert_not_called()
         authenticate.assert_not_called()
 
@@ -17360,9 +15863,7 @@ class ProviderFreePublicationTests(unittest.TestCase):
                 source_path=self.source,
                 destination_path=self.destination,
             )
-        self.assertEqual(
-            self.destination.read_bytes(), self.source.read_bytes()
-        )
+        self.assertEqual(self.destination.read_bytes(), self.source.read_bytes())
 
     def test_provider_free_publication_preserves_conflict_and_symlink(
         self,
