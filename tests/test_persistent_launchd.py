@@ -470,6 +470,7 @@ class PersistentLaunchAgentTests(unittest.TestCase):
         )
         self.assertEqual(plist["StandardOutPath"], "/dev/null")
         self.assertEqual(plist["StandardErrorPath"], "/dev/null")
+        self.assertEqual(plist["ProcessType"], "Standard")
         self.assertIs(plist["RunAtLoad"], False)
         self.assertIs(plist["KeepAlive"], False)
         self.assertNotIn("EnvironmentVariables", plist)

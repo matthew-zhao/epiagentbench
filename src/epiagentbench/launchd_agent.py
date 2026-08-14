@@ -1808,7 +1808,7 @@ def _plist_payload(config: Mapping[str, Any]) -> dict[str, Any]:
         "ProgramArguments": _worker_program_arguments(config),
         "RunAtLoad": False,
         "KeepAlive": False,
-        "ProcessType": "Background",
+        "ProcessType": "Standard",
         "StandardOutPath": "/dev/null",
         "StandardErrorPath": "/dev/null",
         "Umask": 0o077,
